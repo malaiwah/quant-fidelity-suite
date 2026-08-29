@@ -664,6 +664,7 @@ class ExpertStreamer:
         progress: bool = True,
         dione_shards: Any = None,
         native_source: Optional[NativeCheckpointSource] = None,
+        decoded_source: Any = None,
     ):
         import torch
 
@@ -676,6 +677,15 @@ class ExpertStreamer:
         # the slab is filled by reading the released per-expert tensors, with no
         # codec in the path at all (the measurement floor of this lane).
         self.native_source = native_source
+        # when set, a surface adapter that returns FULLY-DECODED fp32 CPU
+        # tensors per (layer, expert, projection) plus a census row - the
+        # NVFP4 source is one.  Mechanically it rides the native lane's
+        # submit/consume path (thread-pool read, device move); the fp32->bf16
+        # rounding downstream is then the lane's single rounding rather than
+        # the identity it is for native bf16 bytes.
+        self.decoded_source = decoded_source
+        if native_source is not None and decoded_source is not None:
+            raise _fail("native_source and decoded_source are mutually exclusive")
         if 288 % slab_experts:
             raise _fail("--slab-experts must divide 288")
         self.surface = surface
@@ -866,17 +876,18 @@ class ExpertStreamer:
 
         jobs: "queue.Queue[Any]" = queue.Queue(maxsize=max(2, self.decode_threads * 2))
         error: List[BaseException] = []
-        # ONE loop serves both surfaces.  The packed lane submits
+        # ONE loop serves all three surfaces.  The packed lane submits
         # load_payload_cpu (IO + the three sealed hash gates) and the consumer
-        # runs decode_from_payload; the native lane submits a checkpoint read and
-        # the consumer only moves the released bf16 tensor to the device.  Every
+        # runs decode_from_payload; the native lane submits a checkpoint read,
+        # a decoded_source (NVFP4) submits its own read+decode, and for both
+        # the consumer only moves the returned CPU tensor to the device.  Every
         # line after that -- fuse_gate_up, the single bf16 rounding, copy_ into
         # the slab, the torch.equal close check, the host cache -- is shared.
-        native = self.native_source
+        cpu_source = self.native_source if self.native_source is not None else self.decoded_source
 
         def submit(pool, expert: int, projection: str):
-            if native is not None:
-                return pool.submit(native.load, layer=layer, expert=expert, projection=projection)
+            if cpu_source is not None:
+                return pool.submit(cpu_source.load, layer=layer, expert=expert, projection=projection)
             return pool.submit(load_payload_cpu, self.surface, layer=layer,
                                expert=expert, projection=projection)
 
@@ -918,10 +929,12 @@ class ExpertStreamer:
                 for (payload_cpu, choice), projection in zip(
                     payloads, ("gate_proj", "up_proj", "down_proj")
                 ):
-                    if native is not None:
-                        # payload_cpu is the RELEASED bf16 tensor; `choice` is its
-                        # census row.  No codec, no hash gate: the shard bytes are
-                        # what the sealed inventory's index_sha256 binds.
+                    if cpu_source is not None:
+                        # payload_cpu is the RELEASED bf16 tensor (native) or
+                        # the exact-fp32 decoded tensor (decoded_source);
+                        # `choice` is its census row.  The adapter did any
+                        # codec work on the pool thread; here is only the
+                        # device move.
                         decoded.append(payload_cpu.to(self.device))
                         continue
                     tensor, _ = decode_from_payload(
@@ -946,18 +959,24 @@ class ExpertStreamer:
                     cpu_down[expert].copy_(down_bf16.to("cpu"))
                 self.decoded_matrices += 3
                 choices = [row[1] for row in payloads]
-                if native is not None:
+                if cpu_source is not None:
                     self.payload_bytes += sum(int(row["bytes"]) for row in choices)
                     if record_census:
-                        self.census.append(
-                            {
-                                "layer": layer,
-                                "global_expert": expert,
-                                "local_expert": offset,
-                                "tensors": [row["tensor"] for row in choices],
-                                "shards": [row["shard"] for row in choices],
-                            }
-                        )
+                        entry = {
+                            "layer": layer,
+                            "global_expert": expert,
+                            "local_expert": offset,
+                            "tensors": [row["tensor"] for row in choices],
+                            "shards": [row["shard"] for row in choices],
+                        }
+                        if any("format" in row for row in choices):
+                            entry["formats"] = [row.get("format") for row in choices]
+                        if any("components" in row for row in choices):
+                            # per-matrix component provenance (e.g. NVFP4's
+                            # packed/scale/global sha256s) - receipt-grade,
+                            # folded into installed_choice_census_sha256
+                            entry["components"] = [row.get("components") for row in choices]
+                        self.census.append(entry)
                 else:
                     self.payload_bytes += sum(int(row["logical_payload_bytes"]) for row in choices)
                     if record_census:
@@ -1085,14 +1104,25 @@ def install_streaming_experts(model, *, streamer: ExpertStreamer, layers: Tuple[
 EXPERT_CHECKPOINT_KEY = re.compile(r"\.mlp\.experts\.\d+\.")
 
 
-def prepare_nonrouted_view(bf16_root: Path, work_dir: Path) -> Tuple[Path, Dict[str, Any]]:
-    """Build (or reuse) a symlink view of the BF16 tree without routed experts."""
+def prepare_nonrouted_view(bf16_root: Path, work_dir: Path, *,
+                           view_name: str = "bf16-nonrouted-view",
+                           config_strip_keys: Tuple[str, ...] = ()) -> Tuple[Path, Dict[str, Any]]:
+    """Build (or reuse) a symlink view of the model tree without routed experts.
+
+    ``config_strip_keys`` removes top-level config.json keys from the VIEW's
+    copy only (the source file is never touched): a quantized snapshot's
+    ``quantization_config`` would otherwise make ``from_pretrained`` engage a
+    quantized-loading integration instead of the sealed plain-BF16 build.
+    The default arguments reproduce the original behaviour byte-for-byte.
+    """
 
     index_path = bf16_root / "model.safetensors.index.json"
     if not index_path.is_file():
         # single-file checkpoint (the 0.1B parity fixture): rewrite it without the
         # routed experts instead of symlinking shards.  Same contract, small file.
-        return _prepare_nonrouted_view_single_file(bf16_root, work_dir)
+        return _prepare_nonrouted_view_single_file(
+            bf16_root, work_dir, view_name=view_name, config_strip_keys=config_strip_keys
+        )
     index = json.loads(index_path.read_text(encoding="utf-8"))
     weight_map: Dict[str, str] = index["weight_map"]
     keep = {name: shard for name, shard in weight_map.items()
@@ -1101,7 +1131,7 @@ def prepare_nonrouted_view(bf16_root: Path, work_dir: Path) -> Tuple[Path, Dict[
     if not keep or dropped <= 0:
         raise _fail("the BF16 index carries no routed expert tensors to filter - wrong checkpoint?")
     shards = sorted(set(keep.values()))
-    view = work_dir / "bf16-nonrouted-view"
+    view = work_dir / view_name
     view.mkdir(parents=True, exist_ok=True)
     for entry in bf16_root.iterdir():
         if entry.name == "model.safetensors.index.json" or entry.is_dir():
@@ -1109,7 +1139,7 @@ def prepare_nonrouted_view(bf16_root: Path, work_dir: Path) -> Tuple[Path, Dict[
         if entry.suffix in (".json", ".jinja", ".txt", ".model"):
             target = view / entry.name
             if not target.exists():
-                target.write_bytes(entry.read_bytes())
+                target.write_bytes(_view_file_bytes(entry, config_strip_keys))
     for shard in shards:
         link = view / shard
         if not link.exists():
@@ -1124,18 +1154,32 @@ def prepare_nonrouted_view(bf16_root: Path, work_dir: Path) -> Tuple[Path, Dict[
         "routed_tensor_count_filtered": dropped,
         "shards_referenced": len(shards),
         "shards_total": len(set(weight_map.values())),
+        "config_keys_stripped_in_view": sorted(config_strip_keys),
         "view_path": str(view),
     }
 
 
-def _prepare_nonrouted_view_single_file(bf16_root: Path, work_dir: Path) -> Tuple[Path, Dict[str, Any]]:
+def _view_file_bytes(entry: Path, config_strip_keys: Tuple[str, ...]) -> bytes:
+    """The bytes the non-routed view stores for one metadata file."""
+
+    if config_strip_keys and entry.name == "config.json":
+        config = json.loads(entry.read_text(encoding="utf-8"))
+        for key in config_strip_keys:
+            config.pop(key, None)
+        return (json.dumps(config, indent=2, sort_keys=True) + "\n").encode("utf-8")
+    return entry.read_bytes()
+
+
+def _prepare_nonrouted_view_single_file(bf16_root: Path, work_dir: Path, *,
+                                        view_name: str = "bf16-nonrouted-view",
+                                        config_strip_keys: Tuple[str, ...] = ()) -> Tuple[Path, Dict[str, Any]]:
     from safetensors import safe_open
     from safetensors.torch import save_file
 
     source = bf16_root / "model.safetensors"
     if not source.is_file():
         raise _fail(f"{bf16_root} has neither model.safetensors.index.json nor model.safetensors")
-    view = work_dir / "bf16-nonrouted-view"
+    view = work_dir / view_name
     view.mkdir(parents=True, exist_ok=True)
     for entry in bf16_root.iterdir():
         if entry.is_dir() or entry.name == "model.safetensors":
@@ -1143,7 +1187,7 @@ def _prepare_nonrouted_view_single_file(bf16_root: Path, work_dir: Path) -> Tupl
         if entry.suffix in (".json", ".jinja", ".txt", ".model"):
             target = view / entry.name
             if not target.exists():
-                target.write_bytes(entry.read_bytes())
+                target.write_bytes(_view_file_bytes(entry, config_strip_keys))
     kept = {}
     total = 0
     with safe_open(source, framework="pt", device="cpu") as handle:
@@ -1161,17 +1205,22 @@ def _prepare_nonrouted_view_single_file(bf16_root: Path, work_dir: Path) -> Tupl
         "shards_referenced": 1,
         "shards_total": 1,
         "single_file_rewrite": True,
+        "config_keys_stripped_in_view": sorted(config_strip_keys),
         "view_path": str(view),
     }
 
 
 def build_streaming_model(*, bf16_root: Path, work_dir: Path, device, attn_implementation: str,
-                          experts_implementation: str, layers: Tuple[int, ...]):
+                          experts_implementation: str, layers: Tuple[int, ...],
+                          view_name: str = "bf16-nonrouted-view",
+                          config_strip_keys: Tuple[str, ...] = ()):
     import torch
     from transformers import AutoModelForImageTextToText
     import transformers.models.glm5_next.modeling_glm5_next as glm5_next
 
-    view, view_record = prepare_nonrouted_view(bf16_root, work_dir)
+    view, view_record = prepare_nonrouted_view(
+        bf16_root, work_dir, view_name=view_name, config_strip_keys=config_strip_keys
+    )
     started = time.monotonic()
     experts_class = glm5_next.Glm5NextTextExperts
     original_init = experts_class.__init__
@@ -1350,13 +1399,16 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     src = parser.add_argument_group("weight source")
-    src.add_argument("--source", choices=("checkpoint", "payload-store", "dione", "native"),
+    src.add_argument("--source", choices=("checkpoint", "payload-store", "dione", "native", "nvfp4"),
                      default="payload-store",
                      help="checkpoint = materialized shards (its receipt names the packed root); "
                           "payload-store = the content-addressed store directly (default); "
                           "dione = a Dione-style selective-EXL3 tree via dione_surface; "
                           "native = the official BF16 checkpoint's own routed experts, NO decode "
-                          "(the measurement floor of this lane)")
+                          "(the measurement floor of this lane); "
+                          "nvfp4 = a community NVFP4 snapshot via nvfp4_surface (routed experts "
+                          "decoded e2m1/gs16 in exact fp32; the snapshot's own BF16 non-routed "
+                          "tensors serve the rest, --bf16 is refused)")
     src.add_argument("--checkpoint", type=Path, help="--source checkpoint: materialized checkpoint root")
     src.add_argument("--packed-root", type=Path,
                      help="--source payload-store: encode output root (out-k6) carrying "
@@ -1364,19 +1416,33 @@ def main() -> int:
     src.add_argument("--dione-root", type=Path)
     src.add_argument("--dione-repo")
     src.add_argument("--dione-revision")
+    src.add_argument("--nvfp4-root", type=Path,
+                     help="--source nvfp4: local snapshot of the NVFP4 repo "
+                          "(config.json + model.safetensors.index.json + shards)")
+    src.add_argument("--nvfp4-repo",
+                     help="--source nvfp4: HF repo id (e.g. RedHatAI/GLM-5.3-Flash-NVFP4), "
+                          "recorded in the checkpoint identity")
+    src.add_argument("--nvfp4-revision",
+                     help="--source nvfp4: immutable 40-hex repo commit (required)")
+    src.add_argument("--nvfp4-skip-shard-hashes", action="store_true",
+                     help="--source nvfp4: accept a snapshot without the "
+                          "nvfp4-shards-verified.json marker (disclosed in the receipt)")
     src.add_argument("--inventory", type=Path,
                      help="--source native: sealed quant-pipeline.glm-release-inventory.v1 that "
                           "binds the BF16 config/index (defaults to <packed-root>/inventory.json). "
                           "It is the only provenance anchor a native run has, since there is no "
                           "contract and no payload store")
-    src.add_argument("--bf16", type=Path, required=True, help="official BF16 checkpoint (non-routed source)")
+    src.add_argument("--bf16", type=Path,
+                     help="official BF16 checkpoint (non-routed source; required for every "
+                          "source except nvfp4, whose snapshot ships its own BF16 non-routed set)")
 
     parser.add_argument("--teacher", type=Path, required=True,
                         help="teacher final-window tree (panel receipt search root)")
     parser.add_argument("--token-panel", type=Path, help="explicit sealed token-panel receipt path")
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--cold-run", type=int, required=True)
-    parser.add_argument("--profile", default="k6", choices=("k6", "k8", "k6k8", "native-bf16"))
+    parser.add_argument("--profile", default="k6",
+                        choices=("k6", "k8", "k6k8", "native-bf16", "nvfp4"))
     parser.add_argument("--roles", default="final")
     parser.add_argument("--windows", help="comma-separated window ids to score (default: all)")
     parser.add_argument("--pipeline-root")
@@ -1485,6 +1551,11 @@ def main() -> int:
             "--source native and --profile native-bf16 must be used together: the profile "
             "selects the student label the KLD report expects, and a native run is not a K6/K8 one"
         )
+    if (args.source == "nvfp4") != (args.profile == "nvfp4"):
+        raise _fail(
+            "--source nvfp4 and --profile nvfp4 must be used together: the profile selects "
+            "the student label the KLD report expects, and an NVFP4 run is not a K6/K8 one"
+        )
 
     # ---- teacher role and preview sampling (both flag-gated; defaults are
     # byte-identical to the sealed behaviour) ------------------------------
@@ -1536,7 +1607,40 @@ def main() -> int:
     contract = None
     mtp_adapter = None
     bits: Optional[int] = None
-    if args.source == "native":
+    inventory: Optional[Dict[str, Any]] = None
+    nvfp4_module = None
+    nvfp4 = None
+    if args.source == "nvfp4":
+        # There is no contract, no payload store, no sealed inventory and no
+        # official tree in the path.  The provenance anchors are the quant
+        # repo's immutable 40-hex revision plus the local config/index hashes
+        # (and, unless --nvfp4-skip-shard-hashes, the fetched HF LFS manifest
+        # the shard bytes were verified against).  nvfp4_surface fail-closed
+        # censuses the index: every routed module NVFP4-complete, the
+        # non-routed set exactly the official 1,618 names.
+        if args.nvfp4_root is None:
+            raise _fail("--source nvfp4 requires --nvfp4-root (local snapshot of the quant repo)")
+        if args.bf16 is not None:
+            raise _fail(
+                "REFUSED: --bf16 plays no role in an NVFP4 run. The artifact itself ships "
+                "every non-routed tensor as plain BF16 under the official names (measured "
+                "scope, enforced by the surface census), and the non-routed view is built "
+                "from the quant snapshot. Drop --bf16; to compare trees byte-for-byte run "
+                "`nvfp4_surface.py verify-nonrouted` / `probe` instead."
+            )
+        if not args.nvfp4_revision or sealed_capture.REVISION.fullmatch(args.nvfp4_revision) is None:
+            raise _fail("--source nvfp4 requires --nvfp4-revision <immutable 40-hex repo commit>")
+        import nvfp4_surface as nvfp4_module  # noqa: F811 - sibling tool module
+
+        nvfp4 = nvfp4_module.load_nvfp4_surface(
+            args.nvfp4_root,
+            repo=args.nvfp4_repo,
+            revision=args.nvfp4_revision,
+            require_shard_hashes=not args.nvfp4_skip_shard_hashes,
+        )
+        model_revision = args.nvfp4_revision
+        bits = 4
+    elif args.source == "native":
         # There is no contract, no payload store and no codec.  The ONE
         # provenance anchor is the sealed release inventory, which binds the
         # BF16 config.json and model.safetensors.index.json this run reads its
@@ -1610,8 +1714,16 @@ def main() -> int:
             packed_root / "mtp-adapter-receipt.json", _mtp_adapter_schema(bits), "receipt_sha256"
         )
 
-    # ---- official BF16 identity ------------------------------------------
-    model_root = args.bf16.resolve()
+    # ---- model-tree identity (official BF16, or the nvfp4 snapshot) ------
+    if args.source == "nvfp4":
+        # the quant snapshot IS the model tree: its config carries the same
+        # released geometry (gated below AND inside load_nvfp4_surface), and
+        # its 1,618 non-routed tensors are the official name set (census).
+        model_root = args.nvfp4_root.resolve()
+    else:
+        if args.bf16 is None:
+            raise _fail(f"--bf16 (official BF16 checkpoint) is required for --source {args.source}")
+        model_root = args.bf16.resolve()
     config_path = model_root / "config.json"
     index_path = model_root / "model.safetensors.index.json"
     if not config_path.is_file() or not index_path.is_file():
@@ -1629,7 +1741,15 @@ def main() -> int:
         or text_config.get("moe_intermediate_size") != 2048
     ):
         raise _fail("official GLM5Next main/MTP geometry differs")
-    if inventory.get("config_sha256") != sha256_file(config_path) or inventory.get(
+    if args.source == "nvfp4":
+        # no sealed inventory exists for a community snapshot; the binding is
+        # the surface's own config/index hashes, re-checked against the files
+        # this run actually reads (they enter checkpoint_identity_sha256)
+        if nvfp4.config_sha256 != sha256_file(config_path) or nvfp4.index_sha256 != sha256_file(
+            index_path
+        ):
+            raise _fail("nvfp4 surface does not bind the local config/index")
+    elif inventory.get("config_sha256") != sha256_file(config_path) or inventory.get(
         "index_sha256"
     ) != sha256_file(index_path):
         raise _fail("BF16 inventory does not bind the local config/index")
@@ -1638,11 +1758,16 @@ def main() -> int:
     surface_started = time.monotonic()
     native_source: Optional[NativeCheckpointSource] = None
     native_layout: Optional[Dict[str, Any]] = None
+    nvfp4_expert_source = None
     if args.source == "native":
         native_source = NativeCheckpointSource(model_root)
         native_layout = native_source.routed_tensor_census(
             tuple(MAIN_ROUTED_LAYERS), int(text_config["n_routed_experts"])
         )
+    elif args.source == "nvfp4":
+        # census/geometry already closed inside load_nvfp4_surface; the
+        # source object only adds the thread-safe read+decode machinery.
+        nvfp4_expert_source = nvfp4_module.Nvfp4ExpertSource(nvfp4)
     else:
         surface = load_complete_surface(
             root=packed_root, contract=contract, mtp_adapter_receipt=mtp_adapter
@@ -1691,6 +1816,9 @@ def main() -> int:
                 }
             )
         )
+    elif args.source == "nvfp4":
+        identity = nvfp4_module.nvfp4_reader_identity(Path(__file__).resolve(), nvfp4)
+        checkpoint_identity = nvfp4.checkpoint_identity_sha256()
     else:
         identity = reader_identity(
             Path(reader_module.__file__).resolve(), Path(__file__).resolve(), bits=bits
@@ -1800,6 +1928,47 @@ def main() -> int:
             "on the packed lane, whose non-routed tensors come from the same shards)",
         ]
         disclosure["native_routed_layout"] = native_layout
+    if args.source == "nvfp4":
+        # Same residency/topology/combine story as every streaming run; what
+        # changes is the codec and its provenance.  The full surface block
+        # (repo, revision, layout, quant config, measured scope policy,
+        # activation caveat, seal disclosure) rides inside the disclosure so
+        # plan/backend/receipt all carry it without changing the sealed
+        # receipt's key set (stream_score_selftest rung L1.j).
+        disclosure["nvfp4"] = nvfp4_module.surface_summary(nvfp4)
+        disclosure["routed_weight_source"] = (
+            "community NVFP4 snapshot, decoded per expert on the read-pool CPU threads: "
+            "e2m1 nibble LUT x per-16-group f8e4m3 scale, one fp32 global per tensor "
+            f"({nvfp4.layout} convention), exact fp32 throughout, then the lane's single "
+            "fp32->bf16 rounding at slab install"
+        )
+        disclosure["dtype_policy"] = dict(disclosure["dtype_policy"])
+        disclosure["dtype_policy"]["weights"] = (
+            "bfloat16 rounded ONCE from the exact-fp32 NVFP4 dequant (e2m1 values, f8e4m3 "
+            "scales and fp32 globals are all exact in fp32; one divide-or-multiply per "
+            "group scale, one multiply per element)"
+        )
+        disclosure["dtype_policy"]["nonrouted"] = (
+            "the snapshot's own bfloat16 shard bytes, untouched (the artifact ships the "
+            "official 1,618-name non-routed set unquantized)"
+        )
+        disclosure["sealed_path_identical"] = [
+            item
+            for item in disclosure["sealed_path_identical"]
+            if not item.startswith("decode contract:")
+        ]
+        disclosure["sealed_path_differences"] = list(disclosure["sealed_path_differences"]) + [
+            "decode contract: nvfp4_surface.dequant_nvfp4 (proven bitwise against "
+            "compressed-tensors' unpack+dequant in fp32 on real tensors) replaces the "
+            "hash-gated MCG decode; the NVFP4 checkpoint ships no encoder-side seals, so "
+            "component sha256s + the immutable repo revision are recorded instead "
+            "(seal_disclosure)",
+            "non-routed view: built from the QUANT snapshot, not the official tree "
+            "(measured scope: the artifact quantizes routed experts only and ships the "
+            "official non-routed set as plain BF16; name-set equality enforced)",
+            "weights-only lane: any activation quantization the artifact declares or "
+            "ships scales for is NOT captured (see streaming_disclosure.nvfp4.activations)",
+        ]
 
     plan = {
         "schema": STREAM_PLAN_SCHEMA,
@@ -1809,7 +1978,7 @@ def main() -> int:
         "packed_root": str(packed_root) if packed_root is not None else None,
         "checkpoint_root": str(args.checkpoint.resolve()) if args.checkpoint else None,
         "materialization_receipt_sha256": (materialization or {}).get("receipt_sha256"),
-        "inventory_sha256": inventory["inventory_sha256"],
+        "inventory_sha256": inventory["inventory_sha256"] if inventory is not None else None,
         "contract_sha256": surface.contract_sha256 if surface is not None else None,
         "checkpoint_identity_sha256": checkpoint_identity,
         "runtime_reader_sha256": identity["runtime_reader_sha256"],
@@ -1830,15 +1999,28 @@ def main() -> int:
         "main_routed_policy": (
             "streamed_official_bf16_checkpoint_experts_no_decode_one_layer_resident"
             if args.source == "native"
-            else f"streamed_decode_hash_verified_packed_k{bits}_mcg_to_bf16_one_layer_resident"
+            else (
+                "streamed_exact_fp32_nvfp4_e2m1_gs16_decode_to_bf16_one_layer_resident"
+                if args.source == "nvfp4"
+                else f"streamed_decode_hash_verified_packed_k{bits}_mcg_to_bf16_one_layer_resident"
+            )
         ),
         "native_routed_layout": native_layout,
         "mtp_policy": (
             "mtp_layer_45_present_in_the_checkpoint_but_not_executed_by_standard_logits"
             if args.source == "native"
-            else "complete_and_receipt_required_but_not_executed_by_standard_logits"
+            else (
+                "mtp_layer_45_experts_present_as_%s_identity_covered_but_not_executed_by_"
+                "standard_logits" % nvfp4.scope["mtp_expert_format"].replace("-", "_")
+                if args.source == "nvfp4"
+                else "complete_and_receipt_required_but_not_executed_by_standard_logits"
+            )
         ),
-        "nonrouted_policy": "untouched_official_checkpoint_parameters",
+        "nonrouted_policy": (
+            "quant_snapshot_bf16_parameters_official_name_set_unquantized_in_artifact"
+            if args.source == "nvfp4"
+            else "untouched_official_checkpoint_parameters"
+        ),
         "stored_logits_dtype": "float32",
         "surface_load_seconds": surface_seconds,
         "memory_plan": memory,
@@ -1882,6 +2064,12 @@ def main() -> int:
         attn_implementation=args.attention_backend,
         experts_implementation=args.experts_implementation,
         layers=layers,
+        # the nvfp4 view is a DIFFERENT artifact than a bf16 view sharing the
+        # same work_dir, and its config must lose quantization_config so
+        # from_pretrained builds the sealed plain-BF16 model instead of
+        # engaging a quantized-loading integration
+        view_name=("nvfp4-nonrouted-view" if args.source == "nvfp4" else "bf16-nonrouted-view"),
+        config_strip_keys=(("quantization_config",) if args.source == "nvfp4" else ()),
     )
     streamer = ExpertStreamer(
         surface=surface,
@@ -1894,6 +2082,7 @@ def main() -> int:
         cache_mode=args.decode_cache,
         cache_dir=args.decode_cache_dir.resolve() if args.decode_cache_dir else None,
         native_source=native_source,
+        decoded_source=nvfp4_expert_source,
     )
     if decode_device != device:
         raise _fail(
@@ -1923,7 +2112,7 @@ def main() -> int:
         "schema": STREAM_BACKEND_SCHEMA,
         "architecture": RELEASED_ARCHITECTURE,
         "model_revision": model_revision,
-        "inventory_sha256": inventory["inventory_sha256"],
+        "inventory_sha256": inventory["inventory_sha256"] if inventory is not None else None,
         "checkpoint_identity_sha256": checkpoint_identity,
         "contract_sha256": surface.contract_sha256 if surface is not None else None,
         "runtime_reader_sha256": identity["runtime_reader_sha256"],
@@ -1953,9 +2142,18 @@ def main() -> int:
         "main_routed_runtime_dtype": (
             "bfloat16 read straight from the official checkpoint shards (no decode)"
             if args.source == "native"
-            else f"bfloat16 streamed-decoded from packed K{bits} payload"
+            else (
+                "bfloat16 streamed-decoded from NVFP4 e2m1 gs16 (exact fp32 decode, one rounding)"
+                if args.source == "nvfp4"
+                else f"bfloat16 streamed-decoded from packed K{bits} payload"
+            )
         ),
-        "nonrouted_runtime_dtype": "official source dtype, untouched",
+        "nonrouted_runtime_dtype": (
+            "quant-snapshot bfloat16 bytes, untouched (official non-routed name set, "
+            "unquantized in the artifact)"
+            if args.source == "nvfp4"
+            else "official source dtype, untouched"
+        ),
         "mtp_standard_logits_executed": False,
         "mtp_pack_receipt_sha256": (
             surface.mtp_pack_receipt_sha256 if surface is not None else None
@@ -2013,7 +2211,12 @@ def main() -> int:
                     f"--sweep needs --slab-experts 288 to serve ep={sweep_ep} "
                     f"(have {memory['slab_experts']})"
                 )
-    student_label = NATIVE_STUDENT_LABEL if args.source == "native" else f"uniform-k{bits}"
+    if args.source == "native":
+        student_label = NATIVE_STUDENT_LABEL
+    elif args.source == "nvfp4":
+        student_label = nvfp4_module.NVFP4_STUDENT_LABEL
+    else:
+        student_label = f"uniform-k{bits}"
     capture_role = NATIVE_CAPTURE_ROLE if args.source == "native" else "packed_student"
     if args.capture_role == "teacher":
         # the label stays native-bf16 (it IS the native forward); only the ROLE
@@ -2165,13 +2368,25 @@ def main() -> int:
             "distinct_matrix_census": census_matrices,
             "census_closes_main_routed_surface": census_matrices == expected_matrices,
             "verified_packed_payload_bytes": (
-                None if args.source == "native" else streamer.payload_bytes
+                # only the sealed packed lanes hash-VERIFY their payloads; the
+                # nvfp4 bytes are sha256-RECORDED (census), never seal-checked
+                None if args.source in ("native", "nvfp4") else streamer.payload_bytes
             ),
             "native_checkpoint_bytes_read": (
                 int(native_source.bytes_read) if native_source is not None else None
             ),
             "native_shards_read": (
                 len(native_source.shards_read) if native_source is not None else None
+            ),
+            "nvfp4_payload_bytes_read": (
+                int(nvfp4_expert_source.bytes_read)
+                if nvfp4_expert_source is not None
+                else None
+            ),
+            "nvfp4_shards_read": (
+                len(nvfp4_expert_source.shards_read)
+                if nvfp4_expert_source is not None
+                else None
             ),
             "installed_choice_census_sha256": sha256_bytes(canonical_json(streamer.census)),
             "decode_cache_hits": streamer.cache_hits,
@@ -2210,7 +2425,12 @@ def main() -> int:
         "weight_dtype": (
             "official BF16 checkpoint routed experts, streamed, NO decode"
             if args.source == "native"
-            else f"EXL3/TR3 uniform-k{bits} streamed offline-decoded to BF16"
+            else (
+                "NVFP4 e2m1 gs16 routed experts streamed exact-fp32-decoded to BF16 "
+                "(non-routed BF16 from the artifact itself)"
+                if args.source == "nvfp4"
+                else f"EXL3/TR3 uniform-k{bits} streamed offline-decoded to BF16"
+            )
         ),
         "logits_dtype": "float32",
         "kld_direction": "teacher_to_student",

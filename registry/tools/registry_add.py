@@ -80,12 +80,30 @@ FOREIGN_TP2 = "quant-pipeline.glm53-custom-tp2-runtime-window-kld.v1"
 # weights, scored through this same streaming harness (tools/stream_score.py
 # --source native). That makes a row built from it the streaming lane's measurement
 # floor -- see build_row's is_floor test and BIAS-004/005/006.
+#
+# The NVFP4 family is the same shape again, produced by tools/stream_score.py
+# --source nvfp4 (community NVFP4 snapshots of the reference, decoded e2m1/gs16
+# in exact fp32 and scored on the same panel by the same estimator). Two things
+# make it different from every other family here and both are disclosed on the
+# row rather than left to a reader: the artifact is SOMEONE ELSE'S and carries no
+# encoder-side seal, and its measured scope is weights-only, so any activation
+# quantization the artifact declares or ships scales for is NOT in the number.
+# Those come out of the summary's own scope_policy / activations / seal_disclosure
+# blocks, which stream_score copies verbatim from the sealed capture receipt --
+# see _apply_nvfp4_disclosure, which REQUIRES them rather than tolerating a
+# summary that dropped them.
 STREAM_K6_SUMMARY = "malaiwah.glm53-k6-stream-packed-kld-summary.v1"
 K8_SUMMARY = "malaiwah.glm53-k8-packed-kld-summary.v1"
 NATIVE_BF16_SUMMARY = "malaiwah.glm53-native-bf16-packed-kld-summary.v1"
+NVFP4_SUMMARY = "malaiwah.glm53-nvfp4-packed-kld-summary.v1"
 STREAM_VERDICT = "malaiwah.glm53-streaming-measurement-verdict.v1"
-STREAM_SUMMARIES = (STREAM_K6_SUMMARY, K8_SUMMARY, NATIVE_BF16_SUMMARY)
-LANE_STATED_BY_SCHEMA = {STREAM_K6_SUMMARY: "streaming", K8_SUMMARY: None, NATIVE_BF16_SUMMARY: None}
+STREAM_SUMMARIES = (STREAM_K6_SUMMARY, K8_SUMMARY, NATIVE_BF16_SUMMARY, NVFP4_SUMMARY)
+# NVFP4 is None for the same reason K8 is: its family string carries no `-stream-`
+# marker, and this tool refuses to infer a lane from anything but the string. Only
+# one runner writes it today, but that is a fact about content, not about the name,
+# so the lane still has to be supplied by --lane.
+LANE_STATED_BY_SCHEMA = {STREAM_K6_SUMMARY: "streaming", K8_SUMMARY: None,
+                         NATIVE_BF16_SUMMARY: None, NVFP4_SUMMARY: None}
 
 REPORT_FAMILIES = ("glm53flash-fidelity-report/2", "glm53flash-fidelity-report/3",
                    "qwen38-kld-ladder-cumulative/2", "qwen38-kld-ladder-cumulative/3",
@@ -328,9 +346,86 @@ def adapt_stream_summary(receipts):
              "detail": "cold_run_deviation (verbatim from the receipt): %s"
                        % rec["cold_run_deviation"]})
 
+    if sch == NVFP4_SUMMARY:
+        _apply_nvfp4_disclosure(out, rec, path)
     if verdicts:
         _apply_stream_verdict(out, rec, path, verdicts)
     return out
+
+
+def _apply_nvfp4_disclosure(out, rec, path):
+    """Fold the NVFP4 family's mandatory provenance and caveats into the row.
+
+    Nothing here is invented or paraphrased: every string is lifted verbatim from
+    the summary, which lifted it from the sealed capture receipt's
+    streaming_disclosure.nvfp4 block, which stream_score built from the artifact's
+    OWN config and index. What this function adds is refusal -- a summary of this
+    family that lost its scope or activation block cannot become a row, because the
+    row would then read like a whole-artifact measurement of a sealed quant, and it
+    is neither.
+    """
+    repo = rec.get("nvfp4_repo")
+    revision = rec.get("nvfp4_revision")
+    seal = rec.get("seal_disclosure")
+    scope = rec.get("scope_policy") or {}
+    activations = rec.get("activations") or {}
+    for name, value in (("nvfp4_revision", revision), ("seal_disclosure", seal),
+                        ("scope_policy", scope), ("activations", activations)):
+        if not value:
+            raise Refuse(E_MISSING,
+                         "%s is an %s receipt but carries no /%s. This family measures a "
+                         "third-party unsealed artifact; a row without its scope and seal "
+                         "disclosure would misrepresent what was measured."
+                         % (os.path.basename(path), NVFP4_SUMMARY, name))
+    if (not isinstance(revision, str) or len(revision) != 40
+            or not all(c in "0123456789abcdef" for c in revision)):
+        raise Refuse(E_IDENTITY,
+                     "nvfp4_revision %r is not an immutable 40-hex repo commit. A community "
+                     "snapshot measured at a moving ref cannot be pinned to a row." % (revision,))
+    # Pinning these makes build_row's existing revision gate fire against the
+    # registry's artifact record: a receipt that measured a different commit than
+    # the row claims is exit 5, not a footnote.
+    out["artifact_repo"] = repo
+    out["artifact_revision"] = revision
+
+    quantized = scope.get("quantized_scope")
+    nonrouted = scope.get("nonrouted_policy")
+    if not quantized or not nonrouted:
+        raise Refuse(E_MISSING,
+                     "scope_policy carries no quantized_scope/nonrouted_policy; the row cannot "
+                     "state what part of the artifact the number covers.")
+    out["verbatim_disclosure_coded"].append(
+        {"code": "unsealed_source",
+         "detail": "seal_disclosure (verbatim from the receipt): %s" % seal})
+    out["verbatim_disclosure_coded"].append(
+        {"code": "quantization_scope",
+         "detail": "scope_policy (verbatim from the receipt): %s | %s" % (quantized, nonrouted)})
+    # Only stated when it is TRUE of this artifact. A genuine W4A16 snapshot -- no
+    # declared input_activations and no activation scale tensors in the index --
+    # is fully captured by a weights-only decode and gets no caveat it has not
+    # earned; the surface measures which case it is instead of assuming.
+    captured = activations.get("weights_only_decode_captures_artifact_fully")
+    if captured is None:
+        raise Refuse(E_MISSING,
+                     "activations block does not state weights_only_decode_captures_artifact_"
+                     "fully; whether the number covers the whole artifact is exactly what this "
+                     "disclosure exists to answer.")
+    if not captured:
+        detail = activations.get("disclosure")
+        if not detail:
+            raise Refuse(E_MISSING, "activations.disclosure is missing on a receipt that says "
+                                    "the weights-only decode does NOT capture the artifact fully.")
+        out["verbatim_disclosure_coded"].append(
+            {"code": "activation_quantization_not_captured",
+             "detail": "activations (verbatim from the receipt): %s" % detail})
+    out["field_provenance"].update({
+        "artifact_revision": "#/nvfp4_revision",
+        "disclosures.quantization_scope": "#/scope_policy (measured from the artifact's own "
+                                          "index by nvfp4_surface, not read off its README)",
+        "disclosures.activation_quantization_not_captured":
+            "#/activations (present only when #/activations/weights_only_decode_captures_"
+            "artifact_fully is false)",
+    })
 
 
 def _apply_stream_verdict(out, summary, spath, verdicts):

@@ -50,6 +50,18 @@ t "zero-floor identity (T4; SKIPs inside when numpy/torch absent)" \
                                            0 "$PY" bin/selftest_zero_floor.py
 t "stream_score ladder rungs g,h,i,j (teacher role / preview refusal / \
 sampling / receipt stability)"             0 python3 k6/tools/stream_score_selftest.py --only g,h,i,j
+# The NVFP4 weight-decode surface: dequant proven against compressed-tensors on
+# real ranged-fetched tensors, the name census closed against both repos' real
+# indexes, and the registry adapter exercised. Needs torch (float8 + MPS); its
+# two conditional rungs (live compressed-tensors, stream_score --dry-run) print
+# their own SKIP line rather than failing, so this stays one case either way.
+if have_module "$VPY" torch; then
+  t "nvfp4 surface offline (decode vs compressed-tensors, census, registry adapter)" \
+                                           0 "$VPY" k6/tools/selftest_nvfp4_offline.py \
+                                             ${QP_PIPELINE_ROOT:+--pipeline-root "$QP_PIPELINE_ROOT"}
+else
+  s "nvfp4 surface offline" "no torch in $VPY"
+fi
 
 echo "== cloud planner (NETWORK, ACCOUNT; --dry-run creates nothing) =="
 # This target is 'tr3-published' and NO lane has a reader for it: both engines
