@@ -60,11 +60,17 @@ gguf-py 0.19.0's reference ``dequantize`` for every supported type, proven on
 real ranged-fetched tensors including full expert slices with sub-block scales
 (Q4_K/Q5_K) -- the offline selftest re-proves it from committed fixtures.
 
-v1 SUPPORTED ggml types: F32, F16, BF16, Q8_0, Q4_K, Q5_K, Q6_K -- exactly the
-set the unsloth Q8_0 / UD-Q4_K_XL / UD-Q5_K_XL / UD-Q6_K_XL builds use.  Any
-other type (ddh0's IQ3_S/IQ4_XS, the UD-IQ* builds, MXFP4, ...) is REFUSED BY
-NAME AND TYPE at census time, before any decode: adding a type means adding a
-kernel WITH the same bitwise-vs-gguf-py proof, not silently skipping tensors.
+v1 SUPPORTED ggml types: F32, F16, BF16, Q8_0, Q4_K, Q5_K, Q6_K.  Measured
+against every build in the unsloth repo (gguf-evidence/unsloth-build-census.json,
+each build's own 1,412-tensor table), that set scores BF16, Q8_0, UD-Q4_K_XL,
+UD-Q5_K_XL and UD-Q6_K_XL, and refuses the other seven.  Note the refusals are
+NOT predictable from the directory names: unsloth's "Dynamic" recipe mixes
+IQ2_XS/IQ3_XXS/IQ4_XS into UD-Q2_K_XL and IQ3_XXS/IQ4_XS into UD-Q3_K_XL, so
+those two need IQ kernels, not merely Q2_K/Q3_K ones.
+
+Any unsupported type is REFUSED BY NAME AND TYPE at census time, before any
+decode: adding a type means adding a kernel WITH the same bitwise-vs-gguf-py
+proof, not silently skipping tensors.
 
 DISCLOSED DEVIATION - unsealed-source scoring: community GGUFs ship no encoder
 receipts, no reconstruction closures and no sealed reader ABI.  The adapter

@@ -1093,10 +1093,18 @@ any disagreement, counting (never assuming away) the shards that are absent.
    for a partial split, an unpinned revision, a mismatched profile, and an
    https location without `--dry-run`.
 
-**Named v1 exclusions (refused, not skipped):** IQ-family GGUFs (ddh0's
-IQ3_S/IQ4_XS, the `UD-IQ*` builds) until their kernels land with the same
-bitwise-vs-gguf-py proof; any ggml type without a kernel is refused BY NAME AND
-TYPE at census time, before a byte is decoded.
+**Named v1 exclusions (refused, not skipped), enumerated from the real repo.**
+A type census of ALL TWELVE unsloth builds (each build's own 1,412-tensor
+table, `gguf-evidence/unsloth-build-census.json`) says the supported set scores
+BF16, Q8_0, UD-Q4_K_XL, UD-Q5_K_XL, UD-Q6_K_XL and refuses the other seven. The
+refusals are NOT predictable from the directory names, which is the finding
+worth keeping: unsloth's "Dynamic" recipe mixes IQ2_XS/IQ3_XXS/IQ4_XS into
+UD-Q2_K_XL and IQ3_XXS/IQ4_XS into UD-Q3_K_XL, so those two are gated on IQ
+kernels, not on the Q2_K/Q3_K ones their names imply — adding Q2_K and Q3_K
+alone would unlock nothing. Any unsupported type is refused BY NAME AND TYPE at
+census time, before a byte is decoded. (Also noted: the repo's own BF16 GGUF is
+in the supported set, so this lane can measure a GGUF of *unquantized* weights
+— its own container floor — without a second surface.)
 
 **Fetch-ledger honesty fix.** `routed_tensor_census` originally reported one
 layer's per-expert byte cost as if it were the artifact's. The unsloth XL builds

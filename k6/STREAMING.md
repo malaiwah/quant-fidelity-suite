@@ -878,9 +878,31 @@ transliteration of llama.cpp's own `get_scale_min_k4` for the Q4_K/Q5_K
 sub-block scales.
 
 Any other ggml type is **refused by name and type at census time**, before a
-byte is decoded. That is a named exclusion, not a silent skip: `ddh0` and the
-`UD-IQ*` builds use IQ3_S/IQ4_XS and are refused until those kernels land with
-the same bitwise proof.
+byte is decoded. That is a named exclusion, not a silent skip.
+
+Which of unsloth's twelve builds that actually buys, measured from each
+build's own tensor table (`gguf-evidence/unsloth-build-census.json`, all
+1,412 tensors per build, revision `2975ab41`) — **do not read this off the
+directory name**, because unsloth's "Dynamic" recipe mixes IQ types into
+builds whose names say K-quant:
+
+| build | ggml types present | v1 |
+|---|---|---|
+| `BF16` | BF16, F32 | **scores** (and would be this lane's own GGUF floor) |
+| `Q8_0` | Q8_0, F32 | **scores** |
+| `UD-Q4_K_XL` | Q4_K, Q5_K, Q6_K, Q8_0, F32 | **scores** |
+| `UD-Q5_K_XL` | Q5_K, Q6_K, Q8_0, F32 | **scores** |
+| `UD-Q6_K_XL` | Q6_K, Q8_0, F32 | **scores** |
+| `UD-Q3_K_XL` | + IQ3_XXS, IQ4_XS, **Q3_K** | refused |
+| `UD-Q2_K_XL` | + IQ2_XS, IQ3_XXS, IQ4_XS, **Q2_K**, Q3_K | refused |
+| `UD-IQ4_XS`, `UD-IQ3_XXS`, `UD-IQ2_XXS`, `UD-IQ1_S`, `UD-IQ1_M` | IQ1_S/M, IQ2_S/XS/XXS, IQ3_S/XXS, IQ4_XS, Q2_K, Q3_K | refused |
+
+So the IQ kernels — not Q2_K/Q3_K — are the real gate on the low-bpw half of
+the repo: adding Q2_K and Q3_K alone unlocks nothing, because every build that
+needs them needs IQ types too. `ddh0`'s single-file 3.86 bpw build
+(IQ3_S/IQ4_XS) is refused for the same reason, though its *names* all map — its
+convert vintage spells the arch `glm5-next` and the indexer tensors
+`indexer.kpool_*`, and both spellings are covered.
 
 ### The name map, and the one genuinely dangerous tensor
 

@@ -367,6 +367,27 @@ def main() -> int:
     assert scope["vision_in_artifact"] is False
     assert sorted(scope["routed_expert_types"]) == ["Q4_K", "Q5_K", "Q6_K"]
 
+    # which of the repo's twelve builds v1 can actually score, from each
+    # build's OWN type census (not from its directory name -- unsloth's
+    # "Dynamic" recipe mixes IQ types into UD-Q2_K_XL and UD-Q3_K_XL, so a
+    # name-based answer would be wrong in both directions)
+    build_census = json.loads(
+        (EVIDENCE / "unsloth-build-census.json").read_text(encoding="utf-8"))
+    assert sorted(build_census["v1_supported_types"]) == sorted(gs.SUPPORTED_TYPES), (
+        "the committed build census was taken against a different supported-type set")
+    supported_builds, refused_builds = [], []
+    for name, row in sorted(build_census["builds"].items()):
+        assert row["census_complete"], "%s census did not close at 1412 tensors" % name
+        recomputed = not [t for t in row["types"] if t not in gs.SUPPORTED_TYPES]
+        assert recomputed == row["v1_supported"], (
+            "%s: the census says v1_supported=%r but recomputing from its own type list "
+            "gives %r" % (name, row["v1_supported"], recomputed))
+        (supported_builds if recomputed else refused_builds).append(name)
+    assert supported_builds == ["BF16", "Q8_0", "UD-Q4_K_XL", "UD-Q5_K_XL", "UD-Q6_K_XL"], \
+        supported_builds
+    assert "UD-Q2_K_XL" in refused_builds and "UD-Q3_K_XL" in refused_builds, (
+        "UD-Q2_K_XL/UD-Q3_K_XL carry IQ types despite their K-quant names and must refuse")
+
     ddh0_rows = _real_rows("ddh0-tensors.json")
     ddh0_names = {name: gs.classify_tensor(name)[0] for name in ddh0_rows}
     unmapped = sorted(name for name, role in ddh0_names.items() if role == "unmapped")
@@ -389,7 +410,9 @@ def main() -> int:
         "4 real-metadata census: 1,412 GGUF tensors close (1,259 direct + 129 fused + 24 MLA) "
         "and their 1,271 official names biject the real BF16 index (38,770 - 37,152 routed - "
         "347 vision); ddh0's second convert vintage maps 1,412/1,412 names and is refused only "
-        "by TYPE (IQ3_S/IQ4_XS), arch spelled glm5-next")
+        "by TYPE (IQ3_S/IQ4_XS), arch spelled glm5-next; of unsloth's 12 builds v1 scores %s "
+        "and refuses %s (UD-Q2_K_XL/UD-Q3_K_XL carry IQ types despite their names)"
+        % (", ".join(supported_builds), ", ".join(refused_builds)))
 
     # ---- 5. MLA placement audit on real bytes -------------------------------
     k_raw = np.load(EVIDENCE / "mla_k_b_head_window.npy").tobytes()
