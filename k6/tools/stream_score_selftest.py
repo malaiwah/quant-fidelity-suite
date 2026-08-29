@@ -774,6 +774,26 @@ GOLDEN_RECEIPT_KEYS = frozenset({
     "student_label", "logit_files", "elapsed_seconds", "streaming_disclosure",
 })
 
+# Keys a receipt may gain, and ONLY inside an `if` so a default invocation never
+# sees them.  This allowlist is the review gate: adding a receipt field means
+# adding it here too, deliberately, which is what keeps the sealed shape sealed.
+#
+#   teacher_provenance / schema / not_submittable / sampling_design
+#       the --capture-role teacher and --store-positions preview blocks.
+#   gguf_* / scope_policy / source_repo / source_revision / seal_disclosure
+#       --source gguf only.  A community GGUF is a THIRD-PARTY artifact that
+#       quantized the whole model, so its receipt has to name the repo, the
+#       immutable revision, the files (hashed), the measured ggml type census,
+#       what the artifact actually quantized, and that nothing upstream was
+#       sealed.  k6_kld_report --profile gguf lifts these into the summary and
+#       registry_add turns them into row disclosures.
+GATED_RECEIPT_KEYS = frozenset({
+    "teacher_provenance", "schema", "not_submittable", "sampling_design",
+    "gguf_repo", "gguf_revision", "gguf_files", "gguf_file_hash_verification",
+    "gguf_architecture", "gguf_type_census", "gguf_quant_metadata",
+    "scope_policy", "source_repo", "source_revision", "seal_disclosure",
+})
+
 
 def check_receipt_stability() -> None:
     """Static AST proof that default invocations build the SEALED receipt shape.
@@ -818,8 +838,7 @@ def check_receipt_stability() -> None:
                 continue
             (gated if inside_if else ungated).append(key)
     ok = (literal_keys == GOLDEN_RECEIPT_KEYS and not ungated
-          and set(gated) <= {"teacher_provenance", "schema",
-                             "not_submittable", "sampling_design"})
+          and set(gated) <= GATED_RECEIPT_KEYS)
     _record(
         "L1.j-receipt-stability",
         "PASS" if ok else "FAIL",

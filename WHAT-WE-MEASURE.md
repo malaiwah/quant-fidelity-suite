@@ -106,6 +106,40 @@ encodes all of this as a comparability key and renders rows from different
 keys in separate tables. If a number you meet in the wild does not pin
 these, it is an anecdote, not a measurement.
 
+### 5a. Scope policy is not a footnote — GGUF is the worked example
+
+Every number above quantizes the **routed experts only**: K6, K8, Dione and
+the BF16 floor all run the reference's *untouched* embeddings, attention,
+KDA/DSA path and `lm_head`. The routed experts are ~97% of the parameters,
+so that is where nearly all the loss lives — but it is a choice, and it is
+the choice those rows share.
+
+A community **llama.cpp GGUF** does not make that choice. `token_embd`,
+`output` (the lm_head), every attention projection and the shared experts
+are quantized too — in unsloth's UD-Q4_K_XL, at Q8_0. So a GGUF row and a
+K6 row are not measuring the same set of weights, and ranking them against
+each other without saying so is the easiest way to publish a wrong
+conclusion with a correct number.
+
+Two consequences the tooling enforces rather than documents:
+
+- `stream_score.py --source gguf` supplies **all** tensors from the
+  artifact — the non-routed ones are decoded into a materialized view and
+  the sealed `from_pretrained` runs over that, so the forward really is the
+  artifact's. The official BF16 tree contributes only config/tokenizer
+  files and the vision tower, which the main GGUF does not carry and the
+  text-only panel never executes.
+- The receipt's `scope_policy` block is **measured** from the artifact's own
+  tensor table (which tensors have a quantized ggml type), never asserted
+  from the format's name, and `registry_add.py` turns it into a
+  `quantization_scope_whole_model` disclosure on the row. A GGUF summary
+  that arrives without it is refused, not recorded.
+
+The same discipline applies in reverse: NVFP4 releases of this model
+quantize the routed experts *only* and ship the rest as BF16 in-repo, so
+their scope policy matches K6/K8 — same format family, different scope.
+Read the block, not the file extension.
+
 ## 6. What these numbers are NOT
 
 - Not a task benchmark: KLD measures distributional fidelity to the

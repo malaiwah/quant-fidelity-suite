@@ -486,7 +486,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--profile", required=True,
                         choices=("k6", "k6-stream", "k8", "k6k8", "dione-q4", "dione-3.0bpw",
-                                 "native-bf16"))
+                                 "native-bf16", "gguf"))
     parser.add_argument("--teacher", type=Path, required=True)
     parser.add_argument("--runs", type=Path, nargs="+", required=True)
     parser.add_argument("--fp8-baseline", type=float, default=0.020615)
@@ -529,11 +529,20 @@ def main() -> int:
         # in the path (stream_score.py --source native).  Subtracting this mean
         # from a quant's mean leaves that quant's quantization-attributable error.
         "native-bf16": "native-bf16",
+        # community llama.cpp GGUF artifacts (unsloth, ...) scored through
+        # stream_score.py --source gguf.  The label is deliberately FORMAT-wide,
+        # not per-file: which quant it was (repo, revision, per-file sha256, the
+        # measured ggml type census and the scope policy) is carried in the
+        # summary's provenance block below, where a registry row reads it.  A
+        # per-file label would put a mutable string in the equality gate.
+        "gguf": "gguf-llamacpp",
     }[args.profile]
-    # a native run is not a packed student and does not claim to be one
-    expected_capture_role = (
-        "native_bf16_student" if args.profile == "native-bf16" else "packed_student"
-    )
+    # a native run is not a packed student and does not claim to be one; nor is
+    # a GGUF run, whose non-routed weights are the artifact's as well
+    expected_capture_role = {
+        "native-bf16": "native_bf16_student",
+        "gguf": "gguf_student",
+    }.get(args.profile, "packed_student")
     runs = [path.resolve() for path in args.runs]
     campaign_root = runs[0].parent.parent
     checkpoint = (
@@ -697,6 +706,37 @@ def main() -> int:
             "teacher_source": teacher_source,
             "teacher_label": teacher_label,
         }
+        if args.profile == "gguf":
+            # A GGUF artifact quantized EVERYTHING, so the headline number's own
+            # receipt has to carry the artifact identity AND the scope policy --
+            # a registry row that does not disclose "the embeddings and lm_head
+            # are quantized too" is not comparable to a routed-experts-only row.
+            from quant_pipeline.evaluation.glm53_logits import (
+                CAPTURE_SCHEMA,
+                sealed_json,
+            )
+
+            student_receipt = sealed_json(
+                runs[0] / "capture-receipt.json", CAPTURE_SCHEMA, "receipt_sha256"
+            )
+            summary.update(
+                {
+                    "student_receipt_sha256": student_receipt["receipt_sha256"],
+                    "gguf_repo": student_receipt.get("gguf_repo"),
+                    "gguf_revision": student_receipt.get("gguf_revision"),
+                    "gguf_files": student_receipt.get("gguf_files"),
+                    "gguf_file_hash_verification": student_receipt.get(
+                        "gguf_file_hash_verification"
+                    ),
+                    "gguf_architecture": student_receipt.get("gguf_architecture"),
+                    "gguf_type_census": student_receipt.get("gguf_type_census"),
+                    "gguf_quant_metadata": student_receipt.get("gguf_quant_metadata"),
+                    "scope_policy": student_receipt.get("scope_policy"),
+                    "source_repo": student_receipt.get("source_repo"),
+                    "source_revision": student_receipt.get("source_revision"),
+                    "seal_disclosure": student_receipt.get("seal_disclosure"),
+                }
+            )
         if args.profile.startswith("dione"):
             # the headline number's own receipt must carry the unsealed-source
             # disclosure and the immutable provenance pins, not only the

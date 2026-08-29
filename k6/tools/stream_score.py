@@ -123,6 +123,11 @@ NATIVE_STUDENT_IDENTITY_SCHEMA = "malaiwah.glm53-native-bf16-student-identity.v1
 NATIVE_STUDENT_LABEL = "native-bf16"
 NATIVE_CAPTURE_ROLE = "native_bf16_student"
 TEACHER_CAPTURE_ROLE = "bf16_teacher"
+# --source gguf: a community llama.cpp artifact that quantizes EVERYTHING, so
+# the whole forward (not only the routed experts) is the artifact's weights.
+GGUF_STUDENT_IDENTITY_SCHEMA = "malaiwah.glm53-gguf-student-identity.v1"
+GGUF_STUDENT_LABEL = "gguf-llamacpp"
+GGUF_CAPTURE_ROLE = "gguf_student"
 TEACHER_PROVENANCE_SCHEMA = "malaiwah.glm53-same-lane-teacher-provenance.v1"
 TEACHER_LABEL = "native-bf16-streaming-v1"
 RELEASE_INVENTORY_SCHEMA = "quant-pipeline.glm-release-inventory.v1"
@@ -1166,12 +1171,27 @@ def _prepare_nonrouted_view_single_file(bf16_root: Path, work_dir: Path) -> Tupl
 
 
 def build_streaming_model(*, bf16_root: Path, work_dir: Path, device, attn_implementation: str,
-                          experts_implementation: str, layers: Tuple[int, ...]):
+                          experts_implementation: str, layers: Tuple[int, ...],
+                          nonrouted_view: Optional[Tuple[Path, Dict[str, Any]]] = None):
+    """Construct the sealed model over a routed-expert-free view of the weights.
+
+    ``nonrouted_view`` lets a SURFACE supply that view instead of the official
+    BF16 tree: --source gguf passes the MATERIALIZED decoded view (its
+    non-routed tensors are the artifact's own, decoded to the official names and
+    dtypes), because a GGUF quantizes embeddings / attention / lm_head too and
+    scoring those from the official tree would measure the wrong weights.  The
+    constructor call and every load assertion below are unchanged -- the view
+    is a directory of safetensors with an index either way.
+    """
+
     import torch
     from transformers import AutoModelForImageTextToText
     import transformers.models.glm5_next.modeling_glm5_next as glm5_next
 
-    view, view_record = prepare_nonrouted_view(bf16_root, work_dir)
+    if nonrouted_view is None:
+        view, view_record = prepare_nonrouted_view(bf16_root, work_dir)
+    else:
+        view, view_record = nonrouted_view
     started = time.monotonic()
     experts_class = glm5_next.Glm5NextTextExperts
     original_init = experts_class.__init__
@@ -1350,13 +1370,16 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     src = parser.add_argument_group("weight source")
-    src.add_argument("--source", choices=("checkpoint", "payload-store", "dione", "native"),
+    src.add_argument("--source", choices=("checkpoint", "payload-store", "dione", "native", "gguf"),
                      default="payload-store",
                      help="checkpoint = materialized shards (its receipt names the packed root); "
                           "payload-store = the content-addressed store directly (default); "
                           "dione = a Dione-style selective-EXL3 tree via dione_surface; "
                           "native = the official BF16 checkpoint's own routed experts, NO decode "
-                          "(the measurement floor of this lane)")
+                          "(the measurement floor of this lane); "
+                          "gguf = a community llama.cpp GGUF via gguf_surface: ALL tensors "
+                          "(embeddings, attention, lm_head included) are decoded from the "
+                          "artifact itself and --bf16 supplies only config/tokenizer/vision")
     src.add_argument("--checkpoint", type=Path, help="--source checkpoint: materialized checkpoint root")
     src.add_argument("--packed-root", type=Path,
                      help="--source payload-store: encode output root (out-k6) carrying "
@@ -1364,19 +1387,33 @@ def main() -> int:
     src.add_argument("--dione-root", type=Path)
     src.add_argument("--dione-repo")
     src.add_argument("--dione-revision")
+    src.add_argument("--gguf-file", action="append", dest="gguf_files", metavar="GGUF",
+                     help="--source gguf: every .gguf of the artifact (repeat for split parts; "
+                          "an https URL is accepted for --dry-run metadata validation only)")
+    src.add_argument("--gguf-repo", help="--source gguf: the artifact's HF repo id (recorded)")
+    src.add_argument("--gguf-revision",
+                     help="--source gguf: the immutable 40-hex repo commit (required)")
+    src.add_argument("--skip-gguf-hashes", action="store_true",
+                     help="--source gguf: skip the whole-file sha256 marker requirement "
+                          "(recorded as file_hash_verification=skipped; a disclosed read)")
     src.add_argument("--inventory", type=Path,
                      help="--source native: sealed quant-pipeline.glm-release-inventory.v1 that "
                           "binds the BF16 config/index (defaults to <packed-root>/inventory.json). "
                           "It is the only provenance anchor a native run has, since there is no "
                           "contract and no payload store")
-    src.add_argument("--bf16", type=Path, required=True, help="official BF16 checkpoint (non-routed source)")
+    src.add_argument("--bf16", type=Path, required=True,
+                     help="official BF16 checkpoint. Non-routed source for every source except "
+                          "gguf, whose non-routed tensors come DECODED from the artifact itself "
+                          "and whose --bf16 role narrows to config/tokenizer files plus the "
+                          "vision tower (the main GGUF does not carry one)")
 
     parser.add_argument("--teacher", type=Path, required=True,
                         help="teacher final-window tree (panel receipt search root)")
     parser.add_argument("--token-panel", type=Path, help="explicit sealed token-panel receipt path")
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--cold-run", type=int, required=True)
-    parser.add_argument("--profile", default="k6", choices=("k6", "k8", "k6k8", "native-bf16"))
+    parser.add_argument("--profile", default="k6", choices=("k6", "k8", "k6k8", "native-bf16",
+                                                            "gguf"))
     parser.add_argument("--roles", default="final")
     parser.add_argument("--windows", help="comma-separated window ids to score (default: all)")
     parser.add_argument("--pipeline-root")
@@ -1485,6 +1522,11 @@ def main() -> int:
             "--source native and --profile native-bf16 must be used together: the profile "
             "selects the student label the KLD report expects, and a native run is not a K6/K8 one"
         )
+    if (args.source == "gguf") != (args.profile == "gguf"):
+        raise _fail(
+            "--source gguf and --profile gguf must be used together: the profile selects the "
+            "student label the KLD report expects, and a GGUF run is not a K6/K8/native one"
+        )
 
     # ---- teacher role and preview sampling (both flag-gated; defaults are
     # byte-identical to the sealed behaviour) ------------------------------
@@ -1536,12 +1578,14 @@ def main() -> int:
     contract = None
     mtp_adapter = None
     bits: Optional[int] = None
-    if args.source == "native":
-        # There is no contract, no payload store and no codec.  The ONE
-        # provenance anchor is the sealed release inventory, which binds the
-        # BF16 config.json and model.safetensors.index.json this run reads its
-        # routed experts from - the same inventory the K6/K8 contracts target,
-        # so the floor and the quants are stated against the same weights.
+    gguf_surface_obj = None
+    if args.source in ("native", "gguf"):
+        # There is no contract, no payload store and no MCG codec.  The ONE
+        # provenance anchor for the OFFICIAL side is the sealed release
+        # inventory, which binds the BF16 config.json and
+        # model.safetensors.index.json this run consumes - all of them for
+        # native (the floor), only config/tokenizer/vision for gguf (whose
+        # weights come decoded from the artifact, identified separately below).
         inventory_path = (
             args.inventory.resolve()
             if args.inventory
@@ -1549,7 +1593,7 @@ def main() -> int:
         )
         if inventory_path is None or not inventory_path.is_file():
             raise _fail(
-                "--source native requires --inventory <sealed glm-release-inventory.v1> "
+                f"--source {args.source} requires --inventory <sealed glm-release-inventory.v1> "
                 "(or --packed-root, whose inventory.json is used)"
             )
         inventory = _sealed_json(inventory_path, RELEASE_INVENTORY_SCHEMA, "inventory_sha256")
@@ -1558,6 +1602,30 @@ def main() -> int:
             raise _fail("inventory model revision is not an immutable 40-hex commit")
         if inventory.get("seal_mode") != "full-shard-sha256":
             raise _fail("streaming capture requires the exact full-hash BF16 inventory")
+        if args.source == "gguf":
+            import gguf_surface as gguf_module
+
+            if not args.gguf_files:
+                raise _fail("--source gguf requires --gguf-file (every part of the artifact)")
+            if not args.gguf_revision:
+                raise _fail(
+                    "--source gguf requires --gguf-revision <40-hex immutable repo commit>: "
+                    "an unpinned community artifact cannot be identified in a receipt"
+                )
+            remote = any(str(item).startswith(("http://", "https://"))
+                         for item in args.gguf_files)
+            if remote and not args.dry_run:
+                raise _fail(
+                    "https --gguf-file locations are metadata-only: a real capture needs the "
+                    "local files (plus gguf_surface.py verify-files). Use --dry-run to "
+                    "validate the plan against the live repo."
+                )
+            gguf_surface_obj = gguf_module.load_gguf_surface(
+                [str(item) for item in args.gguf_files],
+                repo=args.gguf_repo,
+                revision=args.gguf_revision,
+                require_file_hashes=not (args.skip_gguf_hashes or remote),
+            )
     elif args.source == "checkpoint":
         if args.checkpoint is None:
             raise _fail("--source checkpoint requires --checkpoint")
@@ -1638,11 +1706,26 @@ def main() -> int:
     surface_started = time.monotonic()
     native_source: Optional[NativeCheckpointSource] = None
     native_layout: Optional[Dict[str, Any]] = None
+    gguf_source = None
+    gguf_layout: Optional[Dict[str, Any]] = None
+    gguf_summary: Optional[Dict[str, Any]] = None
     if args.source == "native":
         native_source = NativeCheckpointSource(model_root)
         native_layout = native_source.routed_tensor_census(
             tuple(MAIN_ROUTED_LAYERS), int(text_config["n_routed_experts"])
         )
+    elif args.source == "gguf":
+        import gguf_surface as gguf_module
+
+        gguf_source = gguf_module.GgufExpertSource(gguf_surface_obj)
+        gguf_layout = gguf_source.routed_tensor_census(tuple(MAIN_ROUTED_LAYERS))
+        # the artifact's non-routed map must EXACTLY biject the official
+        # non-routed non-vision set of the LOCAL bf16 index the inventory binds
+        gguf_layout["nonrouted_bijection"] = gguf_module.verify_nonrouted_bijection(
+            gguf_surface_obj.census,
+            json.loads(index_path.read_text(encoding="utf-8"))["weight_map"].keys(),
+        )
+        gguf_summary = gguf_module.surface_summary(gguf_surface_obj)
     else:
         surface = load_complete_surface(
             root=packed_root, contract=contract, mtp_adapter_receipt=mtp_adapter
@@ -1672,7 +1755,38 @@ def main() -> int:
     else:
         selection = list(enumerate(all_windows))
 
-    if args.source == "native":
+    if args.source == "gguf":
+        import gguf_surface as gguf_module
+
+        identity = gguf_module.gguf_reader_identity(
+            Path(__file__).resolve(), surface=gguf_surface_obj
+        )
+        # The artifact IS the student: every tensor of the measured forward comes
+        # from it.  The identity therefore binds the GGUF side (repo, immutable
+        # revision, per-file sha256, the measured type census and scope policy)
+        # AND the official side, which here supplies only config/tokenizer and
+        # the vision tower the artifact does not carry.
+        checkpoint_identity = sha256_bytes(
+            canonical_json(
+                {
+                    "schema": GGUF_STUDENT_IDENTITY_SCHEMA,
+                    "gguf_identity_sha256": gguf_surface_obj.checkpoint_identity_sha256(),
+                    "inventory_sha256": inventory["inventory_sha256"],
+                    "config_sha256": inventory["config_sha256"],
+                    "index_sha256": inventory["index_sha256"],
+                    "bits": None,
+                    "codebook": "ggml-block-quants",
+                    "routed_policy": "gguf_fused_expert_tensors_block_dequantized_to_bf16",
+                    "routed_tensor_count": gguf_layout["routed_tensor_count"],
+                    "nonrouted_policy": "decoded_from_the_same_gguf_artifact",
+                    "nonrouted_tensor_count": gguf_layout["nonrouted_bijection"][
+                        "nonrouted_mapped_tensors"
+                    ],
+                    "vision_policy": "official_bf16_not_in_artifact_never_executed",
+                }
+            )
+        )
+    elif args.source == "native":
         identity = native_source_identity(
             Path(reader_module.__file__).resolve(), Path(__file__).resolve()
         )
@@ -1800,6 +1914,56 @@ def main() -> int:
             "on the packed lane, whose non-routed tensors come from the same shards)",
         ]
         disclosure["native_routed_layout"] = native_layout
+    elif args.source == "gguf":
+        import gguf_surface as gguf_module
+
+        # The GGUF lane differs from a K6/K8 streaming run in TWO places: where
+        # the routed expert bytes come from, and -- unlike every other source --
+        # where the NON-ROUTED bytes come from.  Residency, topology, slab
+        # binding and the expert combine are unchanged and still true.
+        disclosure["routed_weight_source"] = (
+            "the GGUF's fused blk.L.ffn_{gate,up,down}_exps.weight tensors, sliced per expert "
+            "and block-dequantized (ggml Q4_K/Q5_K/Q6_K/Q8_0 -> fp32) by k6/tools/gguf_surface.py, "
+            "whose kernels are bitwise equal to gguf-py's reference dequantize()"
+        )
+        disclosure["nonrouted_weight_source"] = (
+            "the SAME GGUF artifact, decoded once into a materialized safetensors view under the "
+            "official HF tensor names -- token_embd, output (lm_head), every attention/KDA/DSA "
+            "projection, the shared experts and the dense MLPs. The official BF16 tree supplies "
+            "ONLY config/tokenizer files and the vision tower, which the main GGUF does not carry "
+            "and which the text-only sealed panel never executes"
+        )
+        disclosure["dtype_policy"] = dict(disclosure["dtype_policy"])
+        disclosure["dtype_policy"]["weights"] = (
+            "bfloat16 dequantized from the GGUF blocks (fp32 dequant, one rounding)"
+        )
+        disclosure["dtype_policy"]["nonrouted"] = (
+            "bfloat16 dequantized from the SAME GGUF (fp32 dequant, one rounding); the 291 "
+            "tensors the official tree stores float32 are stored float32 in the GGUF too and "
+            "pass through byte-exactly"
+        )
+        disclosure["sealed_path_identical"] = [
+            item
+            for item in disclosure["sealed_path_identical"]
+            if not item.startswith("decode contract:")
+        ]
+        disclosure["sealed_path_differences"] = list(disclosure["sealed_path_differences"]) + [
+            "routed surface: a third-party llama.cpp GGUF. No payload store, no contract, no MCG "
+            "codebook and no hash-gated decode are in the path; provenance is the immutable repo "
+            "revision plus a whole-file sha256 of every consumed .gguf",
+            "NON-ROUTED surface: also the artifact's, decoded. Every other source in this tool "
+            "scores the official BF16 non-routed parameters untouched; this one cannot, because "
+            "the artifact quantized them too. A GGUF number and a K6/K8/Dione number are "
+            "therefore NOT measuring the same set of weights, and the scope_policy block below "
+            "says what each artifact actually quantized (read from its own tensor table)",
+            "kv_b_proj: llama.cpp stores the MLA projection pre-split as attn_k_b (per-head "
+            "transposed) and attn_v_b; the official tensor is reconstructed from the two halves "
+            "in the arrangement proven against the official BF16 weight (see mla_placement)",
+        ]
+        disclosure["gguf_routed_layout"] = gguf_layout
+        disclosure["gguf_surface"] = gguf_summary
+        disclosure["scope_policy"] = gguf_surface_obj.scope_policy
+        disclosure["seal_disclosure"] = gguf_module.SEAL_DISCLOSURE
 
     plan = {
         "schema": STREAM_PLAN_SCHEMA,
@@ -1830,15 +1994,24 @@ def main() -> int:
         "main_routed_policy": (
             "streamed_official_bf16_checkpoint_experts_no_decode_one_layer_resident"
             if args.source == "native"
+            else "streamed_gguf_block_dequant_to_bf16_one_layer_resident"
+            if args.source == "gguf"
             else f"streamed_decode_hash_verified_packed_k{bits}_mcg_to_bf16_one_layer_resident"
         ),
         "native_routed_layout": native_layout,
+        "gguf_routed_layout": gguf_layout,
+        "gguf_surface": gguf_summary,
         "mtp_policy": (
             "mtp_layer_45_present_in_the_checkpoint_but_not_executed_by_standard_logits"
-            if args.source == "native"
+            if args.source in ("native", "gguf")
             else "complete_and_receipt_required_but_not_executed_by_standard_logits"
         ),
-        "nonrouted_policy": "untouched_official_checkpoint_parameters",
+        "nonrouted_policy": (
+            # the ONE source whose non-routed tensors are not the official ones
+            "decoded_from_the_same_gguf_artifact_vision_from_official_bf16"
+            if args.source == "gguf"
+            else "untouched_official_checkpoint_parameters"
+        ),
         "stored_logits_dtype": "float32",
         "surface_load_seconds": surface_seconds,
         "memory_plan": memory,
@@ -1875,6 +2048,23 @@ def main() -> int:
     load_started = time.monotonic()
     work_dir = (args.work_dir or (output_root.parent / ".stream-work")).resolve()
     work_dir.mkdir(parents=True, exist_ok=True)
+    prebuilt_view = None
+    if args.source == "gguf":
+        # A GGUF quantizes the non-routed tensors too, so they cannot come from
+        # the official tree: decode them ONCE into a safetensors view carrying
+        # the official names/shapes/dtypes.  The view is fingerprinted by the
+        # artifact identity + this adapter's hash and reused across cold runs.
+        view_path, view_record = gguf_module.materialize_nonrouted_view(
+            gguf_surface_obj, model_root, work_dir
+        )
+        view_record["value_spot_check"] = gguf_module.verify_view_nonrouted_values(
+            gguf_surface_obj, view_path
+        )
+        write_json(output_root / "gguf-nonrouted-view.json", view_record)
+        print(json.dumps({"gguf_nonrouted_view": view_record["tensor_count"],
+                          "reused": view_record["reused"],
+                          "bytes": view_record["tensor_bytes"]}, sort_keys=True), flush=True)
+        prebuilt_view = (view_path, view_record)
     model, build = build_streaming_model(
         bf16_root=model_root,
         work_dir=work_dir,
@@ -1882,6 +2072,7 @@ def main() -> int:
         attn_implementation=args.attention_backend,
         experts_implementation=args.experts_implementation,
         layers=layers,
+        nonrouted_view=prebuilt_view,
     )
     streamer = ExpertStreamer(
         surface=surface,
@@ -1893,7 +2084,11 @@ def main() -> int:
         unpack_device=unpack_device,
         cache_mode=args.decode_cache,
         cache_dir=args.decode_cache_dir.resolve() if args.decode_cache_dir else None,
-        native_source=native_source,
+        # both sources satisfy the same one-call contract the streamer's
+        # non-packed branch expects: load(layer=, expert=, projection=) ->
+        # (CPU tensor, census row with tensor/shard/bytes).  The caller still
+        # does fuse_gate_up, the single bf16 rounding and the torch.equal close.
+        native_source=native_source if native_source is not None else gguf_source,
     )
     if decode_device != device:
         raise _fail(
@@ -1953,14 +2148,22 @@ def main() -> int:
         "main_routed_runtime_dtype": (
             "bfloat16 read straight from the official checkpoint shards (no decode)"
             if args.source == "native"
+            else "bfloat16 streamed-dequantized from the GGUF's fused expert tensors"
+            if args.source == "gguf"
             else f"bfloat16 streamed-decoded from packed K{bits} payload"
         ),
-        "nonrouted_runtime_dtype": "official source dtype, untouched",
+        "nonrouted_runtime_dtype": (
+            "bfloat16 dequantized from the SAME GGUF artifact (float32 passthrough for the "
+            "tensors the official tree also stores float32); vision copied from official BF16"
+            if args.source == "gguf"
+            else "official source dtype, untouched"
+        ),
         "mtp_standard_logits_executed": False,
         "mtp_pack_receipt_sha256": (
             surface.mtp_pack_receipt_sha256 if surface is not None else None
         ),
         "native_routed_layout": native_layout,
+        "gguf_routed_layout": gguf_layout,
         "stored_encoder_closure": closure,
         "model_build": build,
         "streaming_wiring": wiring,
@@ -2013,8 +2216,14 @@ def main() -> int:
                     f"--sweep needs --slab-experts 288 to serve ep={sweep_ep} "
                     f"(have {memory['slab_experts']})"
                 )
-    student_label = NATIVE_STUDENT_LABEL if args.source == "native" else f"uniform-k{bits}"
-    capture_role = NATIVE_CAPTURE_ROLE if args.source == "native" else "packed_student"
+    student_label = {
+        "native": NATIVE_STUDENT_LABEL,
+        "gguf": GGUF_STUDENT_LABEL,
+    }.get(args.source, f"uniform-k{bits}")
+    capture_role = {
+        "native": NATIVE_CAPTURE_ROLE,
+        "gguf": GGUF_CAPTURE_ROLE,
+    }.get(args.source, "packed_student")
     if args.capture_role == "teacher":
         # the label stays native-bf16 (it IS the native forward); only the ROLE
         # flips, which is exactly what k6_kld_report's teacher discovery keys on
@@ -2165,13 +2374,19 @@ def main() -> int:
             "distinct_matrix_census": census_matrices,
             "census_closes_main_routed_surface": census_matrices == expected_matrices,
             "verified_packed_payload_bytes": (
-                None if args.source == "native" else streamer.payload_bytes
+                None if args.source in ("native", "gguf") else streamer.payload_bytes
             ),
             "native_checkpoint_bytes_read": (
                 int(native_source.bytes_read) if native_source is not None else None
             ),
             "native_shards_read": (
                 len(native_source.shards_read) if native_source is not None else None
+            ),
+            "gguf_bytes_read": (
+                int(gguf_source.bytes_read) if gguf_source is not None else None
+            ),
+            "gguf_files_read": (
+                sorted(gguf_source.files_read) if gguf_source is not None else None
             ),
             "installed_choice_census_sha256": sha256_bytes(canonical_json(streamer.census)),
             "decode_cache_hits": streamer.cache_hits,
@@ -2210,6 +2425,11 @@ def main() -> int:
         "weight_dtype": (
             "official BF16 checkpoint routed experts, streamed, NO decode"
             if args.source == "native"
+            else "llama.cpp GGUF block quants (%s) offline-dequantized to BF16 -- ALL tensors, "
+                 "non-routed included" % ",".join(
+                     sorted(k for k in gguf_surface_obj.type_census
+                            if k not in ("F32", "F16", "BF16")))
+            if args.source == "gguf"
             else f"EXL3/TR3 uniform-k{bits} streamed offline-decoded to BF16"
         ),
         "logits_dtype": "float32",
@@ -2221,10 +2441,26 @@ def main() -> int:
         "elapsed_seconds": time.monotonic() - capture_started,
         "streaming_disclosure": disclosure,
     }
-    # Both blocks below are added BEFORE receipt_sha256 is computed, so the
-    # seal covers them.  Neither appears in a default invocation, which keeps
+    # Every block below is added BEFORE receipt_sha256 is computed, so the
+    # seal covers it.  None appears in a default invocation, which keeps
     # default receipts field-identical to the sealed layout (asserted by
     # stream_score_selftest rung L1.j).
+    if args.source == "gguf":
+        # What the registry row has to disclose about a third-party artifact
+        # that quantized EVERYTHING: which repo at which immutable revision,
+        # which files (hashed), what it actually quantized, and that nothing
+        # here was sealed by an upstream encoder.
+        receipt["gguf_repo"] = gguf_surface_obj.repo
+        receipt["gguf_revision"] = gguf_surface_obj.revision
+        receipt["gguf_files"] = [dict(row) for row in gguf_surface_obj.file_records]
+        receipt["gguf_file_hash_verification"] = gguf_surface_obj.file_hash_verification
+        receipt["gguf_architecture"] = gguf_surface_obj.architecture
+        receipt["gguf_type_census"] = dict(gguf_surface_obj.type_census)
+        receipt["gguf_quant_metadata"] = dict(gguf_surface_obj.quant_metadata)
+        receipt["scope_policy"] = gguf_surface_obj.scope_policy
+        receipt["source_repo"] = "zai-org/GLM-5.3-Flash-BF16"
+        receipt["source_revision"] = model_revision
+        receipt["seal_disclosure"] = gguf_module.SEAL_DISCLOSURE
     if args.capture_role == "teacher":
         receipt["teacher_provenance"] = {
             "schema": TEACHER_PROVENANCE_SCHEMA,

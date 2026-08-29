@@ -50,6 +50,16 @@ t "zero-floor identity (T4; SKIPs inside when numpy/torch absent)" \
                                            0 "$PY" bin/selftest_zero_floor.py
 t "stream_score ladder rungs g,h,i,j (teacher role / preview refusal / \
 sampling / receipt stability)"             0 python3 k6/tools/stream_score_selftest.py --only g,h,i,j
+# The GGUF surface: dequant bitwise vs gguf-py on REAL fetched block bytes, the
+# llama.cpp->HF name map bijected against the REAL official index, the MLA
+# kv_b_proj reconstruction re-proven on real bytes, and every refusal. Needs
+# torch + the committed k6/tools/gguf-evidence fixtures; no network, no GPU.
+if have_module "$PY" torch; then
+  t "gguf surface offline (dequant vs gguf-py, census, MLA audit, refusals)" \
+                                           0 "$PY" k6/tools/selftest_gguf_offline.py
+else
+  s "gguf surface offline" "torch not importable by $PY"
+fi
 
 echo "== cloud planner (NETWORK, ACCOUNT; --dry-run creates nothing) =="
 # This target is 'tr3-published' and NO lane has a reader for it: both engines
