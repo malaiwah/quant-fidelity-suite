@@ -170,6 +170,13 @@ then requires that exact label of every other run.
 * **inferencerlabs Q9** (group size 32, BF16 scales, NO `model.safetensors.index.json`)
   is decodable by this kernel but needs a header-glob census; second wave.
 
+**Not wired yet (named, not hidden):** `bin/measure <mlx repo>` still refuses
+with "no lane has a reader". `bin/fidelity/hfmeta.py` already normalizes the
+codec to `mlx-affine`, but `sniff_surface` has no `mlx` surface and
+`bin/engines.json` has no lane entry pointing at `--source mlx`, so the
+planner cannot route to this adapter yet. The capture path above is driven
+directly, exactly as the Dione lane was before its planner entry existed.
+
 ## 6. Validation status (all offline, no GPU, no rental)
 
 `selftest_mlx_offline.py` — 8 rungs, ~8 s:
