@@ -3745,70 +3745,48 @@ the interval was derivable from the committed receipts all along.
 of `seed_registry.py` mid-task (mtime moved, `git status` clean); the edit was
 re-applied from an idempotent patch script. Stage by name, commit early.
 
-## 2026-09-05 - GLM-5.3-Flash re-captured on its own lane; wrldsuksgo2mars' K3 is the first row of the new group
+## 2026-09-05 — GLM-5.2 same-lane root captured, published, and compared to the GLM-5.3 root
 
-**Published.** Root `malaiwah/glm53-flash-fidelity-root-v1` @
-`bdd25fe0771a2f6002dffb3a2217a4d4a201a6a4`, dataset_sha256
-`0bff144766d57086ead7f1f87b9e43c5263fffc7534bf1d7c51d34947fd0283b`,
-capture_content_digest `4b068c7cf4d3495a544ab085d536e2c15c4208a23082aa3b194a63a3a3ca8f5a`
-(`zai-org/GLM-5.3-Flash-BF16@a6c167b6`, 45 layers streamed layer-outer on one H200,
-US-NC-1; three captures on two pods, all bitwise; own-heads self-compare exactly
-0.0 / top-1 1.0; probe ` Paris` p=0.52 enforced). Candidate
-`malaiwah/glm53-flash-fidelity-exl3-wrld-k3-v1` @ `e68c008c4bae393598d54abfd78b7a6c4968d447`,
-dataset_sha256 `2a37cb44c047fd278069ec5ea70cec0d7266cf70b99f382829f6410a134a82e6`,
-capture `ddc7aec876018273e9f2588a9bb218199cb6dc82ecb3a480edeee7f79df76477` (two cold
-runs bitwise; 36,288 routed-expert trellis groups decoded on the device, everything
-else carried bf16; head content-identical to the root's).
+**Published.** `malaiwah/glm52-fidelity-root-v1` @ `5977559307ee9fb7d6478e81a875faa10ffee9b8`,
+dataset_sha256 `b7e876d61b3eaa12d41489b92c83076738aa1f9bc4fee26c02c3f198e769dd56`,
+capture_content_digest `a544e029a0392c2ae633715b0076ca040821128088fc0025a36de342fa4c0a78`,
+head tensor content `a012be05e7716292407d418b408222de256d4dbe2fe2143a44d27d8e3553bfba`.
+`zai-org/GLM-5.2@cf457fa7`, `panel--glm53.malaiwah.corpus5x5-v1` (51,175 positions),
+hidden form, layer-outer stream, H200 US-NC-1 container-disk, pod `wqghhmgbamiup9`
+(~63 min wall, ~$4.8). Two cold runs bitwise: self-compare 0.0, top-1 1.0. Generation
+probe " Paris" p=0.245 enforced and passed. 791 MTP-block tensors exactly matching
+the index-census allowlist (committed `a235785`). `verified_after_publish` true
+(anonymous). Same-lane root: does not upgrade any row measured against another teacher.
 
-**KLD(root ‖ K3) = 0.05056874829111706 nats, top-1 0.9309037616023449** on
-brandonmusic's `final25` token ids (transported byte for byte, never re-tokenized;
-`engines/tools/transport_token_panel.py`), 51,175 positions, own heads, class
-**advisory** (weights reconstructed by our exllamav3 transcription). Median 0.00394,
-p95 0.217, p99 0.718, p99.9 2.24, max 6.99; per-domain general 0.0476, legal 0.0814,
-code-agentic 0.0396, reasoning 0.0342; per-window 0.0136..0.144, sd 0.0314. Posted at
-https://huggingface.co/wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3-v1/discussions/1 (the
-author asked for it in the K4 thread; a pointer was left there). Registry rows
-`measurement--glm53-hf.{bf16-selfcompare-floor,exl3-k3-wrldsuksgo2mars}.brandonmusic-final25`
-on `reference--malaiwah.glm53-bf16-hf.brandonmusic-final25`, comparability key
-`cmp--f0823827adb15376` -- a NEW group beside the 13 older Flash rows on the same
-panel row (they keep brandonmusic's teacher and their inferred floor; nothing is
-upgraded), mirror `19eecb98`.
+The layer-78 allowlist is the same 791 names as GLM-5.3's because GLM-5.2's
+`model.safetensors.index.json` (sha256 `5fd47a92…`) is byte-identical to
+GLM-5.3-BF16@304b8051's. `tokenizer.json` and `tokenizer_config.json` are also
+byte-identical; `LICENSE` (1065 B Apache vs 4263 B MIT) and `chat_template.jinja`
+differ and are admitted as per-model provenance.
 
-**Paid for, in order.** Eight pods, ~$17 of the account's $38 today; three
-produced science. (1) A controller launched from an unsupervised shell was killed at
-setup; the lease's `request_destroy` + reaper sweep destroyed the pod in 6 min ($0.3).
-(2) The capture sealed and REFUSED: an id-less transported panel binds as
-`panel-artifact-sha256:<sha>` (what the M2 gate pins) and the wire schemas required
-`^panel--` ($1; 9805481, additive). (3) Sealed twice, qualified, then local
-publication refused brandonmusic's own sealed receipt for ITS `/workspace/...` paths
-(759c4c1: a producer-sealed upstream receipt keeps its bytes and skips only the path
-scan; credential scans still run; the qualified bundle was published from that
-commit). (4) K3 SIGINT'd before the fetch when 3eee3f0 landed ($0.4). (5) K3 died at
-setup: the bundle carried `gguf_scope.py` but not the `fp8_scope.py` it imports nor
-the scope its selftest reads (42d5965, 77380bc). `selftest_bundle_complete` catches
-this -- only under an interpreter WITH torch; on stock python3 its four "runs from
-the bundle alone" rungs fail on `import torch` and read as noise. Run it with the
-venv python before any launch. (6) K3 science passed end to end and the pod's
-ARCHIVE refused `dataset capture identity differs from the exact root job` ($2.3):
-PANEL-D7 (9bd8823) had added `tokenizer_equivalences` to the capture's binding
-evidence; the archive and the width-two check compared the block for exact
-equality, qualify compared two keys. fb2fe62: one comparator
-(`panel.binding_evidence_matches`) for all three, rungs failing on the old tree with
-the pod's exact error; every lane's launches were held until it landed. (7) Done.
-Between (5) and (7) the shared checkout was too dirty to launch from; every paid
-run went from a detached clean worktree at a named origin/main commit, which is
-what `clean-source-checkout` wants and what the receipts now record.
+**Lineage (root-vs-root, own-heads, numpy replay, filed under
+`registry/protocol/glm-5.2/lineage/`).** The base moved by ~0.194 nats on this panel:
 
-**Two rules the day bought.** A quantized candidate names its codec by what the
-index carries (`exl3-mcg` since 5f78aaf), and `--candidate-codec` must say the same
-or `qualify_root` would refuse after both cold runs -- the dry-run now catches it.
-And the registry's harness closure may legitimately span two `panel.py` digests
-when the root and the candidate were captured on either side of a binder change;
-`_g53_harness` records one per capture instead of refusing.
+| direction | mean | median | p95 | p99 | top-1 |
+|---|---:|---:|---:|---:|---:|
+| KL(5.2 ‖ 5.3) | 0.194091 | 0.013526 | 0.894189 | 2.641474 | 0.876678 |
+| KL(5.3 ‖ 5.2) | 0.195974 | 0.014600 | 0.918989 | 2.721599 | 0.876678 |
 
-**Scope tooling.** `fp8_scope`/`exl3_scope` read `model.language_model.layers.N`
-and `text_config` (56ff020; the K3's 1,207 named tensors were all `other` before);
-an all-native class stored at two widths is `native:mixed`, not `quantized:mixed`.
-The K3's MTP allowlist (3,481 index keys) and a provenance sidecar for the root's
-were authored from bytes. Balance $152.04 -> $113.83 across all lanes today; no pod
-of this lane live at close.
+Per-domain (KL(5.2‖5.3)): code 0.152, encyclopedic 0.186, literary 0.239, multilingual
+0.214, scientific 0.180. Context depth: shallow positions (0-255) diverge most
+(0.257); deep positions (1536-2046) least (0.161). Cross-generation FP8 anchors
+(KL(5.2 root ‖ 5.3 FP8) and KL(5.3 root ‖ 5.2 FP8)) wait for the 5.2 FP8 candidate
+to publish.
+
+**Seven repo defects, each fixed before the next attempt, zero operator errors.**
+(1) Pod-delta race on a sibling's 9-second-old pod → `6b35883` (cloudlease sibling
+resolution). (2) Panel contract refused the 5.2 pin → `aca52c7` (admit to corpus5x5).
+(3) `LICENSE`/`chat_template` SHA mismatch → `56980d7` (per-model provenance).
+(4) Broken import `exl3_layout_contract` → `668795f` (commit the function). (5)
+Missing `.reference/` tokenizer dir on the pod → `0d0e3eb` (stage fetches panel's
+pinned files). (6) Inline-script IndentationError → `ee85b38`. (7) `KeyError
+'keys_dropped_from_root'` in `_assemble` → `254fa35`. (8) Missing
+`head_decode_identity` on `layer_outer` → `2026710`. The capture science (all 78
+layers, 26 windows) succeeded on every attempt that reached the pod; every failure
+was in the controller or assembly path, never in the model math. Balance $139.28
+→ $113.83 (delta includes other lanes' pods).
