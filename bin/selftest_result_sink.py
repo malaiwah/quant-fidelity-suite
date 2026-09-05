@@ -2146,6 +2146,150 @@ def rung_archive():
                  resource_job, low_free))
 
 
+class _CountingFile:
+    """File wrapper that counts total bytes read for the read-count rung."""
+
+    def __init__(self, fh):
+        self._f = fh
+        self.bytes_read = 0
+
+    def read(self, size=-1):
+        chunk = self._f.read(size)
+        self.bytes_read += len(chunk)
+        return chunk
+
+    def close(self):
+        self._f.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.close()
+
+
+def _count_opens(path, fn):
+    """Run *fn* and count how many times *path* is opened by builtins.open,
+    plus the total bytes read across all opens.  Returns (open_count, bytes)."""
+    import builtins
+    path_str = str(path)
+    original_open = builtins.open
+    counting_files = []
+
+    def patched_open(file, mode="r", *args, **kwargs):
+        f = original_open(file, mode, *args, **kwargs)
+        if str(file) == path_str and "b" in mode:
+            cf = _CountingFile(f)
+            counting_files.append(cf)
+            return cf
+        return f
+
+    builtins.open = patched_open
+    try:
+        fn()
+    finally:
+        builtins.open = original_open
+    total_bytes = sum(cf.bytes_read for cf in counting_files)
+    for cf in counting_files:
+        cf.close()
+    return len(counting_files), total_bytes
+
+
+def rung_one_pass():
+    print("[T26.9] one streaming pass: verify + extract with one inflate")
+
+    # Build a small synthetic archive to count reads against.
+    with tempfile.TemporaryDirectory() as tmp:
+        root = _run_root(tmp)
+        summary = RS.build_summary(root, "measure", "ok", ["setup", "seal"])
+        blob = RS.build_archive(root, summary)
+        archive_path = Path(tmp) / "test.tar.gz"
+        archive_path.write_bytes(blob)
+
+        # verify_archive: the new one-pass code opens the file at most twice
+        # (once for the transfer-identity sha256 via _archive_source, once
+        # for the inflate).  The old multi-pass code opened it 3+ times.
+        open_count, total_bytes = _count_opens(archive_path, lambda:
+            RS.verify_archive(archive_path))
+        check("R95 one-pass verify opens the archive file at most twice",
+              open_count <= 2,
+              "opened %d times" % open_count)
+        check("R96 one-pass verify reads <= 2x compressed bytes (sha + inflate)",
+              total_bytes <= 2 * len(blob) + 1024,
+              "%d bytes read vs %d archive bytes" % (
+                  total_bytes, len(blob)))
+
+    # Extraction also happens in the same single pass (no second inflate).
+    with tempfile.TemporaryDirectory() as tmp:
+        root = _run_root(tmp)
+        summary = RS.build_summary(root, "measure", "ok", ["setup", "seal"])
+        blob = RS.build_archive(root, summary)
+        archive_path = Path(tmp) / "test.tar.gz"
+        archive_path.write_bytes(blob)
+        dest = Path(tmp) / "extracted"
+
+        open_count, _total = _count_opens(archive_path, lambda:
+            RS.extract_verified_archive(archive_path, dest))
+        check("R97 one-pass extract opens the archive at most twice "
+              "(sha + single inflate, no re-read for extraction)",
+              open_count <= 2 and (dest / "job.json").is_file(),
+              "opened %d times" % open_count)
+
+    # --- Refusal rungs: same error texts as the old multi-pass code ---
+    with tempfile.TemporaryDirectory() as tmp:
+        root = _run_root(tmp)
+        summary = RS.build_summary(root, "measure", "ok", ["setup", "seal"])
+        blob = RS.build_archive(root, summary)
+
+        # Bad member sha: tamper one member but keep the manifest consistent
+        # with the OLD bytes (so the manifest sha differs from the actual).
+        tampered = _repack(
+            blob, replace={"logs/setup.log": b"setup evil\n"})
+        _refused("R98 one-pass: tampered member sha is refused",
+                 lambda: RS.verify_archive(tampered))
+
+        # Missing manifest: remove the manifest entirely.
+        no_manifest = _repack(blob, omit={RS.RESULT_MANIFEST_NAME})
+        _refused("R99 one-pass: missing manifest is refused",
+                 lambda: RS.verify_archive(no_manifest))
+
+        # Truncated gzip: cut the archive in half.
+        _refused("R100 one-pass: truncated gzip is refused",
+                 lambda: RS.verify_archive(blob[:len(blob) // 2]))
+
+        # Extra member: add a member not in the manifest.
+        extra_blob = io.BytesIO()
+        with gzip.GzipFile(
+                filename="", mode="wb", fileobj=extra_blob,
+                mtime=0) as zipped:
+            with tarfile.open(fileobj=zipped, mode="w") as archive:
+                with tarfile.open(
+                        fileobj=io.BytesIO(blob), mode="r:gz") as source:
+                    for member in source.getmembers():
+                        body = source.extractfile(member).read()
+                        archive.addfile(
+                            RS._tar_info(member.name, len(body)),
+                            io.BytesIO(body))
+                archive.addfile(
+                    RS._tar_info("extra/unexpected.bin", 5),
+                    io.BytesIO(b"extra"))
+        _refused("R101 one-pass: extra member is refused",
+                 lambda: RS.verify_archive(extra_blob.getvalue()))
+
+    # Extraction atomicity: a refusal must not leave partial files behind.
+    with tempfile.TemporaryDirectory() as tmp:
+        root = _run_root(tmp)
+        summary = RS.build_summary(root, "measure", "ok", ["setup", "seal"])
+        blob = RS.build_archive(root, summary)
+        tampered = _repack(
+            blob, replace={"logs/setup.log": b"setup evil\n"})
+        dest = Path(tmp) / "atomic-fail"
+        _refused("R102 one-pass: tampered archive refuses extraction",
+                 lambda: RS.extract_verified_archive(tampered, dest))
+        check("R102b refused extraction leaves no partial directory behind",
+              not dest.exists() and not dest.is_symlink())
+
+
 def rung_wired():
     print("[T26.6] the entrypoint actually uses it, and the image ships it")
     entry = (HERE / "container_entry.py").read_text(encoding="utf-8")
@@ -2175,7 +2319,7 @@ def main():
     print("== T26 result sinks: getting the answer off the box ==")
     for rung in (rung_parse, rung_content, rung_logs, rung_candidate, rung_binding_evidence,
                  rung_http, rung_cap,
-                 rung_archive, rung_wired):
+                 rung_archive, rung_one_pass, rung_wired):
         rung()
     print("\nT26: %d passed, %d failed" % (PASS, FAIL))
     for f in FAILED:
