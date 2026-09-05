@@ -2695,20 +2695,38 @@ def stage_pgid_race_case():
             str(fs_dir), "/tmp/nonexistent-engine", stage_name,
             image_digest, image_ref, str(secrets_dir))
 
+    # A stub stage_measure.sh that self-records its group to the per-stage
+    # path the wrapper waits for (runtime/stage-<name>.pgid), then exits N.
+    def stub_script(exit_code="0", record=True, sleep_before=""):
+        body = (
+            "#!/usr/bin/env bash\n"
+            "set -euo pipefail\n"
+            'STAGE="${1:?}"\n'
+            'FS="$(readlink -f -- "$(dirname "$0")/..")"\n')
+        if sleep_before:
+            body += sleep_before + "\n"
+        if record:
+            body += (
+                'bash "$FS/bin/watchdog.sh" --record-stage-pgid "$FS" "$$" '
+                '"$FS/runtime/stage-$STAGE.pgid"\n')
+        body += "exit %s\n" % exit_code
+        return body
+
+    def stage_record(fs, name):
+        return fs / "runtime" / ("stage-%s.pgid" % name)
+
+    def stage_receipt(fs, name):
+        return fs / "receipts" / ("watchdog-stage-pgid-%s.json" % name)
+
     # (a) A stage that exits 0 immediately after self-recording must return 0
-    #     and leave the record + receipt -- not a spurious exit 70.
+    #     and leave the per-stage record + receipt -- not a spurious exit 70.
     with tempfile.TemporaryDirectory() as td:
         fs = Path(td)
         (fs / "bin").mkdir(parents=True)
         (fs / "logs").mkdir()
         shutil.copy(str(watchdog), str(fs / "bin" / "watchdog.sh"))
         stub = fs / "bin" / "stage_measure.sh"
-        stub.write_text(
-            "#!/usr/bin/env bash\n"
-            "set -euo pipefail\n"
-            'FS="$(readlink -f -- "$(dirname "$0")/..")"\n'
-            'bash "$FS/bin/watchdog.sh" --record-stage-pgid "$FS" "$$"\n'
-            "exit 0\n", encoding="utf-8")
+        stub.write_text(stub_script("0"), encoding="utf-8")
         stub.chmod(0o755)
         secrets = fs / ".secrets"
         secrets.mkdir()
@@ -2716,8 +2734,8 @@ def stage_pgid_race_case():
         proc = subprocess.run(
             ["bash", "-c", cmd], capture_output=True, text=True,
             env=dict(os.environ, STAGE_PGID_WAIT_SECS="5"), timeout=30)
-        record = fs / "runtime" / "stage.pgid"
-        receipt = fs / "receipts" / "watchdog-stage-pgid.json"
+        record = stage_record(fs, "setup")
+        receipt = stage_receipt(fs, "setup")
         check("fast exit-0 stage returns 0 (not spurious 70)",
               proc.returncode == 0
               and record.is_file() and not record.is_symlink()
@@ -2726,30 +2744,26 @@ def stage_pgid_race_case():
               % (proc.returncode, record.exists(), receipt.exists(),
                  proc.stderr[:300]))
 
-    # (d) The record path is per-RUN, the record is per-STAGE: a leftover
-    #     record from the previous stage must not satisfy this stage's wait.
-    #     A leader that records nothing and exits 42 after a delay would, with
-    #     the stale file present, have been waited on at once and then -- the
-    #     stale record being "present" -- reported as a recorded success path
-    #     with its own code; but the record left behind would be the OLD
-    #     leader's pgid, so the watchdog would target a dead group. The wrapper
-    #     clears the record before launching; the stale content must be gone
-    #     and the exit code must be the leader's.
+    # (d) A leftover same-name record (a retried/re-run stage) must not satisfy
+    #     this stage's wait.  A leader that records nothing and exits 42 after a
+    #     delay would, with the stale file present, have been waited on at once
+    #     and then -- the stale record being "present" -- reported as a recorded
+    #     success path with its own code; but the record left behind would be
+    #     the OLD leader's pgid, so the watchdog would target a dead group. The
+    #     wrapper clears the per-stage record before launching; the stale
+    #     content must be gone and the exit code must be the leader's.
     with tempfile.TemporaryDirectory() as td:
         fs = Path(td)
         (fs / "bin").mkdir(parents=True)
         (fs / "logs").mkdir()
         (fs / "runtime").mkdir()
         shutil.copy(str(watchdog), str(fs / "bin" / "watchdog.sh"))
-        stale = fs / "runtime" / "stage.pgid"
+        stale = stage_record(fs, "capture")
         stale.write_text("version=1\nleader_pid=1\npgid=1\nsession_id=1\n"
                          "start_ticks=1\nrecorded_at_epoch=1\n", encoding="utf-8")
         stub = fs / "bin" / "stage_measure.sh"
-        stub.write_text(
-            "#!/usr/bin/env bash\n"
-            "set -euo pipefail\n"
-            "sleep 1\n"
-            "exit 42\n", encoding="utf-8")
+        stub.write_text(stub_script("42", record=False, sleep_before="sleep 1"),
+                        encoding="utf-8")
         stub.chmod(0o755)
         secrets = fs / ".secrets"
         secrets.mkdir()
@@ -2758,10 +2772,11 @@ def stage_pgid_race_case():
             ["bash", "-c", cmd], capture_output=True, text=True,
             env=dict(os.environ, STAGE_PGID_WAIT_SECS="5"), timeout=30)
         leftover = stale.read_text(encoding="utf-8") if stale.exists() else ""
-        check("a stale record from the previous stage is cleared before launch and "
-              "never stands in for this stage's own",
+        check("a stale same-stage record is cleared before launch and never "
+              "stands in for this stage's own",
               proc.returncode == 42 and "leader_pid=1\n" not in leftover,
-              "rc=%d stale_present=%s content=%r" % (proc.returncode, stale.exists(), leftover[:60]))
+              "rc=%d stale_present=%s content=%r"
+              % (proc.returncode, stale.exists(), leftover[:60]))
 
     # (c) A stage that exits non-zero after self-recording must propagate that
     #     code -- not 70, not 0.
@@ -2771,12 +2786,7 @@ def stage_pgid_race_case():
         (fs / "logs").mkdir()
         shutil.copy(str(watchdog), str(fs / "bin" / "watchdog.sh"))
         stub = fs / "bin" / "stage_measure.sh"
-        stub.write_text(
-            "#!/usr/bin/env bash\n"
-            "set -euo pipefail\n"
-            'FS="$(readlink -f -- "$(dirname "$0")/..")"\n'
-            'bash "$FS/bin/watchdog.sh" --record-stage-pgid "$FS" "$$"\n'
-            "exit 42\n", encoding="utf-8")
+        stub.write_text(stub_script("42"), encoding="utf-8")
         stub.chmod(0o755)
         secrets = fs / ".secrets"
         secrets.mkdir()
@@ -2796,11 +2806,8 @@ def stage_pgid_race_case():
         (fs / "logs").mkdir()
         shutil.copy(str(watchdog), str(fs / "bin" / "watchdog.sh"))
         stub = fs / "bin" / "stage_measure.sh"
-        stub.write_text(
-            "#!/usr/bin/env bash\n"
-            "set -euo pipefail\n"
-            'FS="$(readlink -f -- "$(dirname "$0")/..")"\n'
-            "sleep 300\n", encoding="utf-8")
+        stub.write_text(stub_script("0", record=False, sleep_before="sleep 300"),
+                        encoding="utf-8")
         stub.chmod(0o755)
         secrets = fs / ".secrets"
         secrets.mkdir()
@@ -2808,11 +2815,62 @@ def stage_pgid_race_case():
         proc = subprocess.run(
             ["bash", "-c", cmd], capture_output=True, text=True,
             env=dict(os.environ, STAGE_PGID_WAIT_SECS="2"), timeout=30)
-        record = fs / "runtime" / "stage.pgid"
+        record = stage_record(fs, "setup")
         check("live unrecordable leader is TERMed and yields 70",
               proc.returncode == 70 and not record.exists(),
               "rc=%d record=%s stderr=%s"
               % (proc.returncode, record.exists(), proc.stderr[:300]))
+
+    # (e) Two concurrent setsid leaders each self-record a per-stage pgid; the
+    #     watchdog (no explicit record -> glob runtime/stage-*.pgid) stops
+    #     BOTH independently on a deadline, and each leaves its own receipt.
+    #     This is the shape the concurrent stage pairs rely on: fetch_reference
+    #     alongside fetch_target, compare_reference alongside capture_repeat.
+    #     The leaders are reaped by a helper (spawn_reaped_stage) so the
+    #     watchdog\'s post-TERM liveness probe does not see a zombie the way
+    #     the real wrapper\'s `wait $leader` never would.
+    with tempfile.TemporaryDirectory() as td:
+        fs = Path(td)
+        (fs / "receipts").mkdir()
+        (fs / "runtime").mkdir()
+        helpers = []
+        pids = []
+        for _ in range(2):
+            helper, stage_pid = spawn_reaped_stage()
+            helpers.append(helper)
+            pids.append(stage_pid)
+        try:
+            names = ("fetch_target", "fetch_reference")
+            for name, pid in zip(names, pids):
+                armed = subprocess.run(
+                    ["bash", str(watchdog), "--record-stage-pgid",
+                     str(fs), str(pid), str(stage_record(fs, name))],
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                    timeout=10)
+                check("per-stage record %s arms" % name,
+                      armed.returncode == 0
+                      and stage_record(fs, name).is_file()
+                      and stage_receipt(fs, name).is_file(),
+                      "rc=%s stderr=%s" % (armed.returncode, armed.stderr))
+            stopped = subprocess.run(
+                ["bash", str(watchdog), str(int(time.time()) - 1), "60", str(fs)],
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                timeout=20)
+            abandoned = json.loads(
+                (fs / "ABANDONED.json").read_text(encoding="utf-8"))
+            check("two per-stage leaders are both TERMable independently",
+                  stopped.returncode == 0
+                  and abandoned["stage_process_group_stopped"] is True
+                  and all(h.poll() is not None for h in helpers),
+                  "rc=%s helper_polls=%s detail=%s"
+                  % (stopped.returncode, [h.poll() for h in helpers],
+                     abandoned.get("detail", "")[:120]))
+        finally:
+            for helper in helpers:
+                try:
+                    helper.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    pass
 
 
 def stage_progress_case():
