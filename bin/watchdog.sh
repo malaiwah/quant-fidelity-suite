@@ -11,6 +11,12 @@
 # recorded process group after proving either the setsid leader identity or
 # every surviving group member's recorded session.  Missing, stale, reused,
 # or unprovable identity fails closed rather than risking another process.
+#
+# Per-stage records: each setsid leader self-records its process group to
+# runtime/stage-<name>.pgid, so two stages may run concurrently
+# (fetch_reference alongside fetch_target; compare_reference alongside
+# capture_repeat).  On a deadline or stale heartbeat stop_work signals EVERY
+# recorded group independently, proving each before it is signalled.
 set -uo pipefail
 umask 077
 
@@ -107,6 +113,19 @@ record_stage_pgid() {
     printf 'start_ticks=%s\n' "$start_ticks"
     printf 'recorded_at_epoch=%s\n' "$now"
   } | atomic_file "$record" || return 2
+  # The receipt name follows the record name: a per-stage record
+  # (runtime/stage-<name>.pgid) gets a per-stage receipt
+  # (watchdog-stage-pgid-<name>.json) so two concurrent setsid leaders each
+  # leave their own evidence instead of clobbering one file.  The legacy
+  # per-run record (runtime/stage.pgid) keeps the original single receipt.
+  local rbase receipt
+  rbase="$(basename "$record")"
+  if [ "$rbase" = "stage.pgid" ]; then
+    receipt="$fs/receipts/watchdog-stage-pgid.json"
+  else
+    local stem="${rbase#stage-}"; stem="${stem%.pgid}"
+    receipt="$fs/receipts/watchdog-stage-pgid-$stem.json"
+  fi
   {
     printf '{\n'
     printf '  "schema": "fidelity-suite/watchdog-stage-pgid.v1",\n'
@@ -117,7 +136,7 @@ record_stage_pgid() {
     printf '  "recorded_at_epoch": %s,\n' "$now"
     printf '  "record_path": "%s"\n' "$(json_escape "$record")"
     printf '}\n'
-  } | atomic_file "$fs/receipts/watchdog-stage-pgid.json"
+  } | atomic_file "$receipt"
 }
 
 if [ "${1:-}" = "--record-stage-pgid" ]; then
@@ -129,7 +148,10 @@ fi
 DEADLINE="${1:?usage: watchdog.sh <deadline_epoch> <heartbeat_timeout> <fs_root> [pgid_record]}"
 HB_TIMEOUT="${2:?missing heartbeat timeout}"
 FS="${3:?missing fs_root}"
-PGID_RECORD="${4:-$FS/runtime/stage.pgid}"
+# Optional explicit record (legacy single-stage direct calls).  When unset the
+# watchdog signals every runtime/stage-<name>.pgid record it finds, so two
+# concurrent leaders are both reaped on a deadline or stale heartbeat.
+PGID_RECORD="${4:-}"
 [[ "$DEADLINE" =~ ^[1-9][0-9]*$ ]] || {
   echo "watchdog: deadline must be a positive epoch" >&2; exit 2; }
 [[ "$HB_TIMEOUT" =~ ^[1-9][0-9]*$ ]] || {
@@ -149,11 +171,12 @@ ARMED_AT="$(date +%s)"
   printf '  "armed_at_epoch": %s,\n' "$ARMED_AT"
   printf '  "deadline_epoch": %s,\n' "$DEADLINE"
   printf '  "heartbeat_timeout_seconds": %s,\n' "$HB_TIMEOUT"
-  printf '  "stage_pgid_record": "%s"\n' "$(json_escape "$PGID_RECORD")"
+  printf '  "stage_pgid_record": "%s"\n' \
+    "$(json_escape "${PGID_RECORD:-(per-stage glob runtime/stage-*.pgid)}")"
   printf '}\n'
 } | atomic_file "$FS/receipts/watchdog-armed.json" || {
   echo "watchdog: could not write arming proof" >&2; exit 2; }
-echo "watchdog armed pid=$$ deadline=$DEADLINE heartbeat_timeout=${HB_TIMEOUT}s pgid_record=$PGID_RECORD" >&2
+echo "watchdog armed pid=$$ deadline=$DEADLINE heartbeat_timeout=${HB_TIMEOUT}s pgid_record=${PGID_RECORD:-(per-stage glob)}" >&2
 
 write_abandoned() { # write_abandoned <reason> <stopped> <detail>
   local reason="$1" stopped="$2" detail="$3" now
@@ -166,7 +189,8 @@ write_abandoned() { # write_abandoned <reason> <stopped> <detail>
     printf '  "deadline_epoch": %s,\n' "$DEADLINE"
     printf '  "heartbeat_timeout_seconds": %s,\n' "$HB_TIMEOUT"
     printf '  "stage_process_group_stopped": %s,\n' "$stopped"
-    printf '  "stage_pgid_record": "%s",\n' "$(json_escape "$PGID_RECORD")"
+    printf '  "stage_pgid_record": "%s",\n' \
+      "$(json_escape "${PGID_RECORD:-(per-stage glob runtime/stage-*.pgid)}")"
     printf '  "detail": "%s",\n' "$(json_escape "$detail")"
     printf '  "note": "This watchdog cannot destroy the instance. A retained controller lease must confirm provider absence and billing reconciliation."\n'
     printf '}\n'
@@ -176,9 +200,10 @@ write_abandoned() { # write_abandoned <reason> <stopped> <detail>
   }
 }
 
-load_stage_record() {
+load_stage_record() { # load_stage_record <record_path>
+  local rec="${1:?missing record path}"
   local key value version="" leader="" pgid="" session="" start="" recorded=""
-  [ -f "$PGID_RECORD" ] && [ ! -L "$PGID_RECORD" ] || return 1
+  [ -f "$rec" ] && [ ! -L "$rec" ] || return 1
   while IFS='=' read -r key value; do
     case "$key" in
       version) version="$value" ;;
@@ -189,7 +214,7 @@ load_stage_record() {
       recorded_at_epoch) recorded="$value" ;;
       *) return 1 ;;
     esac
-  done < "$PGID_RECORD"
+  done < "$rec"
   [[ "$version" = 1 && "$leader" =~ ^[1-9][0-9]*$ \
      && "$pgid" =~ ^[1-9][0-9]*$ && "$session" =~ ^[1-9][0-9]*$ \
      && "$start" =~ ^[1-9][0-9]*$ && "$recorded" =~ ^[1-9][0-9]*$ ]] || return 1
@@ -214,41 +239,40 @@ group_session_is_exact() {
   return "$found"
 }
 
-stop_work() { # stop_work <reason>
-  local reason="$1" identity current_pgrp current_session current_start
+# stop_one_record <record_path> <reason>
+#   Prove the recorded group's identity and signal it (TERM then KILL).  Echo a
+#   one-line detail; return 0 if the group was stopped or already absent, 1 if
+#   the record was unprovable/unsafe or survived -- fail closed per record.
+stop_one_record() {
+  local rec="$1" reason="$2" identity current_pgrp current_session current_start
   local still_live=0 group_live=0
-  echo "watchdog: $reason -- stopping recorded stage process group" >&2
-  if ! load_stage_record; then
-    write_abandoned "$reason" false "missing or malformed stage PGID record; no process was signalled"
-    echo "watchdog: refusing unproven process-group signal" >&2
-    exit 91
+  if ! load_stage_record "$rec"; then
+    echo "missing or malformed stage PGID record; not signalled"
+    return 1
   fi
   if [ "$STAGE_LEADER" != "$STAGE_PGID" ] || [ "$STAGE_LEADER" != "$STAGE_SESSION" ] \
      || [ "$STAGE_PGID" = "$WATCHDOG_PGID" ]; then
-    write_abandoned "$reason" false "stage PGID record is not an isolated group; no process was signalled"
-    echo "watchdog: refusing unsafe stage PGID record" >&2
-    exit 91
+    echo "stage PGID record is not an isolated group; not signalled"
+    return 1
   fi
   if identity="$(proc_identity "$STAGE_LEADER")"; then
     read -r current_pgrp current_session current_start <<<"$identity"
     if [ "$current_pgrp" != "$STAGE_PGID" ] \
        || [ "$current_session" != "$STAGE_SESSION" ] \
        || [ "$current_start" != "$STAGE_START_TICKS" ]; then
-      write_abandoned "$reason" false "stage PID was reused or changed identity; no process was signalled"
-      echo "watchdog: refusing signal after stage identity mismatch" >&2
-      exit 91
+      echo "stage PID was reused or changed identity; not signalled"
+      return 1
     fi
   elif [ -e "/proc/$STAGE_LEADER" ]; then
-    write_abandoned "$reason" false "stage leader identity became unreadable; no process was signalled"
-    exit 91
+    echo "stage leader identity became unreadable; not signalled"
+    return 1
   fi
 
   if kill -0 -- "-$STAGE_PGID" 2>/dev/null; then
     group_live=1
     if ! group_session_is_exact; then
-      write_abandoned "$reason" false "recorded PGID exists without provable membership in its recorded session; no process was signalled"
-      echo "watchdog: refusing signal to a reused or unprovable process group" >&2
-      exit 91
+      echo "recorded PGID exists without provable membership in its recorded session; not signalled"
+      return 1
     fi
   fi
   if [ "$group_live" -eq 1 ]; then
@@ -265,14 +289,51 @@ stop_work() { # stop_work <reason>
     fi
   fi
   if kill -0 -- "-$STAGE_PGID" 2>/dev/null; then
-    write_abandoned "$reason" false "recorded stage process group survived TERM and KILL"
-    exit 91
+    echo "recorded stage process group survived TERM and KILL"
+    return 1
   fi
   if [ "$group_live" -eq 1 ]; then
-    write_abandoned "$reason" true "exact recorded stage process group received TERM then, if needed, KILL"
+    echo "exact recorded stage process group received TERM then, if needed, KILL"
   else
-    write_abandoned "$reason" true "exact recorded stage process group was already absent"
+    echo "exact recorded stage process group was already absent"
   fi
+  return 0
+}
+
+stop_work() { # stop_work <reason>
+  local reason="$1" rec existing dup
+  echo "watchdog: $reason -- stopping recorded stage process group(s)" >&2
+  # Enumerate every stage pgid record: the explicit one (if any) plus all
+  # per-stage records, deduped.  Two concurrent leaders each self-record, so a
+  # deadline or stale heartbeat must stop both.
+  local records=()
+  if [ -n "${PGID_RECORD:-}" ] && [ -f "$PGID_RECORD" ] && [ ! -L "$PGID_RECORD" ]; then
+    records+=("$PGID_RECORD")
+  fi
+  for rec in "$FS/runtime"/stage-*.pgid "$FS/runtime"/stage.pgid; do
+    [ -e "$rec" ] || continue
+    dup=0
+    for existing in "${records[@]+"${records[@]}"}"; do
+      [ "$existing" = "$rec" ] && { dup=1; break; }
+    done
+    [ "$dup" -eq 0 ] && records+=("$rec")
+  done
+  if [ "${#records[@]}" -eq 0 ]; then
+    write_abandoned "$reason" false "no stage PGID record present; no process was signalled"
+    echo "watchdog: refusing unproven process-group signal (no record)" >&2
+    exit 91
+  fi
+  local any_survived=0 detail="" one_detail
+  for rec in "${records[@]}"; do
+    one_detail="$(stop_one_record "$rec" "$reason")" || any_survived=1
+    detail="${detail:+$detail; }$rec: $one_detail"
+  done
+  if [ "$any_survived" -eq 1 ]; then
+    write_abandoned "$reason" false "one or more recorded stage process groups were unprovable or survived: $detail"
+    echo "watchdog: refusing to leave a recorded group unsignalled" >&2
+    exit 91
+  fi
+  write_abandoned "$reason" true "stopped ${#records[@]} recorded stage process group(s): $detail"
   echo "watchdog: recorded workload stopped, ABANDONED.json written" >&2
   exit 0
 }

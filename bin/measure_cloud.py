@@ -6817,12 +6817,12 @@ def _runpod_stage_command(fs_root, engine_root, stage, image_digest,
     propagates its own exit code (it failed before it could record)."""
     return (
         "set -eu; "
-        # The record is per-STAGE but the path is per-run: without clearing
-        # it, from the second stage on the wait below is satisfied at once by
-        # the PREVIOUS leader's record (a stale pgid until this leader
-        # overwrites it moments later).  Clear it so the wait is for this
-        # stage's own self-record.
-        "rm -f {fs}/runtime/stage.pgid; "
+        # The pgid record is per-STAGE (runtime/stage-<name>.pgid), so each
+        # stage's wait below is for its own self-record, not a previous
+        # stage's.  Clear it first anyway: a retried/re-run same-name stage
+        # would otherwise leave a stale record that satisfies the wait at
+        # once (a dead pgid the watchdog could target).
+        "rm -f {fs}/runtime/stage-{stage}.pgid; "
         "setsid env -u HF_TOKEN -u HUGGING_FACE_HUB_TOKEN "
         "-u HUGGINGFACE_HUB_TOKEN -u HF_HUB_OFFLINE "
         "-u HF_DATASETS_OFFLINE -u TRANSFORMERS_OFFLINE "
@@ -6842,7 +6842,7 @@ def _runpod_stage_command(fs_root, engine_root, stage, image_digest,
         "bash {fs}/bin/stage_measure.sh {stage} "
         ">>{fs}/logs/stage-{stage}.log 2>&1 </dev/null & "
         "leader=$!; "
-        "record={fs}/runtime/stage.pgid; "
+        "record={fs}/runtime/stage-{stage}.pgid; "
         # The leader self-records its process group as its first act (see
         # stage_measure.sh).  Wait for that record to appear -- or for the
         # leader to exit -- so a stage that finishes faster than the SSH

@@ -36,7 +36,12 @@ if _line="$(cat /proc/$$/stat 2>/dev/null)"; then
   _rest="${_line##*) }"
   read -r _state _ppid _pgrp _session _junk <<<"$_rest"
   if [ "$_pgrp" = "$$" ] && [ "$_session" = "$$" ]; then
-    bash "$FS/bin/watchdog.sh" --record-stage-pgid "$FS" "$$" || {
+    # Per-stage record (runtime/stage-<name>.pgid) so two stages running
+    # concurrently each leave their own group for the watchdog to signal --
+    # fetch_reference alongside fetch_target, compare_reference alongside
+    # capture_repeat.  The receipt is watchdog-stage-pgid-<name>.json.
+    bash "$FS/bin/watchdog.sh" --record-stage-pgid "$FS" "$$" \
+        "$FS/runtime/stage-$STAGE.pgid" || {
       echo "stage_measure: self-record of process group failed (exit $?)" >&2
       exit 71; }
   fi
