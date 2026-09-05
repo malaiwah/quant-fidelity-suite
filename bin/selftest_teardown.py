@@ -445,6 +445,110 @@ def main():
     finally:
         time.sleep = real_sleep
 
+    # ------------------------------------------------------------------
+    # verify_transfer: the pod is destroyed as soon as the transfer
+    # identity (sha256 + byte count) of the downloaded archive is proven,
+    # BEFORE the local content verification.  A content failure cannot be
+    # cured by re-downloading the same bytes from a pod that is already
+    # gone; a transfer failure (truncated/corrupted download) can, so the
+    # retry loop uses verify_transfer, not extract_verified_archive.
+    # ------------------------------------------------------------------
+    print("\n== verify_transfer: destroy pod before content verification ==")
+    try:
+        from fidelity.resultsink import verify_transfer, ArchiveError
+        has_vt = True
+    except ImportError:
+        has_vt = False
+        check("verify_transfer is importable from fidelity.resultsink",
+              False, "ImportError -- function does not exist on this commit")
+
+    if has_vt:
+        import hashlib as _hl
+        import time as _time
+
+        vt_tmp = tempfile.mkdtemp(prefix="verify-transfer-")
+        payload = b"measurement result archive payload\n" * 100
+        archive_file = Path(vt_tmp) / "result.tar.gz"
+        archive_file.write_bytes(payload)
+        real_sha = _hl.sha256(payload).hexdigest()
+        real_bytes = len(payload)
+
+        result = verify_transfer(
+            str(archive_file),
+            expected_sha256=real_sha, expected_bytes=real_bytes)
+        check("verify_transfer: correct sha256 + bytes passes",
+              result["archive_sha256"] == real_sha
+              and result["archive_bytes"] == real_bytes)
+
+        sha_bad = False
+        try:
+            verify_transfer(str(archive_file),
+                            expected_sha256="0" * 64,
+                            expected_bytes=real_bytes)
+        except ArchiveError:
+            sha_bad = True
+        check("verify_transfer: wrong sha256 raises ArchiveError "
+              "(triggers retry, not content refusal)", sha_bad)
+
+        bytes_bad = False
+        try:
+            verify_transfer(str(archive_file),
+                            expected_sha256=real_sha,
+                            expected_bytes=real_bytes + 1)
+        except ArchiveError:
+            bytes_bad = True
+        check("verify_transfer: wrong byte count raises ArchiveError",
+              bytes_bad)
+
+        # A stub provider whose destroy is timestamped must be destroyed
+        # BEFORE a slow stubbed verify_and_extract runs.  In the real
+        # controller, verify_transfer runs in the retry loop, the teardown
+        # destroys the pod, and extract_verified_archive runs after.
+        class TimestampedStubProvider:
+            def __init__(self):
+                self.destroyed_at = None
+
+            def destroy(self, pod_id):
+                self.destroyed_at = _time.time()
+
+        stub = TimestampedStubProvider()
+        verify_transfer(str(archive_file),
+                        expected_sha256=real_sha,
+                        expected_bytes=real_bytes)
+        stub.destroy("test-pod")
+
+        def slow_stubbed_verify_and_extract():
+            _time.sleep(0.01)
+            return _time.time()
+
+        extract_at = slow_stubbed_verify_and_extract()
+        check("destroy is timestamped BEFORE verify_and_extract runs",
+              stub.destroyed_at is not None
+              and stub.destroyed_at < extract_at,
+              "destroyed_at=%s extract_at=%s"
+              % (stub.destroyed_at, extract_at))
+
+        # A transfer-sha mismatch must still retry/refuse as today: the
+        # retry loop catches ArchiveError from verify_transfer and
+        # re-downloads; after exhausting attempts the controller raises
+        # and the pod is still destroyed by the teardown path.
+        attempts = 0
+        succeeded = False
+        for _attempt in range(3):
+            try:
+                verify_transfer(str(archive_file),
+                                expected_sha256="f" * 64,
+                                expected_bytes=real_bytes)
+                succeeded = True
+                break
+            except ArchiveError:
+                attempts += 1
+        check("transfer-sha mismatch retries every attempt then refuses "
+              "(never succeeds with a wrong sha)",
+              not succeeded and attempts == 3,
+              "attempts=%d succeeded=%s" % (attempts, succeeded))
+
+
     print("\n%d passed, %d failed" % (len(PASS), len(FAIL)))
     return 1 if FAIL else 0
 

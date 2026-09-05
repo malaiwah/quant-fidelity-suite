@@ -2781,6 +2781,33 @@ def verify_archive(source, expected_sha256=None, expected_bytes=None):
         source, expected_sha256=expected_sha256, expected_bytes=expected_bytes)
     return result
 
+def verify_transfer(source, expected_sha256=None, expected_bytes=None):
+    """Verify transfer identity (sha256 + byte count) only.
+
+    This is the cheap check a retrieval retry can cure: a truncated or
+    corrupted download produces a different digest or size.  The full
+    content verification (``verify_archive`` / ``extract_verified_archive``)
+    runs separately, after the pod is destroyed, because a content failure
+    cannot be cured by re-downloading the same bytes from a pod that is
+    already gone.
+
+    ``expected_sha256`` and ``expected_bytes`` are the on-pod values
+    reported before SSH transfer.  Any mismatch raises ArchiveError.
+    """
+    _src, archive_bytes, archive_sha256 = _archive_source(source)
+    if expected_bytes is not None and archive_bytes != expected_bytes:
+        raise ArchiveError("transferred archive byte count mismatch: expected "
+                           "%d, got %d" % (expected_bytes, archive_bytes))
+    if expected_sha256 is not None:
+        if not _valid_hex(expected_sha256, 64):
+            raise ArchiveError("expected archive SHA-256 is malformed")
+        if archive_sha256 != expected_sha256:
+            raise ArchiveError("transferred archive SHA-256 mismatch")
+    return {
+        "archive_bytes": archive_bytes,
+        "archive_sha256": archive_sha256,
+    }
+
 def extract_verified_archive(source, destination, expected_sha256=None,
                              expected_bytes=None):
     """Verify completely, then atomically publish a link-free extraction."""

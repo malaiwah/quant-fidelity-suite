@@ -7053,7 +7053,8 @@ def execute_runpod(
         validate_current_public_root, validate_safety_proof,
         validate_width_two_root_archive)
     from fidelity.runpodapi import DEFAULT_IMAGE, RunPodCreateResponseError
-    from fidelity.resultsink import extract_verified_archive, verify_archive
+    from fidelity.resultsink import (
+        extract_verified_archive, verify_archive, verify_transfer)
     if (not isinstance(download_token, str) or not download_token
             or any(character.isspace() for character in download_token)):
         raise Refusal("exact Hugging Face download token is unavailable", [])
@@ -8496,7 +8497,6 @@ def execute_runpod(
                                 dir=str(outdir)) as hold:
                             os.chmod(hold, 0o700)
                             downloaded = Path(hold) / "result.tar.gz"
-                            attempt_extracted = Path(hold) / "result"
                             provider.download_bounded(
                                 pod_id, remote_archive, str(downloaded),
                                 expected_bytes=transfer["bytes"],
@@ -8511,21 +8511,26 @@ def execute_runpod(
                                     or metadata.st_uid != os.getuid()):
                                 raise RuntimeError(
                                     "downloaded result is not an owned regular file")
-                            verified_attempt = extract_verified_archive(
-                                downloaded, attempt_extracted,
+                            # Verify transfer identity (sha256 + byte count)
+                            # only: this is what a retry can cure.  The full
+                            # content verification (extract_verified_archive)
+                            # runs after the pod is destroyed, because a
+                            # content failure cannot be cured by re-downloading
+                            # the same bytes from a pod that is already gone.
+                            transfer_verified = verify_transfer(
+                                downloaded,
                                 expected_sha256=transfer["sha256"],
                                 expected_bytes=transfer["bytes"])
                             with downloaded.open("rb") as stream:
                                 os.fsync(stream.fileno())
                             commit_started = True
                             os.link(str(downloaded), str(local_archive))
-                            os.rename(str(attempt_extracted), str(extracted))
                             directory_fd = os.open(str(outdir), os.O_RDONLY)
                             try:
                                 os.fsync(directory_fd)
                             finally:
                                 os.close(directory_fd)
-                            archive_verified = verified_attempt
+                            archive_verified = transfer_verified
                         download_error = None
                         break
                     except BaseException as exc:
@@ -8536,36 +8541,6 @@ def execute_runpod(
                     raise RuntimeError(
                         "verified result retrieval exhausted: %s"
                         % redact(str(download_error)))
-                archived_job = (extracted / "job.json").read_bytes()
-                if (archived_job != job_bytes
-                        or json.loads(archived_job.decode("utf-8")) != job):
-                    raise RuntimeError(
-                        "verified archive carries a different finalized job.json")
-                archived_attestation_bytes = (
-                    extracted / "receipts"
-                    / "runpod-live-attestation.json").read_bytes()
-                local_attestation_bytes = attestation_path.read_bytes()
-                if archived_attestation_bytes != local_attestation_bytes:
-                    raise RuntimeError(
-                        "archived live attestation differs from exact local bytes")
-                archived_host_key_bytes = (
-                    extracted / "receipts"
-                    / "runpod-ssh-host-key-proof.json").read_bytes()
-                local_host_key_bytes = host_key_evidence["path"].read_bytes()
-                if archived_host_key_bytes != local_host_key_bytes:
-                    raise RuntimeError(
-                        "archived SSH host-key proof differs from exact local "
-                        "operator-authenticated bytes")
-                archived_attestation = parse_job_bytes(
-                    archived_attestation_bytes)
-                durable_provider_ids = lease_store.read(
-                    lease_ref).get("provider_resource_ids") or []
-                if (archived_attestation.get("provider_id") != str(pod_id)
-                        or durable_provider_ids != [str(pod_id)]):
-                    raise RuntimeError(
-                        "live attestation provider id differs from durable lease")
-                if (job.get("capture") or {}).get("candidate") is not None:
-                    _report_candidate_result(con, extracted, job)
             except BaseException as exc:
                 if run_error is None:
                     primary_error = exc
@@ -8762,6 +8737,58 @@ def execute_runpod(
                 except BaseException as exc:
                     run_error = record_operational_error(exc)
             heartbeat_stop.set()
+            # The pod is now destroyed.  The transfer identity (sha256 +
+            # byte count) was proven before destroy, so the downloaded
+            # archive is byte-identical to the pod-side record.  The full
+            # content verification runs here, offline: a content failure
+            # cannot be cured by re-downloading the same bytes from a pod
+            # that is already gone.
+            if archive_verified is not None:
+                extracted = outdir / "result"
+                try:
+                    verified_attempt = extract_verified_archive(
+                        local_archive, extracted,
+                        expected_sha256=archive_verified["archive_sha256"],
+                        expected_bytes=archive_verified["archive_bytes"])
+                    archive_verified = verified_attempt
+                    archived_job = (extracted / "job.json").read_bytes()
+                    if (archived_job != job_bytes
+                            or json.loads(archived_job.decode("utf-8")) != job):
+                        raise RuntimeError(
+                            "verified archive carries a different finalized job.json")
+                    archived_attestation_bytes = (
+                        extracted / "receipts"
+                        / "runpod-live-attestation.json").read_bytes()
+                    local_attestation_bytes = attestation_path.read_bytes()
+                    if archived_attestation_bytes != local_attestation_bytes:
+                        raise RuntimeError(
+                            "archived live attestation differs from exact local bytes")
+                    archived_host_key_bytes = (
+                        extracted / "receipts"
+                        / "runpod-ssh-host-key-proof.json").read_bytes()
+                    local_host_key_bytes = host_key_evidence["path"].read_bytes()
+                    if archived_host_key_bytes != local_host_key_bytes:
+                        raise RuntimeError(
+                            "archived SSH host-key proof differs from exact local "
+                            "operator-authenticated bytes")
+                    archived_attestation = parse_job_bytes(
+                        archived_attestation_bytes)
+                    durable_provider_ids = lease_store.read(
+                        lease_ref).get("provider_resource_ids") or []
+                    if (archived_attestation.get("provider_id") != str(pod_id)
+                            or durable_provider_ids != [str(pod_id)]):
+                        raise RuntimeError(
+                            "live attestation provider id differs from durable lease")
+                    if (job.get("capture") or {}).get("candidate") is not None:
+                        _report_candidate_result(con, extracted, job)
+                except BaseException as exc:
+                    if run_error is None:
+                        primary_error = exc
+                    run_error = RuntimeError(
+                        "content verification failed after the pod was "
+                        "destroyed; this cannot be cured by re-downloading "
+                        "the same bytes (transfer identity was proven): %s"
+                        % redact(str(exc)))
     if args.role == "root" and args.publish_root_to:
         current_lease = lease_store.read(lease_ref)
         if run_error is not None:

@@ -248,6 +248,7 @@ elif [ "${HF_TOKEN_PATH:-}" != "$FIDELITY_FS_ROOT/.secrets/hf_token" ]; then
   printf 'HF_TOKEN_PATH_WRONG\t%s\n' "${HF_TOKEN_PATH:-UNSET}" >> "$STAGE_ARGV_LOG"
   exit 90
 fi
+printf 'HF_XET\t%s\t%s\n' "${HF_XET_HIGH_PERFORMANCE:-UNSET}" "${HF_HUB_ENABLE_HF_TRANSFER:-UNSET}" >> "$STAGE_ARGV_LOG"
 printf 'HF' >> "$STAGE_ARGV_LOG"
 for a in "$@"; do printf '\t%s' "$a" >> "$STAGE_ARGV_LOG"; done
 printf '\n' >> "$STAGE_ARGV_LOG"
@@ -667,6 +668,11 @@ def main():
               not sb.foreign_paths(calls), sb.foreign_paths(calls))
         check("S-ROOT fetch_target names no provider path", not provider_leak(out),
               out[-600:])
+        xet = [c for c in calls if c[0] == "HF_XET"]
+        check("fetch_target uses HF_XET_HIGH_PERFORMANCE=1 and not the "
+              "deprecated HF_HUB_ENABLE_HF_TRANSFER",
+              len(xet) == 1 and xet[0][1] == ["1", "UNSET"],
+              xet)
 
         # S-CLOSED
         sb2 = Sandbox(td / "ft2", job_quant())

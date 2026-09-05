@@ -348,7 +348,7 @@ for f in files:
     print(name)
 " "$CONF" "$tok_root")"
   for name in $tok_files; do
-    HF_HUB_ENABLE_HF_TRANSFER=1 HF_HOME="$FS/hf" \
+    HF_XET_HIGH_PERFORMANCE=1 HF_HOME="$FS/hf" \
       "$VENV/bin/hf" download "$tok_repo" --revision "$tok_rev" \
       --include "$name" --local-dir "$FS/reference-tokenizer" \
       >>"$LOGS/fetch_target.log" 2>&1
@@ -536,7 +536,7 @@ for name in wanted:
 PYVIS
     )
     log "fetching the official config/tokenizer + vision-carrying shards ($((${#OFFICIAL[@]} / 2)) patterns)"
-    HF_HUB_ENABLE_HF_TRANSFER=1 HF_HOME="$FS/hf" \
+    HF_XET_HIGH_PERFORMANCE=1 HF_HOME="$FS/hf" \
       "$VENV/bin/hf" download zai-org/GLM-5.3-Flash-BF16 --revision "$BF16_REV" \
         --local-dir "$BF16_DIR" --max-workers 8 "${OFFICIAL[@]}" \
         >>"$LOGS/setup.log" 2>&1
@@ -614,7 +614,7 @@ PY
     exit 2
   }
   log "fetching $REPO @ $REV -> $DEST  ($((${#TARGET_INCLUDES[@]} / 2)) exact files)"
-  HF_HUB_ENABLE_HF_TRANSFER=1 HF_HOME="$FS/hf" \
+  HF_XET_HIGH_PERFORMANCE=1 HF_HOME="$FS/hf" \
     "$VENV/bin/hf" download "$REPO" --revision "$REV" \
       --local-dir "$DEST" --max-workers 8 "${TARGET_INCLUDES[@]}" \
       >>"$LOGS/fetch_target.log" 2>&1
@@ -936,7 +936,7 @@ PY
       -u HUGGINGFACE_HUB_TOKEN \
       HF_ENDPOINT=https://huggingface.co \
       HF_HUB_DISABLE_IMPLICIT_TOKEN=1 \
-      HF_HUB_ENABLE_HF_TRANSFER=1 \
+      HF_XET_HIGH_PERFORMANCE=1 \
       HF_HOME="$PUBLIC_HF_HOME" \
       HF_HUB_CACHE="$PUBLIC_HF_HOME/hub" \
       HF_TOKEN_PATH="$PUBLIC_HF_HOME/no-token" \
