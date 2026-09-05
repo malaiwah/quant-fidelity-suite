@@ -679,8 +679,12 @@ class _HashingReader:
         self.bytes_read += len(body)
         return body
 
+    def close(self):
+        pass  # caller owns the underlying source
+
     def hexdigest(self):
         return self.hasher.hexdigest()
+
 
 def _archive_parts(fs_root, summary, stream=False):
     root = Path(fs_root)
@@ -2584,7 +2588,18 @@ def _verify_role_members(manifest, bodies, digests=None):
                 raise ArchiveError("ABANDONED.json has the wrong schema")
 
 
-def _verified_archive(source, expected_sha256=None, expected_bytes=None):
+def _verified_archive(source, expected_sha256=None, expected_bytes=None,
+                     *, extract_to=None):
+    """One streaming pass over the compressed archive.
+
+    Reads the compressed bytes at most twice (once for the transfer-identity
+    sha256, once for the inflate) and inflates exactly once.  Every check
+    from the previous multi-pass implementation is preserved: compressed-
+    stream sha256, gzip well-formedness, manifest presence and digest,
+    per-member sha256 vs the manifest, member count/paths/modes, the final
+    sha, and -- when *extract_to* is given -- atomic extraction into a temp
+    dir renamed only on success.
+    """
     archive_source, archive_bytes, archive_sha256 = _archive_source(source)
     if expected_bytes is not None and archive_bytes != expected_bytes:
         raise ArchiveError("transferred archive byte count mismatch: expected "
@@ -2595,180 +2610,260 @@ def _verified_archive(source, expected_sha256=None, expected_bytes=None):
         if archive_sha256 != expected_sha256:
             raise ArchiveError("transferred archive SHA-256 mismatch")
 
-    stream = (io.BytesIO(archive_source)
-              if isinstance(archive_source, bytes) else None)
+    destination = None
+    staging = None
+    if extract_to is not None:
+        destination = Path(extract_to)
+        if destination.exists() or destination.is_symlink():
+            raise ArchiveError("extraction destination already exists: %s"
+                               % destination)
+        _ensure_durable_directory(destination.parent)
+        staging = Path(tempfile.mkdtemp(
+            dir=str(destination.parent), prefix=".result-extract-"))
+        _fsync_directory(staging)
+        _fsync_directory(destination.parent)
+
     try:
-        archive = tarfile.open(
-            name=None if stream is not None else str(archive_source),
-            fileobj=stream, mode="r:gz")
-        with archive:
-            seen = set()
-            by_name = {}
-            uncompressed_bytes = 0
+        # --- Single inflate pass ---
+        # Wrap the raw file in a hashing reader so the compressed-stream
+        # sha256 is computed as a side-effect of the inflate.  GzipFile
+        # decompresses on the fly; tarfile in r| (streaming) mode iterates
+        # members forward-only -- no seeking, no re-reading.
+        if isinstance(archive_source, bytes):
+            raw = io.BytesIO(archive_source)
+        else:
+            raw = open(str(archive_source), "rb")
+        hashing = _HashingReader(raw)
+        try:
+            gz = gzip.GzipFile(fileobj=hashing, mode="rb")
+            try:
+                archive = tarfile.open(fileobj=gz, mode="r|")
+                try:
+                    seen = set()
+                    by_name = {}
+                    member_digests = {}
+                    bodies = {}
+                    uncompressed_bytes = 0
+                    retained_declared_bytes = 0
+                    while True:
+                        member = archive.next()
+                        if member is None:
+                            break
+                        if len(by_name) >= MAX_ARCHIVE_MEMBERS + 3:
+                            raise ArchiveError(
+                                "archive exceeds member safety limit")
+                        name = _safe_member_name(member.name)
+                        if name in seen:
+                            raise ArchiveError(
+                                "duplicate archive member %s" % name)
+                        seen.add(name)
+                        if not member.isfile():
+                            raise ArchiveError(
+                                "archive member %s is not a regular file"
+                                % name)
+                        if member.size < 0:
+                            raise ArchiveError(
+                                "archive member %s has negative size" % name)
+                        uncompressed_bytes += member.size
+                        if uncompressed_bytes > MAX_ARCHIVE_BYTES:
+                            raise ArchiveError(
+                                "archive exceeds uncompressed-byte safety "
+                                "limit")
+                        by_name[name] = member
+                        if (name == RESULT_MANIFEST_NAME
+                                or name.endswith(".json")
+                                or name.endswith("/checksums.txt")):
+                            if member.size > MAX_RETAINED_MEMBER_BYTES:
+                                raise ArchiveError(
+                                    "retained archive member exceeds memory "
+                                    "safety cap: " + name)
+                            retained_declared_bytes += member.size
+                            if (retained_declared_bytes
+                                    > MAX_RETAINED_METADATA_BYTES):
+                                raise ArchiveError(
+                                    "retained archive metadata exceeds "
+                                    "memory safety cap")
+                        # Read this member's bytes immediately (streaming
+                        # mode cannot seek back).  Hash while optionally
+                        # writing to the staging dir and optionally retaining
+                        # in memory for validators.
+                        source_file = archive.extractfile(member)
+                        if source_file is None:
+                            raise ArchiveError(
+                                "cannot read archive member %s" % name)
+                        retain = (
+                            name.endswith(".json")
+                            or name.endswith("/checksums.txt")
+                            or (name in ("dataset/LICENSE",
+                                         "dataset-repeat/LICENSE")
+                                and member.size <= 1024 * 1024))
+                        if staging is not None:
+                            output = staging.joinpath(
+                                *PurePosixPath(name).parts)
+                            _ensure_durable_directory(output.parent)
+                            if retain:
+                                body = source_file.read()
+                                actual_sha = hashlib.sha256(body).hexdigest()
+                                actual_bytes = len(body)
+                                bodies[name] = body
+                                _write_exclusive_durable(output, body)
+                            else:
+                                reader = _HashingReader(source_file)
+                                _stream_exclusive_durable(output, reader)
+                                actual_sha = reader.hexdigest()
+                                actual_bytes = reader.bytes_read
+                                bodies[name] = None
+                        elif retain:
+                            body = source_file.read()
+                            actual_sha = hashlib.sha256(body).hexdigest()
+                            actual_bytes = len(body)
+                            bodies[name] = body
+                        else:
+                            digest = hashlib.sha256()
+                            actual_bytes = 0
+                            for chunk in iter(
+                                    lambda: source_file.read(1 << 20), b""):
+                                digest.update(chunk)
+                                actual_bytes += len(chunk)
+                            actual_sha = digest.hexdigest()
+                            bodies[name] = None
+                        member_digests[name] = (actual_sha, actual_bytes)
+                finally:
+                    archive.close()
+            finally:
+                gz.close()
+            # Drain any compressed bytes the gzip reader did not consume
+            # (gzip footer, trailing padding) so the hashing reader's
+            # sha256 covers the entire file.
             while True:
-                member = archive.next()
-                if member is None:
+                chunk = hashing.read(1 << 20)
+                if not chunk:
                     break
-                if len(by_name) >= MAX_ARCHIVE_MEMBERS + 3:
-                    raise ArchiveError("archive exceeds member safety limit")
-                name = _safe_member_name(member.name)
-                if name in seen:
-                    raise ArchiveError("duplicate archive member %s" % name)
-                seen.add(name)
-                if not member.isfile():
-                    raise ArchiveError(
-                        "archive member %s is not a regular file" % name)
-                if member.size < 0:
-                    raise ArchiveError(
-                        "archive member %s has negative size" % name)
-                uncompressed_bytes += member.size
-                if uncompressed_bytes > MAX_ARCHIVE_BYTES:
-                    raise ArchiveError(
-                        "archive exceeds uncompressed-byte safety limit")
-                by_name[name] = member
-            retained_declared_bytes = 0
-            for name, member in by_name.items():
-                if (name == RESULT_MANIFEST_NAME
-                        or name.endswith(".json")
-                        or name.endswith("/checksums.txt")):
-                    if member.size > MAX_RETAINED_MEMBER_BYTES:
-                        raise ArchiveError(
-                            "retained archive member exceeds memory safety cap: "
-                            + name)
-                    retained_declared_bytes += member.size
-                    if retained_declared_bytes > MAX_RETAINED_METADATA_BYTES:
-                        raise ArchiveError(
-                            "retained archive metadata exceeds memory safety cap")
-            if RESULT_MANIFEST_NAME not in by_name:
-                raise ArchiveError("archive lacks %s" % RESULT_MANIFEST_NAME)
-            manifest_file = archive.extractfile(by_name[RESULT_MANIFEST_NAME])
-            if manifest_file is None:
-                raise ArchiveError("cannot read %s" % RESULT_MANIFEST_NAME)
-            manifest_body = manifest_file.read()
-            manifest = _parse_json_member(RESULT_MANIFEST_NAME, manifest_body)
-            if (manifest.get("schema") != RESULT_MANIFEST_SCHEMA
-                    or not verify_seal(manifest, field="manifest_sha256")):
-                raise ArchiveError("result manifest schema or self-seal is invalid")
-            records = manifest.get("files")
-            if not isinstance(records, list):
-                raise ArchiveError("result manifest files must be an array")
-            expected_names = set()
-            record_by_name = {}
-            for record in records:
-                if not isinstance(record, dict):
-                    raise ArchiveError("result manifest file entry is not an object")
-                name = _safe_member_name(record.get("path"))
-                if name == RESULT_MANIFEST_NAME or name in expected_names:
-                    raise ArchiveError("duplicate/reserved manifest path %s" % name)
-                if (not isinstance(record.get("bytes"), int)
-                        or record["bytes"] < 0
-                        or not _valid_hex(record.get("sha256"), 64)):
-                    raise ArchiveError("invalid size or SHA-256 for %s" % name)
-                expected_names.add(name)
-                record_by_name[name] = record
-            actual_payload = set(by_name) - {RESULT_MANIFEST_NAME}
-            if actual_payload != expected_names:
-                missing = sorted(expected_names - actual_payload)
-                extra = sorted(actual_payload - expected_names)
-                raise ArchiveError("archive member set mismatch (missing=%r extra=%r)"
-                                   % (missing, extra))
-            science_status = str(manifest.get("status")).lower()
-            early_root_caps = (
-                manifest.get("role") == "root"
-                and manifest.get("verb") == "capture"
-                and science_status in (
-                    "ok", "complete", "completed", "success",
-                    "qualified-unpublished",
-                    "completed-operational-failure"))
-            early_quant_caps = (
-                manifest.get("role") == "quant"
-                and manifest.get("verb") == "measure"
-                and science_status in (
-                    "ok", "complete", "completed", "success",
-                    "completed-operational-failure"))
-            if early_root_caps or early_quant_caps:
-                job_member = by_name.get("job.json")
-                job_record = record_by_name.get("job.json")
-                if (job_member is None or job_record is None
-                        or job_member.size != job_record["bytes"]):
-                    raise ArchiveError(
-                        "completed science archive lacks exact job.json")
-                job_stream = archive.extractfile(job_member)
-                if job_stream is None:
-                    raise ArchiveError("cannot read job.json for archive caps")
-                job_body_for_caps = job_stream.read()
-                if (len(job_body_for_caps) != job_record["bytes"]
-                        or hashlib.sha256(job_body_for_caps).hexdigest()
-                        != job_record["sha256"]):
-                    raise ArchiveError(
-                        "job.json differs before archive-cap enforcement")
-                job_for_caps = _parse_json_member(
-                    "job.json", job_body_for_caps)
-                _verify_job_contract(job_for_caps)
-                if early_root_caps:
-                    _enforce_root_archive_caps(
-                        job_for_caps, len(by_name), uncompressed_bytes,
-                        archive_bytes)
-                else:
-                    _enforce_quant_archive_caps(
-                        job_for_caps, len(by_name), uncompressed_bytes,
-                        archive_bytes)
-            bodies = {}
-            digests = {
-                name: record["sha256"]
-                for name, record in record_by_name.items()
-            }
-            for name in sorted(expected_names):
-                member = by_name[name]
-                record = record_by_name[name]
-                if member.size != record["bytes"]:
-                    raise ArchiveError("archive member size mismatch for %s" % name)
-                source_file = archive.extractfile(member)
-                if source_file is None:
-                    raise ArchiveError("cannot read archive member %s" % name)
-                retain = (
-                    name.endswith(".json")
-                    or name.endswith("/checksums.txt")
-                    or (name in ("dataset/LICENSE", "dataset-repeat/LICENSE")
-                        and member.size <= 1024 * 1024))
-                if retain:
-                    body = source_file.read()
-                    actual_bytes = len(body)
-                    actual_sha = hashlib.sha256(body).hexdigest()
-                    bodies[name] = body
-                else:
-                    digest = hashlib.sha256()
-                    actual_bytes = 0
-                    for chunk in iter(lambda: source_file.read(1 << 20), b""):
-                        actual_bytes += len(chunk)
-                        digest.update(chunk)
-                    actual_sha = digest.hexdigest()
-                    bodies[name] = None
-                if (actual_bytes != record["bytes"]
-                        or actual_sha != record["sha256"]):
-                    raise ArchiveError("archive member digest mismatch for %s" % name)
+            post_sha = hashing.hexdigest()
+            post_bytes = hashing.bytes_read
+        finally:
+            raw.close()
     except ArchiveError:
+        if staging is not None:
+            shutil.rmtree(str(staging), ignore_errors=True)
         raise
     except (OSError, EOFError, tarfile.TarError) as exc:
+        if staging is not None:
+            shutil.rmtree(str(staging), ignore_errors=True)
         raise ArchiveError("result archive is truncated or unreadable: %s"
                            % exc.__class__.__name__)
+
+    # --- Post-pass checks (same error texts as the original) ---
+    if RESULT_MANIFEST_NAME not in by_name:
+        raise ArchiveError("archive lacks %s" % RESULT_MANIFEST_NAME)
+    manifest_body = bodies.get(RESULT_MANIFEST_NAME)
+    if manifest_body is None:
+        raise ArchiveError("cannot read %s" % RESULT_MANIFEST_NAME)
+    manifest = _parse_json_member(RESULT_MANIFEST_NAME, manifest_body)
+    if (manifest.get("schema") != RESULT_MANIFEST_SCHEMA
+            or not verify_seal(manifest, field="manifest_sha256")):
+        raise ArchiveError("result manifest schema or self-seal is invalid")
+    records = manifest.get("files")
+    if not isinstance(records, list):
+        raise ArchiveError("result manifest files must be an array")
+    expected_names = set()
+    record_by_name = {}
+    for record in records:
+        if not isinstance(record, dict):
+            raise ArchiveError("result manifest file entry is not an object")
+        name = _safe_member_name(record.get("path"))
+        if name == RESULT_MANIFEST_NAME or name in expected_names:
+            raise ArchiveError("duplicate/reserved manifest path %s" % name)
+        if (not isinstance(record.get("bytes"), int)
+                or record["bytes"] < 0
+                or not _valid_hex(record.get("sha256"), 64)):
+            raise ArchiveError("invalid size or SHA-256 for %s" % name)
+        expected_names.add(name)
+        record_by_name[name] = record
+    actual_payload = set(by_name) - {RESULT_MANIFEST_NAME}
+    if actual_payload != expected_names:
+        missing = sorted(expected_names - actual_payload)
+        extra = sorted(actual_payload - expected_names)
+        raise ArchiveError("archive member set mismatch (missing=%r extra=%r)"
+                           % (missing, extra))
+    science_status = str(manifest.get("status")).lower()
+    early_root_caps = (
+        manifest.get("role") == "root"
+        and manifest.get("verb") == "capture"
+        and science_status in (
+            "ok", "complete", "completed", "success",
+            "qualified-unpublished",
+            "completed-operational-failure"))
+    early_quant_caps = (
+        manifest.get("role") == "quant"
+        and manifest.get("verb") == "measure"
+        and science_status in (
+            "ok", "complete", "completed", "success",
+            "completed-operational-failure"))
+    if early_root_caps or early_quant_caps:
+        job_member = by_name.get("job.json")
+        job_record = record_by_name.get("job.json")
+        if (job_member is None or job_record is None
+                or job_member.size != job_record["bytes"]):
+            raise ArchiveError(
+                "completed science archive lacks exact job.json")
+        job_body_for_caps = bodies.get("job.json")
+        if job_body_for_caps is None:
+            raise ArchiveError("cannot read job.json for archive caps")
+        if (len(job_body_for_caps) != job_record["bytes"]
+                or hashlib.sha256(job_body_for_caps).hexdigest()
+                != job_record["sha256"]):
+            raise ArchiveError(
+                "job.json differs before archive-cap enforcement")
+        job_for_caps = _parse_json_member("job.json", job_body_for_caps)
+        _verify_job_contract(job_for_caps)
+        if early_root_caps:
+            _enforce_root_archive_caps(
+                job_for_caps, len(by_name), uncompressed_bytes,
+                archive_bytes)
+        else:
+            _enforce_quant_archive_caps(
+                job_for_caps, len(by_name), uncompressed_bytes,
+                archive_bytes)
+    digests = {
+        name: record["sha256"]
+        for name, record in record_by_name.items()
+    }
+    for name in sorted(expected_names):
+        member = by_name[name]
+        record = record_by_name[name]
+        if member.size != record["bytes"]:
+            raise ArchiveError("archive member size mismatch for %s" % name)
+        actual_sha, actual_bytes = member_digests[name]
+        if (actual_bytes != record["bytes"]
+                or actual_sha != record["sha256"]):
+            raise ArchiveError("archive member digest mismatch for %s" % name)
     _strict_json_loads(manifest_body, RESULT_MANIFEST_NAME)
     for name, body in bodies.items():
         if name.endswith(".json") and isinstance(body, bytes):
             _strict_json_loads(body, name)
     if not isinstance(archive_source, bytes):
-        _same_source, after_bytes, after_sha = _archive_source(source)
-        if after_bytes != archive_bytes or after_sha != archive_sha256:
+        if post_bytes != archive_bytes or post_sha != archive_sha256:
             raise ArchiveError("result archive changed during verification")
     _verify_role_members(manifest, bodies, digests)
     # Job-specific count/size/transfer caps were enforced from headers and the
     # exact job bytes before streaming potentially large payload members.
     bodies[RESULT_MANIFEST_NAME] = manifest_body
-    return {
+
+    if staging is not None:
+        _fsync_directory(staging)
+        os.replace(str(staging), str(destination))
+        _fsync_directory(destination)
+        _fsync_directory(destination.parent)
+
+    result = {
         "archive_bytes": archive_bytes,
         "archive_sha256": archive_sha256,
         "manifest": manifest,
-    }, bodies
+    }
+    if extract_to is not None:
+        result["extracted_to"] = str(destination)
+    return result, bodies
 
 
 def verify_archive(source, expected_sha256=None, expected_bytes=None):
@@ -2810,53 +2905,16 @@ def verify_transfer(source, expected_sha256=None, expected_bytes=None):
 
 def extract_verified_archive(source, destination, expected_sha256=None,
                              expected_bytes=None):
-    """Verify completely, then atomically publish a link-free extraction."""
+    """Verify completely, then atomically publish a link-free extraction.
+
+    Verification and extraction happen in a single streaming pass: each
+    member is hashed and written to a staging directory during the one
+    inflate, and the staging dir is renamed to *destination* only after
+    every check passes.  Nothing partial is left behind on refusal.
+    """
     result, _retained_json = _verified_archive(
-        source, expected_sha256=expected_sha256, expected_bytes=expected_bytes)
-    destination = Path(destination)
-    if destination.exists() or destination.is_symlink():
-        raise ArchiveError("extraction destination already exists: %s"
-                           % destination)
-    _ensure_durable_directory(destination.parent)
-    staging = Path(tempfile.mkdtemp(
-        dir=str(destination.parent), prefix=".result-extract-"))
-    _fsync_directory(staging)
-    _fsync_directory(destination.parent)
-    try:
-        archive_source, current_bytes, current_sha = _archive_source(source)
-        if (current_bytes != result["archive_bytes"]
-                or current_sha != result["archive_sha256"]):
-            raise ArchiveError("result archive changed before extraction")
-        stream = (io.BytesIO(archive_source)
-                  if isinstance(archive_source, bytes) else None)
-        with tarfile.open(
-                name=None if stream is not None else str(archive_source),
-                fileobj=stream, mode="r:gz") as archive:
-            for member in sorted(archive.getmembers(),
-                                 key=lambda item: item.name):
-                name = _safe_member_name(member.name)
-                if not member.isfile():
-                    raise ArchiveError(
-                        "archive member %s changed type before extraction" % name)
-                source_file = archive.extractfile(member)
-                if source_file is None:
-                    raise ArchiveError("cannot extract archive member %s" % name)
-                output = staging.joinpath(*PurePosixPath(name).parts)
-                _ensure_durable_directory(output.parent)
-                _stream_exclusive_durable(output, source_file)
-        _after_source, after_bytes, after_sha = _archive_source(source)
-        if (after_bytes != result["archive_bytes"]
-                or after_sha != result["archive_sha256"]):
-            raise ArchiveError("result archive changed during extraction")
-        _fsync_directory(staging)
-        os.replace(str(staging), str(destination))
-        _fsync_directory(destination)
-        _fsync_directory(destination.parent)
-    except Exception:
-        shutil.rmtree(str(staging), ignore_errors=True)
-        raise
-    result = dict(result)
-    result["extracted_to"] = str(destination)
+        source, expected_sha256=expected_sha256,
+        expected_bytes=expected_bytes, extract_to=destination)
     return result
 
 
