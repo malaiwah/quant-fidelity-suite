@@ -176,6 +176,10 @@ SERIES = {
     "measurement--glm-5.2.nvfp4-nvidia.corpus5x5-v1": _glm52("nvfp4-nvidia"),
     "measurement--glm-5.2.exl3-tr3-3.0bpw-brandonmusic.corpus5x5-v1":
         _glm52("exl3-tr3-3.0bpw-brandonmusic"),
+    "measurement--glm-5.2.exl3-tr3-3.25bpw-willfalco.corpus5x5-v1":
+        _glm52("exl3-tr3-3.25bpw-willfalco"),
+    "measurement--glm-5.2.gguf-unsloth-udq4kxl.corpus5x5-v1":
+        _glm52("gguf-unsloth-udq4kxl"),
 }
 
 NOT_RECOMPUTABLE = {

@@ -6918,6 +6918,17 @@ G52_NVFP4_DS_REV = "042a71bc2df002edcf69c31026193cd3f64f0a60"
 G52_BM30_DS = ("https://huggingface.co/datasets/malaiwah/"
                "glm52-fidelity-exl3-tr3-3.0bpw-brandonmusic-v1")
 G52_BM30_DS_REV = "e4345aa35c1afe5f3ff23aacd7ed35c87d5b0f66"
+# --- landed 2026-09-06, after the first four 5.2 rows -------------------
+G52_WF325 = "artifact--willfalco.glm-5.2-exl3-tr3-3.25bpw"
+G52_GGUF_UDQ4KXL = "artifact--unsloth.glm-5.2-gguf.ud-q4-k-xl"
+G52_WF325_REV = "a39d9254886044e621e9b6a2d5b40308548f12d9"
+G52_GGUF_REV = "abc55e72527792c6e77069c99b4cb7de16fa9f23"
+G52_WF325_DS = ("https://huggingface.co/datasets/malaiwah/"
+                "glm52-fidelity-exl3-tr3-3.25bpw-willfalco-v1")
+G52_WF325_DS_REV = "0b12b0236eefe12dfa26fba5de151560d8889742"
+G52_GGUF_DS = ("https://huggingface.co/datasets/malaiwah/"
+               "glm52-fidelity-gguf-unsloth-udq4kxl-v1")
+G52_GGUF_DS_REV = "86867264932e29bf166ee3a30be908c3b2901d0c"
 
 # The commits whose bytes ran, found exactly as the GLM-5.3 pins were: each
 # sealed dataset's runtime/capture-runtime.json records the sha256 of
@@ -6929,6 +6940,8 @@ G52_PIN_ROOT = "2026710465b74de4dc8d28d9c38df5fa175d5e29"
 G52_PIN_FP8 = "a2d7ae2cca7c069530ce3fe7b4a0541e392957fe"
 G52_PIN_NVFP4 = "a2d7ae2cca7c069530ce3fe7b4a0541e392957fe"
 G52_PIN_BM30 = "a2d7ae2cca7c069530ce3fe7b4a0541e392957fe"
+G52_PIN_WF325 = "b832c8d0fdc2ebeb536a23d0b75373bf10a23e78"
+G52_PIN_GGUF = "b832c8d0fdc2ebeb536a23d0b75373bf10a23e78"
 
 
 def _g52_json(name):
@@ -6971,16 +6984,29 @@ if G52_ROOT_DESC["weights"]["revision"] != G52_ROOT_REV:
 if G52_ROOT_DESC["panel"]["suite_token_hash_sha256"] != G53_PANEL_TOKEN_SHA \
         or G52_ROOT_DESC["panel"]["panel_receipt_sha256"] != G53_PANEL_RECEIPT_SHA:
     raise SystemExit("seed_registry: the GLM-5.2 captures did not run on the corpus5x5 panel")
+G52_WF325_DESC = _g52_dataset("dataset.glm-5.2-exl3-tr3-3.25bpw-willfalco.json",
+                              want_role="quant",
+                              want_repository="malaiwah/glm52-fidelity-exl3-tr3-3.25bpw-"
+                                              "willfalco-v1")
+G52_GGUF_DESC = _g52_dataset("dataset.glm-5.2-gguf-unsloth-udq4kxl.json", want_role="quant",
+                             want_repository="malaiwah/glm52-fidelity-gguf-unsloth-udq4kxl-v1")
 for _desc, _rev in ((G52_FP8_DESC, G52_FP8_REV), (G52_NVFP4_DESC, G52_NVFP4_REV),
-                    (G52_BM30_DESC, G52_BM30_REV)):
+                    (G52_BM30_DESC, G52_BM30_REV), (G52_WF325_DESC, G52_WF325_REV),
+                    (G52_GGUF_DESC, G52_GGUF_REV)):
     if _desc["weights"]["revision"] != _rev:
         raise SystemExit("seed_registry: a GLM-5.2 candidate captured an unpinned revision")
     if _desc["runtime"]["stack_fingerprint_sha256"] != G52_STACK_FINGERPRINT_SHA:
         raise SystemExit("seed_registry: a GLM-5.2 candidate ran on a different stack")
-    if _desc["head"]["tensor_content_sha256"] != G52_HEAD_SHA:
-        raise SystemExit("seed_registry: a GLM-5.2 candidate head differs from the root's")
     if _desc["panel"]["suite_token_hash_sha256"] != G53_PANEL_TOKEN_SHA:
         raise SystemExit("seed_registry: a GLM-5.2 candidate ran on another panel")
+# Every 5.2 candidate keeps the official bf16 head byte for byte EXCEPT the
+# GGUF build, which quantizes it to Q8_0 and therefore replays through its own.
+for _desc in (G52_FP8_DESC, G52_NVFP4_DESC, G52_BM30_DESC, G52_WF325_DESC):
+    if _desc["head"]["tensor_content_sha256"] != G52_HEAD_SHA:
+        raise SystemExit("seed_registry: a GLM-5.2 candidate head differs from the root's")
+G52_GGUF_HEAD_SHA = G52_GGUF_DESC["head"]["tensor_content_sha256"]
+if G52_GGUF_HEAD_SHA == G52_HEAD_SHA:
+    raise SystemExit("seed_registry: the GLM-5.2 GGUF head equals the root's; the row says otherwise")
 # The 5.2 root and the 5.3 root are DIFFERENT weights on the same architecture:
 # same capture engine, same lane fingerprint, different capture content.
 if G52_ROOT_CAPTURE_SHA == G53_ROOT_CAPTURE_SHA or G52_HEAD_SHA == G53_HEAD_SHA:
@@ -6992,6 +7018,9 @@ G52_ROOT_SCOPE = _g53_dataset_scope(G52_ROOT_DESC)
 G52_FP8_SCOPE = scope_from_evidence("engines/scopes/scope--glm52-fp8.json")
 G52_NVFP4_SCOPE = scope_from_evidence("engines/scopes/scope--glm52-nvfp4-nvidia.json")
 G52_BM30_SCOPE = scope_from_evidence("engines/scopes/scope--glm52-exl3-tr3-3.0bpw-brandonmusic.json")
+G52_WF325_SCOPE = scope_from_evidence(
+    "engines/scopes/scope--glm52-exl3-tr3-3.25bpw-willfalco.json")
+G52_GGUF_SCOPE = scope_from_evidence("engines/scopes/scope--glm52-gguf-unsloth-udq4kxl.json")
 G52_BM30_PROVENANCE = ("engines/tools/layer-outer-evidence/"
                        "glm52-exl3-tr3-3.0bpw-brandonmusic-nonrouted-provenance.json")
 
@@ -7296,6 +7325,103 @@ ARTIFACTS += [
              availability={"status": "public",
                            "uri": "https://huggingface.co/brandonmusic/GLM-5.2-EXL3-TR3-3.0bpw"},
              cross_refs=lair(), seal={"sealed": False}),
+    artifact(G52_WF325, G52,
+             "willfalco GLM-5.2-EXL3-TR3-3.25bpw (routed experts trellis mixed K, TP4 "
+             "rank-sharded, rest native)", "quant",
+             hf("willfalco/GLM-5.2-EXL3-TR3-3.25bpw", G52_WF325_REV, "hf_api"),
+             "exl3", "3.25bpw", 339069245936,
+             codec("exl3-mcg", 3.25, None, tool="exllamav3",
+                   calibration={"used": False, "corpus": None, "tokens": None,
+                                "overlaps_any_panel": False, "overlapping_panel_refs": []}),
+             G52_WF325_SCOPE,
+             attr("willfalco", "quantizer", handle="willfalco",
+                  url="https://huggingface.co/willfalco"),
+             [src("model_card", "https://huggingface.co/willfalco/GLM-5.2-EXL3-TR3-3.25bpw",
+                  None,
+                  "revision %s; 81 shards; config.json sha256 %s...; index sha256 f5dcd976..."
+                  % (G52_WF325_REV[:12], G52_WF325_DESC["weights"]["config_sha256"][:8])),
+              src("github_file", "https://github.com/malaiwah/quant-fidelity-suite/blob/main/"
+                                 "engines/scopes/scope--glm52-exl3-tr3-3.25bpw-willfalco.json",
+                  _receipt_sha("../engines/scopes/"
+                               "scope--glm52-exl3-tr3-3.25bpw-willfalco.json"),
+                  "scope authored from the index bytes and shard headers by "
+                  "engines/tools/exl3_scope.py; the codebook is read from the payload objects "
+                  "each module carries")],
+             [disc("tp_sliced_artifact", "info",
+                   "Read from bytes: the 57,600 routed-expert matrices are stored as four "
+                   "tensor-parallel rank shards each and were composed into whole weights in "
+                   "ascending rank order (tp_rank_payloads_composed in the sealed dataset); "
+                   "everything else -- attention, the dense MLPs, the shared experts, "
+                   "embed_tokens, lm_head, the norms and the router -- is native."),
+              disc("declared_scheme_mismatch", "caveat",
+                   "The sealed capture records quantization_config_mislabels_artifact: "
+                   "config.json's quantization_config does not describe these bytes. The "
+                   "registry describes the bytes -- trellis payload groups with the codebook "
+                   "each module carries, declared bits_avg 3.25 in hybrid_tr3_tail."),
+              disc("native_head_retained", "info",
+                   "lm_head.weight is a plain bf16 tensor, content-identical to the BF16 "
+                   "release's head (%s...)." % G52_HEAD_SHA[:12]),
+              disc("third_party_artifact_self_measured", "info",
+                   "willfalco's weights, our measurement."),
+              disc("revision_unpinned", "caveat",
+                   "The release publishes no source revision; derived_from_artifact_ref names "
+                   "the registry's pinned GLM-5.2 BF16 artifact on the strength of the "
+                   "bitwise-identical head, not a digest of the whole tree.")],
+             weights_extra={"size_basis": "repo_weight_files", "shard_count": 81,
+                            "config_sha256": G52_WF325_DESC["weights"]["config_sha256"],
+                            "index_sha256": "f5dcd976a64ca70808dd4d8bd3ad07e9610c8ca6c30e3a6ed77ddefdac4c1d21"},
+             derived_from_artifact_ref=G52_BF16,
+             availability={"status": "public",
+                           "uri": "https://huggingface.co/willfalco/GLM-5.2-EXL3-TR3-3.25bpw"},
+             cross_refs=lair(), seal={"sealed": False}),
+    artifact(G52_GGUF_UDQ4KXL, G52,
+             "unsloth GLM-5.2-GGUF UD-Q4_K_XL (llama.cpp k-quant build, mixed per tensor)",
+             "quant",
+             hf("unsloth/GLM-5.2-GGUF", G52_GGUF_REV, "hf_api", path="subdir UD-Q4_K_XL"),
+             "gguf", "UD-Q4_K_XL", 467289111904,
+             codec("gguf-k-quant", 4.0, None, tool="llama.cpp (unsloth dynamic 2.0 build)",
+                   calibration={"used": None, "corpus": None, "tokens": None,
+                                "overlaps_any_panel": None, "overlapping_panel_refs": []}),
+             G52_GGUF_SCOPE,
+             UNSLOTH("quantizer"),
+             [src("model_card", "https://huggingface.co/unsloth/GLM-5.2-GGUF", None,
+                  "revision %s, subdirectory UD-Q4_K_XL: 11 GGUF files, 467,289,111,904 "
+                  "bytes, architecture glm-dsa. The build ships no config.json of its own, so "
+                  "the lane bound the official zai-org/GLM-5.2 config (sha256 185f93ee..., "
+                  "the digest the sealed dataset records)." % G52_GGUF_REV[:12]),
+              src("github_file", "https://github.com/malaiwah/quant-fidelity-suite/blob/main/"
+                                 "engines/scopes/scope--glm52-gguf-unsloth-udq4kxl.json",
+                  _receipt_sha("../engines/scopes/scope--glm52-gguf-unsloth-udq4kxl.json"),
+                  "scope authored by engines/tools/gguf_scope.py from the GGUF tensor tables: "
+                  "every ggml type, dim and byte count, bits computed as 8*bytes/elements "
+                  "from the block traits and NOT from the build name"),
+              src("dataset_card", G52_GGUF_DS, None,
+                  "the capture of these weights: dataset_sha256 %s..., capture_content_digest "
+                  "%s..." % (G52_GGUF_DESC["dataset_sha256"][:8],
+                             G52_GGUF_DESC["capture"]["capture_content_digest"][:8]))],
+             [disc("record_note", "info",
+                   "MEASURED BITS, NOT THE BUILD NAME. The 225 routed-expert tensor groups of "
+                   "layers 3-77 are Q4_K x148 / Q5_K x73 / Q6_K x4 -- 4.8611 measured "
+                   "bits/weight over 724,775,731,200 weights, not the 4 the label suggests -- "
+                   "while attention, the dense MLPs, the shared experts, embed_tokens and "
+                   "lm_head are Q8_0 and the router and norms stay F32."),
+              disc("quantized_head", "caveat",
+                   "The head is NOT native: lm_head is Q8_0 in the GGUF, so scope.head_policy "
+                   "is quantized and the capture's own sealed head (%s...) is the dequantized "
+                   "Q8_0 head, a different tensor from the official bf16 head (%s...). Every "
+                   "comparison replays each side through its own head (HEAD-1d), so this "
+                   "head's quantization error is inside the measured value."
+                   % (G52_GGUF_HEAD_SHA[:12], G52_HEAD_SHA[:12]), True),
+              disc("third_party_artifact_self_measured", "info",
+                   "unsloth's build, our measurement."),
+              disc("revision_unpinned", "caveat",
+                   "The build declares no source revision; derived_from_artifact_ref is left "
+                   "empty rather than guessed.")],
+             weights_extra={"size_basis": "repo_weight_files", "shard_count": 11},
+             derived_from_artifact_ref=None,
+             availability={"status": "public",
+                           "uri": "https://huggingface.co/unsloth/GLM-5.2-GGUF"},
+             cross_refs=lair(), seal={"sealed": False}),
 ]
 
 REFERENCES += [
@@ -7586,6 +7712,75 @@ def build_measurements_glm52(artifacts_map):
                       "arithmetic." % G52_HEAD_SHA[:12]),
                  disc("third_party_artifact_self_measured", "info",
                       "brandonmusic's weights, our measurement.")]),
+        dict(mid="measurement--glm-5.2.exl3-tr3-3.25bpw-willfalco.corpus5x5-v1",
+             art=G52_WF325,
+             desc=G52_WF325_DESC, ds_url=G52_WF325_DS, ds_rev=G52_WF325_DS_REV,
+             name="comparison.glm-5.2-exl3-tr3-3.25bpw-willfalco.corpus5x5-v1.json",
+             repro="reproduction.glm-5.2-exl3-tr3-3.25bpw-willfalco.json", pin=G52_PIN_WF325,
+             runtime={"engines/tools/hf_capture.py": "200ba12ca74fb97531307965cbbaa5c10553a5c26e008e524ea2d8aecb005b95",
+                      "engines/tools/layer_outer.py": "870724873cb547ba6ce6a184680034e301ecb3575b888744c4ece89d515b832b",
+                      "bin/fidelity/panel.py": "0bf78fca76289920e0dc10d58082f42f24f4f2db6e0ecde61daefa4c22de286d"},
+             card="https://huggingface.co/willfalco/GLM-5.2-EXL3-TR3-3.25bpw",
+             card_rev=G52_WF325_REV, ds_note=None,
+             discussion="https://huggingface.co/willfalco/GLM-5.2-EXL3-TR3-3.25bpw/discussions/2",
+             disclosures=[
+                 disc("lossy_capture_codec", "caveat",
+                      "RECONSTRUCTED, NOT EXECUTED. The routed-expert trellis payload groups "
+                      "(57,600 modules x four TP rank shards) are decoded to bf16 per module "
+                      "before the loader by engines/tools/exl3hf_surface.py:decode_payload_hf, "
+                      "this repository's transcription of exllamav3's codebooks, and composed "
+                      "in ascending rank order. That decoder has NOT been proven bitwise "
+                      "against a running exllamav3 kernel -- only against in-house fp64 routes "
+                      "and real payloads -- and the served exllamav3 numerics are not in this "
+                      "number either. Both are why this row is advisory.", True),
+                 disc("tp_sliced_artifact", "info",
+                      "Four tensor-parallel rank shards per routed-expert module, composed in "
+                      "ascending rank order along the axis the artifact's hybrid_tr3_tail "
+                      "declares (tp_rank_payloads_composed in the sealed dataset); mixed K to "
+                      "a declared average of 3.25 bits over the routed experts."),
+                 disc("record_note", "info",
+                      "Head identity: this release's lm_head is content-identical to the BF16 "
+                      "root's (%s...), so own-head and shared-head replay are the same "
+                      "arithmetic." % G52_HEAD_SHA[:12]),
+                 disc("third_party_artifact_self_measured", "info",
+                      "willfalco's weights, our measurement.")]),
+        dict(mid="measurement--glm-5.2.gguf-unsloth-udq4kxl.corpus5x5-v1",
+             art=G52_GGUF_UDQ4KXL,
+             desc=G52_GGUF_DESC, ds_url=G52_GGUF_DS, ds_rev=G52_GGUF_DS_REV,
+             name="comparison.glm-5.2-gguf-unsloth-udq4kxl.corpus5x5-v1.json",
+             repro="reproduction.glm-5.2-gguf-unsloth-udq4kxl.json", pin=G52_PIN_GGUF,
+             runtime={"engines/tools/hf_capture.py": "200ba12ca74fb97531307965cbbaa5c10553a5c26e008e524ea2d8aecb005b95",
+                      "engines/tools/layer_outer.py": "870724873cb547ba6ce6a184680034e301ecb3575b888744c4ece89d515b832b",
+                      "bin/fidelity/panel.py": "0bf78fca76289920e0dc10d58082f42f24f4f2db6e0ecde61daefa4c22de286d"},
+             card="https://huggingface.co/unsloth/GLM-5.2-GGUF", card_rev=G52_GGUF_REV,
+             ds_note=None, discussion=None,
+             disclosures=[
+                 disc("lossy_capture_codec", "caveat",
+                      "RECONSTRUCTED, NOT EXECUTED. Every GGUF tensor is dequantized to bf16 "
+                      "on the capture host (gguf-dequant-to-bf16), k-quant block traits read "
+                      "from the tensor tables themselves. The decoder is proven BITWISE "
+                      "against gguf-py 0.19.0's own gguf.quants.dequantize on real fetched "
+                      "blocks (engines/tools/gguf-evidence/), so the DECODE is not in "
+                      "question. What is absent is the serving engine: llama.cpp runs these "
+                      "weights through its own kernels and its own KV-cache quantization. "
+                      "This row is advisory because it measures the STORED WEIGHTS, not a "
+                      "llama.cpp deployment. There is no activation-quantization caveat: a "
+                      "GGUF k-quant build declares none.", True),
+                 disc("quantized_head", "caveat",
+                      "HEAD-1d with a QUANTIZED head: this build's lm_head is Q8_0, so the "
+                      "candidate replayed through its own dequantized head (%s...) and the "
+                      "reference through the official bf16 head (%s...). The head's own "
+                      "quantization error is inside this value -- unlike every other GLM-5.2 "
+                      "row, whose head is the official tensor byte for byte. Read the "
+                      "difference against them as codec-plus-head, not codec alone."
+                      % (G52_GGUF_HEAD_SHA[:12], G52_HEAD_SHA[:12]), True),
+                 disc("record_note", "info",
+                      "The build ships no config.json; the lane bound the official "
+                      "zai-org/GLM-5.2 config (185f93ee...) to build the architecture, which "
+                      "is the digest the sealed dataset's weights block records. The weights "
+                      "are entirely the GGUF build's."),
+                 disc("third_party_artifact_self_measured", "info",
+                      "unsloth's build, our measurement.")]),
     ]
     for cand in candidates:
         c = _g52_comparison(cand["name"], want_kind="measurement",
@@ -7638,7 +7833,10 @@ def build_measurements_glm52(artifacts_map):
                                   % cand["name"].split("comparison.glm-5.2-")[1]
                                                 .split(".corpus5x5")[0]),
                          "the candidate's sealed dataset descriptor, byte-verbatim")]
-                    + G52_LINEAGE_SOURCES,
+                    + G52_LINEAGE_SOURCES
+                    + ([src("discussion", cand["discussion"], None,
+                            "the measurement as posted on the artifact's Hub page")]
+                       if cand.get("discussion") else []),
             disclosures=cand["disclosures"] + [
                 disc("record_note", "info",
                      G52_LINEAGE_NOTE % (R_G52_HF, G52_LINEAGE_FWD["metric"]["value"],

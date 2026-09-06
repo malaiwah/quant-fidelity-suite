@@ -7,7 +7,7 @@ unquantized references. Five model families
 [GLM-5.2](https://huggingface.co/zai-org/GLM-5.2),
 [GLM-5.3-Flash](https://huggingface.co/zai-org/GLM-5.3-Flash),
 [Qwen3.8-27B](https://huggingface.co/Qwen/Qwen3.8-27B), and a 5B MoE CI
-fixture), six storage formats, 93 published rows. Receipt-driven: every
+fixture), six storage formats, 95 published rows. Receipt-driven: every
 published number links to a JSON receipt with pinned revisions and sha256s.
 
 The suite began as a GLM-5.3-Flash program — most of the campaign material

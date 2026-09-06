@@ -2,15 +2,15 @@
   "collections": {
     "artifacts": {
       "file": "data/artifacts.jsonl",
-      "record_count": 56,
+      "record_count": 58,
       "schema": "schema/artifact.schema.json",
-      "sha256": "6260462aea0196f6ca0cf64cb8132af4de5b538d10a07e92f9c4e7d1e8cc76e6"
+      "sha256": "b074edf39f1f0d63003096f1ee7bcbf8c6544b4b9bee73960fad3882010691a2"
     },
     "measurements": {
       "file": "data/measurements.jsonl",
-      "record_count": 93,
+      "record_count": 95,
       "schema": "schema/measurement.schema.json",
-      "sha256": "f309191b14a7ca1bcc119de5b180cffa5fda02ee83e4223a209d03c30ccba6bf"
+      "sha256": "5c7a1d0f7a74ad2601803fd94233bb5e5bdf85d7efc6cf2da1796954449d0fd6"
     },
     "models": {
       "file": "data/models.jsonl",
@@ -481,10 +481,10 @@
       "accumulation_dtype": "float64",
       "comparability": {
         "comparable": "false",
-        "live_member_count": 4,
+        "live_member_count": 6,
         "predicate_version": "comparability-predicate/v1",
         "reasons": [
-          "scope: members span {attn.o+attn.other+attn.qkv+mlp.down+mlp.gate+mlp.up+moe.experts+moe.shared_expert+mtp|head=native|kv=bf16, moe.experts+mtp|head=native|kv=bf16, moe.experts|head=native|kv=bf16} -- these are different interventions; equal nominal bpw does not make a routed-experts-only quant and a full-forward quant the same thing (docs/GGUF-MEASUREMENT.md)"
+          "scope: members span {attn.o+attn.other+attn.qkv+embed_tokens+lm_head+mlp.down+mlp.gate+mlp.up+moe.experts+moe.shared_expert+mtp|head=quantized|kv=not_applicable, attn.o+attn.other+attn.qkv+mlp.down+mlp.gate+mlp.up+moe.experts+moe.shared_expert+mtp|head=native|kv=bf16, moe.experts+mtp|head=native|kv=bf16, moe.experts|head=native|kv=bf16} -- these are different interventions; equal nominal bpw does not make a routed-experts-only quant and a full-forward quant the same thing (docs/GGUF-MEASUREMENT.md)"
         ],
         "secondary": {
           "hardware": {
@@ -508,6 +508,7 @@
           "scope": {
             "status": "fail",
             "values": [
+              "attn.o+attn.other+attn.qkv+embed_tokens+lm_head+mlp.down+mlp.gate+mlp.up+moe.experts+moe.shared_expert+mtp|head=quantized|kv=not_applicable",
               "attn.o+attn.other+attn.qkv+mlp.down+mlp.gate+mlp.up+moe.experts+moe.shared_expert+mtp|head=native|kv=bf16",
               "moe.experts+mtp|head=native|kv=bf16",
               "moe.experts|head=native|kv=bf16"
@@ -519,7 +520,7 @@
       "head_policy": "native_head",
       "key": "cmp--6ccc41df40f849da",
       "label": "mean_tokenwise_kld on panel--glm53.malaiwah.corpus5x5-v1 (same_stack, native_head)",
-      "member_count": 4,
+      "member_count": 6,
       "metric_name": "mean_tokenwise_kld",
       "panel_id": "panel--glm53.malaiwah.corpus5x5-v1",
       "reference_id": "reference--malaiwah.glm-5.2-bf16-hf.corpus5x5-v1",
@@ -997,12 +998,12 @@
   "comparability_predicate_rule": "Per group: comparable='true' means lane, pipeline, scope coverage and hardware are recorded and homogeneous across live members; 'false' means a recorded dimension differs (ranking across it attributes a lane/pipeline/hardware/scope effect to quantization quality); 'unknown' means no recorded difference but at least one dimension is unrecorded. Recomputed by the validator (CMP-007); a hand-edited predicate is rejected.",
   "comparability_rule": "The seven-field comparability.key is a NECESSARY partition key, not a sufficient certificate: two measurement values with different keys are NEVER comparable, and a table that mixes keys is malformed. Equal keys make two rows candidates for comparison ONLY -- the key deliberately omits measurement lane, candidate pipeline, hardware and artifact scope, all of which this project has MEASURED moving results by more than the gaps it publishes between quantizers. Before ranking rows as like-for-like, a consumer must also check each group's comparability_keys[].comparability predicate: comparable=true/false/unknown with machine-readable reasons.",
   "counts": {
-    "artifacts": 56,
-    "measurements": 93,
-    "measurements_advisory": 85,
+    "artifacts": 58,
+    "measurements": 95,
+    "measurements_advisory": 87,
     "measurements_author_reported": 15,
     "measurements_independently_verified": 0,
-    "measurements_self_measured": 78,
+    "measurements_self_measured": 80,
     "measurements_strict": 8,
     "measurements_third_party_reported": 0,
     "models": 5,
@@ -1018,13 +1019,13 @@
       "url": "https://huggingface.co/datasets/0xSero/local-ai-registry"
     }
   },
-  "generated_at": "2026-09-06T05:13:44+00:00",
+  "generated_at": "2026-09-06T06:30:55+00:00",
   "registry_id": "malaiwah/quant-fidelity-registry",
   "resolver_rule": "Every *_ref is the id field of a record in the collection named by the ref's id prefix: model--, artifact--, panel--, reference--, pipeline--, measurement--.",
   "schema_version": "quant-fidelity-registry/v1",
   "validator": {
     "invariants_file": "schema/invariants.json",
-    "last_run_at": "2026-09-06T05:13:44+00:00",
+    "last_run_at": "2026-09-06T06:30:55+00:00",
     "passed": true,
     "tool": "tools/registry_validate.py"
   }
