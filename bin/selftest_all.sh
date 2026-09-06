@@ -94,6 +94,13 @@ else
   s "fp8 -> bf16 losslessness (T5e)" "no torch in $VPY or $PY -- export FIDELITY_PYTHON"
 fi
 t "canonical_json: bin == registry (T5f)"  0 python3 bin/selftest_canonical_json.py
+# A transient HTTP status is a WAIT, not a refusal -- and the reference fetch is
+# anonymous BY DESIGN (that is what proves the published root is publicly
+# readable), so there is no token to fall back on when several lanes share one
+# per-IP budget. A 429 killed a paid pod 18 s into a rental, and the same status
+# refused a controller-side blobs=true census with no pod involved at all.
+t "transient HTTP retry: pod fetch + controller metadata" \
+                                           0 python3 bin/selftest_hub_retry.py
 # P1-08. NaN/Infinity are not JSON: refused at the parse (parse_constant), by
 # both canonical serializers (allow_nan=False), and by the minischema's
 # recursive finiteness walk -- bound checks fail open on NaN otherwise.

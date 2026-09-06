@@ -19,6 +19,7 @@ import os
 import stat
 import re
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -109,6 +110,60 @@ def _endpoint_host() -> str:
     return _host(HF_ENDPOINT)
 
 
+# A 429 is the server saying "wait", not "no". The anonymous reference fetch --
+# anonymous on purpose, because reading the published root WITHOUT a token is
+# what proves it is publicly readable -- hit HTTP 429 eighteen seconds into a
+# paid rental on 2026-09-06 and the stage exited 3, turning a wait into a lost
+# pod. Three lanes pulling published roots share one unauthenticated per-IP
+# budget, so this is expected traffic, not an anomaly.
+#
+# Retried statuses are only the ones the protocol says are temporary. 401, 403
+# and 404 are answers about the request and must still fail closed and fast.
+# Nothing here relaxes a byte-identity check: a retry restarts the stream from
+# zero and the digest, byte count and sha256 gates are re-run on the fresh
+# attempt exactly as before.
+_RETRY_STATUSES = frozenset({429, 500, 502, 503, 504})
+_RETRY_ATTEMPTS = 5
+_RETRY_MAX_DELAY = 60.0
+_RETRY_TOTAL_BUDGET = 300.0
+_SLEEP = time.sleep
+
+
+def _retry_after_seconds(exc) -> Optional[float]:
+    """`Retry-After` in its integer-seconds form, bounded, else None.
+
+    The HTTP-date form is deliberately not parsed: a bad clock would turn a
+    two-second wait into a very long one, and the backoff below is a safe
+    substitute.
+    """
+    headers = getattr(exc, "headers", None)
+    if headers is None:
+        return None
+    raw = headers.get("Retry-After")
+    if raw is None:
+        return None
+    try:
+        seconds = float(str(raw).strip())
+    except (TypeError, ValueError):
+        return None
+    if seconds != seconds or seconds < 0:            # NaN or negative
+        return None
+    return min(seconds, _RETRY_MAX_DELAY)
+
+
+def _retry_delay(exc, attempt: int, spent: float) -> Optional[float]:
+    """Seconds to wait before retrying, or None to give up and refuse."""
+    if getattr(exc, "code", None) not in _RETRY_STATUSES:
+        return None
+    if attempt >= _RETRY_ATTEMPTS:
+        return None
+    delay = _retry_after_seconds(exc)
+    if delay is None:
+        delay = min(_RETRY_MAX_DELAY, 2.0 ** attempt)
+    if spent + delay > _RETRY_TOTAL_BUDGET:
+        return None
+    return delay
+
 def _get(url: str, token: Optional[str] = None, binary: bool = False):
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     if token:
@@ -122,15 +177,25 @@ def _get(url: str, token: Optional[str] = None, binary: bool = False):
             raise HubError("refusing to send the Hugging Face token to %s (the configured "
                            "endpoint is %s)" % (_host(url) or "an unparseable host",
                                                 _endpoint_host()))
-    try:
-        with _OPENER.open(request, timeout=60) as response:
-            payload = response.read()
-    except urllib.error.HTTPError as exc:
-        err = HubError("HTTP %s for %s" % (exc.code, common.redact(url)))
-        err.status = exc.code
-        raise err
-    except urllib.error.URLError as exc:
-        raise HubError("network error for %s: %s" % (common.redact(url), exc.reason))
+    attempt = 0
+    spent = 0.0
+    while True:
+        attempt += 1
+        try:
+            with _OPENER.open(request, timeout=60) as response:
+                payload = response.read()
+            break
+        except urllib.error.HTTPError as exc:
+            delay = _retry_delay(exc, attempt, spent)
+            if delay is None:
+                err = HubError("HTTP %s for %s" % (exc.code, common.redact(url)))
+                err.status = exc.code
+                raise err
+            _SLEEP(delay)
+            spent += delay
+        except urllib.error.URLError as exc:
+            raise HubError("network error for %s: %s"
+                           % (common.redact(url), exc.reason))
     return payload if binary else payload.decode("utf-8")
 
 def _read_remote_exact(
@@ -149,36 +214,51 @@ def _read_remote_exact(
             raise HubError(
                 "refusing to send the Hugging Face token across origins")
         request.add_header("Authorization", "Bearer %s" % token)
-    digest = hashlib.sha256()
-    total = 0
-    body = bytearray() if capture else None
-    try:
-        with _OPENER.open(request, timeout=60) as response:
-            status = response.getcode()
-            if status != 200:
-                raise HubError(
-                    "HTTP %s while streaming immutable public evidence" % status)
-            while True:
-                chunk = response.read(
-                    min(1024 * 1024, expected_bytes - total + 1))
-                if not chunk:
-                    break
-                total += len(chunk)
-                if total > expected_bytes:
+    attempt = 0
+    spent = 0.0
+    while True:
+        attempt += 1
+        # Per-attempt state. A retry re-streams from byte zero and re-derives
+        # the digest, so the exact byte/sha256 gates below judge one whole
+        # attempt -- never a resumed or spliced one.
+        digest = hashlib.sha256()
+        total = 0
+        body = bytearray() if capture else None
+        try:
+            with _OPENER.open(request, timeout=60) as response:
+                status = response.getcode()
+                if status != 200:
                     raise HubError(
-                        "immutable public member exceeds its exact byte bound")
-                digest.update(chunk)
-                if body is not None:
-                    body.extend(chunk)
-    except HubError:
-        raise
-    except urllib.error.HTTPError as exc:
-        raise HubError(
-            "HTTP %s while streaming immutable public evidence" % exc.code)
-    except urllib.error.URLError as exc:
-        raise HubError(
-            "network error while streaming immutable public evidence: %s"
-            % exc.reason)
+                        "HTTP %s while streaming immutable public evidence"
+                        % status)
+                while True:
+                    chunk = response.read(
+                        min(1024 * 1024, expected_bytes - total + 1))
+                    if not chunk:
+                        break
+                    total += len(chunk)
+                    if total > expected_bytes:
+                        raise HubError(
+                            "immutable public member exceeds its exact byte "
+                            "bound")
+                    digest.update(chunk)
+                    if body is not None:
+                        body.extend(chunk)
+            break
+        except HubError:
+            raise
+        except urllib.error.HTTPError as exc:
+            delay = _retry_delay(exc, attempt, spent)
+            if delay is None:
+                raise HubError(
+                    "HTTP %s while streaming immutable public evidence"
+                    % exc.code)
+            _SLEEP(delay)
+            spent += delay
+        except urllib.error.URLError as exc:
+            raise HubError(
+                "network error while streaming immutable public evidence: %s"
+                % exc.reason)
     if total != expected_bytes or digest.hexdigest() != expected_sha256:
         raise HubError(
             "immutable public member differs from verified source archive")

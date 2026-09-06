@@ -15,6 +15,7 @@ import hashlib
 import json
 import os
 import re
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -183,6 +184,59 @@ def hf_token() -> Optional[str]:
     return token
 
 
+# The same transient-retry policy dshub applies to the pod's reference fetch.
+# This layer reads repository METADATA -- including the `blobs=true` file
+# census inside `_anonymous_hf_environment`, which strips every token variable
+# and sets HF_HUB_DISABLE_IMPLICIT_TOKEN=1 by design, so it has no credential
+# to fall back on and shares one per-IP anonymous budget with every other lane.
+# Three concurrent dry-runs were enough to earn an HTTP 429 here with no pod
+# involved at all (2026-09-06), and a controller that treats "wait" as "no"
+# turns a planning step into a refusal.
+#
+# 401, 403 and 404 keep failing closed immediately: they are answers about the
+# request, and retrying them would only slow down a correct refusal.
+_RETRY_STATUSES = frozenset({429, 500, 502, 503, 504})
+_RETRY_ATTEMPTS = 5
+_RETRY_MAX_DELAY = 60.0
+_RETRY_TOTAL_BUDGET = 300.0
+_SLEEP = time.sleep
+
+
+def _retry_after_seconds(exc) -> Optional[float]:
+    """`Retry-After` in integer seconds, bounded, else None.
+
+    The HTTP-date form is deliberately not parsed: a skewed clock would turn a
+    two-second wait into a very long one, and the backoff is a safe substitute.
+    """
+    headers = getattr(exc, "headers", None)
+    if headers is None:
+        return None
+    raw = headers.get("Retry-After")
+    if raw is None:
+        return None
+    try:
+        seconds = float(str(raw).strip())
+    except (TypeError, ValueError):
+        return None
+    if seconds != seconds or seconds < 0:
+        return None
+    return min(seconds, _RETRY_MAX_DELAY)
+
+
+def _retry_delay(exc, attempt: int, spent: float) -> Optional[float]:
+    """Seconds to wait before retrying, or None to give up and refuse."""
+    if getattr(exc, "code", None) not in _RETRY_STATUSES:
+        return None
+    if attempt >= _RETRY_ATTEMPTS:
+        return None
+    delay = _retry_after_seconds(exc)
+    if delay is None:
+        delay = min(_RETRY_MAX_DELAY, 2.0 ** attempt)
+    if spent + delay > _RETRY_TOTAL_BUDGET:
+        return None
+    return delay
+
+
 def _get(url: str, *, timeout: float = 30.0) -> Any:
     req = urllib.request.Request(url, headers={"User-Agent": "fidelity-suite/0.1"})
     token = hf_token()
@@ -198,18 +252,27 @@ def _get(url: str, *, timeout: float = 30.0) -> Any:
                 "refusing to send the Hugging Face token to %s (the configured "
                 "endpoint is %s)" % (_url_host(url) or "an unparseable host",
                                      _endpoint_host()))
-    try:
-        with safe_urlopen(req, timeout=timeout) as resp:
-            return json.loads(resp.read().decode("utf-8"))
-    except urllib.error.HTTPError as exc:
-        hint = ""
-        if exc.code in (401, 403):
-            hint = " (private or gated? export HF_TOKEN)"
-        elif exc.code == 404:
-            hint = " (no such repo/revision, or it is private)"
-        raise HFError("HTTP %d for %s%s" % (exc.code, url, hint)) from None
-    except urllib.error.URLError as exc:
-        raise HFError("network error for %s: %s" % (url, exc.reason)) from None
+    attempt = 0
+    spent = 0.0
+    while True:
+        attempt += 1
+        try:
+            with safe_urlopen(req, timeout=timeout) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            delay = _retry_delay(exc, attempt, spent)
+            if delay is not None:
+                _SLEEP(delay)
+                spent += delay
+                continue
+            hint = ""
+            if exc.code in (401, 403):
+                hint = " (private or gated? export HF_TOKEN)"
+            elif exc.code == 404:
+                hint = " (no such repo/revision, or it is private)"
+            raise HFError("HTTP %d for %s%s" % (exc.code, url, hint)) from None
+        except urllib.error.URLError as exc:
+            raise HFError("network error for %s: %s" % (url, exc.reason)) from None
 
 
 @dataclass
@@ -433,11 +496,20 @@ def fetch_file(repo_id: str, path: str, *, repo_type: str = "model",
                 "refusing to send the Hugging Face token to %s (the configured "
                 "endpoint is %s)" % (_url_host(url) or "an unparseable host",
                                      _endpoint_host()))
-    try:
-        with safe_urlopen(req, timeout=timeout) as resp:
-            return resp.read()
-    except urllib.error.HTTPError as exc:
-        raise HFError("HTTP %d fetching %s from %s" % (exc.code, path, repo_id)) from None
+    attempt = 0
+    spent = 0.0
+    while True:
+        attempt += 1
+        try:
+            with safe_urlopen(req, timeout=timeout) as resp:
+                return resp.read()
+        except urllib.error.HTTPError as exc:
+            delay = _retry_delay(exc, attempt, spent)
+            if delay is None:
+                raise HFError("HTTP %d fetching %s from %s"
+                              % (exc.code, path, repo_id)) from None
+            _SLEEP(delay)
+            spent += delay
 
 
 def fetch_json(repo_id: str, path: str, **kw) -> Any:
