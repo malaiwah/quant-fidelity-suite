@@ -98,13 +98,38 @@ Blockers beyond the twelve:
   fixed, or the first Lambda root will be refused for a phantom requirement.
 
 ### JarvisLabs (`bin/fidelity/jlapi.py`, 22 public methods)
-Historical. It is the provider the whole harness was originally written
-against, and every portability bug found since was a JarvisLabs
-*representation* treated as universal truth (int machine ids, `"Running"` vs
-`"RUNNING"`, ids comparing as ints in a set). It keeps `reaper` support for
-lease cleanup and is the lowest-value target for measurement parity — but it is
-the highest-value target for the conformance test, because its surface is the
-largest and its assumptions are the ones already known to be wrong.
+**Full parity, same as the others** (decided 2026-09-06). An earlier draft of
+this document argued JarvisLabs was the lowest-value target and should stay
+`historical` for lease cleanup only. That is superseded: a provider we can
+publish from is worth having on every account we hold, and JarvisLabs holds the
+largest non-RunPod surface already.
+
+It is the provider the whole harness was originally written against, which cuts
+both ways. In its favour: it already implements `exec`, `upload`, `download`,
+`fs_list`, `run_job`, `run_status` and `run_logs`, none of which any other
+adapter has, so the execution half is the most complete of the three. Against
+it: every portability bug found since was a JarvisLabs *representation* treated
+as universal truth — int machine ids, the running state spelled `"Running"`
+rather than `"RUNNING"`, ids comparing as ints in a set — and each of those
+could have leaked a billing instance. So its assumptions are the ones already
+proven wrong, and the twelve must be written against what the provider actually
+returns rather than against what this adapter historically believed.
+
+Provider-specific facts:
+- **It is driven through the `jl` CLI, not a REST endpoint** (hence
+  `JLNotInstalled`). RunPod is GraphQL plus SSH. So the twelve have to be built
+  on whatever the CLI genuinely exposes — probe it, and where it exposes
+  nothing usable (per-instance billing and server time are the likely gaps),
+  implement the refusal and record the gap rather than substituting our own
+  clock or a balance delta.
+- **A JarvisLabs filesystem outlives its instance.** That is what makes a
+  preempted spot box cheap to resume, and it is the opposite of Vast's
+  pod-scoped storage. So `list_network_volumes()` is real work here and
+  `chargeable_inventory()` is incomplete without it — an orphaned filesystem
+  is a chargeable resource that no instance listing will show.
+- **137 historical leases have already been settled** on this account, so
+  `reconcile_billing` must cope with the old lease shapes it will meet in the
+  store, not only with ones minted by the current code.
 
 ## Beyond the adapters
 
