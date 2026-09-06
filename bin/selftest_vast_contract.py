@@ -654,6 +654,28 @@ if HAS_TLSGUARD:
         onstart="mkdir -p /workspace", name="vast-public")
     check("a PUBLIC-artifact container run with no credential still works",
           public_run["machine_id"] == 50055626)
+    # The defect this pins: the guard's exception type is NOT ours. Every
+    # caller of an adapter catches the JLError family, so a TlsRefusal
+    # escaping `create()` dies uncaught instead of refusing -- which is
+    # exactly what happened on f55b92a, where the portability suite reported
+    # 107 PASS and then CRASHED. It survived testing because the fail-closed
+    # branch (tlsguard absent) wrapped it while the shipped branch did not:
+    # a fail-closed fallback that is the only branch under test is an
+    # untested primary wearing a green badge.
+    try:
+        StubVast(responses=ASK_OK,
+                 ssh_key="/nonexistent/id_ed25519").create(
+            ask_id=42, storage=80, env={"HF_TOKEN": "hf_" + "d" * 34},
+            name="vast-x")
+        check("the credential refusal crosses the adapter boundary as "
+              "VastError [NO refusal raised]", False)
+    except VastError:
+        check("the credential refusal crosses the adapter boundary as "
+              "VastError, never as a foreign exception type", True)
+    except BaseException as exc:                          # noqa: BLE001
+        check("the credential refusal crosses the adapter boundary as "
+              "VastError, not %s.%s" % (type(exc).__module__,
+                                        type(exc).__name__), False)
 else:
     # tlsguard is not in this checkout, so the FAIL-CLOSED half is what is
     # assertable here: an unchecked payload is never transmitted.
@@ -664,6 +686,11 @@ else:
                 ask_id=42, storage=80, env={"HF_TOKEN": "hf_" + "a" * 34},
                 name="vast-x"),
             needle="tlsguard is not importable")
+    print("  NOT ASSERTED HERE  the shared credential guard's own refusals: "
+          "fidelity.tlsguard (owner TlsAttestation, landed 7a0a637) is not "
+          "importable in this checkout, so the three value-scanning rungs "
+          "and the VastError-boundary rung above arm only where it is "
+          "present. The fail-closed refusal IS asserted below.")
 
 print()
 print("== prepare_safe_create: everything refuses before anything bills ==")
