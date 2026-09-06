@@ -469,8 +469,8 @@ src_mc = open(os.path.join(here, "measure_cloud.py"), encoding="utf-8").read()
 check("preflight REFUSES a no-cuda machine",
       '"no cuda"' in src_mc and "no working CUDA device" in src_mc)
 
-print("\n== Vast container mode: argv as a list, secrets only in env ==")
-from fidelity.vastapi import Vast                                 # noqa: E402
+print("\n== Vast container mode: argv as a list, and NO credential at create ==")
+from fidelity.vastapi import Vast, VastError                       # noqa: E402
 
 _captured = []
 
@@ -496,13 +496,21 @@ _SECRET = "hf_secret_token_abc123xyz"
 # reachable endpoint.
 _SINK = "https://sink.invalid/s3cret-topic-with-cred"
 
+# These rungs USED to pass a token and a sink here and assert that the create
+# body "carries the HF token". That is a defect class worth naming: the
+# ASSERTION encoded a leak as a CONTRACT, so fixing the leak would have turned
+# the suite red and made "fix it" mean "fight the test suite". A create payload
+# is provider-persisted and reaches the host BEFORE any host key, attestation
+# or TLS check exists, so no ordering makes it safe. The shaping coverage
+# these rungs were genuinely good at is kept, with a NON-credential variable.
+_ENV_NAME, _ENV_VALUE = "FIDELITY_PANEL_ID", "panel--fruit-bf16-v1"
 _v.create(
     ask_id=42, storage=80,
     image="ghcr.io/malaiwah/quant-fidelity-measure:main",
     docker_cmd=["capture", "--model", "malaiwah/GLM-5.2-SIQ-Fruit-bf16",
                 "--revision", "e" * 40,
                 "--sanity-expect", ""],
-    env={"HF_TOKEN": _SECRET, "FIDELITY_RESULT_SINK": _SINK},
+    env={_ENV_NAME: _ENV_VALUE},
     onstart="mkdir -p /workspace",
     name="vast-container-test")
 
@@ -516,10 +524,28 @@ check("container mode onstart preserves an empty argument",
       "''" in _body.get("onstart", ""))
 check("container mode image is the measurement image",
       _body.get("image") == "ghcr.io/malaiwah/quant-fidelity-measure:main")
-check("container mode env carries the HF token",
-      "-e HF_TOKEN=%s" % _SECRET in _body.get("env", ""))
-check("container mode env carries the result sink",
-      "-e FIDELITY_RESULT_SINK=%s" % _SINK in _body.get("env", ""))
+check("container mode env carries a NON-credential variable, in env rather "
+      "than in the command text",
+      "-e %s=%s" % (_ENV_NAME, _ENV_VALUE) in _body.get("env", "")
+      and _ENV_VALUE not in _body.get("onstart", ""))
+
+# The replacement for "env carries the HF token": the adapter REFUSES, because
+# the adapter is the last place that can tell. Fail closed at the boundary.
+for _label, _env in (("a token", {"HF_TOKEN": _SECRET}),
+                     ("a result sink, which is a bearer capability",
+                      {"FIDELITY_RESULT_SINK": _SINK})):
+    try:
+        _v.create(
+            ask_id=42, storage=80,
+            image="ghcr.io/malaiwah/quant-fidelity-measure:main",
+            docker_cmd=["capture"], env=_env, name="vast-credential-test")
+        _refusal = None
+    except VastError as exc:
+        _refusal = str(exc)
+    check("a create body carrying %s is REFUSED, naming that the payload is "
+          "provider-persisted" % _label,
+          _refusal is not None and "provider-persisted" in _refusal
+          and _SECRET not in _refusal and _SINK not in _refusal)
 
 # The critical assertion: no secret appears in onstart text.
 # A provider may echo the command back; environment variables it does not.
