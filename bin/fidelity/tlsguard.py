@@ -1313,6 +1313,44 @@ _NAME_EXEMPT_SUFFIX = ("_PATH", "_FILE", "_ID", "_NAME", "_DIR", "_ENDPOINT")
 _SECRET_NAME_TAIL = re.compile(
     r"(TOKEN|SECRET|PASSWORD|PASSWD|APIKEY|API_KEY|CREDENTIAL|PRIVATE_KEY)$")
 
+# A URL WITH A PATH is a bearer capability, and it matches no token shape --
+# which is exactly why a shape-based matcher misses it (VastParity, 2026-09-06:
+# `{"FIDELITY_RESULT_SINK": "https://sink.invalid/topic-cred"}` passed clean).
+# Whoever holds a result-sink or ntfy-style topic URL can read the run's
+# output, so in a provider-persisted payload it is a credential in every sense
+# that matters. Two detectors, because either alone is wrong:
+#   * a capability-shaped NAME whose value is a URL carrying a path -- a repo
+#     or wheel URL (PIPE_REPO=https://github.com/owner/repo) is legitimate and
+#     must not trip it, which is why the NAME decides here;
+#   * a presigned-style path segment (>=20 chars of URL-safe alphabet) under
+#     any name at all, which is what an S3/CloudFront signed URL looks like.
+_CAPABILITY_NAME = re.compile(
+    r"(?i)(SINK|WEBHOOK|CALLBACK|NOTIFY|HOOK|TOPIC|PRESIGN|SIGNED_URL|INVITE)")
+_URL_WITH_PATH = re.compile(r"(?i)\b(https?)://([^\s/\"']+)(/[^\s\"']*)")
+_OPAQUE_SEGMENT = re.compile(r"/[A-Za-z0-9_\-]{20,}(?:[/?#]|$)")
+
+
+def _capability_findings(path: str, name: Optional[str], value: Any) -> List[str]:
+    """A URL that IS an authorisation, reported without repeating it."""
+    if not isinstance(value, str):
+        return []
+    found: List[str] = []
+    for match in _URL_WITH_PATH.finditer(value):
+        url_path = match.group(3)
+        if url_path in ("/", ""):
+            continue
+        named = bool(name and _CAPABILITY_NAME.search(name))
+        opaque = bool(_OPAQUE_SEGMENT.search(url_path))
+        if not (named or opaque):
+            continue
+        found.append(
+            "%s: %s carries a URL with a %d-character path on host %r -- a "
+            "BEARER CAPABILITY (whoever holds it can read or write that "
+            "endpoint), and it matches no token shape"
+            % (path, ("key %r" % name) if name else "value",
+               len(url_path), match.group(2)))
+    return found
+
 
 def _name_is_secret(name: str) -> bool:
     upper = name.upper()
@@ -1335,11 +1373,12 @@ def _value_is_secretish(value: Any) -> bool:
 def credential_findings(payload: Any, *, path: str = "$") -> List[str]:
     """Every credential-shaped thing in a provider request body, by PATH.
 
-    Two independent detectors, because either alone misses a real case: a token
-    SHAPE anywhere in any string (covers `docker_cmd`/`onstart` text and an
-    unknown key name), and a secret-looking KEY or `NAME=value` assignment with
+    Three independent detectors, because each alone misses a real case: a
+    token SHAPE anywhere in any string (covers `docker_cmd`/`onstart` text and
+    an unknown key name); a secret-looking KEY or `NAME=value` assignment with
     a non-trivial value (covers a credential format we cannot pattern-match,
-    e.g. after a rotation).
+    e.g. after a rotation); and a URL that IS an authorisation -- a result
+    sink, webhook or presigned link, which matches no token shape at all.
     """
     findings: List[str] = []
     if isinstance(payload, dict):
@@ -1350,6 +1389,8 @@ def credential_findings(payload: Any, *, path: str = "$") -> List[str]:
                 findings.append(
                     "%s: key %r carries a credential-shaped value "
                     "(%d characters)" % (child, key, len(value.strip())))
+            findings.extend(_capability_findings(
+                child, key if isinstance(key, str) else None, value))
             findings.extend(credential_findings(value, path=child))
     elif isinstance(payload, (list, tuple)):
         for index, value in enumerate(payload):
@@ -1365,7 +1406,21 @@ def credential_findings(payload: Any, *, path: str = "$") -> List[str]:
                 findings.append(
                     "%s: embeds %s=<%d characters> in a payload the provider "
                     "stores" % (path, name, len(value)))
-    return findings
+        # `NAME=https://host/topic-cred` inside onstart/docker_cmd text: the
+        # NAME is what makes it a capability rather than a repo pin, so the
+        # assignment is matched, not the bare URL.
+        for match in re.finditer(
+                r"(?i)\b([A-Za-z0-9_]+)\s*=\s*(https?://[^\s\"';]+)", payload):
+            findings.extend(_capability_findings(path, match.group(1),
+                                                 match.group(2)))
+        findings.extend(_capability_findings(path, None, payload))
+    # Two detectors can name the same thing (a capability-shaped NAME whose
+    # value is also presigned-shaped); a refusal should say it once.
+    unique: List[str] = []
+    for finding in findings:
+        if finding not in unique:
+            unique.append(finding)
+    return unique
 
 
 def refuse_credential_in_provider_payload(payload: Any,
