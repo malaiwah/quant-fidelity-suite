@@ -3791,15 +3791,16 @@ layers, 26 windows) succeeded on every attempt that reached the pod; every failu
 was in the controller or assembly path, never in the model math. Balance $139.28
 → $113.83 (delta includes other lanes' pods).
 
-## 2026-09-06 — GLM-5.2 FP8 and NVFP4 measured against the 5.2 same-lane root; GGUF blocked by HF 429
+## 2026-09-06 — the format-matched GLM-5.2 column: FP8, GGUF UD-Q4_K_XL and NVFP4 on the 5.2 same-lane root
 
-**Published.** Two format-matched candidates against `malaiwah/glm52-fidelity-root-v1@59775593`
+**Published.** Three format-matched candidates against `malaiwah/glm52-fidelity-root-v1@59775593`
 (capture `a544e029…`, dataset_sha256 `b7e876d6…`) on `panel--glm53.malaiwah.corpus5x5-v1`,
 51,175 scored positions, same lane, floor 0.0, every receipt `strict`:
 
 | artifact | declared bits | KL(root ‖ cand) nats | top-1 | dataset |
 |---|---:|---:|---:|---|
 | `zai-org/GLM-5.2-FP8` @ `f33c6dc501ee` | 8 | 0.025368987988553686 | 0.9541963849535906 | `glm52-fidelity-fp8-v1@cd09d64a` |
+| `unsloth/GLM-5.2-GGUF` UD-Q4_K_XL @ `abc55e725277` | 4 (4.8611 measured, experts) | 0.031466114090875824 | 0.9499364924279433 | `glm52-fidelity-gguf-unsloth-udq4kxl-v1@86867264` |
 | `nvidia/GLM-5.2-NVFP4` @ `53e0691e2189` | 4 | 0.05483693836564808 | 0.9343820224719102 | `glm52-fidelity-nvfp4-nvidia-v1@042a71bc` |
 
 FP8: block-scaled e4m3 [128,128] decoded to bf16 per tensor (fp8-block-dequant-to-bf16),
@@ -3815,16 +3816,42 @@ advisory — static input_scale not applied, by design). Discussion posted at
 huggingface.co/nvidia/GLM-5.2-NVFP4/discussions/14. nvidia's card names GPQA Diamond/SciCode/
 IFBench/AA-LCR/τ²-Bench Telecom but carries no accuracy values and no KLD.
 
-Scopes + allowlists committed at `fcb528d`; receipts at `3a01693` (FP8) and `7dea7d6` (NVFP4)
-under `registry/protocol/glm-5.2/`. Monotone in bit rate across two formats on one root, same
-panel, same lane. Not claimed: a 5.2 same-lane root does not upgrade any row measured against
-another teacher; admissibility is the registry session's call.
+GGUF UD-Q4_K_XL: 1809 tensors, arch glm-dsa, ggml types F32 x709 / Q4_K x150 / Q5_K x74 /
+Q6_K x4 / Q8_0 x872, imatrix-calibrated by Unsloth on unsloth_calibration_GLM-5.2.txt. EVERY
+tensor decoded to bf16 (gguf-dequant-to-bf16): kv_b composed from attn_k_b/attn_v_b, fused
+experts sliced per expert, the artifact's own Q8_0 head decoded the same way, so the row runs
+own-heads (HEAD-1d) and is `strict` with no activation caveat — a GGUF is a weights-only
+format. Percentiles: median 0.001818, p95 0.136390, p99 0.480840, p99.9 1.502320, max 8.539792.
+Measured expert rate 4.8611 bits/weight, not the build name's 4. Discussion posted at
+huggingface.co/unsloth/GLM-5.2-GGUF/discussions/16. unsloth's card links the Dynamic 2.0 blog
+and carries no per-build fidelity figure.
 
-**GGUF UD-Q4_K_XL** (unsloth/GLM-5.2-GGUF @ abc55e72527792c6e77069c99b4cb7de16fa9f23, --path
-UD-Q4_K_XL): scope and allowlist committed, dry-run green, but two paid attempts both died at
-`fetch_reference` on HTTP 429 (HF rate limit fetching the 2.4 GB root dataset after the 465 GB
-GGUF target fetched fine). Transient HF infrastructure, not a gate or science failure. Stopped
-per the two-attempt rule; retryable when the rate limit clears.
+Scopes + allowlists committed at `fcb528d`; receipts at `3a01693` (FP8), `7dea7d6` (NVFP4) and
+`b9f7d3e` (GGUF) under `registry/protocol/glm-5.2/`. Ordering on one root, same panel, same
+lane: FP8 8-bit < GGUF UD-Q4_K_XL < NVFP4 4-bit. The 5.3 FP8 counterpart is 0.027546, so 5.3
+is slightly ahead of 5.2 at the same format. Not claimed: a 5.2 same-lane root does not upgrade
+any row measured against another teacher; admissibility is the registry session's call.
+
+**The GGUF row needed a disclosed operator intervention.** Two earlier paid attempts died at
+`fetch_reference` on HTTP 429 fetching the 2.4 GB root dataset (the 465 GB GGUF target fetched
+fine both times) — transient HF infrastructure. Pre-verifying the reference locally at $0 with
+`fidelity-dataset verify` confirmed the limit had cleared before the third rental. That run then
+hung: under `f0659b1`'s stage overlap, bash keeps ONE EXIT trap and stage_measure's lock-release
+trap replaced the sibling exit-record handler, so `runtime/sibling-compare_reference.exit` was
+never written and `qualify_root` spun for 49 minutes waiting on it. The recovery, authorized and
+disclosed, was to write the lost record by hand — but only against a complete evidence chain
+proving the comparator had returned 0: `stage-compare_reference.pgid` and
+`watchdog-stage-pgid-compare_reference.json` both present (stage really started),
+`logs/stage-compare_reference.log` ending in `stage_measure/compare_reference: done` (reachable
+only after the comparator returned and the receipt-presence check passed under `set -euo
+pipefail`), `receipts/reference-comparison.pending/` holding both `comparison-receipt.json`
+(22,630 B) and `tokenwise-kld.npy` (409,528 B, `556a1b7abf590e92`), and the launcher pid dead.
+`printf '0\n' > runtime/sibling-compare_reference.exit` woke qualify_root within a second; it
+promoted the pending comparison and the run finished exit 0 with `verified_after_publish: true`.
+The trap defect is fixed in `56c3d58` (one chained EXIT handler that both writes the record and
+releases the lock, owner-only; rung R3e drives a real sibling and asserts the record equals its
+exit code). **The rule this cost us: never fabricate a missing exit record from absence — only
+from positive proof that the work completed, and disclose the intervention in the entry.**
 
 **Three controller defects fixed by Main before the runs landed.** (1) `measure_cloud.py:5332`
 relabelled the panel binding's tokenizer pin to the reference root's repo/rev, but
@@ -3835,4 +3862,6 @@ evidence seal expired before the provider POST on some launches (30s max age vs 
 computation) — transient, retried successfully. FP8 attempt 1 also died on defect (2) after a
 full 761 GB fetch (~$8); FP8 attempt 2's science completed but the local controller was killed
 by a bash shell timeout during publish (lesson: controllers MUST run under `hub op:start`,
-never a bare shell). Balance $109.54 → $61.33; no pods live.
+never a bare shell). Balance $109.54 → $48.58 across all three targets (FP8 ~$34 incl. the
+failed attempt 1 and the idle billing, NVFP4 ~$10.55, GGUF ~$16 incl. the two 429 attempts);
+no pods live, reaper healthy.
