@@ -136,6 +136,39 @@ jobs:
       - name: hermetic full tier
         run: python3 bin/selftest_partition.py --run full
 
+  # ------------------------------------------------------------- registry
+  # `registry/.github/workflows/validate.yml` runs on NO MACHINE ANYWHERE.
+  # GitHub Actions reads workflows only from `.github/workflows/` at the
+  # repository ROOT, `registry/` is not a submodule (`.gitmodules` is empty and
+  # there is no `registry/.git`), and the mirror that file is written for
+  # 404s by the project's own documentation (registry/CONTRIBUTING.md: "NOT
+  # LIVE YET"). So the registry's schema checks, invariants, render-drift gate
+  # and its own 93-assertion selftest have never executed in CI.
+  #
+  # This job is the part of that which lives at the repository root: it calls
+  # the registry's OWN documented command and touches no file under
+  # `registry/`, so the mirror's workflow can stay exactly as written for the
+  # day it is published. `make check` is validate + render-check + selftest +
+  # joint; measured 250 s and 93 passed / 0 failed on a 2009 Xeon, offline and
+  # install-free (the Makefile's default `--jsonschema-lib mini` uses the
+  # vendored `registry/tools/_minischema.py`, which exists precisely so a
+  # contributor needs nothing).
+  #
+  # NOT here, deliberately: `make check-release`, which converts the 78
+  # validator warnings into a failure and is the gate for cutting a release,
+  # not for every push; and `make reseed-check`, which needs numpy and is in
+  # `nightly-torch` for that reason.
+  registry:
+    name: registry (make check)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: schema, invariants, render drift and the registry's own selftest
+        run: make -C registry check
+
   # ----------------------------------------------------------------- py39
   # The stock-python3.9 floor, EXECUTED.  AGENTS.md makes "runs on stock
   # python3.9 with no installs" a hard rule for all of bin/ and registry/, and
@@ -208,6 +241,13 @@ jobs:
       # absence rather than passing quietly.
       - name: torch tier
         run: python3 bin/selftest_partition.py --run torch
+      # The seeded registry rows are a function of their receipts, and proving
+      # they still are needs numpy -- `make reseed-check` refuses with exit 4
+      # and says so on a stdlib-only interpreter, so it cannot live in the
+      # `registry` push job.  AGENTS.md names it as the gate for any
+      # receipt-derived row.
+      - name: the registry's rows are still a function of their receipts
+        run: make -C registry reseed-check
       # The stdlib annotation rung in `fast` catches an annotation naming
       # something its module never binds.  pyright catches that class more
       # thoroughly, plus reportPossiblyUnbound -- and it is an npm install, so
