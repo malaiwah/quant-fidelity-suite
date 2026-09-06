@@ -907,7 +907,23 @@ def create_rungs(scratch: str) -> None:                     # noqa: C901
           ", ".join(ok["failures"]))
     check("the attestation is sealed by digest",
           len(ok["attestation_sha256"]) == 64
-          and ok["schema"] == "fidelity-suite/lambda-live-attestation.v1")
+          and ok["schema"] == "fidelity-suite/lambda-live-attestation.v2")
+    # A postcondition evaluated by the party it constrains is not independent
+    # evidence: every `observed` field is the BOX's report of itself, and a
+    # host with root can lie about nvidia-smi exactly as it can lie about
+    # erasing a secret. The document must name its attester rather than let
+    # "attested" be read as proof.
+    check("the document NAMES its attester -- the box itself, over the "
+          "channel whose host key was pinned at launch",
+          "the instance itself" in ok["attested_by"]
+          and "pinned at launch" in ok["attested_by"])
+    check("...and says it is not independently verifiable",
+          ok["independently_verifiable"] is False)
+    check("...and separates what came from the box from what came from the "
+          "provider API over TLS",
+          "nvidia_smi_exit_code" in ok["box_self_reported_fields"]
+          and "gpus" in ok["box_self_reported_fields"]
+          and "provider_record" in ok["independent_of_the_box"])
     check("the run root's WRITABILITY is a check, not an assumption -- the "
           "EACCES that killed a paid gh200 two minutes in",
           ok["checks"]["run_root_writable"] is True)

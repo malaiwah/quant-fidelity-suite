@@ -1804,11 +1804,31 @@ class LambdaCloud(SSHTransport):
                 and tuple(provider_record["ssh_key_names"] or ()) == expected_keys)
             if not checks["ssh_key_binding"]:
                 failures.append("ssh_key_binding")
+        # WHO ATTESTS WHAT. Every `observed` field is the INSTANCE's own
+        # report of itself, so this document proves "the box we
+        # authenticated said these things", not "these things are true of
+        # the hardware". A hostile host with root can lie about nvidia-smi
+        # exactly as it can lie about erasing a secret -- a postcondition
+        # evaluated by the party it constrains is not independent evidence.
+        # What makes the report attributable at all is that it arrives over
+        # the SSH channel whose host key was pinned at launch, and what is
+        # independent of the box is `provider_record`, read from the Lambda
+        # API over TLS. The split is stated in the document rather than left
+        # for a reader to assume, because "attested" is read as evidence.
         document = {
-            "schema": "fidelity-suite/lambda-live-attestation.v1",
+            "schema": "fidelity-suite/lambda-live-attestation.v2",
             "provider": "lambda", "provider_id": instance_id,
             "observed_at_utc": clock["controller_receive_utc"],
             "clock": clock,
+            "attested_by":
+                "the instance itself, over the SSH channel whose ED25519 host "
+                "key was pinned at launch (see "
+                "ssh_host_ed25519_fingerprint)",
+            "box_self_reported_fields": sorted(
+                observed.keys() if isinstance(observed, dict) else []),
+            "independent_of_the_box": "provider_record, read from the Lambda "
+                                      "API over TLS",
+            "independently_verifiable": False,
             "provider_record": provider_record,
             "expected": expected, "observed": observed,
             "transport_error": transport_error,
