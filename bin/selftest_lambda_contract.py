@@ -706,71 +706,6 @@ def create_rungs(scratch: str) -> None:                     # noqa: C901
     check("a group/other-readable private key is refused", refused)
     os.chmod(private, 0o600)
 
-    print("\n[7a] NO CREDENTIAL MAY ENTER A PROVIDER-PERSISTED CREATE BODY")
-    # A create body is stored by the provider and lands in the host's
-    # environment BEFORE the instance exists, so no ordering and no
-    # attestation can protect it -- there is nothing to attest yet. The guard
-    # is tlsguard's single implementation of "looks like a secret", imported
-    # lazily with a fail-closed local branch so no window exists in which
-    # neither guard runs.
-    token = "hf_" + "z" * 34
-    try:
-        from fidelity import tlsguard as _tlsguard                # noqa: F401
-        value_scanning = True
-    except ImportError:
-        value_scanning = False
-    # Carrier-key refusals hold either way: they are this adapter's own
-    # fail-closed branch, and they are what makes the absence of tlsguard a
-    # refusal rather than a gap.
-    for payload, why in (
-            ({"env": {"HF_TOKEN": token}}, "a token in env"),
-            ({"user_data": "#cloud-config\nruncmd: [echo %s]" % token},
-             "a token smuggled into user_data"),
-            ({"docker_cmd": "python x.py --token %s" % token},
-             "a token in a docker command")):
-        refused, message = refuses(
-            prov().create, gpu_type="gpu_1x_a100_sxm4", storage=400, **payload)
-        check("create() refuses %s" % why, refused, message[:80])
-        check("...and the refusal never echoes the credential VALUE",
-              token not in message and token[3:] not in message)
-    refused, _ = refuses(
-        prov(dry=True).create, gpu_type="gpu_1x_a100_sxm4",
-        env={"HF_TOKEN": token})
-    check("...even under dry, where nothing would be transmitted: the "
-          "caller's intent is the defect and a dry run is where to catch it",
-          refused)
-    check("a credential-free create body is NOT refused by the guard",
-          prov(dry=True).create(gpu_type="gpu_1x_a100_sxm4", storage=400,
-                                name="fidcloud-lambda-1")["dry_run"] is True)
-    # VALUE scanning is tlsguard's property, not a second matcher of ours, so
-    # it is asserted only where that module exists -- and its absence is
-    # STATED here rather than printed as a pass. Without it a token smuggled
-    # into a field no carrier list mentions (`name`) is NOT caught, which is
-    # exactly why the fail-closed branch above refuses the carriers outright.
-    if value_scanning:
-        refused, message = refuses(
-            prov(dry=True).create, gpu_type="gpu_1x_a100_sxm4", storage=400,
-            name="fidcloud-%s" % token)
-        check("create() refuses a token smuggled into `name`, which no "
-              "carrier-key list mentions", refused, message[:80])
-        check("...and withholds the value", token not in message)
-        refused, message = refuses(
-            prov().prepare_safe_create,
-            **dict(plan, name="fidcloud-%s" % token))
-        check("prepare_safe_create scans VALUES too, so a smuggled token is "
-              "refused before the request is frozen", refused)
-        check("...and that refusal also withholds the value",
-              token not in message)
-    else:
-        print("      NOT ASSERTED HERE: fidelity.tlsguard is absent from this "
-              "checkout, so value-level")
-        print("      scanning cannot be exercised. The adapter's fail-closed "
-              "branch refuses every")
-        print("      carrier key instead (asserted above), and these two "
-              "rungs arm themselves as")
-        print("      soon as tlsguard is present -- owner: TlsAttestation, "
-              "landed on main at 7a0a637.")
-
     print("\n[8] SUBMIT: A LOST RESPONSE IS RECONCILABLE, NOT AMBIGUOUS")
     dry = Stub(base_responses(keys=registered), ssh_key=private, dry=True)
     submitted = dry.submit_prepared_create(dry.prepare_safe_create(**plan))
@@ -1142,8 +1077,81 @@ def create_rungs(scratch: str) -> None:                     # noqa: C901
                              **dict(attest_kw, **over))
         check("attestation refuses %s from the CALLER" % why, refused)
 
+    print("\n[12] NO CREDENTIAL MAY ENTER A PROVIDER-PERSISTED CREATE BODY")
+    # A create body is stored by the provider and lands in the host's
+    # environment BEFORE the instance exists, so no ordering and no
+    # attestation can protect it -- there is nothing to attest yet.
+    #
+    # There is exactly ONE detector: tlsguard's. Its absence is a refusal,
+    # not a shadow implementation -- a fail-closed fallback that is the only
+    # branch a test ever reaches is an untested primary wearing a green
+    # badge, which is how Vast's TlsRefusal escaped its own adapter boundary
+    # today. `main()` refuses to run this suite at all without the module,
+    # so everything below asserts the real path.
+    token = "hf_" + "z" * 34
+    sink = "https://sink.invalid/s3cret-topic-with-cred"
+    # The bearer-capability policy is the Lambda profile's OWN, because
+    # tlsguard does not flag a URL-with-a-path today (VastParity established
+    # that against the real module, and it turned a portability rung red when
+    # they cut over). These two rungs DELETE when tlsguard carries it.
+    for field in ("user_data", "name"):
+        refused, message = refuses(
+            prov(dry=True).create, gpu_type="gpu_1x_a100_sxm4", storage=400,
+            **{field: sink})
+        check("create() refuses a result-sink URL in `%s`: a URL with a path "
+              "is a bearer capability" % field, refused, message[:80])
+        check("...and the refusal withholds the URL itself",
+              sink not in message)
+    for payload, why in (
+            ({"env": {"HF_TOKEN": token}}, "a token in env"),
+            ({"user_data": "#cloud-config\nruncmd: [echo %s]" % token},
+             "a token smuggled into user_data"),
+            ({"docker_cmd": "python x.py --token %s" % token},
+             "a token in a docker command"),
+            ({"name": "fidcloud-%s" % token},
+             "a token smuggled into `name`, which no carrier-key list "
+             "mentions")):
+        refused, message = refuses(
+            prov().create, gpu_type="gpu_1x_a100_sxm4", storage=400, **payload)
+        check("create() refuses %s" % why, refused, message[:80])
+        check("...and the refusal never echoes the credential VALUE",
+              token not in message and token[3:] not in message)
+    refused, _ = refuses(
+        prov(dry=True).create, gpu_type="gpu_1x_a100_sxm4",
+        env={"HF_TOKEN": token})
+    check("...even under dry, where nothing would be transmitted: the "
+          "caller's intent is the defect and a dry run is where to catch it",
+          refused)
+    check("a credential-free create body is NOT refused by the guard",
+          prov(dry=True).create(gpu_type="gpu_1x_a100_sxm4", storage=400,
+                                name="fidcloud-lambda-1")["dry_run"] is True)
+    refused, message = refuses(
+        prov().prepare_safe_create, **dict(plan, name="fidcloud-%s" % token))
+    check("prepare_safe_create scans VALUES too, so a smuggled token is "
+          "refused before the request is frozen", refused)
+    check("...and that refusal also withholds the value", token not in message)
+    check("...and the wrapped refusal carries tlsguard's ADVICE, not just its "
+          "reason", "remove it from the payload" in message)
+
 
 def main() -> int:
+    # The adapter's credential guard has ONE implementation, tlsguard's, and
+    # its absence is a refusal rather than a fallback path. So this suite
+    # cannot exercise any create path without it, and it says so with an exit
+    # code instead of quietly asserting less -- a suite that runs 4% of
+    # itself while printing PASS is worse than one that refuses.
+    try:
+        from fidelity import tlsguard as _required                # noqa: F401
+    except ImportError as exc:
+        print("selftest_lambda_contract REFUSES to run: fidelity.tlsguard is "
+              "not importable (%s)." % exc)
+        print("  It is a first-party module listed in bin/BUNDLE.txt and on "
+              "main at 7a0a637. The")
+        print("  Lambda adapter refuses every create path without it, so "
+              "there is nothing here to")
+        print("  assert. Update this checkout rather than reading a green "
+              "line as coverage.")
+        return 1
     print("\n[0] THE TWELVE EXIST, AND THE ADAPTER IS OFFLINE-ONLY")
     for method in CONTRACT:
         check("LambdaCloud implements %s()" % method,
