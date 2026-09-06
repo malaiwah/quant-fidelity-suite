@@ -57,6 +57,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -1997,6 +1998,76 @@ exit 0
         check("R3b compare_reference.done written after qualification",
               cr_done.is_file(),
               "cr_done=%s out=%s" % (cr_done.exists(), out[-300:]))
+
+    # R3c/R3d: the sibling is STILL RUNNING when qualify_root starts. A
+    # 5-minute numpy replay routinely outlives verify_repeat + compare_root;
+    # qualify_root must wait for it, then promote (exit 0) or refuse
+    # (non-zero) -- never refuse a merely-unfinished comparison. The sandbox
+    # stands in for the sibling with a background shell that finishes late.
+    import subprocess as _sp
+    for label, sib_rc, expect_promoted in (("R3c", 0, True), ("R3d", 2, False)):
+        with tempfile.TemporaryDirectory() as td2:
+            td2 = Path(td2)
+            sb2 = Sandbox(td2 / ("so-late-%s" % label), overlap_job, finalize_job_doc=False)
+            (sb2.fs / "panel-binding.json").write_bytes(ovl_binding_bytes)
+            for st in ("fetch_target", "fetch_reference", "capture",
+                       "verify", "capture_repeat", "verify_repeat",
+                       "compare_root"):
+                sb2.write_bound_marker(st)
+            ref_tree2 = sb2.fs / "reference-cache" / "malaiwah__root-v1" / REV_B
+            ref_tree2.mkdir(parents=True)
+            (ref_tree2 / "fidelity-dataset.json").write_text(
+                json.dumps({"schema": "malaiwah.fidelity-dataset.v1",
+                            "dataset_sha256": "1" * 64,
+                            "capture": {"capture_content_digest": "2" * 64},
+                            "dataset": {"role": "root"},
+                            "weights": {"repository": "w/repo",
+                                        "model_revision": REV_B}}),
+                encoding="utf-8")
+            (sb2.fs / "reference").symlink_to(ref_tree2)
+            (sb2.fs / "dataset").mkdir(parents=True)
+            (sb2.fs / "dataset" / "fidelity-dataset.json").write_text(
+                json.dumps({"dataset_sha256": "d" * 64}), encoding="utf-8")
+            rc_dir2 = sb2.fs / "receipts" / "root-comparison"
+            rc_dir2.mkdir(parents=True)
+            (rc_dir2 / "comparison-receipt.json").write_text(
+                json.dumps({"schema": "test"}), encoding="utf-8")
+            for name in ("dataset-verify.json", "dataset-repeat-verify.json"):
+                (sb2.fs / "receipts" / name).write_text(
+                    json.dumps({"schema": "test"}), encoding="utf-8")
+            pending2 = sb2.fs / "receipts" / "reference-comparison.pending"
+            pending2.mkdir(parents=True)          # exists, but NO receipt yet
+            runtime2 = sb2.fs / "runtime"
+            runtime2.mkdir(parents=True, exist_ok=True)
+            # The stand-in sibling: finishes 3 s from now, writing the receipt
+            # (rc 0) or not (rc 2), and its exit record, like the real trap.
+            sib = _sp.Popen(
+                ["bash", "-c",
+                 "sleep 3; "
+                 + ("printf '{\"schema\":\"test\",\"value\":0.0}' > %s/comparison-receipt.json; " % pending2
+                    if sib_rc == 0 else "")
+                 + "printf '%%s\\n' %d > %s/sibling-compare_reference.exit; exit %d"
+                 % (sib_rc, runtime2, sib_rc)])
+            (runtime2 / "sibling-compare_reference.pid").write_text("%d\n" % sib.pid)
+            t0 = time.monotonic()
+            proc2, _ = sb2.run("qualify_root", bash, provision_target=False)
+            waited = time.monotonic() - t0
+            sib.wait()
+            out2 = proc2.stdout + proc2.stderr
+            accepted2 = sb2.fs / "receipts" / "reference-comparison"
+            if expect_promoted:
+                check("%s qualify_root WAITS for a still-running compare_reference sibling "
+                      "and promotes it once it exits 0" % label,
+                      proc2.returncode == 0 and waited >= 2.5 and accepted2.is_dir()
+                      and sb2.marker("compare_reference").is_file(),
+                      "rc=%d waited=%.1fs accepted=%s out=%s"
+                      % (proc2.returncode, waited, accepted2.exists(), out2[-300:]))
+            else:
+                check("%s a sibling that exits non-zero makes qualify_root refuse, naming the code, "
+                      "and no comparison is accepted" % label,
+                      proc2.returncode == 3 and "exited 2" in out2
+                      and not accepted2.exists() and not sb2.marker("compare_reference").exists(),
+                      "rc=%d out=%s" % (proc2.returncode, out2[-300:]))
 
 
     print()
