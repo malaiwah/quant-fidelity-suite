@@ -1085,6 +1085,51 @@ def sniff_surface(meta: RepoMeta, path: Optional[str] = None) -> SurfaceInfo:
         if declared is not None and str(declared).lower() != "exl3":
             info.evidence["quant_method_mislabel"] = str(declared)
 
+    # An artifact may declare BOTH an inline exl3 `quantization_config` (which
+    # resolves the surface above, taking its numeric `bits`) AND a
+    # `hybrid_tr3_tail` whose per-expert precision lives in a sidecar. The tail
+    # is the finer declaration and it is the one the DECODE follows: both
+    # layer_outer.trellis_checkpoint_plan and
+    # measure_cloud._candidate_decode_plan resolve the sidecar. Gating this
+    # block on `surface == "unknown"` meant the target block's bits came from
+    # the coarse inline value while the candidate block's came from the
+    # sidecar, so root qualification refused with "target contract differs" and
+    # NO flag value could satisfy both sides at once: jpsequeira's GLM-5.2 TR3
+    # declares quantization_config.bits 3.0 beside a sidecar mean of
+    # 3.3947882401315788 (jobcontract.py, 2026-09-06). The tail wins, on both
+    # mirrors, and the disagreement is recorded rather than dropped.
+    if info.surface == "exl3hf" and isinstance(tail, dict) \
+            and tail.get("format") == "exl3-trellis" \
+            and info.evidence.get("quantization_config_source") \
+            != "config.json (hybrid_tr3_tail)":
+        def _load_sidecar_override(sfile):
+            sraw = fetch_file(meta.repo_id, sfile, revision=meta.revision)
+            return json.loads(sraw), hashlib.sha256(sraw).hexdigest()
+        tail_bits = tr3_tail_declared_bits(
+            tail, sidecar_loader=_load_sidecar_override)
+        resolved, source = (tail_bits if isinstance(tail_bits, tuple)
+                            else (tail_bits, None))
+        try:
+            resolved = float(resolved)
+        except (TypeError, ValueError):
+            # The tail declares a non-numeric width and names no resolvable
+            # sidecar. Refuse rather than silently keeping the inline value:
+            # the decode would follow the tail, so we do not know the bits.
+            info.problems.append(
+                "hybrid_tr3_tail declares bits %r that resolve to no number, "
+                "beside quantization_config bits %r -- the decode follows the "
+                "tail, so the declared width is unknown"
+                % (tail.get("bits_avg", tail.get("bits")), info.bits))
+        else:
+            if info.bits is not None and abs(info.bits - resolved) > 1e-9:
+                info.evidence["quantization_config_bits_superseded"] = info.bits
+            info.bits = resolved
+            if source is not None:
+                info.evidence["declared_bits_source"] = source
+            info.evidence["declared_bits_from"] = "config.json (hybrid_tr3_tail)"
+            if tail.get("codebook") and not info.codebook:
+                info.codebook = tail.get("codebook")
+
     if info.surface == "exl3hf" and "model.safetensors.index.json" in names:
         # The codec the ROW carries comes from the payload bytes, not from
         # `quantization_config.codebook`: drowzeys declares mul1 and ships mcg

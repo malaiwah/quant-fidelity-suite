@@ -354,6 +354,43 @@ check("a TR3 tail naming a bitrate sidecar is sniffed offline: the nested loader
       _got.bits == 3.25 and _src.get("sidecar") == "tier_bitmap.json"
       and _src.get("entries") == 16 and _src.get("histogram") == {"3": 12, "4": 4}
       and _src.get("sha256") == __import__("hashlib").sha256(_sidecar).hexdigest())
+
+# The SAME artifact declaring BOTH an inline exl3 quantization_config with a
+# numeric `bits` AND a tail whose per-expert precision lives in a sidecar. The
+# inline block resolves the surface first, so the tail used to be skipped
+# entirely and `bits` came from the coarse inline value -- while the decode
+# plan (layer_outer.trellis_checkpoint_plan, measure_cloud._candidate_decode_plan)
+# resolved the sidecar. The two mirrors then disagreed and root qualification
+# refused with "target contract differs", unsatisfiable by any --candidate-bits:
+# jpsequeira's GLM-5.2 TR3 declares 3.0 beside a sidecar mean of
+# 3.3947882401315788 (2026-09-06, $0 but a hard stop on a whole candidate).
+_both_cfg = {
+    "model_type": "glm_moe_dsa", "dtype": "bfloat16",
+    "quantization_config": {"quant_method": "exl3", "bits": 3.0,
+                            "codebook": "mcg"},
+    "hybrid_tr3_tail": {"format": "exl3-trellis", "codebook": "mcg", "tp": 2,
+                        "bits": "mixed",
+                        "bits_per_expert": "tier_bitmap.json:k",
+                        "k_values": [3, 4], "experts_per_layer": 8,
+                        "moe_layers": [3, 5]},
+}
+_both = sniff_with_sidecar(_both_cfg, {"tier_bitmap.json": _sidecar})
+check("an inline exl3 bits declaration beside a sidecar-bearing tail resolves "
+      "to the SIDECAR mean -- the value the decode follows -- on the sniff side "
+      "too, so the target and candidate contracts agree",
+      _both.surface == "exl3hf" and _both.bits == 3.25
+      and (_both.evidence or {}).get(
+          "quantization_config_bits_superseded") == 3.0
+      and ((_both.evidence or {}).get("declared_bits_source")
+           or {}).get("sidecar") == "tier_bitmap.json")
+# And when the tail's width resolves to no number at all, the inline value is
+# NOT quietly kept: the decode would follow the tail, so the width is unknown.
+_bad_cfg = _json.loads(_json.dumps(_both_cfg))
+_bad_cfg["hybrid_tr3_tail"].pop("bits_per_expert")
+_bad = sniff_with_sidecar(_bad_cfg, {"tier_bitmap.json": _sidecar})
+check("a tail whose width resolves to no number refuses rather than falling "
+      "back to the inline quantization_config bits",
+      any("declared width is unknown" in p for p in (_bad.problems or [])))
 check("a quantized config is not promoted to native-bf16 by its dtype",
       sniff_plain({"model_type": "llama", "dtype": "bfloat16",
                    "quantization_config": {"quant_method": "fp8"}}
