@@ -483,6 +483,13 @@
       "tier": "torch",
       "reason": "the trellis decode surface needs torch: rc=1 on a bare runner. 106 assertions with torch, modified 2026-09-06, and an ORPHAN the battery never invokes -- the bitwise-vs-exllamav3 evidence DecoderParity landed today has no automated home until this nightly job exists.",
       "missing_module_measured": "torch"
+    },
+    "bin/selftest_measurement_inventory.py": {
+      "tier": "hermetic",
+      "job": "fast",
+      "seconds_xeon_x5570": 0.11,
+      "assertions_measured": 14,
+      "note": "categorised by CiGate on the spend-audit lane's behalf: the guard rung caught it on the first push after it landed, which is the mechanism working. Its own run prints 'SKIP no run directory on this box' -- a fixture-only run, disclosed."
     }
   }
 }
