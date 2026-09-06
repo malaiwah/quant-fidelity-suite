@@ -1,0 +1,114 @@
+{
+  "schema": "malaiwah.fidelity-width-evidence.v1",
+  "purpose": "Citable evidence for two facts about one measured artifact that the sealed comparison receipt records but does not summarise as a row field: (a) the width the checkpoint's payloads actually carry, against the width its config declares and the width its name asserts; (b) that the capture bound an exact unexpected-tensor census rather than a permissive allow. Row derivation should read this file, not prose and not a Hub discussion URL.",
+  "written_by": "Glm52TrellisB, the GLM-5.2 EXL3 Trellis candidate lane",
+  "written_at_utc": "2026-09-06T09:10:00Z",
+  "subject": {
+    "repository": "brandonmusic/GLM-5.2-EXL3-TR3v4-3.5bpw-MTP78",
+    "revision": "7c73450f05a151439d0f184f216b1eefcc394a31",
+    "config_sha256": "fabb73eb513ec64f3a365da396b38de8d55b3930edfb11baeecbf34ecafa6126",
+    "checkpoint_identity_sha256": "cc2a7927f967b909c52c54e6c9434e60dcf402bf9309be63563d9add1c704e57",
+    "name_asserts_bits": 3.5,
+    "name_note": "the string '3.5bpw' appears in the repository name only; a name is never an identity in this project"
+  },
+  "measurement": {
+    "comparison_receipt": "registry/protocol/glm-5.2/comparison.glm-5.2-exl3-tr3v4-3.5bpw-mtp78-brandonmusic.corpus5x5-v1.json",
+    "comparison_receipt_sha256": "597981097fa8505bbd492c3689ee2907b89225658df3365c155d7f88479ca4be",
+    "created_utc": "2026-09-06T07:56:18Z",
+    "reference_dataset": "malaiwah/glm52-fidelity-root-v1@5977559307ee9fb7d6478e81a875faa10ffee9b8",
+    "panel_id": "panel--glm53.malaiwah.corpus5x5-v1",
+    "mean_tokenwise_kld_nats": 0.05988025486939588,
+    "top1_agreement": 0.9336590131900342,
+    "published_dataset": "malaiwah/glm52-fidelity-exl3-tr3v4-3.5bpw-mtp78-brandonmusic-v1@f4a773e5ea2e041bbaf390b0a0a7d889cea492bc"
+  },
+  "declared_width": {
+    "value": 3.0,
+    "read_from": "config.json:hybrid_tr3_tail.bits",
+    "resolution_note": "numeric in the tail itself: hybrid_tr3_tail carries bits 3.0 with bits_avg, expert_bpw_mean and bits_per_expert all absent, so no sidecar width resolution applies and nothing fell back to quantization_config. hybrid_tr3_tail.format is 'exl3-trellis', tp 4, codebook 'mcg', producer 'encode_b300.py' 1, exllamav3_version '0.0.43'.",
+    "classification": "tier_default_not_rate",
+    "why_not_a_rate": "3 is the DEFAULT entry of a per-tensor bitrate map that also declares 6 for eight rule classes, so it is not a weighted mean of anything the checkpoint contains.",
+    "supporting_declarations": {
+      "quantization_config.exl3_dense.bitrates.default": 3,
+      "quantization_config.exl3_dense.bitrates.rules": [
+        {"bits": 6, "contains": ".mlp.down_proj"},
+        {"bits": 6, "contains": ".mlp.gate_proj"},
+        {"bits": 6, "contains": ".mlp.shared_experts.down_proj"},
+        {"bits": 6, "contains": ".mlp.shared_experts.gate_proj"},
+        {"bits": 6, "contains": ".mlp.shared_experts.up_proj"},
+        {"bits": 6, "contains": ".mlp.up_proj"},
+        {"bits": 6, "contains": ".self_attn.o_proj"},
+        {"bits": 6, "contains": ".self_attn.q_b_proj"}
+      ],
+      "hybrid_tr3_tail.dense_overlay": {
+        "bits": 6,
+        "tensors": 375,
+        "note": "dense linears carry their own EXL3 payload; see quantization_config.exl3_dense"
+      },
+      "hybrid_tr3_tail.scope": {
+        "quantized": "routed MoE expert gate/up/down projections, all 256 experts, layers 3..78",
+        "bf16_byte_exact": [
+          "attention",
+          "dense MLPs layers 0..2",
+          "shared experts",
+          "router/gates",
+          "MTP layer 78 non-expert (attention, router, shared experts, eh_proj, norms)",
+          "embeddings",
+          "lm_head"
+        ]
+      },
+      "quantization_config.quant_method": "modelopt",
+      "quant_method_note": "the inline quantization_config says 'modelopt' while the artifact is EXL3 trellis by its hybrid_tr3_tail; the tail is what the decode follows. Same mislabel class as the other brandonmusic GLM-5.2 TR3 rows."
+    }
+  },
+  "tier_bitmap_clarification": {
+    "named_by": "config.json:hybrid_tr3_tail.tier_bitmap = 'tier_bitmap.json'",
+    "file_sha256": "e0b03bead848272a3ae1a335c24ebc55632dea4916bfa8b4bac742fc802e7a3f",
+    "file_bytes": 514221,
+    "carries": "tier MEMBERSHIP and per-expert error, NOT per-module widths: each layer key maps to {expert_rel_rt_mse: [256 floats], keep_nvfp4: [expert indices], tail_tr3: [expert indices]}, 76 layer entries, 256 experts per layer, keep_nvfp4 empty at this revision (hybrid_tr3_tail.nvfp4_keep_per_layer is 0)",
+    "consequence": "naming this sidecar does not supply a width, so it neither raises nor lowers the declared 3.0. Any reader looking for a declared average in this artifact will not find one."
+  },
+  "observed_width": {
+    "value": 3.5064935064935066,
+    "unit": "bits per trellis payload group (mean K)",
+    "k_histogram": {"3": 28881, "4": 28638, "5": 81, "6": 150},
+    "payload_groups": 57750,
+    "arithmetic": "3*28881 + 4*28638 + 5*81 + 6*150 = 202500; 202500 / 57750 = 3.5064935064935066",
+    "read_from": "the sealed comparison receipt's own weights_reconstructed disclosure, which records the K histogram the pod read out of this checkpoint's payload objects during the capture",
+    "note": "nearly half the payload groups are K4 and K5/K6 groups are present, so the artifact is not uniform 3-bit. This is the width the checkpoint carries, measured, not declared."
+  },
+  "precedence": {
+    "rule": "a row carries the MEASURED rate, never the build name and never a tier default",
+    "row_width_should_be": 3.5064935064935066,
+    "declared_value_to_disclose": 3.0,
+    "disclosure_kind": "declared width is a tier default, not a rate; measured payload mean differs",
+    "precedent": "the unsloth GGUF UD-Q4_K_XL row publishes 4.8611 bits/weight against a name asserting 4, for exactly this reason.",
+    "ordering_is_a_consequence_not_the_argument": "Under the measured 3.5065 this lane's GLM-5.2 EXL3 TR3 column is monotone in width (3.25 -> 0.07157310010960972, 3.418854 -> 0.06285295180178992, 3.5064935064935066 -> 0.05988025486939588); under the declared 3.0 it inverts. That is stated so a reader can see it, and it is NOT the reason the measured value should be preferred -- the reason is that the measured value is read from the payloads and the declared one is a map default. Ranking remains the registry's call, with both numbers and this derivation available to argue from."
+  },
+  "unexpected_tensor_census": {
+    "permissive_flag_used": false,
+    "flag_that_was_not_used": "--allow-unexpected-tensors",
+    "bound_allowlist": {
+      "artifact_sha256": "2d3aed8145884861c805143bf2306abf7d2e469d94a158bf6587d65faebeed2b",
+      "canonical_sorted_names_sha256": "d567faf9576946cced4795af68991a5432ddba38383a6baef59e33253e617193",
+      "names": 12311,
+      "carried_into_job_as": "inputs/allowlist.json",
+      "job_field": "capture.unexpected_tensor_allowlist",
+      "provenance": "derived_from_index",
+      "derived_from": "this pin's own model.safetensors.index.json, by the index census that authored every GLM-5.3 allowlist (engines/tools/index_census_allowlist.py)",
+      "architecture": "GlmMoeDsaForCausalLM",
+      "num_hidden_layers": 78
+    },
+    "outcome": "the capture refuses unless the loader's unexpected tensor set equals that list EXACTLY; it matched on both cold runs, so model.layers.78 (the MTP/draft block the architecture never builds) raised nothing outside its bound census.",
+    "why_this_matters": "an unexpected-tensor signature is also what a silently disengaged quantizer looks like. A blanket allow cannot tell the two apart; an exact list bound by both digests can, which is why this run bound one instead of waving the MTP block through.",
+    "attested": false,
+    "attestation_path": "to upgrade provenance from derived_from_index to authored, register these digests in bin/fidelity/runpodsafety.py _ALLOWLISTS beside the committed engines/tools/layer-outer-evidence/glm52-exl3-tr3v4-3.5bpw-mtp78-brandonmusic-layer78-unexpected-keys.json"
+  },
+  "companion_files": [
+    "registry/protocol/glm-5.2/comparison.glm-5.2-exl3-tr3v4-3.5bpw-mtp78-brandonmusic.corpus5x5-v1.json",
+    "registry/protocol/glm-5.2/dataset.glm-5.2-exl3-tr3v4-3.5bpw-mtp78-brandonmusic.json",
+    "registry/protocol/glm-5.2/publish.glm-5.2-exl3-tr3v4-3.5bpw-mtp78-brandonmusic.json",
+    "registry/protocol/glm-5.2/reproduction.glm-5.2-exl3-tr3v4-3.5bpw-mtp78-brandonmusic.json"
+  ],
+  "scope_note": "This file states evidence only. It defines no registry id, no comparability key and no row, and it does not touch registry/data/*.jsonl -- that remains the registry session's half.",
+  "same_lane_caveat": "Every GLM-5.2 row in this lane is measured against the GLM-5.2 same-lane root only. A 5.2 same-lane root does not upgrade any row measured against another teacher, and admissibility of any cross-teacher comparison is not pre-judged here."
+}
