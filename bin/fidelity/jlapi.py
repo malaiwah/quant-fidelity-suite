@@ -389,20 +389,45 @@ for path in ("/sys/fs/cgroup/memory.max",
                 limits.append(parsed)
     except (FileNotFoundError, PermissionError, ValueError):
         pass
+# TOTAL VRAM is not the attestable quantity; FREE is. A rented "24 GB" 4090
+# was observed with 23,424 of 24,564 MiB already held by four foreign PIDs
+# (host 434175, 2026-09-06) -- "24 GB card" was true and useless, and an
+# attestation that compares expected VRAM against total passes an
+# oversubscribed card. So free and used are read alongside total, and every
+# compute process on the device is enumerated: a foreign PID means we are
+# sharing silicon, which changes both the memory available and the timings.
 smi = subprocess.run(
     ["nvidia-smi",
-     "--query-gpu=index,name,memory.total,driver_version",
+     "--query-gpu=index,name,memory.total,memory.free,memory.used,"
+     "driver_version",
      "--format=csv,noheader,nounits"],
     stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=30)
 gpus = []
 if smi.returncode == 0:
     for line in smi.stdout.splitlines():
         fields = [item.strip() for item in line.split(",")]
-        if len(fields) == 4:
+        if len(fields) == 6:
             gpus.append({
                 "index": int(fields[0]), "name": fields[1],
                 "vram_bytes": int(fields[2]) * 1024 * 1024,
-                "driver_version": fields[3],
+                "vram_free_bytes": int(fields[3]) * 1024 * 1024,
+                "vram_used_bytes": int(fields[4]) * 1024 * 1024,
+                "driver_version": fields[5],
+            })
+apps = subprocess.run(
+    ["nvidia-smi", "--query-compute-apps=pid,used_memory,gpu_uuid",
+     "--format=csv,noheader,nounits"],
+    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=30)
+compute_processes = []
+if apps.returncode == 0:
+    for line in apps.stdout.splitlines():
+        fields = [item.strip() for item in line.split(",")]
+        if len(fields) == 3 and fields[0].isdigit():
+            compute_processes.append({
+                "pid": int(fields[0]),
+                "used_bytes": (int(fields[1]) * 1024 * 1024
+                               if fields[1].isdigit() else None),
+                "gpu_uuid": fields[2],
             })
 cuda = {"usable": False, "count": 0, "name": None,
         "vram_bytes": None, "error": None, "interpreter": None}
@@ -453,6 +478,8 @@ print(json.dumps({
     "nvidia_smi_exit_code": smi.returncode,
     "nvidia_smi_error": smi.stderr[:300],
     "gpus": gpus, "cuda": cuda,
+    "compute_processes": compute_processes,
+    "compute_apps_exit_code": apps.returncode,
     "filesystems": {"container": mount("/"), "workspace": mount(WORKSPACE)},
 }, sort_keys=True, separators=(",", ":"), allow_nan=False))
 '''.replace("__JL_WORKSPACE__", JL_WORKSPACE)
@@ -1186,6 +1213,7 @@ class JL:
                 "remote_time_epoch", "remote_time_utc",
                 "logical_cpus", "memtotal_bytes", "effective_memory_bytes",
                 "nvidia_smi_exit_code", "nvidia_smi_error", "gpus", "cuda",
+                "compute_processes", "compute_apps_exit_code",
                 "filesystems",
             }
             if set(observed) != exact_observed:
@@ -1213,7 +1241,8 @@ class JL:
             rows = gpus if checks["nvidia_gpus_present"] else []
             for row in rows:
                 if not isinstance(row, dict) or set(row) != {
-                        "index", "name", "vram_bytes", "driver_version"}:
+                        "index", "name", "vram_bytes", "vram_free_bytes",
+                        "vram_used_bytes", "driver_version"}:
                     failures.append("nvidia-smi GPU keys differ")
                     rows = []
                     break
@@ -1228,6 +1257,29 @@ class JL:
                 and not isinstance(row.get("vram_bytes"), bool)
                 and vram_floor <= row["vram_bytes"] <= vram_ceiling
                 for row in rows)
+            # The card must actually HAVE the memory, not merely be a model
+            # that ships with it. A "24 GB" 4090 with 23,424 of 24,564 MiB
+            # held by foreign PIDs satisfies gpu_vram and cannot hold the
+            # weights; the run would OOM after the bootstrap is paid for.
+            checks["gpu_vram_free"] = bool(rows) and all(
+                isinstance(row.get("vram_free_bytes"), int)
+                and not isinstance(row.get("vram_free_bytes"), bool)
+                and row["vram_free_bytes"] >= vram_floor
+                for row in rows)
+            # A foreign compute process means we are sharing silicon, which
+            # changes both the memory available and every timing measured on
+            # it. The probe itself holds no CUDA context (the torch check runs
+            # in a separate process that exits), so this list must be empty.
+            processes = observed.get("compute_processes")
+            if not isinstance(processes, list) or any(
+                    not isinstance(item, dict)
+                    or set(item) != {"pid", "used_bytes", "gpu_uuid"}
+                    for item in processes):
+                failures.append("compute-process attestation keys differ")
+                processes = None
+            checks["no_foreign_compute_processes"] = (
+                observed.get("compute_apps_exit_code") == 0
+                and isinstance(processes, list) and not processes)
             cuda = observed.get("cuda")
             if not isinstance(cuda, dict) or set(cuda) != {
                     "usable", "count", "name", "vram_bytes", "error",

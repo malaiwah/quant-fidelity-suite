@@ -387,10 +387,13 @@ def payload(**over):
         "effective_memory_bytes": 160 * 10 ** 9,
         "nvidia_smi_exit_code": 0, "nvidia_smi_error": "",
         "gpus": [{"index": 0, "name": "NVIDIA RTX PRO 6000 Blackwell",
-                  "vram_bytes": vram, "driver_version": "580.126.09"}],
+                  "vram_bytes": vram, "vram_free_bytes": vram - 400 * 2 ** 20,
+                  "vram_used_bytes": 400 * 2 ** 20,
+                  "driver_version": "580.126.09"}],
         "cuda": {"usable": True, "count": 1,
                  "name": "NVIDIA RTX PRO 6000 Blackwell", "vram_bytes": vram,
                  "error": None, "interpreter": "/usr/bin/python3"},
+        "compute_processes": [], "compute_apps_exit_code": 0,
         "filesystems": {
             "container": {"path": "/", "mount_point": "/",
                           "fs_type": "overlay", "source": "overlay",
@@ -433,25 +436,57 @@ check("the clock comparison is LABELLED as controller-vs-instance, because "
       good["clock"]["provider_clock_available"] is False
       and "instance clock" in good["clock"]["reference"])
 
+
+# A GPU row as nvidia-smi now reports it: total, free and used together,
+# because total alone is not the attestable quantity.
+def gpu(name="NVIDIA RTX PRO 6000 Blackwell", total=96 * 1024 ** 3,
+        free=None, index=0):
+    total = int(total)
+    free = total - 400 * 2 ** 20 if free is None else int(free)
+    return {"index": index, "name": name, "vram_bytes": total,
+            "vram_free_bytes": free, "vram_used_bytes": total - free,
+            "driver_version": "580.126.09"}
+
+
 # The whole point of the gate: a different device must not pass.
-wrong = AttestJL(payload(gpus=[{"index": 0, "name": "NVIDIA H200",
-                                "vram_bytes": 141 * 1024 ** 3,
-                                "driver_version": "580.126.09"}])
+wrong = AttestJL(payload(gpus=[gpu("NVIDIA H200", 141 * 1024 ** 3)])
                  ).attest_live_resource(483634, **ATTEST)
 check("a DIFFERENT GPU MODEL fails the gate",
-      wrong["ok"] is False and "gpu_model" in wrong["failures"])
-short = AttestJL(payload(gpus=[{"index": 0,
-                                "name": "NVIDIA RTX PRO 6000 Blackwell",
-                                "vram_bytes": 48 * 1024 ** 3,
-                                "driver_version": "580.126.09"}])
+      wrong["ok"] is False and "gpu_model" in wrong["failures"]
+      and "nvidia-smi GPU keys differ" not in wrong["failures"])
+short = AttestJL(payload(gpus=[gpu(total=48 * 1024 ** 3)])
                  ).attest_live_resource(483634, **ATTEST)
 check("the right model with HALF the VRAM fails the gate",
       short["ok"] is False and "gpu_vram" in short["failures"])
+# DecoderParity, host 434175, 2026-09-06: a rented "24 GB" 4090 with 23,424
+# of 24,564 MiB already held by four foreign PIDs. The model and the total
+# are both correct and the card cannot hold the weights, so an attestation
+# that reads TOTAL passes it and the run OOMs after the bootstrap is paid
+# for. Free VRAM is the attestable quantity.
+held = AttestJL(payload(gpus=[gpu(free=1140 * 2 ** 20)])
+                ).attest_live_resource(483634, **ATTEST)
+check("an OVERSUBSCRIBED card fails on free VRAM while total still matches",
+      held["ok"] is False and "gpu_vram_free" in held["failures"]
+      and "gpu_vram" not in held["failures"]
+      and "gpu_model" not in held["failures"])
+foreign = AttestJL(payload(compute_processes=[
+    {"pid": 3141, "used_bytes": 23424 * 2 ** 20,
+     "gpu_uuid": "GPU-0d1e2f3a"}])).attest_live_resource(483634, **ATTEST)
+check("a FOREIGN compute process fails: shared silicon changes memory and "
+      "every timing measured on it",
+      foreign["ok"] is False
+      and "no_foreign_compute_processes" in foreign["failures"])
+check("...and the foreign PID and its held bytes are recorded, not just "
+      "counted",
+      foreign["observed"]["compute_processes"][0]["pid"] == 3141
+      and foreign["observed"]["compute_processes"][0]["used_bytes"]
+      == 23424 * 2 ** 20)
+check("an unreadable compute-app query fails rather than reading as 'idle'",
+      "no_foreign_compute_processes" in AttestJL(
+          payload(compute_apps_exit_code=9)
+      ).attest_live_resource(483634, **ATTEST)["failures"])
 mixed = AttestJL(payload(
-    gpus=[{"index": 0, "name": "NVIDIA RTX PRO 6000 Blackwell",
-           "vram_bytes": 96 * 1024 ** 3, "driver_version": "580.126.09"},
-          {"index": 1, "name": "NVIDIA H200", "vram_bytes": 96 * 1024 ** 3,
-           "driver_version": "580.126.09"}],
+    gpus=[gpu(), gpu("NVIDIA H200", index=1)],
     cuda={"usable": True, "count": 2,
           "name": "NVIDIA RTX PRO 6000 Blackwell",
           "vram_bytes": 96 * 1024 ** 3, "error": None,
