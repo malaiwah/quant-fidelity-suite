@@ -59,6 +59,7 @@ literal that matches the `hf_` shape on purpose.
 import http.server
 import json
 import os
+import re
 import shutil
 import socket
 import ssl
@@ -224,14 +225,24 @@ def section_bundle():
         pem = ("-----BEGIN CERTIFICATE-----"
                + chunk.split("-----END CERTIFICATE-----")[0]
                + "-----END CERTIFICATE-----\n")
-        out = _run([OPENSSL, "x509", "-noout", "-subject", "-issuer",
-                    "-enddate"], input=pem).stdout.splitlines()
+        # -nameopt RFC2253 pins the FORMAT: OpenSSL's default subject text is
+        # build-dependent (3.5.5 prints `CN=Amazon Root CA 1`, Ubuntu 24.04's
+        # 3.0.13 prints `CN = Amazon Root CA 1` with spaces around every `=`),
+        # so the first version of this rung was asserting a property of the
+        # runner's OpenSSL rather than of the bundle -- red in CI, green on
+        # every workstation here.  The regex below tolerates both anyway.
+        out = _run([OPENSSL, "x509", "-noout", "-nameopt", "RFC2253",
+                    "-subject", "-issuer", "-enddate"],
+                   input=pem).stdout.splitlines()
         subjects.append(out[0].split("subject=")[1].strip())
         issuers.append(out[1].split("issuer=")[1].strip())
         expiries.append(out[2].split("notAfter=")[1].strip())
     check("T1d every shipped root is self-signed (issuer == subject)",
           subjects == issuers, list(zip(subjects, issuers))[:2])
-    cns = [s.split("CN=")[-1].strip() for s in subjects]
+    cns = []
+    for subject in subjects:
+        match = re.search(r"CN\s*=\s*([^,]+)", subject)
+        cns.append(match.group(1).strip() if match else subject)
     undeclared = [c for c in cns
                   if c not in tlsguard.EXPECTED_ROOT_SUBJECT_CNS]
     check("T1e no undeclared root: every CN is in EXPECTED_ROOT_SUBJECT_CNS",
