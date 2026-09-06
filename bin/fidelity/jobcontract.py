@@ -1120,7 +1120,7 @@ def validate_root_qualification_contract(contract: dict) -> None:
             or not isinstance(target.get("repo_id"), str)
             or not target["repo_id"]
             or _HEX40.fullmatch(str(target.get("revision", ""))) is None
-            or target.get("surface") != expected_target[0]
+            or target.get("surface") not in (expected_target[0], "tr3-published" if expected_target[0] == "exl3hf" else expected_target[0])
             or target.get("codec") != expected_target[1]
             or target.get("bits") != expected_target[2]
             or not path_ok):
