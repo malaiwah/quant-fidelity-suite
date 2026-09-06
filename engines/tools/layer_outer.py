@@ -1174,7 +1174,15 @@ def trellis_checkpoint_plan(config, declared_keys: Sequence[str],
             if sfile and skey:
                 doc, sha = _read_sidecar_from_dir(model_dir, sfile, config, tail, skey)
                 mean, source = _sidecar_declared_bits(doc, skey, sfile, sha)
-                contract["bits"] = mean
+                # A numeric declaration WINS as the value (hfmeta applies the
+                # same rule); the sidecar always contributes the evidence
+                # block. Taking the mean unconditionally made this plan and
+                # the controller mirror disagree whenever a tail carried
+                # both -- willfalco 3.25bpw was refused at qualify_root
+                # after both cold captures had passed (2026-09-06).
+                _numeric = _tail_declared_bits(tail)
+                if not isinstance(_numeric, (int, float)) or isinstance(_numeric, bool):
+                    contract["bits"] = mean
                 contract["declared_bits_source"] = source
     else:
         contract = {

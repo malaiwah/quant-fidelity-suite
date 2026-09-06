@@ -622,6 +622,31 @@ def main() -> int:
           and ctrl_qcfg["declared_bits_source"] == pod_plan["declared_bits_source"],
           "ctrl %r pod %r" % (ctrl_qcfg.get("bits"), pod_plan.get("bits")))
 
+    # [18e] A tail carrying BOTH a numeric declaration and a sidecar
+    # (willfalco's GLM-5.2 TR3: expert_bpw_mean 3.25 beside
+    # `tier_bitmap.json:k`): the numeric wins as `bits` on BOTH sides and
+    # both still carry the evidence block. Resolving the sidecar only when
+    # no numeric existed made the controller emit no declared_bits_source
+    # while the pod emitted one, and qualify_root refused the candidate
+    # after both cold captures had passed (2026-09-06, ~$8).
+    both_tail = dict(side_tail)
+    both_tail["expert_bpw_mean"] = 3.25
+    both_cfg = _SideConfig({"quant_method": "modelopt"}, both_tail)
+    pod_both = lo.trellis_checkpoint_plan(both_cfg, side_keys, model_dir=td)
+    pod_both.pop("_observed", None)
+    mirror_both = mc._candidate_decode_plan(
+        both_cfg.quantization_config, {"quantization_config": both_cfg.quantization_config,
+                                       "hybrid_tr3_tail": both_tail},
+        index_keys=side_keys, sidecar_loader=_ctrl_loader)
+    mirror_both_qc = mirror_both["quantization_config"]
+    check("[18e] a tail with BOTH a numeric and a sidecar: numeric wins as bits on both "
+          "sides and both carry declared_bits_source",
+          pod_both["bits"] == 3.25 and mirror_both_qc["bits"] == 3.25
+          and pod_both.get("declared_bits_source") == source18c
+          and mirror_both_qc.get("declared_bits_source") == source18c,
+          repr((pod_both.get("bits"), mirror_both_qc.get("bits"),
+                pod_both.get("declared_bits_source") == mirror_both_qc.get("declared_bits_source"))))
+
     # [18d] SIDECAR refusals: the pod refuses by name when the sidecar is
     # absent, not strict JSON, or its expert count disagrees with
     # n_routed_experts.

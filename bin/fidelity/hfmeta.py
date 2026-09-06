@@ -517,32 +517,39 @@ def tr3_tail_declared_bits(tail, sidecar_loader=None):
     engines/tools/layer_outer.trellis_checkpoint_plan and
     measure_cloud._candidate_decode_plan.
 
-    When no numeric key is present and bits_per_expert is a "<file>:<key>"
-    SIDECAR reference, a caller that passes sidecar_loader(file) -> (doc,
-    sha256) gets back (mean, declared_bits_source) instead of the legacy
-    string: mean is the float mean of every int in doc[layer][key] across
-    layers, and declared_bits_source names where the number came from.
-    Without a loader the legacy scalar/string return is unchanged (so a
-    refusal can still name it).  jpsequeira's GLM-5.2 TR3 declares bits:
-    "mixed" with no bits_avg/expert_bpw_mean beside bits_per_expert:
-    "expert_precision_map.json:bitrates"; the sidecar is the only place the
-    declared bit-width lives."""
+    When bits_per_expert is a "<file>:<key>" SIDECAR reference and a
+    sidecar_loader(file) -> (doc, sha256) is given, the return is
+    (bits, declared_bits_source): declared_bits_source names where the
+    evidence came from (entries, K histogram, sha256) and bits is the
+    numeric declaration when there is one, else the float mean of every int
+    in doc[layer][key] across layers.  Without a loader the legacy
+    scalar/string return is unchanged (so a refusal can still name it).
+
+    The sidecar is resolved WHENEVER it is named, not only as a fallback:
+    the pod resolves it whenever model_dir is given, and the qualification
+    compares the two plans field for field, so resolving it on one side
+    only refused willfalco's GLM-5.2 TR3 3.25bpw AFTER both cold captures
+    had passed (2026-09-06: `tier_bitmap.json:k` beside expert_bpw_mean
+    3.25, so the controller took the numeric early-return and emitted no
+    declared_bits_source while the pod emitted one).  jpsequeira's GLM-5.2
+    TR3 is the other shape: bits "mixed" with no numeric at all, where the
+    sidecar is the only place the declared bit-width lives."""
+    numeric = None
     for key in ("bits_avg", "bits", "expert_bpw_mean"):
         value = tail.get(key)
         if isinstance(value, (int, float)) and not isinstance(value, bool):
-            return value
-    # No numeric declaration.  A sidecar reference bits_per_expert:
-    # "<file>:<key>" resolves the mean of every per-expert bitrate across
-    # every layer (jpsequeira's GLM-5.2 TR3).  The loader returns (parsed
-    # JSON dict, sha256 of the sidecar bytes); without one the legacy string
-    # fallback is returned so a refusal can name it.
+            numeric = value
+            break
     ref = tail.get("bits_per_expert")
     if sidecar_loader is not None and isinstance(ref, str) and ":" in ref:
         file, _, skey = ref.partition(":")
         file, skey = file.strip(), skey.strip()
         if file and skey:
             doc, sha = sidecar_loader(file)
-            return _sidecar_declared_bits(doc, skey, file, sha)
+            mean, source = _sidecar_declared_bits(doc, skey, file, sha)
+            return (numeric if numeric is not None else mean), source
+    if numeric is not None:
+        return numeric
     return tail.get("bits_avg", tail.get("bits"))
 
 
