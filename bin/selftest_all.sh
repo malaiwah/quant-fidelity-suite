@@ -138,6 +138,14 @@ t "jarvislabs provider contract (the twelve, offline)" \
 # would go green on exactly the rewrite the pyproject comments forbid.
 t "python3.9 floor: bin/ and registry/ (T19)" \
                                            0 python3 bin/selftest_py39_floor.py
+# T20. The harness itself, which was the one file in this tree with no test.
+# A harness that mis-selects an interpreter or swallows a skip does not fail
+# loudly -- it reports green, which is worse than red. Three of its five
+# invariants are red at 4681e30: the `A && B || C` rung, the single reused
+# out.log, and the summary that could print "0 skipped" while a dependency
+# tier sat out. Text-only over this file; no shell executed.
+t "the battery harness's own invariants (T20)" \
+                                           0 python3 bin/selftest_battery_harness.py
 # T17. The container transport. Porting to three clouds produced five defects and
 # not one was about the measurement; an image deletes that category, but only if
 # it drives the SAME stages from the SAME contract. These rungs are the anti-drift
@@ -402,11 +410,17 @@ dry-runs, registry adapter)"               0 "$MLXPY" engines/tools/selftest_mlx
 else
   s "mlx surface offline" "torch/safetensors not importable under $MLXPY -- export FIDELITY_PYTHON"
 fi
+# The gate and the invocation MUST name the same interpreter. On 2026-09-06
+# this gate was moved to $TPY while the rung still ran under $PY, so on any
+# box where torch lives in .venv and FIDELITY_PYTHON is unset the gate passed
+# and the rung then failed with ModuleNotFoundError -- converting an honest
+# SKIP into a red whose only meaning is "wrong interpreter", which is exactly
+# what trains a reader to ignore this battery. Caught by LocalCoverage.
 if [ -n "$TPY" ] && have_module "$TPY" torch; then
   t "gguf surface offline (dequant vs gguf-py, census, MLA audit, refusals)" \
-                                           0 "$PY" engines/tools/selftest_gguf_offline.py
+                                           0 "$TPY" engines/tools/selftest_gguf_offline.py
 else
-  s "gguf surface offline" "torch not importable by $PY"
+  s "gguf surface offline" "torch not importable by $TPY -- export FIDELITY_PYTHON"
 fi
 # The NVFP4 weight-decode surface: dequant proven against compressed-tensors on
 # real ranged-fetched tensors, the name census closed against both repos' real
