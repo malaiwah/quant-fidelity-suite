@@ -861,8 +861,39 @@ check("a non-object lease is refused",
       refuses(lambda: JL._lease_facts(["not", "a", "lease"]),
               "must be a JSON object"))
 
+print("\n== [OFFLINE] no credential may enter a provider payload ==")
+# Vast put `-e HF_TOKEN=...` into the create body at 2322-2330, so the
+# credential was in the provider's own records and the host's docker
+# environment BEFORE the instance existed -- there is nothing to attest yet,
+# which is why this cannot be fixed by ordering. `jl create` has no env flag,
+# so JL cannot leak by that exact route, but every create value becomes ARGV
+# (visible in `ps` on a shared host, echoed back by the CLI) and
+# --script-args is provider-stored. The guard is tlsguard's single
+# implementation; the fallback here is fail-closed.
+SECRET = "hf_" + "aBcD" * 8
+for path, kw in (("create", dict(gpu_type="A100", name=SECRET)),
+                 ("create", dict(gpu_type="A100", script_args="HF_TOKEN=" + SECRET)),
+                 ("prepare_safe_create", dict(CREATE, name=SECRET))):
+    acct_guard = account(**{"create": {"machine_id": 1}})
+    call = (acct_guard.create if path == "create"
+            else acct_guard.prepare_safe_create)
+    raised = False
+    try:
+        call(**kw)
+    except JLError as exc:
+        raised = SECRET not in str(exc)
+        if not raised:
+            print("      REFUSAL LEAKED THE VALUE: %s" % str(exc)[:120])
+    check("%s refuses a credential-shaped value, and the refusal never "
+          "repeats the value" % path, raised)
+    check("...and nothing was transmitted to the provider",
+          acct_guard.calls == [])
+check("a create with no credential still goes through",
+      account(**{"create": {"machine_id": 7}}).create(
+          gpu_type="A100", name="fidcloud-clean")["machine_id"] == 7)
 print()
 if FAILED:
     print("selftest_jl_parity: %d FAILED" % len(FAILED))
     sys.exit(1)
 print("selftest_jl_parity: all passed")
+

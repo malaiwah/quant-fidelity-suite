@@ -738,6 +738,49 @@ class JL:
 
     # ---- mutating ---------------------------------------------------------
 
+    def _refuse_credential_payload(self, payload: Dict[str, Any],
+                                   operation: str = "create") -> None:
+        """Refuse before a credential can reach the provider's own records.
+
+        One implementation, `tlsguard.refuse_credential_in_provider_payload`,
+        shared by every adapter -- two implementations of one security
+        property is how they drift, and the drifting one is the one nobody
+        tests.  It is imported lazily and the fallback is FAIL-CLOSED: if the
+        module is missing, this refuses anything `common.redact` recognises as
+        a secret rather than transmitting it, because "the guard was not
+        importable" must never widen what is allowed.
+
+        `jl create` has no env flag at all, so JarvisLabs cannot reproduce
+        Vast's provider-persisted-env leak by that route.  What it does have
+        is a create whose every value becomes ARGV -- visible in `ps` on a
+        shared host and echoed back by the CLI -- plus `--script-args`, which
+        the provider stores.  So the guard runs on the whole request.
+        """
+        try:
+            from .tlsguard import refuse_credential_in_provider_payload
+        except ImportError:
+            for key, value in sorted(payload.items()):
+                text = str(value)
+                if value not in (None, "", False) and redact(text) != text:
+                    raise JLError(
+                        "JarvisLabs %s payload field %r looks like a "
+                        "credential (%d characters) and the shared "
+                        "credential guard (fidelity.tlsguard) is not "
+                        "importable; refusing rather than transmitting it "
+                        "into the provider's own records"
+                        % (operation, key, len(text))) from None
+            return
+        try:
+            refuse_credential_in_provider_payload(
+                dict(payload, provider=self.provider), operation=operation)
+        except Exception as exc:                              # noqa: BLE001
+            reason = getattr(exc, "reason", None)
+            if reason is None:
+                raise
+            advice = getattr(exc, "advice", []) or []
+            raise JLError("%s%s" % (reason, "".join(
+                "\n  - %s" % item for item in advice))) from None
+
     def create(self, **kw) -> Dict[str, Any]:
         """Historical single-shot create: maps kwargs onto `jl create` flags.
 
@@ -748,6 +791,7 @@ class JL:
         applies none of the safe profile, freezes nothing, and so leaves a
         lost response ambiguous rather than reconcilable.
         """
+        self._refuse_credential_payload(kw)
         argv = ["create"]
         for key, value in kw.items():
             if value is None or value is False:
@@ -1624,6 +1668,10 @@ class JL:
         See `ssh_host_ed25519_fingerprint` for what that does and does not
         buy while jl's own transport still ignores host keys.
         """
+        # First, before any validation that might report a value back: a
+        # credential must never reach a provider payload, and no ordering or
+        # attestation can protect data handed over at create time.
+        self._refuse_credential_payload(kw)
         for key in ("script_id", "script-id", "script_args", "script-args"):
             if kw.get(key) not in (None, "", False):
                 raise JLError(
