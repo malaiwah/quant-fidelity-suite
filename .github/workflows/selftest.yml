@@ -148,26 +148,37 @@ jobs:
   # This job is the part of that which lives at the repository root: it calls
   # the registry's OWN documented command and touches no file under
   # `registry/`, so the mirror's workflow can stay exactly as written for the
-  # day it is published. `make check` is validate + render-check + selftest +
-  # joint; measured 250 s and 93 passed / 0 failed on a 2009 Xeon, offline and
-  # install-free (the Makefile's default `--jsonschema-lib mini` uses the
-  # vendored `registry/tools/_minischema.py`, which exists precisely so a
-  # contributor needs nothing).
+  # day it is published.
   #
-  # NOT here, deliberately: `make check-release`, which converts the 78
-  # validator warnings into a failure and is the gate for cutting a release,
-  # not for every push; and `make reseed-check`, which needs numpy and is in
-  # `nightly-torch` for that reason.
+  # WHICH TARGETS, and this is measured rather than assumed. `make check` is
+  # validate + render-check + selftest + joint, and it is GREEN locally but RED
+  # on a runner: 3 of `registry_selftest.py`'s 93 rungs (`seed_registry.py
+  # --check`, the frozen-receipt public pin, the reseed-drift rung) go through
+  # the seed path, which needs numpy -- the Makefile's own note says only
+  # `reseed`/`reseed-check` do, and that note is one rung short. The first CI
+  # run said so (job "registry (make check)", `90 passed, 3 failed`,
+  # 2026-09-06), which is precisely what the gate is for.
+  #
+  # A missing wheel must not be a red and must not be a silent pass, so the
+  # target list is split by dependency instead: the install-free targets run on
+  # every push, and `make check` in full plus `make reseed-check` run in
+  # `nightly-torch`, where numpy is installed and the verdict means something.
+  # Measured install-free in a detached worktree with numpy import-blocked:
+  # `validate render-check joint` -> 0 errors, 587 joint-standard checks, 1.2 s.
+  #
+  # NOT here, deliberately: `make check-release`, which converts the validator
+  # warnings (165 on the runner) into a failure and is the gate for cutting a
+  # release, not for every push.
   registry:
-    name: registry (make check)
+    name: registry (schema, invariants, render drift, joint standard)
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: schema, invariants, render drift and the registry's own selftest
-        run: make -C registry check
+      - name: the install-free half of the registry's own gate
+        run: make -C registry validate render-check joint
 
   # ----------------------------------------------------------------- py39
   # The stock-python3.9 floor, EXECUTED.  AGENTS.md makes "runs on stock
@@ -241,13 +252,17 @@ jobs:
       # absence rather than passing quietly.
       - name: torch tier
         run: python3 bin/selftest_partition.py --run torch
-      # The seeded registry rows are a function of their receipts, and proving
-      # they still are needs numpy -- `make reseed-check` refuses with exit 4
-      # and says so on a stdlib-only interpreter, so it cannot live in the
-      # `registry` push job.  AGENTS.md names it as the gate for any
-      # receipt-derived row.
-      - name: the registry's rows are still a function of their receipts
-        run: make -C registry reseed-check
+      # The registry's own 93-rung selftest and its reseed check both need
+      # numpy: three seed-path rungs and `make reseed-check` (which refuses
+      # with exit 4 and says so on a stdlib-only interpreter). The `registry`
+      # push job runs the install-free targets; this is the other half, where
+      # the wheel exists and the verdict means something. AGENTS.md names
+      # reseed-check as the gate for any receipt-derived row.
+      - name: the registry's own selftest and its receipt-derived rows
+        run: |
+          set -euo pipefail
+          make -C registry check
+          make -C registry reseed-check
       # The stdlib annotation rung in `fast` catches an annotation naming
       # something its module never binds.  pyright catches that class more
       # thoroughly, plus reportPossiblyUnbound -- and it is an npm install, so
