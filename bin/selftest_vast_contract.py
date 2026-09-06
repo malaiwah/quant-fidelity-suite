@@ -343,6 +343,14 @@ ATTEST = dict(expected_gpu_model="Tesla T4",
               container_available_bytes_minimum=10_000_000_000)
 
 
+def gpu_row(name="Tesla T4", total=T4_SMI_BYTES, free=None, used=0):
+    # nvidia-smi reports total, used and free; FREE is the attestable one.
+    free = total - used if free is None else free
+    return {"index": 0, "name": name, "vram_bytes": total,
+            "vram_used_bytes": used, "vram_free_bytes": free,
+            "driver_version": "595.71.05"}
+
+
 def payload(**over):
     epoch = int(time.time())
     disk = {"path": "/", "mount_point": "/", "fs_type": "overlay",
@@ -356,9 +364,8 @@ def payload(**over):
         "logical_cpus": 36, "memtotal_bytes": 263_872_512_000,
         "effective_memory_bytes": 263_872_512_000,
         "nvidia_smi_exit_code": 0, "nvidia_smi_error": "",
-        "gpus": [{"index": 0, "name": "Tesla T4",
-                  "vram_bytes": T4_SMI_BYTES,
-                  "driver_version": "595.71.05"}],
+        "gpus": [gpu_row()],
+        "compute_processes": [], "compute_apps_exit_code": 0,
         "cuda": {"usable": True, "count": 1, "name": "Tesla T4",
                  "vram_bytes": T4_TORCH_BYTES, "error": None,
                  "interpreter": "/usr/bin/python3.12"},
@@ -424,16 +431,34 @@ check("the provider record carries the machine and host that answered -- the "
       and good["provider_record"]["provider_host_id"] == "579267"
       and good["provider_record"]["known_bad_host"] is None)
 
-wrong_gpu = attest(payload(gpus=[{
-    "index": 0, "name": "Tesla V100", "vram_bytes": T4_SMI_BYTES,
-    "driver_version": "595.71.05"}]))
+wrong_gpu = attest(payload(gpus=[gpu_row(name="Tesla V100")]))
 check("a DIFFERENT GPU model fails the gate",
       wrong_gpu["ok"] is False and "gpu_model" in wrong_gpu["failures"])
-small_vram = attest(payload(gpus=[{
-    "index": 0, "name": "Tesla T4", "vram_bytes": 8 * 1024 ** 3,
-    "driver_version": "595.71.05"}]))
+small_vram = attest(payload(gpus=[gpu_row(total=8 * 1024 ** 3)]))
 check("the right model with the wrong VRAM fails the gate",
       small_vram["ok"] is False and "gpu_vram" in small_vram["failures"])
+# Host 434175 rented a "24 GB" 4090 with 23424 of 24564 MiB already held by
+# four foreign PIDs: total was honestly advertised and the card was useless.
+oversubscribed = attest(payload(
+    gpus=[gpu_row(used=T4_SMI_BYTES - 512 * 1024 * 1024)],
+    compute_processes=[{"pid": 4114, "used_bytes": 14_000_000_000,
+                        "process_name": "python3"}]))
+check("a card whose TOTAL is right but whose FREE memory is held by someone "
+      "else fails the gate, on both free VRAM and the foreign process",
+      oversubscribed["ok"] is False
+      and "gpu_vram_free" in oversubscribed["failures"]
+      and "no_foreign_gpu_processes" in oversubscribed["failures"]
+      and oversubscribed["checks"]["gpu_vram"] is True)
+squatter = attest(payload(compute_processes=[
+    {"pid": 3001, "used_bytes": 400_000_000, "process_name": "someone-else"}]))
+check("a foreign compute process alone fails the gate, even with free VRAM "
+      "to spare, because the card is shared and the run is not alone on it",
+      squatter["ok"] is False
+      and "no_foreign_gpu_processes" in squatter["failures"])
+blind = attest(payload(compute_apps_exit_code=3, compute_processes=[]))
+check("an UNREADABLE compute-process list is not an empty one",
+      blind["ok"] is False
+      and "no_foreign_gpu_processes" in blind["failures"])
 no_cuda = attest(payload(cuda={
     "usable": False, "count": 0, "name": None, "vram_bytes": None,
     "error": "CUDA driver version is insufficient", "interpreter": None}))

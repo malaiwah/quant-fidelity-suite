@@ -404,20 +404,43 @@ for path in ("/sys/fs/cgroup/memory.max",
                 limits.append(parsed)
     except (FileNotFoundError, PermissionError, ValueError):
         pass
+# TOTAL VRAM is not the attestable quantity: FREE is. A rented "24 GB" 4090
+# had 23424 of 24564 MiB held by four foreign PIDs (2026-09-06, host
+# 434175) -- "24 GB card" was true and useless. Both queries run BEFORE the
+# torch probe below, so our own CUDA context can never appear in the
+# foreign-process list.
 smi = subprocess.run(
     ["nvidia-smi",
-     "--query-gpu=index,name,memory.total,driver_version",
+     "--query-gpu=index,name,memory.total,memory.used,memory.free,"
+     "driver_version",
      "--format=csv,noheader,nounits"],
     stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=30)
 gpus = []
 if smi.returncode == 0:
     for line in smi.stdout.splitlines():
         fields = [item.strip() for item in line.split(",")]
-        if len(fields) == 4:
+        if len(fields) == 6:
             gpus.append({
                 "index": int(fields[0]), "name": fields[1],
                 "vram_bytes": int(fields[2]) * 1024 * 1024,
-                "driver_version": fields[3],
+                "vram_used_bytes": int(fields[3]) * 1024 * 1024,
+                "vram_free_bytes": int(fields[4]) * 1024 * 1024,
+                "driver_version": fields[5],
+            })
+apps = subprocess.run(
+    ["nvidia-smi", "--query-compute-apps=pid,used_memory,process_name",
+     "--format=csv,noheader,nounits"],
+    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=30)
+compute_processes = []
+if apps.returncode == 0:
+    for line in apps.stdout.splitlines():
+        fields = [item.strip() for item in line.split(",")]
+        if len(fields) == 3 and fields[0].isdigit():
+            compute_processes.append({
+                "pid": int(fields[0]),
+                "used_bytes": (int(fields[1]) * 1024 * 1024
+                               if fields[1].isdigit() else None),
+                "process_name": fields[2],
             })
 cuda = {"usable": False, "count": 0, "name": None,
         "vram_bytes": None, "error": None, "interpreter": None}
@@ -471,6 +494,8 @@ print(json.dumps({
     "nvidia_smi_exit_code": smi.returncode,
     "nvidia_smi_error": smi.stderr[:300],
     "gpus": gpus, "cuda": cuda,
+    "compute_processes": compute_processes,
+    "compute_apps_exit_code": apps.returncode,
     "filesystems": {"root": filesystem("/"),
                     "workspace": filesystem("/workspace")},
     "hub_reachability": [hub_probe("huggingface.co", "/api/models/gpt2"),
@@ -1266,6 +1291,7 @@ class Vast(SSHTransport):
                 "remote_time_epoch", "remote_time_utc", "logical_cpus",
                 "memtotal_bytes", "effective_memory_bytes",
                 "nvidia_smi_exit_code", "nvidia_smi_error", "gpus", "cuda",
+                "compute_processes", "compute_apps_exit_code",
                 "filesystems", "hub_reachability",
             }
             if set(observed) != exact_observed:
@@ -1289,7 +1315,8 @@ class Vast(SSHTransport):
                 and isinstance(gpus, list) and len(gpus) == 1)
             gpu = gpus[0] if checks["one_nvidia_gpu"] else {}
             if gpu and set(gpu) != {
-                    "index", "name", "vram_bytes", "driver_version"}:
+                    "index", "name", "vram_bytes", "vram_used_bytes",
+                    "vram_free_bytes", "driver_version"}:
                 failures.append("nvidia-smi GPU keys differ")
             observed_name = gpu.get("name") if isinstance(gpu, dict) else None
             observed_vram = (
@@ -1301,6 +1328,27 @@ class Vast(SSHTransport):
                 isinstance(observed_vram, int)
                 and not isinstance(observed_vram, bool)
                 and vram_floor <= observed_vram <= vram_ceiling)
+            # FREE VRAM, not total: a rented "24 GB" 4090 came with 23424 of
+            # 24564 MiB already held by four foreign PIDs (2026-09-06). Total
+            # was honestly advertised and the card was useless, so the gate
+            # demands the memory the capture can actually allocate and names
+            # every process holding the rest.
+            observed_free = (
+                gpu.get("vram_free_bytes") if isinstance(gpu, dict) else None)
+            checks["gpu_vram_free"] = (
+                isinstance(observed_free, int)
+                and not isinstance(observed_free, bool)
+                and observed_free >= vram_floor)
+            processes = observed.get("compute_processes")
+            if not isinstance(processes, list) or any(
+                    not isinstance(row, dict)
+                    or set(row) != {"pid", "used_bytes", "process_name"}
+                    for row in processes):
+                failures.append("GPU compute-process keys differ")
+                processes = None
+            checks["no_foreign_gpu_processes"] = (
+                observed.get("compute_apps_exit_code") == 0
+                and processes == [])
             cuda = observed.get("cuda")
             if not isinstance(cuda, dict) or set(cuda) != {
                     "usable", "count", "name", "vram_bytes", "error",
