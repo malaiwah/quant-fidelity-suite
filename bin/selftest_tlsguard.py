@@ -708,6 +708,78 @@ def section_payload_guard():
                   for f in findings), findings)
 
 
+def section_pinned_ssh(tmp):
+    """T15: the verifying transport for a provider whose CLI verifies nothing.
+
+    `jl` passes StrictHostKeyChecking=no AND UserKnownHostsFile=/dev/null, so
+    a pinned fingerprint buys nothing there until an invocation of OURS does
+    the verifying.  These rungs prove the ordering is structural: no ssh
+    process can spawn before the key is authenticated.
+    """
+    print("T15 verifying pinned-endpoint SSH transport")
+    from fidelity import sshbase
+
+    key = "AAAAC3NzaC1lZDI1NTE5AAAAI" + "A" * 43
+    entry = "[example.invalid]:2222 ssh-ed25519 %s\n" % key
+    fingerprint = "SHA256:" + "b" * 43
+
+    class _Scanned(sshbase.PinnedEndpointSSH):
+        """Only the keyscan is stubbed: it is the one step that needs a live
+        sshd.  Everything judged here -- the refusal ordering, the comparison,
+        the file mode -- is the real implementation."""
+
+        def scan_host_key(self, machine_id=None):
+            return {"algorithm": "ssh-ed25519", "fingerprint": self.scanned,
+                    "host": "example.invalid", "port": 2222,
+                    "known_hosts_entry": entry}
+
+    transport = _Scanned("example.invalid", 2222, dry=True)
+    transport.scanned = fingerprint
+    try:
+        transport._ssh_opts()
+        check("T15a ssh REFUSES to spawn before the host key is authenticated",
+              False, "built ssh options with no known_hosts")
+    except sshbase.JLError as exc:
+        check("T15a ssh REFUSES to spawn before the host key is authenticated",
+              "has not been authenticated" in str(exc), str(exc))
+
+    liar = _Scanned("example.invalid", 2222, dry=True)
+    liar.scanned = "SHA256:" + "c" * 43
+    try:
+        liar.attest_endpoint(fingerprint,
+                             known_hosts=tmp / "kh-mismatch",
+                             pin_source="construction")
+        check("T15b a keyscan that differs from the pin is refused", False,
+              "accepted a mismatched key")
+    except sshbase.JLError as exc:
+        check("T15b a keyscan that differs from the pin is refused",
+              "differs" in str(exc), str(exc))
+    check("T15c and no known_hosts file was written by the refused attempt",
+          not (tmp / "kh-mismatch").exists())
+
+    known_hosts = tmp / "kh-good"
+    proof = transport.attest_endpoint(fingerprint, known_hosts=known_hosts,
+                                      pin_source="construction")
+    mode = oct(known_hosts.stat().st_mode & 0o777)
+    check("T15d a matching pin writes an owner-0600 per-attempt known_hosts",
+          known_hosts.is_file() and mode == "0o600", mode)
+    check("T15e and only then does ssh get its options, pinned to that file",
+          "StrictHostKeyChecking=yes" in transport._ssh_opts()
+          and str(known_hosts) in " ".join(transport._ssh_opts()))
+    check("T15f the proof says what it can prove, and what it cannot",
+          proof["channel_verifies_host_key"] is True
+          and proof["pin_source"] == "construction"
+          and "not the instance's" in proof["does_not_attest"], proof)
+    try:
+        transport.attest_endpoint(fingerprint, known_hosts=known_hosts,
+                                  pin_source="guesswork")
+        check("T15g an undeclared pin source is refused", False, "accepted")
+    except sshbase.JLError as exc:
+        check("T15g an undeclared pin source is refused, because 'where did "
+              "this fingerprint come from' is the whole question",
+              "pin_source" in str(exc), str(exc))
+
+
 # --------------------------------------------------------------------------
 # T14
 # --------------------------------------------------------------------------
@@ -758,6 +830,8 @@ def main():
             section_negatives(tmp)
             print()
             section_attestation(tmp)
+            print()
+            section_pinned_ssh(tmp)
     print()
     section_payload_guard()
     print()
