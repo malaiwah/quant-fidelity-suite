@@ -12,22 +12,47 @@ set -u
 # not turn their checks into no-ops while this battery reports them as passed.
 unset PYTHONOPTIMIZE
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-cd "$ROOT"
+cd "$ROOT" || { echo "selftest_all: cannot cd to $ROOT" >&2; exit 2; }
 PY="${FIDELITY_PYTHON:-python3}"
 VPY="$ROOT/.venv/bin/python"
 [ -x "$VPY" ] || VPY="$PY"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
-pass=0; fail=0; skip=0
+pass=0; fail=0; skip=0; inner_skip=0
+# LOG_DIR keeps ONE FILE PER RUNG instead of reusing $TMP/out.log, because a
+# reused file that is printed only on FAIL and deleted at exit makes
+# AGENTS.md's "read the internal SKIP lines -- an outer PASS can still hide an
+# optional rung" physically impossible to follow. Measured 2026-09-06: with
+# FIDELITY_PYTHON unset, five rungs dropped from 146 assertions to 6 while
+# every one printed PASS and the battery printed "0 skipped" -- 4% of the
+# coverage reported as 100%. On the green run at least 18 named sub-rungs
+# skipped invisibly inside seven PASSing rungs, including a whole dependency
+# tier (quant_pipeline/QP_PIPELINE_ROOT) the output never mentioned existed.
+LOG_DIR="$TMP/rungs"; mkdir -p "$LOG_DIR"
+rung_n=0
 t() {  # t <name> <expected_rc> <cmd...>
   local name="$1" exp="$2"; shift 2
-  "$@" >"$TMP/out.log" 2>&1; local rc=$?
+  rung_n=$((rung_n+1))
+  local log
+  log="$LOG_DIR/$(printf '%03d' "$rung_n").log"
+  "$@" >"$log" 2>&1; local rc=$?
   if [ "$rc" = "$exp" ]; then
     printf '  PASS  %s\n' "$name"; pass=$((pass+1))
+    # An outer PASS is not evidence that the rung ran. Surface what it
+    # skipped INSIDE itself, counted separately so the summary cannot claim
+    # "0 skipped" while a dependency tier sat out.
+    local inner
+    inner="$(grep -icE '^[[:space:]]*(SKIP|SKIPPED)\b|\bSKIP(PED)?:' "$log" 2>/dev/null || true)"
+    if [ "${inner:-0}" -gt 0 ]; then
+      inner_skip=$((inner_skip+inner))
+      printf '        %s internal skip(s):\n' "$inner"
+      grep -iE '^[[:space:]]*(SKIP|SKIPPED)\b|\bSKIP(PED)?:' "$log" \
+        | sed 's/^[[:space:]]*/          /' | head -6
+    fi
   else
     printf '  FAIL  %s (rc=%s, expected %s)\n' "$name" "$rc" "$exp"
-    sed 's/^/         /' "$TMP/out.log" | tail -6
+    sed 's/^/         /' "$log" | tail -6
     fail=$((fail+1))
   fi
 }
@@ -54,7 +79,17 @@ PANEL=brandonmusic/GLM-5.3-Flash-BF16-Teacher-Logits
 
 echo "== selftests (offline) =="
 t "fit estimator, 41 known-answer checks"  0 "$PY" bin/selftest_fit.py
-t "decode parity + timing (needs torch)"   0 "$PY" bin/selftest_decode_parity.py
+# Needs torch, so it runs under $TPY. It was `"$PY"` with no guard until
+# 2026-09-06 and exited rc=2 "torch is not installed" on any box whose torch
+# lives in a venv -- failure #4's exact signature, surviving on the second
+# rung because that fix was applied case-by-case instead of to every torch
+# rung. Found by re-executing the battery's own selection logic, not by
+# reading it.
+if [ -n "$TPY" ]; then
+  t "decode parity + timing (needs torch)" 0 "$TPY" bin/selftest_decode_parity.py
+else
+  s "decode parity + timing" "no torch in $VPY or $PY -- export FIDELITY_PYTHON"
+fi
 # P1-06. The replay comparator's KL reduction must run in float64 BEFORE the
 # vocabulary sum: the float32 reduction returned negative "KL" (~-8e-7) on
 # near-equal 50k-vocab distributions while its receipts declared fp64.
@@ -78,6 +113,31 @@ t "root capture: --role root (T5c)"        0 python3 bin/selftest_root_capture.p
 t "race mode: overlap, preview identity, generation probe (T15)" \
                                            0 "$VPY" bin/selftest_race_mode.py
 t "provider portability (T5d)"             0 python3 bin/selftest_provider_portability.py
+# The twelve methods that separate a provider you can RENT from a provider you
+# can PUBLISH from (docs/PROVIDER-PARITY.md, 2026-09-06). The portability rung
+# above enforces the SSH/argv surface and carries the declared-parity gate in
+# which RunPod IS the reference implementation -- so RunPod's twelve are
+# checked there and have no separate suite. These three enforce the
+# publishable-measurement contract per non-reference adapter, and each also
+# asserts its own provider's known blockers, so a green rung is not a claim
+# that the provider is ready to take a paid run.
+# All three are offline: no provider contacted, nothing created, no torch.
+t "vast provider contract (the twelve, offline)" \
+                                           0 python3 bin/selftest_vast_contract.py
+t "lambda provider contract (the twelve, offline)" \
+                                           0 python3 bin/selftest_lambda_contract.py
+t "jarvislabs provider contract (the twelve, offline)" \
+                                           0 python3 bin/selftest_jl_parity.py
+# The stock-python3.9 floor for bin/ and registry/, which was prose in
+# AGENTS.md and checked by nothing until 2026-09-06. This battery runs under
+# whatever interpreter the developer has (3.14 here), so a 3.10-only construct
+# in a controller path passed every gate and would fail on a rented box after
+# the money was spent. Two AST passes: post-3.9 syntax, and PEP 604 unions in
+# positions python3.9 evaluates eagerly -- the second because `int | None`
+# parses fine on every version and only raises at runtime, so pass 1 alone
+# would go green on exactly the rewrite the pyproject comments forbid.
+t "python3.9 floor: bin/ and registry/ (T19)" \
+                                           0 python3 bin/selftest_py39_floor.py
 # T17. The container transport. Porting to three clouds produced five defects and
 # not one was about the measurement; an image deletes that category, but only if
 # it drives the SAME stages from the SAME contract. These rungs are the anti-drift
@@ -330,7 +390,11 @@ fi
 #
 # mlx needs torch+safetensors, so it runs under FIDELITY_PYTHON like the
 # fixture ladder; gguf and nvfp4 run under $PY.
-MLXPY="${FIDELITY_PYTHON:-/opt/homebrew/bin/python3.14}"
+# Prefer the interpreter that actually HAS torch ($TPY) over a hardcoded
+# homebrew path: on a Linux box the old default did not exist, fell back to
+# $PY, and reported a SKIP for "no torch" while torch sat in the venv.
+MLXPY="${TPY:-}"
+[ -n "$MLXPY" ] || MLXPY="${FIDELITY_PYTHON:-/opt/homebrew/bin/python3.14}"
 [ -x "$MLXPY" ] || MLXPY="$PY"
 if have_module "$MLXPY" torch && have_module "$MLXPY" safetensors; then
   t "mlx surface offline (8 rungs: mlx equality, census, refusals, plumbing, \
@@ -338,7 +402,7 @@ dry-runs, registry adapter)"               0 "$MLXPY" engines/tools/selftest_mlx
 else
   s "mlx surface offline" "torch/safetensors not importable under $MLXPY -- export FIDELITY_PYTHON"
 fi
-if have_module "$PY" torch; then
+if [ -n "$TPY" ] && have_module "$TPY" torch; then
   t "gguf surface offline (dequant vs gguf-py, census, MLA audit, refusals)" \
                                            0 "$PY" engines/tools/selftest_gguf_offline.py
 else
@@ -426,8 +490,15 @@ t "pinned K8 refuses its missing checkpoint verdict bridge pre-provider" 0 \
   k8_refusal_check
 
 # Advice can name a profile table only if that table is real.
-"$PY" - <<'PYEOF' && t "every PROFILE_TABLE_NAMES entry exists in stream_score.py" 0 true \
-  || t "every PROFILE_TABLE_NAMES entry exists in stream_score.py" 0 false
+# This used to be `"$PY" - <<EOF && t "..." 0 true || t "..." 0 false`, an
+# `A && B || C` chain (SC2015 -- C also runs when A succeeds but B fails),
+# which bin/selftest_shell_guards.sh's own header records as a class this
+# project has already paid for once. It also ran the check OUTSIDE t, so its
+# output escaped $LOG_DIR and its internal skips were invisible to the
+# summary. Do not name the linter at the start of a comment line here: that
+# is parsed as a directive (SC1073) and disables checking for the file.
+profile_table_check() {
+  "$PY" - <<'PYEOF'
 import ast, sys
 sys.path.insert(0, "bin")
 import measure_cloud as MC
@@ -435,8 +506,14 @@ src = open("engines/tools/stream_score.py", encoding="utf-8").read()
 names = {t.id for n in ast.parse(src).body if isinstance(n, ast.Assign)
          for t in n.targets if hasattr(t, "id")}
 missing = sorted(set(MC.PROFILE_TABLE_NAMES.values()) - names)
+if missing:
+    print("PROFILE_TABLE_NAMES entries absent from stream_score.py: %s"
+          % ", ".join(missing))
 sys.exit(1 if missing else 0)
 PYEOF
+}
+t "every PROFILE_TABLE_NAMES entry exists in stream_score.py" 0 \
+  profile_table_check
 echo "== local planner (NETWORK) =="
 # Capacity checks are facts about the host running this battery. A valid planner
 # therefore exits 0 on a large volume and 3 with ONLY a disk-capacity refusal on
@@ -653,7 +730,9 @@ else
 fi
 
 echo "== fixture (NETWORK first time; torch+transformers) =="
-FIXPY="${FIDELITY_PYTHON:-/opt/homebrew/bin/python3.14}"
+# Same $TPY-first rule as MLXPY (2026-09-06).
+FIXPY="${TPY:-}"
+[ -n "$FIXPY" ] || FIXPY="${FIDELITY_PYTHON:-/opt/homebrew/bin/python3.14}"
 [ -x "$FIXPY" ] || FIXPY=python3
 if ! have_module "$FIXPY" torch; then
   s "fixture ladder" "torch not importable under $FIXPY -- export FIDELITY_PYTHON"
@@ -671,5 +750,11 @@ else
 fi
 
 echo
-echo "selftest_all: $pass passed, $fail failed, $skip skipped"
+echo "selftest_all: $pass passed, $fail failed, $skip skipped," \
+     "$inner_skip internal skip(s) inside passing rungs"
+if [ "$inner_skip" -gt 0 ]; then
+  echo "  NOTE: an outer PASS is not evidence a rung RAN. The internal skips"
+  echo "        are named per rung above; a dependency tier sitting out shows"
+  echo "        here and nowhere else. Green means green only at 0 internal."
+fi
 [ "$fail" -eq 0 ]
