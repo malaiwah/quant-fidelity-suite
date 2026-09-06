@@ -137,6 +137,12 @@ def _glm53(slug: str) -> Series:
                   panel=False)
 
 
+def _glm52(slug: str) -> Series:
+    return Series(slug, "receipt-per-context",
+                  "protocol/glm-5.2/comparison.glm-5.2-%s.corpus5x5-v1.json" % slug,
+                  panel=False)
+
+
 # measurement id -> series.  Only rows whose receipts actually carry per-window
 # means appear here; the two Flash rows that do not (the BF16 streaming floor
 # and the Dione Q4, both scalar-only receipts) are deliberately absent and are
@@ -160,6 +166,16 @@ SERIES = {
     "measurement--glm-5.3.exl3-tr3-3.0bpw-davidsyoung.corpus5x5-v1":
         _glm53("exl3-tr3-3.0bpw-davidsyoung"),
     "measurement--glm-5.3.exl3-keys-drowzeys.corpus5x5-v1": _glm53("exl3-keys-drowzeys"),
+    "measurement--glm-5.3.nvfp4-radixark.corpus5x5-v1": _glm53("nvfp4-radixark"),
+    "measurement--glm-5.3.nvfp4-incoai.corpus5x5-v1": _glm53("nvfp4-incoai"),
+    "measurement--glm-5.3.nvfp4-inferact.corpus5x5-v1": _glm53("nvfp4-inferact"),
+    "measurement--glm-5.3.gguf-unsloth-udq4kxl.corpus5x5-v1": _glm53("gguf-unsloth-udq4kxl"),
+    # GLM-5.2 on the same panel against its OWN root: same shape, its own
+    # comparability group. The 5.2 self-compare floor is likewise omitted.
+    "measurement--glm-5.2.fp8-dequantized.corpus5x5-v1": _glm52("fp8-dequantized"),
+    "measurement--glm-5.2.nvfp4-nvidia.corpus5x5-v1": _glm52("nvfp4-nvidia"),
+    "measurement--glm-5.2.exl3-tr3-3.0bpw-brandonmusic.corpus5x5-v1":
+        _glm52("exl3-tr3-3.0bpw-brandonmusic"),
 }
 
 NOT_RECOMPUTABLE = {

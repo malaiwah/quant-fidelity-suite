@@ -1,6 +1,6 @@
 {
   "capture": {
-    "capture_content_digest": "f485b230d4545f463ae73f855f9babcf759462c1d1221d77c9324b545c805d08",
+    "capture_content_digest": "a544e029a0392c2ae633715b0076ca040821128088fc0025a36de342fa4c0a78",
     "dtype": "BF16",
     "dtype_lossless": true,
     "form": "hidden",
@@ -9,7 +9,7 @@
     "hidden_width": 6144,
     "lossy_codec": null,
     "manifest_file": "capture/manifest.json",
-    "manifest_file_sha256": "2dd82c432f69dbffefa8ecfba1cc37afbbc6069115d6b6187d41030f54a3d021",
+    "manifest_file_sha256": "0b26ac7cb97e1efd1a67289c18b2dadd2ca58d794fcd0ba4775c9bc2f8105be8",
     "records_count": 25,
     "scored_rows_total": 51175,
     "semantic_point": "after_final_rmsnorm_before_lm_head",
@@ -29,7 +29,7 @@
     "shard_of": null,
     "subset_detail": null
   },
-  "created_utc": "2026-09-05T20:45:36Z",
+  "created_utc": "2026-09-05T18:27:31Z",
   "dataset": {
     "author": {
       "handle": null,
@@ -39,21 +39,21 @@
       "url": null
     },
     "base_capture": null,
-    "id": "fidelity--glm52.malaiwah.quant.exl3-tr3-3.0bpw-brandonmusic",
+    "id": "fidelity--glm52.malaiwah.root.bf16",
     "license": "mit",
-    "name": "fidelity--glm52.malaiwah.quant.exl3-tr3-3.0bpw-brandonmusic",
+    "name": "fidelity--glm52.malaiwah.root.bf16",
     "qualification": null,
-    "repository": "malaiwah/glm52-fidelity-exl3-tr3-3.0bpw-brandonmusic-v1",
+    "repository": "malaiwah/glm52-fidelity-root-v1",
     "revision": null,
-    "role": "quant",
+    "role": "root",
     "structural_status": "sealed"
   },
-  "dataset_sha256": "889c5cb8087e2da8f656dddc2e5f7dcc27415c6689df15dc0da8531ce2354211",
+  "dataset_sha256": "b7e876d61b3eaa12d41489b92c83076738aa1f9bc4fee26c02c3f198e769dd56",
   "determinism": {
     "cold_start_per_run": true,
     "distinct_evidence_hash_count": 1,
     "evidence_hashes": [
-      "f485b230d4545f463ae73f855f9babcf759462c1d1221d77c9324b545c805d08"
+      "a544e029a0392c2ae633715b0076ca040821128088fc0025a36de342fa4c0a78"
     ],
     "evidence_kind": "hidden_state_tensor_sha256",
     "identical_across_runs": null,
@@ -72,7 +72,7 @@
     {
       "affects_comparability": false,
       "code": "checkpoint_tensors_intentionally_unused",
-      "detail": "12311 checkpoint tensor(s) were present but intentionally unused by this architecture. Their complete set exactly matched pinned allowlist 2d3aed8145884861c805143bf2306abf7d2e469d94a158bf6587d65faebeed2b (canonical sorted-name SHA-256 d567faf9576946cced4795af68991a5432ddba38383a6baef59e33253e617193).",
+      "detail": "791 checkpoint tensor(s) were present but intentionally unused by this architecture. Their complete set exactly matched pinned allowlist 969cee605deba10dd82afbaa9b1b7a35d2339fdb122efece14530c9030aa1436 (canonical sorted-name SHA-256 61e5f26aed8bca408c5de5347d8e1668b0c5716237dad1fc98c47bc108f4ae57).",
       "severity": "caveat"
     },
     {
@@ -95,18 +95,6 @@
     },
     {
       "affects_comparability": false,
-      "code": "tp_rank_payloads_composed",
-      "detail": "57600 routed-expert module(s) were stored as 4 tensor-parallel rank shards each (the artifact's own hybrid_tr3_tail declaration) and composed into whole weights by concatenating the decoded shards in ascending rank order along the one axis the shapes admit (down_proj: axis 1, gate_proj: axis 0, up_proj: axis 0). The composition is verified against the artifact's declared source at engines/tools/layer-outer-evidence/glm53-exl3-tp-rank-and-zero-pad-parity.json.",
-      "severity": "caveat"
-    },
-    {
-      "affects_comparability": false,
-      "code": "quantization_config_mislabels_artifact",
-      "detail": "config.json's quantization_config declares quant_method='modelopt', which describes nothing in this checkpoint; the artifact is declared by its hybrid_tr3_tail block (exl3-trellis) and the payload bytes agree. The surface was read from the bytes.",
-      "severity": "caveat"
-    },
-    {
-      "affects_comparability": false,
       "code": "reduced_run_count",
       "detail": "this dataset is ONE cold capture (run_count 1, the DET-D4 floor is 5). Cross-run determinism is not asserted by the dataset; it is established by a second cold capture plus `fidelity-dataset compare --self-compare`, whose exactly-0.0 result is the SC-1 reproduction confirmation.",
       "severity": "caveat"
@@ -116,7 +104,7 @@
   "generation_sanity_probe": {
     "degenerate": false,
     "enforced": true,
-    "entropy_nats": 2.8847632640434746,
+    "entropy_nats": 3.083223778762293,
     "expect": "Paris",
     "expected_first_ids": [
       1732,
@@ -124,39 +112,39 @@
       40631,
       59190
     ],
-    "logit_spread": 26.65625,
+    "logit_spread": 26.34375,
     "note": "one extra window through the same schedule; its hidden state is discarded and never enters the dataset.",
     "prompt": "The capital of France is",
     "schema": "malaiwah.generation-sanity-probe.v1",
     "status": "pass",
     "top1_id": 12089,
-    "top1_probability": 0.5401785916993229,
+    "top1_probability": 0.4886283420367735,
     "top1_text": " Paris",
     "top_k": [
       {
         "id": 12089,
-        "probability": 0.5401785916993229,
+        "probability": 0.4886283420367735,
         "text": " Paris"
       },
       {
         "id": 264,
-        "probability": 0.03913040593780307,
+        "probability": 0.045449515648403854,
         "text": " a"
       },
       {
         "id": 825,
-        "probability": 0.03453246203698907,
+        "probability": 0.045449515648403854,
         "text": " one"
       },
       {
-        "id": 279,
-        "probability": 0.03453246203698907,
-        "text": " the"
+        "id": 2114,
+        "probability": 0.04010905678368651,
+        "text": " home"
       },
       {
-        "id": 2114,
-        "probability": 0.030474790786262987,
-        "text": " home"
+        "id": 279,
+        "probability": 0.03539611837719299,
+        "text": " the"
       }
     ],
     "uniform_entropy_nats": 11.950405902510404,
@@ -326,7 +314,7 @@
   "runtime": {
     "backend_identity_sha256": null,
     "file": "runtime/capture-runtime.json",
-    "file_sha256": "13d70d70bcff4c450d5cd7a94430d2fc9dc4458b0778a1f828fc65bf5bb88b9e",
+    "file_sha256": "38ebe4750437a74a27cc4af8e01432cac48e58e9fcebfae83ba794927be2dbb6",
     "lane": "streaming",
     "lane_identity_sha256": "025ae83c1cb0e2c518baa8bd0c46965f0c17b6aaca5b1b875ca5fcea71f565d5",
     "lane_inferred": false,
@@ -340,117 +328,76 @@
       {
         "bits_per_weight": 16,
         "format": "bf16",
-        "layer_range": "all",
-        "note": "78 tensors: model.layers.N.self_attn.o_proj.weight. read from brandonmusic/GLM-5.2-EXL3-TR3-3.0bpw@f79c9167690ca705e877ae4dc55a841d1aae1247 model.safetensors.index.json + shard headers: a class is exl3 trellis when its weights are stored as trellis/suh/svh payload groups (codebook from the object each module carries: mcg:58368; declared bits 3.0 by hybrid_tr3_tail; tp=4 rank shards per module, k_values None, None), fp8_e4m3 when a _scale_inv sibling exists, native otherwise (stored dtype from the shard headers).",
-        "tensor_class": "attn.o",
-        "treatment": "native"
-      },
-      {
-        "bits_per_weight": 16,
-        "format": "bf16",
-        "layer_range": "all",
-        "note": "261 tensors: model.layers.N.self_attn.indexer.k_norm.bias, model.layers.N.self_attn.indexer.k_norm.weight, model.layers.N.self_attn.indexer.weights_proj.weight, model.layers.N.self_attn.indexer.wk.weight, model.layers.N.self_attn.indexer.wq_b.weight, model.layers.N.self_attn.kv_a_layernorm.weight. read from brandonmusic/GLM-5.2-EXL3-TR3-3.0bpw@f79c9167690ca705e877ae4dc55a841d1aae1247 model.safetensors.index.json + shard headers: a class is exl3 trellis when its weights are stored as trellis/suh/svh payload groups (codebook from the object each module carries: mcg:58368; declared bits 3.0 by hybrid_tr3_tail; tp=4 rank shards per module, k_values None, None), fp8_e4m3 when a _scale_inv sibling exists, native otherwise (stored dtype from the shard headers).",
-        "tensor_class": "attn.other",
-        "treatment": "native"
-      },
-      {
-        "bits_per_weight": 16,
-        "format": "bf16",
-        "layer_range": "all",
-        "note": "312 tensors: model.layers.N.self_attn.kv_a_proj_with_mqa.weight, model.layers.N.self_attn.kv_b_proj.weight, model.layers.N.self_attn.q_a_proj.weight, model.layers.N.self_attn.q_b_proj.weight. read from brandonmusic/GLM-5.2-EXL3-TR3-3.0bpw@f79c9167690ca705e877ae4dc55a841d1aae1247 model.safetensors.index.json + shard headers: a class is exl3 trellis when its weights are stored as trellis/suh/svh payload groups (codebook from the object each module carries: mcg:58368; declared bits 3.0 by hybrid_tr3_tail; tp=4 rank shards per module, k_values None, None), fp8_e4m3 when a _scale_inv sibling exists, native otherwise (stored dtype from the shard headers).",
-        "tensor_class": "attn.qkv",
-        "treatment": "native"
-      },
-      {
-        "bits_per_weight": 16,
-        "format": "bf16",
-        "layer_range": "all",
-        "note": "1 tensors: model.embed_tokens.weight. read from brandonmusic/GLM-5.2-EXL3-TR3-3.0bpw@f79c9167690ca705e877ae4dc55a841d1aae1247 model.safetensors.index.json + shard headers: a class is exl3 trellis when its weights are stored as trellis/suh/svh payload groups (codebook from the object each module carries: mcg:58368; declared bits 3.0 by hybrid_tr3_tail; tp=4 rank shards per module, k_values None, None), fp8_e4m3 when a _scale_inv sibling exists, native otherwise (stored dtype from the shard headers).",
+        "layer_range": null,
         "tensor_class": "embed_tokens",
         "treatment": "native"
       },
       {
         "bits_per_weight": 16,
         "format": "bf16",
-        "layer_range": "all",
-        "note": "1 tensors: lm_head.weight. read from brandonmusic/GLM-5.2-EXL3-TR3-3.0bpw@f79c9167690ca705e877ae4dc55a841d1aae1247 model.safetensors.index.json + shard headers: a class is exl3 trellis when its weights are stored as trellis/suh/svh payload groups (codebook from the object each module carries: mcg:58368; declared bits 3.0 by hybrid_tr3_tail; tp=4 rank shards per module, k_values None, None), fp8_e4m3 when a _scale_inv sibling exists, native otherwise (stored dtype from the shard headers).",
-        "tensor_class": "lm_head",
+        "layer_range": null,
+        "tensor_class": "attn.qkv",
         "treatment": "native"
       },
       {
         "bits_per_weight": 16,
         "format": "bf16",
-        "layer_range": "all",
-        "note": "3 tensors: model.layers.N.mlp.down_proj.weight. read from brandonmusic/GLM-5.2-EXL3-TR3-3.0bpw@f79c9167690ca705e877ae4dc55a841d1aae1247 model.safetensors.index.json + shard headers: a class is exl3 trellis when its weights are stored as trellis/suh/svh payload groups (codebook from the object each module carries: mcg:58368; declared bits 3.0 by hybrid_tr3_tail; tp=4 rank shards per module, k_values None, None), fp8_e4m3 when a _scale_inv sibling exists, native otherwise (stored dtype from the shard headers).",
-        "tensor_class": "mlp.down",
+        "layer_range": null,
+        "tensor_class": "attn.o",
         "treatment": "native"
       },
       {
         "bits_per_weight": 16,
         "format": "bf16",
-        "layer_range": "all",
-        "note": "3 tensors: model.layers.N.mlp.gate_proj.weight. read from brandonmusic/GLM-5.2-EXL3-TR3-3.0bpw@f79c9167690ca705e877ae4dc55a841d1aae1247 model.safetensors.index.json + shard headers: a class is exl3 trellis when its weights are stored as trellis/suh/svh payload groups (codebook from the object each module carries: mcg:58368; declared bits 3.0 by hybrid_tr3_tail; tp=4 rank shards per module, k_values None, None), fp8_e4m3 when a _scale_inv sibling exists, native otherwise (stored dtype from the shard headers).",
+        "layer_range": null,
         "tensor_class": "mlp.gate",
         "treatment": "native"
       },
       {
         "bits_per_weight": 16,
         "format": "bf16",
-        "layer_range": "all",
-        "note": "3 tensors: model.layers.N.mlp.up_proj.weight. read from brandonmusic/GLM-5.2-EXL3-TR3-3.0bpw@f79c9167690ca705e877ae4dc55a841d1aae1247 model.safetensors.index.json + shard headers: a class is exl3 trellis when its weights are stored as trellis/suh/svh payload groups (codebook from the object each module carries: mcg:58368; declared bits 3.0 by hybrid_tr3_tail; tp=4 rank shards per module, k_values None, None), fp8_e4m3 when a _scale_inv sibling exists, native otherwise (stored dtype from the shard headers).",
+        "layer_range": null,
         "tensor_class": "mlp.up",
         "treatment": "native"
       },
       {
-        "bits_per_weight": 3.0,
-        "format": "exl3-mcg",
-        "layer_range": "all",
-        "note": "57600 tensors: model.layers.N.mlp.experts.E.down_proj.weight, model.layers.N.mlp.experts.E.gate_proj.weight, model.layers.N.mlp.experts.E.up_proj.weight. read from brandonmusic/GLM-5.2-EXL3-TR3-3.0bpw@f79c9167690ca705e877ae4dc55a841d1aae1247 model.safetensors.index.json + shard headers: a class is exl3 trellis when its weights are stored as trellis/suh/svh payload groups (codebook from the object each module carries: mcg:58368; declared bits 3.0 by hybrid_tr3_tail; tp=4 rank shards per module, k_values None, None), fp8_e4m3 when a _scale_inv sibling exists, native otherwise (stored dtype from the shard headers).",
+        "bits_per_weight": 16,
+        "format": "bf16",
+        "layer_range": null,
+        "tensor_class": "mlp.down",
+        "treatment": "native"
+      },
+      {
+        "bits_per_weight": 16,
+        "format": "bf16",
+        "layer_range": null,
         "tensor_class": "moe.experts",
-        "treatment": "quantized"
-      },
-      {
-        "bits_per_weight": null,
-        "format": "mixed",
-        "layer_range": "3-77",
-        "note": "class mixes formats on the same layers (SCOPE-004 admits one row per class and layer_range): 75 x native:bf16@16 (model.layers.N.mlp.gate.weight); 75 x native:fp32@32 (model.layers.N.mlp.gate.e_score_correction_bias). read from brandonmusic/GLM-5.2-EXL3-TR3-3.0bpw@f79c9167690ca705e877ae4dc55a841d1aae1247 model.safetensors.index.json + shard headers: a class is exl3 trellis when its weights are stored as trellis/suh/svh payload groups (codebook from the object each module carries: mcg:58368; declared bits 3.0 by hybrid_tr3_tail; tp=4 rank shards per module, k_values None, None), fp8_e4m3 when a _scale_inv sibling exists, native otherwise (stored dtype from the shard headers).",
-        "tensor_class": "moe.router",
         "treatment": "native"
       },
       {
         "bits_per_weight": 16,
         "format": "bf16",
-        "layer_range": "all",
-        "note": "225 tensors: model.layers.N.mlp.shared_experts.down_proj.weight, model.layers.N.mlp.shared_experts.gate_proj.weight, model.layers.N.mlp.shared_experts.up_proj.weight. read from brandonmusic/GLM-5.2-EXL3-TR3-3.0bpw@f79c9167690ca705e877ae4dc55a841d1aae1247 model.safetensors.index.json + shard headers: a class is exl3 trellis when its weights are stored as trellis/suh/svh payload groups (codebook from the object each module carries: mcg:58368; declared bits 3.0 by hybrid_tr3_tail; tp=4 rank shards per module, k_values None, None), fp8_e4m3 when a _scale_inv sibling exists, native otherwise (stored dtype from the shard headers).",
-        "tensor_class": "moe.shared_expert",
-        "treatment": "native"
-      },
-      {
-        "bits_per_weight": null,
-        "format": "mixed",
-        "layer_range": "78",
-        "note": "class mixes formats on the same layers (SCOPE-004 admits one row per class and layer_range): 22 x native:bf16@16 (model.layers.N.eh_proj.weight, model.layers.N.enorm.weight, model.layers.N.hnorm.weight); 1 x native:fp32@32 (model.layers.N.mlp.gate.e_score_correction_bias); 768 x quantized:exl3-mcg@3.0 (model.layers.N.mlp.experts.E.down_proj.weight, model.layers.N.mlp.experts.E.gate_proj.weight, model.layers.N.mlp.experts.E.up_proj.weight). read from brandonmusic/GLM-5.2-EXL3-TR3-3.0bpw@f79c9167690ca705e877ae4dc55a841d1aae1247 model.safetensors.index.json + shard headers: a class is exl3 trellis when its weights are stored as trellis/suh/svh payload groups (codebook from the object each module carries: mcg:58368; declared bits 3.0 by hybrid_tr3_tail; tp=4 rank shards per module, k_values None, None), fp8_e4m3 when a _scale_inv sibling exists, native otherwise (stored dtype from the shard headers).",
-        "tensor_class": "mtp",
-        "treatment": "quantized"
-      },
-      {
-        "bits_per_weight": 16,
-        "format": "bf16",
-        "layer_range": "all",
-        "note": "157 tensors: model.layers.N.input_layernorm.weight, model.layers.N.post_attention_layernorm.weight, model.norm.weight. read from brandonmusic/GLM-5.2-EXL3-TR3-3.0bpw@f79c9167690ca705e877ae4dc55a841d1aae1247 model.safetensors.index.json + shard headers: a class is exl3 trellis when its weights are stored as trellis/suh/svh payload groups (codebook from the object each module carries: mcg:58368; declared bits 3.0 by hybrid_tr3_tail; tp=4 rank shards per module, k_values None, None), fp8_e4m3 when a _scale_inv sibling exists, native otherwise (stored dtype from the shard headers).",
+        "layer_range": null,
         "tensor_class": "norm",
+        "treatment": "native"
+      },
+      {
+        "bits_per_weight": 16,
+        "format": "bf16",
+        "layer_range": null,
+        "tensor_class": "lm_head",
         "treatment": "native"
       }
     ],
     "head_policy": "native",
     "kv_cache_dtype": "bf16",
-    "policy": "mixed",
-    "scope_digest": "attn.o=native:bf16@16|attn.other=native:bf16@16|attn.qkv=native:bf16@16|embed_tokens=native:bf16@16|lm_head=native:bf16@16|mlp.down=native:bf16@16|mlp.gate=native:bf16@16|mlp.up=native:bf16@16|moe.experts=quantized:exl3-mcg@3|moe.router=native:mixed|moe.shared_expert=native:bf16@16|mtp=quantized:mixed|norm=native:bf16@16|head=native|kv=bf16"
+    "policy": "native",
+    "scope_digest": "attn.o=native:bf16@16|attn.qkv=native:bf16@16|embed_tokens=native:bf16@16|lm_head=native:bf16@16|mlp.down=native:bf16@16|mlp.gate=native:bf16@16|mlp.up=native:bf16@16|moe.experts=native:bf16@16|norm=native:bf16@16|head=native|kv=bf16"
   },
   "seal": {
     "checksums_file": "checksums.txt",
     "checksums_format": "sha256sum",
-    "checksums_sha256": "a3c91c399e2dfd613d9952bab641ce1167259a9de89b12e8d6ed65f5264f8583",
+    "checksums_sha256": "04346a86b59073b5878e91742b615aa4f0cce32ebf5c90e24e7a98137b795196",
     "covers": [
       "every published file except checksums.txt and fidelity-dataset.json, via checksums.txt",
       "fidelity-dataset.json itself, via the self-blanked seal",
@@ -467,16 +414,16 @@
   "upstream_receipts": [],
   "weights": {
     "artifact_ref": null,
-    "checkpoint_identity_sha256": "e6855ee9f45156ca3cf1850b9172d72a49a7ce19c5b534ad4a32958d4300884e",
-    "codec": "exl3-mcg",
-    "config_sha256": "fcde001350291a0048318d4a1136e0732e31f829f804a57cfbb558903e54171a",
-    "declared_bits": 3.0,
+    "checkpoint_identity_sha256": "e1c5ce53eed43322da34760e1e4972bbf77bb39b07a829a6b8afe6fdfae751dd",
+    "codec": null,
+    "config_sha256": "185f93ee6d12548e16a847e279dc0c3c90b1524c970b0866b42fb545747d859a",
+    "declared_bits": null,
     "declared_head_bits": 16,
     "index_sha256": null,
     "model_ref": null,
-    "model_revision": "f79c9167690ca705e877ae4dc55a841d1aae1247",
-    "quantized": true,
-    "repository": "brandonmusic/GLM-5.2-EXL3-TR3-3.0bpw",
-    "revision": "f79c9167690ca705e877ae4dc55a841d1aae1247"
+    "model_revision": "cf457fa734ab149ffef225f80893eb38c6ff5cdc",
+    "quantized": false,
+    "repository": "zai-org/GLM-5.2",
+    "revision": "cf457fa734ab149ffef225f80893eb38c6ff5cdc"
   }
 }

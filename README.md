@@ -2,11 +2,12 @@
 
 Tools, a schema-enforced public registry, and the campaign log behind
 full-vocabulary KL-divergence measurements of quantized models against their
-unquantized references. Four model families
+unquantized references. Five model families
 ([GLM-5.3](https://huggingface.co/zai-org/GLM-5.3-BF16),
+[GLM-5.2](https://huggingface.co/zai-org/GLM-5.2),
 [GLM-5.3-Flash](https://huggingface.co/zai-org/GLM-5.3-Flash),
 [Qwen3.8-27B](https://huggingface.co/Qwen/Qwen3.8-27B), and a 5B MoE CI
-fixture), six storage formats, 83 published rows. Receipt-driven: every
+fixture), six storage formats, 93 published rows. Receipt-driven: every
 published number links to a JSON receipt with pinned revisions and sha256s.
 
 The suite began as a GLM-5.3-Flash program — most of the campaign material

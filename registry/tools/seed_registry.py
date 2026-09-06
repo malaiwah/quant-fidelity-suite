@@ -14,6 +14,7 @@ Usage:  python3 tools/seed_registry.py [--out DIR] [--check]
 import argparse
 import json
 import os
+import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -203,6 +204,28 @@ def scope(policy, assignments, head_policy, kv="bf16", act=None, mtp=None):
             "kv_cache_dtype": kv, "activation_quantization": act, "mtp_included": mtp}
 
 
+def derived_scope_policy(assignments):
+    """`policy` as invariant SCOPE-003 defines it -- a pure function of the assignments.
+
+    none: nothing is quantized. uniform: every quantized class shares one
+    (format, bits_per_weight). mixed: more than one such pair.
+
+    It is DERIVED rather than trusted because the authoring tools use the word
+    differently: engines/tools/nvfp4_scope.py writes `mixed` for a
+    routed-experts-only conversion, meaning "not every tensor is quantized",
+    while SCOPE-003 reads `mixed` as "more than one quantized rate" -- and a
+    routed-experts-only NVFP4 release has exactly one (nvfp4 @ 4). The
+    assignments, which are the evidence, are copied verbatim either way, and
+    scope_digest does not include the policy, so nothing downstream of a
+    comparability key moves.
+    """
+    rates = {(a["format"], a.get("bits_per_weight"))
+             for a in assignments if a["treatment"] == "quantized"}
+    if not rates:
+        return "none"
+    return "uniform" if len(rates) == 1 else "mixed"
+
+
 def scope_from_evidence(rel_path, kv="not_applicable", mtp=None):
     """Read an artifact's scope from the evidence file the GATE also reads.
 
@@ -225,11 +248,12 @@ def scope_from_evidence(rel_path, kv="not_applicable", mtp=None):
                          "release; it is not restated here." % path)
     with open(path, encoding="utf-8") as fh:
         doc = json.load(fh)
-    return scope(doc["policy"],
-                 [asg(a["tensor_class"], a["treatment"], a["format"],
-                      a.get("bits_per_weight"), a.get("layer_range") or "all",
-                      a.get("note"))
-                  for a in doc["assignments"]],
+    assignments = [asg(a["tensor_class"], a["treatment"], a["format"],
+                       a.get("bits_per_weight"), a.get("layer_range") or "all",
+                       a.get("note"))
+                   for a in doc["assignments"]]
+    return scope(derived_scope_policy(assignments),
+                 assignments,
                  doc["head_policy"],
                  kv=doc.get("kv_cache_dtype", kv),
                  act=doc.get("activation_quantization"),
@@ -4594,6 +4618,27 @@ G53_DY30_DS_REV = "7db8509f316bbb44e4b1c5efdadbc5422b465ccd"
 G53_DY325_DS_REV = "9a5562a3f2593f41ffc7fbf1ab21538f6e4e723c"
 G53_DY342_DS_REV = "f741c869bc61eb78696a8adc31896fe634ad1e68"
 
+# --- 2026-09-06: four more flagship candidates. Three independent NVFP4
+# conversions of the same weights (RadixArk, incoai, Inferact) and one GGUF
+# k-quant build (unsloth UD-Q4_K_XL). Same root, same panel, same lane; each
+# number is read from the receipt named on its row.
+G53_NVFP4_RADIXARK = "artifact--radixark.glm-5.3-nvfp4"
+G53_NVFP4_INCOAI = "artifact--incoai.glm-5.3-nvfp4"
+G53_NVFP4_INFERACT = "artifact--inferact.glm-5.3-nvfp4"
+G53_GGUF_UDQ4KXL = "artifact--unsloth.glm-5.3-gguf.ud-q4-k-xl"
+G53_RADIXARK_REV = "11af4cba759e6559eda70358a5778bd1bddddd78"
+G53_INCOAI_REV = "54e52520606f96b3d9fc84088ad22882a61648ac"
+G53_INFERACT_REV = "ce67b36f3669192b5bb233819f0fda6c8a9837f8"
+G53_GGUF_REV = "346b3591c7f28d1a23716f97a065ecf12ec14771"
+G53_RADIXARK_DS = "https://huggingface.co/datasets/malaiwah/glm53-fidelity-nvfp4-radixark-v1"
+G53_INCOAI_DS = "https://huggingface.co/datasets/malaiwah/glm53-fidelity-nvfp4-incoai-v1"
+G53_INFERACT_DS = "https://huggingface.co/datasets/malaiwah/glm53-fidelity-nvfp4-inferact-v1"
+G53_GGUF_DS = "https://huggingface.co/datasets/malaiwah/glm53-fidelity-gguf-unsloth-udq4kxl-v1"
+G53_RADIXARK_DS_REV = "8dbc5abecfd41352dc2932f066cf016c454dc6c4"
+G53_INCOAI_DS_REV = "a8f13e32afa5443616927c443dd6b335be3a2e0d"
+G53_INFERACT_DS_REV = "25a1865187fc727989bb2c32dde49c63292370c2"
+G53_GGUF_DS_REV = "735aaec75744bc5dc844ba5e4217d845600017ec"
+
 # The commits whose bytes ran, identified BY THE RECEIPTS: each sealed
 # dataset's runtime/capture-runtime.json names the sha256 of hf_capture.py,
 # layer_outer.py and panel.py that captured it, and `git show <pin>:<path> |
@@ -4613,6 +4658,15 @@ G53_PIN_DY = "f2b151e5ce6911b8b54394d3f7387016759329a8"
 # landed; the pod-side comparisons (HEAD-1a, shared head) are cited beside
 # them and carry the same tokenwise digest wherever the heads are one tensor.
 G53_PIN_COMPARE = "79c52b242de03365ff1b95df299ccf301d836a4c"
+# The 2026-09-06 candidates were captured AND compared on their own pod, so one
+# commit is both the capture pin and the comparator pin. Each was found the way
+# the others were: the sealed dataset's runtime receipt records the sha256 of
+# hf_capture.py, layer_outer.py and panel.py, and exactly one commit's tree
+# holds all three (verified with `git show <pin>:<path> | sha256sum`).
+G53_PIN_RADIXARK = "a2d7ae2cca7c069530ce3fe7b4a0541e392957fe"
+G53_PIN_INCOAI = "d8ff55952dc784b55570b96e43aa1806c6102969"
+G53_PIN_INFERACT = "fb2fe62a3964ffd842d91e5f8f07697e2406c1ef"
+G53_PIN_GGUF = "a2d7ae2cca7c069530ce3fe7b4a0541e392957fe"
 
 G53_CAPTURE_TOOL_VERSIONS = {
     "capture_python": "3.12.3", "capture_torch": "2.11.0+cu130",
@@ -4623,20 +4677,33 @@ G53_COMPARE_TOOL_VERSIONS = {
     "python": "3.14.4", "torch": "2.11.0+cpu",
     "numpy": "2.5.2", "safetensors": "0.8.0",
 }
+# The pod-compared rows ran the comparator in the POD's interpreter, not the
+# maintainer's: python 3.12.3 (receipts/python-version.txt), torch
+# 2.11.0+cu130 / numpy 2.5.2 / safetensors 0.8.0 (receipts/wheel-versions.txt),
+# and the receipt's comparator.replay_env repeats numpy 2.5.2 beside the host
+# CPU. Recorded as it ran: the harness boundary errs toward over-sensitivity,
+# so a row compared on another interpreter must not borrow this one's id.
+G53_POD_COMPARE_TOOL_VERSIONS = {
+    "python": "3.12.3", "torch": "2.11.0+cu130",
+    "numpy": "2.5.2", "safetensors": "0.8.0",
+}
 
 
-def _g53_protocol_path(name):
+# These readers are family-generic (the `_g53_` prefix is where they were born):
+# `protocol` selects the frozen-receipt directory, so the GLM-5.2 block below
+# reads its own receipts through exactly the same gates.
+def _g53_protocol_path(name, protocol=G53_PROTOCOL):
     return os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                        G53_PROTOCOL, name)
+                        protocol, name)
 
 
-def _g53_json(name):
-    with open(_g53_protocol_path(name), encoding="utf-8") as fh:
+def _g53_json(name, protocol=G53_PROTOCOL):
+    with open(_g53_protocol_path(name, protocol), encoding="utf-8") as fh:
         return json.load(fh)
 
 
-def _g53_sha(name):
-    return _receipt_sha(G53_PROTOCOL + name)
+def _g53_sha(name, protocol=G53_PROTOCOL):
+    return _receipt_sha(protocol + name)
 
 
 def _g53_git_sha(pin, path):
@@ -4666,9 +4733,85 @@ def _g53_dataset_scope(descriptor):
                  act=sc.get("activation_quantization"), mtp=sc.get("mtp_included"))
 
 
-def _g53_comparison(name, *, want_kind, want_head_policy, reference_ds, candidate_ds):
+# THE WEIGHTS-DECODE CLASS RULE, DERIVED RATHER THAN COPIED (2026-09-06).
+#
+# bin/fidelity/dscompare.py::_decode_gate decides a comparison's class from what
+# the CANDIDATE's capture had to do to the stored weights: a trellis
+# reconstruction, or a declared activation-quantization scheme a weights-only
+# capture did not apply, makes the number advisory. 3eee3f0 generalised the
+# activation half of that rule from "fp8-block-dequant + dynamic" to ANY
+# declared scheme -- which is what NVFP4's static input scales are.
+#
+# So the sealed `comparability.class` of a receipt is only as good as the
+# comparator that sealed it, and three receipts of the SAME decode disagree
+# across that commit. The class this seed files is therefore DERIVED here from
+# the decode method and the declared scheme, both read from committed evidence,
+# and the sealed field is cross-checked: a receipt produced by code that already
+# carried the rule must agree, or the seed refuses.
+G53_DECODE_RULE_COMMIT = "3eee3f0b058b4460dfe5dc3134a20d08fdeb6f5f"
+G53_DECODE_RULE_UTC = "2026-09-05T12:34:04Z"
+G53_DSCOMPARE = "bin/fidelity/dscompare.py"
+
+
+def _g53_rule_in(pin):
+    """True when G53_DECODE_RULE_COMMIT is an ancestor of `pin` (so its bytes ran)."""
+    import subprocess
+    root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    r = subprocess.run(["git", "-C", root, "merge-base", "--is-ancestor",
+                        G53_DECODE_RULE_COMMIT, pin], capture_output=True)
+    if r.returncode not in (0, 1):
+        raise SystemExit("seed_registry: cannot decide whether %s carries %s: %s"
+                         % (pin[:12], G53_DECODE_RULE_COMMIT[:8], r.stderr.decode()[:200]))
+    return r.returncode == 0
+
+
+def _g53_decode_method(c):
+    """The candidate-side weights_decode method, off the receipt's own decode gate.
+
+    None when the receipt carries NO decode gate at all: the six 2026-09-05
+    morning receipts of this family were sealed before gate 9b existed, so their
+    `class: strict` says nothing about the decode either way.
+    """
+    gate = (c.get("gates") or {}).get("decode")
+    if not gate:
+        return None
+    detail = gate.get("detail") or ""
+    m = re.search(r"candidate ([A-Za-z0-9._+-]+)", detail)
+    if not m:
+        raise SystemExit("seed_registry: cannot read the candidate decode method from "
+                         "gates.decode.detail %r" % detail)
+    return m.group(1)
+
+
+def _g53_derived_class(c, name, candidate_ds):
+    """(class, method, reconstructed, activation) under the rule at G53_DECODE_RULE_COMMIT.
+
+    Both inputs are committed evidence, never the sealed class:
+
+    * the decode METHOD is the receipt's own `gates.decode.detail`;
+    * a declared-but-unapplied activation scheme is the candidate dataset's own
+      `activation_scales_not_applied` disclosure (NVFP4's static input scales) or
+      the receipt's own `activation_quantization_not_captured` (the FP8 releases'
+      dynamic scheme, which the pre-3eee3f0 rule already caught).
+
+    class is None where the receipt has no decode gate to reason from.
+    """
+    method = _g53_decode_method(c)
+    if method is None:
+        return None, None, None, None
+    reconstructed = method.startswith("exl3-trellis-")
+    activation = (any(d.get("code") == "activation_scales_not_applied"
+                      for d in candidate_ds.get("disclosures") or [])
+                  or any(d.get("code") == "activation_quantization_not_captured"
+                         for d in c.get("disclosures") or []))
+    return ("advisory" if (reconstructed or activation) else "strict",
+            method, reconstructed, activation)
+
+
+def _g53_comparison(name, *, want_kind, want_head_policy, reference_ds, candidate_ds,
+                    compared_at=None, protocol=G53_PROTOCOL):
     """Read a committed comparison receipt and refuse any drift from what the row asserts."""
-    c = _g53_json(name)
+    c = _g53_json(name, protocol)
     if c.get("schema") != "malaiwah.fidelity-comparison-receipt.v1":
         raise SystemExit("seed_registry: %s is not a comparison receipt" % name)
     if c["comparison_kind"] != want_kind:
@@ -4695,15 +4838,29 @@ def _g53_comparison(name, *, want_kind, want_head_policy, reference_ds, candidat
             or c["metric"]["direction"] != "reference_to_candidate" \
             or c["estimator"]["accumulation_dtype"] != "float64":
         raise SystemExit("seed_registry: %s is not a full-vocabulary fp64 KL(ref||cand)" % name)
-    if c["comparability"]["class"] != "strict" or not c["comparability"]["same_lane"]:
-        raise SystemExit("seed_registry: %s is not a strict same-lane comparison" % name)
+    if not c["comparability"]["same_lane"]:
+        raise SystemExit("seed_registry: %s is not a same-lane comparison" % name)
+    if want_kind == "measurement":
+        derived = _g53_derived_class(c, name, candidate_ds)[0]
+        sealed = c["comparability"]["class"]
+        # A receipt sealed by a comparator that ALREADY carried the rule must
+        # agree with it; one sealed by older bytes may not, and that gap is
+        # disclosed on the row rather than propagated into the class.
+        if derived is not None and sealed != derived \
+                and compared_at is not None and _g53_rule_in(compared_at):
+            raise SystemExit("seed_registry: %s was sealed class %s by %s, which carries the "
+                             "weights-decode rule %s that derives %s"
+                             % (name, sealed, compared_at[:12],
+                                G53_DECODE_RULE_COMMIT[:8], derived))
+    elif c["comparability"]["class"] != "strict":
+        raise SystemExit("seed_registry: %s is not a strict reproduction confirmation" % name)
     if any(d.get("severity") == "blocking" for d in c.get("disclosures") or []):
         raise SystemExit("seed_registry: %s carries a blocking disclosure" % name)
     return c
 
 
-def _g53_dataset(name, *, want_role, want_repository):
-    d = _g53_json(name)
+def _g53_dataset(name, *, want_role, want_repository, protocol=G53_PROTOCOL):
+    d = _g53_json(name, protocol)
     if d.get("schema") != "malaiwah.fidelity-dataset.v1":
         raise SystemExit("seed_registry: %s is not a fidelity dataset descriptor" % name)
     if d["dataset"]["repository"] != want_repository:
@@ -4768,6 +4925,35 @@ G53_DY325_SCOPE = scope_from_evidence("engines/scopes/scope--dy325-exl3.json")
 G53_DY342_SCOPE = scope_from_evidence("engines/scopes/scope--dy342-exl3.json")
 G53_FP8_SCOPE = scope_from_evidence("engines/scopes/scope--glm53-fp8.json")
 G53_K4_SCOPE = scope_from_evidence("engines/scopes/scope--wrld-exl3.json")
+
+# --- the 2026-09-06 candidates' sealed descriptors ------------------------
+G53_RADIXARK_DESC = _g53_dataset("dataset.glm-5.3-nvfp4-radixark.json", want_role="quant",
+                                 want_repository="malaiwah/glm53-fidelity-nvfp4-radixark-v1")
+G53_INCOAI_DESC = _g53_dataset("dataset.glm-5.3-nvfp4-incoai.json", want_role="quant",
+                               want_repository="malaiwah/glm53-fidelity-nvfp4-incoai-v1")
+G53_INFERACT_DESC = _g53_dataset("dataset.glm-5.3-nvfp4-inferact.json", want_role="quant",
+                                 want_repository="malaiwah/glm53-fidelity-nvfp4-inferact-v1")
+G53_GGUF_DESC = _g53_dataset("dataset.glm-5.3-gguf-unsloth-udq4kxl.json", want_role="quant",
+                             want_repository="malaiwah/glm53-fidelity-gguf-unsloth-udq4kxl-v1")
+for _desc, _rev in ((G53_RADIXARK_DESC, G53_RADIXARK_REV), (G53_INCOAI_DESC, G53_INCOAI_REV),
+                    (G53_INFERACT_DESC, G53_INFERACT_REV), (G53_GGUF_DESC, G53_GGUF_REV)):
+    if _desc["weights"]["revision"] != _rev:
+        raise SystemExit("seed_registry: a 2026-09-06 GLM-5.3 candidate captured an unpinned revision")
+    if _desc["runtime"]["stack_fingerprint_sha256"] != G53_STACK_FINGERPRINT_SHA:
+        raise SystemExit("seed_registry: a 2026-09-06 GLM-5.3 candidate ran on a different stack")
+# The three NVFP4 releases keep the official bf16 head byte for byte; the GGUF
+# build quantizes it, so its capture replayed through a DIFFERENT head and the
+# row says so.
+for _desc in (G53_RADIXARK_DESC, G53_INCOAI_DESC, G53_INFERACT_DESC):
+    if _desc["head"]["tensor_content_sha256"] != G53_HEAD_SHA:
+        raise SystemExit("seed_registry: an NVFP4 head differs from the root's; the row says otherwise")
+G53_GGUF_HEAD_SHA = G53_GGUF_DESC["head"]["tensor_content_sha256"]
+if G53_GGUF_HEAD_SHA == G53_HEAD_SHA:
+    raise SystemExit("seed_registry: the GGUF head equals the root's; the row says otherwise")
+G53_RADIXARK_SCOPE = scope_from_evidence("engines/scopes/scope--glm53-nvfp4-radixark.json")
+G53_INCOAI_SCOPE = scope_from_evidence("engines/scopes/scope--glm53-nvfp4-incoai.json")
+G53_INFERACT_SCOPE = scope_from_evidence("engines/scopes/scope--glm53-nvfp4-inferact.json")
+G53_GGUF_SCOPE = scope_from_evidence("engines/scopes/scope--glm53-gguf-unsloth-udq4kxl.json")
 
 # SCOPE CORRECTION 2026-09-05 (peer review S1-1 / S1-3). The five trellis
 # scopes above were first authored by exl3_scope.py BEFORE 56ff020, which wrote
@@ -5236,6 +5422,191 @@ ARTIFACTS += [
         "(the producer describes it as a delta over the 3.25 mix)."),
 ]
 
+
+G53_NVFP4_DECODE_NOTE = (
+    "Read from bytes (the index plus a ranged read of every shard header): the 57,600 "
+    "routed-expert matrices of layers 3-77 are NVFP4 modelopt component sets -- e2m1 "
+    "weight U8 [out, in/2], weight_scale F8_E4M3 [out, in/16] (group 16 along the input "
+    "axis) and an F32 weight_scale_2 scalar -- and every other tensor is carried whole at "
+    "its stored dtype: attention, the dense MLPs, the shared experts, embed_tokens, "
+    "lm_head, the norms, the router and the MTP block. So this is a routed-experts-only "
+    "4-bit conversion of the BF16 release, not a full-scope NVFP4 quant. %s")
+G53_NVFP4_ACT_DISC = disc(
+    "estimator_scope_narrower_than_artifact", "caveat",
+    "STATIC ACTIVATION SCALES, NOT APPLIED. Each of the 57,600 routed-expert modules also "
+    "ships a per-tensor F32 `input_scale`: a W4A4 serving kernel would quantize activations "
+    "with it. Every measurement of this artifact here is weights-only "
+    "(dequantize-and-run), so the activation term is absent and the value is expected to "
+    "understate a served NVFP4 deployment. The scales were read and recorded, never "
+    "applied.", True)
+
+# The NVFP4 decode is the FIRST in this family proven bitwise against the
+# ecosystem reference implementation, so its caveat says something different
+# from the trellis rows': the decode is settled and the activation term is not.
+G53_NVFP4_PARITY = "engines/tools/nvfp4-evidence/glm53-nvfp4-parity.json"
+G53_NVFP4_DECODE_DISC = disc(
+    "lossy_capture_codec", "caveat",
+    "RECONSTRUCTED, NOT EXECUTED. The 57,600 routed-expert NVFP4 component sets are decoded "
+    "to bf16 per module before the loader (nvfp4-modelopt-dequant-to-bf16: e2m1 unpack, "
+    "per-group weight_scale in fp8_e4m3 and the per-tensor weight_scale_2, evaluated in "
+    "exact fp32 and cast once to bf16). The decoder is proven BITWISE against the ecosystem "
+    "reference implementation -- compressed-tensors 0.18.0's own "
+    "unpack_fp4_from_uint8 plus the same LUT/scale math in exact fp32 -- on real range-read "
+    "tensors of THIS release (max_abs_diff_fp32 exactly 0.0, bitwise after the bf16 cast "
+    "too; %s). So the decode is not the reason this row is advisory: the reason is that a "
+    "weights-only capture runs the STORED weights and not a served NVFP4 kernel." % G53_NVFP4_PARITY,
+    True, provenance=True,
+    sources=[src("github_file", G53_GH_BLOB + "main/" + G53_NVFP4_PARITY,
+                 _receipt_sha("../" + G53_NVFP4_PARITY),
+                 "all_bitwise: true over six fixtures (two tensors x three releases), each "
+                 "naming its shard, byte offsets, component digests and decoded digests")])
+G53_NVFP4_ACT_ROW_DISC = disc(
+    "activation_quantization_not_captured", "caveat",
+    "WEIGHT-ONLY. The release ships a static per-tensor F32 `input_scale` beside each of its "
+    "57,600 routed-expert modules; a served W4A4 NVFP4 kernel quantizes activations with it "
+    "and this capture does not. The scales were read and recorded, never applied, so this "
+    "value is expected to understate a served NVFP4 deployment. It is not a mathematical "
+    "bound on a mean KL.", True)
+G53_NVFP4_HEAD_DISC = disc(
+    "record_note", "info",
+    "Head identity: this release's lm_head is content-identical to the BF16 root's (%s...), "
+    "so own-head replay (HEAD-1d) and shared-head replay are the same arithmetic; the "
+    "comparison's own head gate records both digests and they are one tensor."
+    % G53_HEAD_SHA[:12])
+
+
+def _g53_nvfp4_artifact(aid, repo, rev, size_bytes, shard_count, index_sha, desc, sc,
+                        producer, producer_handle, modelopt, extra_note):
+    """The three independent NVFP4 conversions share one shape; the facts are arguments."""
+    slug = repo.split("/")[0].lower()
+    return artifact(
+        aid, G53, "%s GLM-5.3-NVFP4 (routed experts NVFP4 e2m1 group 16, rest native)" % producer,
+        "quant",
+        hf(repo, rev, "hf_api"),
+        "safetensors", "NVFP4", size_bytes,
+        codec("nvfp4", 4.0, None, tool="nvidia-modelopt", version=modelopt, group_size=16,
+              calibration={"used": None, "corpus": None, "tokens": None,
+                           "overlaps_any_panel": None, "overlapping_panel_refs": []}),
+        sc,
+        attr(producer, "quantizer", handle=producer_handle,
+             url="https://huggingface.co/%s" % producer_handle),
+        [src("model_card", "https://huggingface.co/%s" % repo, None,
+             "revision %s; %d shards; config.json sha256 %s... declares quantization_config "
+             "quant_method modelopt / quant_algo NVFP4 (producer %s); index sha256 %s..."
+             % (rev[:12], shard_count, desc["weights"]["config_sha256"][:8], modelopt,
+                index_sha[:8])),
+         src("github_file", "https://github.com/malaiwah/quant-fidelity-suite/blob/main/"
+                            "engines/scopes/scope--glm53-nvfp4-%s.json" % slug,
+             _receipt_sha("../engines/scopes/scope--glm53-nvfp4-%s.json" % slug),
+             "scope authored from the checkpoint's own index bytes and shard headers by "
+             "engines/tools/nvfp4_scope.py; the component set, group size and the static "
+             "input_scale are read per module"),
+         src("dataset_card", "https://huggingface.co/datasets/%s"
+                             % desc["dataset"]["repository"], None,
+             "the capture of these weights: dataset_sha256 %s..., capture_content_digest %s..."
+             % (desc["dataset_sha256"][:8], desc["capture"]["capture_content_digest"][:8]))],
+        [disc("record_note", "info", G53_NVFP4_DECODE_NOTE % extra_note),
+         disc("native_head_retained", "info",
+              "lm_head.weight is a plain bf16 tensor, content-identical to the official head "
+              "(%s...); every comparison replays both sides through their own sealed head "
+              "(HEAD-1d) and here those are one tensor." % G53_HEAD_SHA[:12]),
+         G53_NVFP4_ACT_DISC,
+         disc("third_party_artifact_self_measured", "info",
+              "%s's weights, our measurement." % producer),
+         disc("revision_unpinned", "caveat",
+              "The release declares no source revision for the BF16 weights it converted, so "
+              "derived_from_artifact_ref is left empty rather than guessed. Its non-routed "
+              "tensors are consistent with zai-org/GLM-5.3-BF16 @ %s by the bitwise-identical "
+              "lm_head, not by a digest of the whole tree." % G53_ROOT_REV[:12])],
+        weights_extra={"size_basis": "repo_weight_files", "shard_count": shard_count,
+                       "config_sha256": desc["weights"]["config_sha256"],
+                       "index_sha256": index_sha},
+        derived_from_artifact_ref=None,
+        availability={"status": "public", "uri": "https://huggingface.co/%s" % repo},
+        cross_refs=lair(), seal={"sealed": False})
+
+
+ARTIFACTS += [
+    _g53_nvfp4_artifact(
+        G53_NVFP4_RADIXARK, "RadixArk/GLM-5.3-NVFP4", G53_RADIXARK_REV, 464823042096, 47,
+        "2aa8397b501d9f6a232d153f328feb912f813c389061aac4cf72b04914fa5b74",
+        G53_RADIXARK_DESC, G53_RADIXARK_SCOPE, "RadixArk", "RadixArk",
+        "modelopt 0.47.0.dev91+g7ff81dd79",
+        "The router carries 75 bf16 gate weights beside 75 fp32 e_score_correction_bias "
+        "tensors, so its class reads native:mixed; the MTP block (layer index 78) is native "
+        "throughout and never built."),
+    _g53_nvfp4_artifact(
+        G53_NVFP4_INCOAI, "incoai/GLM-5.3-NVFP4", G53_INCOAI_REV, 464822872912, 87,
+        "54c4fc5dc9e59691e1797e59f8d57ef33281457cbd47fc0f3877ac95e5ce736d",
+        G53_INCOAI_DESC, G53_INCOAI_SCOPE, "incoai", "incoai",
+        "modelopt 0.45.0",
+        "Same allocation as the other two NVFP4 releases over 87 shards rather than 47; the "
+        "router reads native:mixed and the MTP block is native throughout."),
+    _g53_nvfp4_artifact(
+        G53_NVFP4_INFERACT, "Inferact/GLM-5.3-NVFP4", G53_INFERACT_REV, 464822832448, 88,
+        "e5de21cffb3ec5f958646ac6923cdd6a76b39ea0cb4b31e7627fb14c561cd42f",
+        G53_INFERACT_DESC, G53_INFERACT_SCOPE, "Inferact", "Inferact",
+        "undeclared (quantization_config names quant_method modelopt and group_size 16 "
+        "but no producer version)",
+        "This release stores the router's gate weight and its e_score_correction_bias in ONE "
+        "dtype, so moe.router reads native:bf16@16 rather than native:mixed as on the other "
+        "two; the MTP block is native throughout."),
+    artifact(G53_GGUF_UDQ4KXL, G53,
+             "unsloth GLM-5.3-GGUF UD-Q4_K_XL (llama.cpp k-quant build, mixed per tensor)",
+             "quant",
+             hf("unsloth/GLM-5.3-GGUF", G53_GGUF_REV, "hf_api", path="subdir UD-Q4_K_XL"),
+             "gguf", "UD-Q4_K_XL", 467289116837,
+             codec("gguf-k-quant", 4.0, None, tool="llama.cpp (unsloth dynamic 2.0 build)",
+                   calibration={"used": None, "corpus": None, "tokens": None,
+                                "overlaps_any_panel": None, "overlapping_panel_refs": []}),
+             G53_GGUF_SCOPE,
+             UNSLOTH("quantizer"),
+             [src("model_card", "https://huggingface.co/unsloth/GLM-5.3-GGUF", None,
+                  "revision %s, subdirectory UD-Q4_K_XL: 11 GGUF files, 467,289,116,837 bytes, "
+                  "1,809 tensors, architecture glm-dsa. The build ships no config.json of its "
+                  "own, so the lane bound the official zai-org/GLM-5.3-BF16 config (sha256 "
+                  "ca8f2f47..., the digest the sealed dataset records)." % G53_GGUF_REV[:12]),
+              src("github_file", "https://github.com/malaiwah/quant-fidelity-suite/blob/main/"
+                                 "engines/scopes/scope--glm53-gguf-unsloth-udq4kxl.json",
+                  _receipt_sha("../engines/scopes/scope--glm53-gguf-unsloth-udq4kxl.json"),
+                  "scope authored by engines/tools/gguf_scope.py from the 11 GGUF tensor "
+                  "tables: every ggml type, dim and byte count, names mapped through "
+                  "gguf_surface's glm-dsa map, bits computed as 8*bytes/elements from the ggml "
+                  "block traits and NOT from the build name"),
+              src("dataset_card", G53_GGUF_DS, None,
+                  "the capture of these weights: dataset_sha256 %s..., capture_content_digest %s..."
+                  % (G53_GGUF_DESC["dataset_sha256"][:8],
+                     G53_GGUF_DESC["capture"]["capture_content_digest"][:8]))],
+             [disc("record_note", "info",
+                   "MEASURED BITS, NOT THE BUILD NAME. 'UD-Q4_K_XL' is a recipe label; the "
+                   "scope records what the tensor tables actually hold. The 225 routed-expert "
+                   "tensor groups of layers 3-77 are Q4_K x148 / Q5_K x73 / Q6_K x4 -- 4.8611 "
+                   "measured bits/weight over 724,775,731,200 weights -- while attention, the "
+                   "dense MLPs, the shared experts, embed_tokens and lm_head are Q8_0 (8.5 "
+                   "bits/weight) and the router and norms are kept F32. The MTP block (layer "
+                   "78) is quantized too and never built."),
+              disc("quantized_head", "caveat",
+                   "The head is NOT native: lm_head.weight is Q8_0 in the GGUF (8.5 measured "
+                   "bits/weight over 951,582,720 weights), so scope.head_policy is quantized "
+                   "and the capture's own sealed head (%s...) is the DEQUANTIZED Q8_0 head, a "
+                   "different tensor from the official bf16 head (%s...). Every comparison "
+                   "replays each side through its own head (HEAD-1d), so this head's "
+                   "quantization error is inside the measured value."
+                   % (G53_GGUF_HEAD_SHA[:12], G53_HEAD_SHA[:12]), True),
+              disc("third_party_artifact_self_measured", "info",
+                   "unsloth's build, our measurement."),
+              disc("revision_unpinned", "caveat",
+                   "The build declares no source revision; derived_from_artifact_ref is left "
+                   "empty rather than guessed. Its glm-dsa tensor inventory matches the "
+                   "official BF16 release's name set through the committed gguf-evidence map, "
+                   "not by a digest of the whole tree.")],
+             weights_extra={"size_basis": "repo_weight_files", "shard_count": 11},
+             derived_from_artifact_ref=None,
+             availability={"status": "public",
+                           "uri": "https://huggingface.co/unsloth/GLM-5.3-GGUF"},
+             cross_refs=lair(), seal={"sealed": False}),
+]
+
 REFERENCES += [
     {"schema_version": V, "id": R_G53_HF,
      "name": "malaiwah GLM-5.3 BF16 hidden-state capture, hf-transformers layer-outer streaming "
@@ -5337,7 +5708,7 @@ PIPELINES += [
 ]
 
 
-def _g53_harness(*, pin_compare, capture_pins, note):
+def _g53_harness(*, pin_compare, capture_pins, note, compare_tool_versions=None):
     """A recorded harness whose closure spans the captures and the comparison.
 
     `capture_pins` maps a role prefix to (commit, descriptor): the capture-side
@@ -5379,7 +5750,7 @@ def _g53_harness(*, pin_compare, capture_pins, note):
                        ("estimator", "engines/tools/kld_report.py")):
         digests.append({"role": role, "path": path, "sha256": _g53_git_sha(pin_compare, path)})
     tool_versions = dict(G53_CAPTURE_TOOL_VERSIONS)
-    tool_versions.update(G53_COMPARE_TOOL_VERSIONS)
+    tool_versions.update(compare_tool_versions or G53_COMPARE_TOOL_VERSIONS)
     return {
         "harness_id": H.compute_id(digests, tool_versions),
         "recorded": True,
@@ -5402,6 +5773,63 @@ G53_HARNESS_SPAN_NOTE = (
     "Capture-side digests are the ones the sealed datasets' runtime receipts recorded, "
     "re-verified against `git show <pin>:<path>` at seed time; re-derive any entry the "
     "same way.")
+
+
+def _g53_class_disclosure(c, name, derived_cls, method, compare_pin,
+                          gh=None, protocol=G53_PROTOCOL, mismatch_note=None):
+    """Why the row's class is what it is, naming the sealed field when they differ.
+
+    Every candidate row in these families is filed ADVISORY, because the number is
+    a weights-only reconstruction: the stored weights run under a transformers
+    bf16 forward, and the serving kernel's own numerics are not in it. That is the
+    comparator's own stated position (`_decode_gate`'s docstring). The receipt's
+    sealed class is a second, weaker statement, and where the two differ -- or
+    where the receipt predates the gate entirely -- the row says so rather than
+    inheriting the difference.
+    """
+    gh = gh or G53_GH
+    sealed = c["comparability"]["class"]
+    rule_src = src("github_file", G53_GH_BLOB + G53_DECODE_RULE_COMMIT + "/" + G53_DSCOMPARE,
+                   _g53_git_sha(G53_DECODE_RULE_COMMIT, G53_DSCOMPARE),
+                   "_decode_gate and _activation_detail as the rule reads since this commit",
+                   lines="546-626")
+    receipt_src = src("github_file", gh + name, _g53_sha(name, protocol),
+                      "the sealed receipt whose comparability.class field this disclosure names")
+    if derived_cls is None:
+        return disc(
+            "record_note", "info",
+            "COMPARABILITY CLASS: THE REGISTRY'S, NOT THE RECEIPT'S. This receipt was sealed "
+            "`%s` by a comparator that ran NO weights-decode gate at all (gate 9b landed at "
+            "553d0c1 and was generalised at %s, both after this comparison), so that field is "
+            "not a statement about the decode either way. The row is filed advisory on the "
+            "registry's own rule: the number measures the STORED weights through this suite's "
+            "bf16 forward, and the serving kernel's numerics -- exllamav3's fp16 activations "
+            "and on-the-fly dequant, an FP8 stack's per-token activation quantization -- are "
+            "not in it." % (sealed, G53_DECODE_RULE_COMMIT[:7]),
+            provenance=True, sources=[rule_src, receipt_src])
+    detail = (
+        "COMPARABILITY CLASS: DERIVED, NOT COPIED. Candidate weights_decode method `%s`. "
+        "Under the rule bin/fidelity/dscompare.py::_decode_gate applies since %s -- a trellis "
+        "reconstruction, OR any activation-quantization scheme the checkpoint declares and a "
+        "weights-only capture does not apply, makes the comparison advisory -- this receipt's "
+        "class derives as `%s`, and it was sealed `%s`. The registry row is filed advisory "
+        "either way: it measures the STORED weights through this suite's own bf16 forward, "
+        "not a served kernel."
+        % (method, G53_DECODE_RULE_COMMIT[:7], derived_cls, sealed))
+    sources = [rule_src]
+    if sealed != derived_cls:
+        detail += " " + (mismatch_note or (
+            "The difference is not scientific: the receipt was produced by the comparator at "
+            "%s, which does not carry %s, so the rule that derives the class here had not yet "
+            "run when the field was sealed."
+            % (compare_pin[:12], G53_DECODE_RULE_COMMIT[:7])))
+        sources.append(src("github_file", G53_GH_BLOB + compare_pin + "/" + G53_DSCOMPARE,
+                           _g53_git_sha(compare_pin, G53_DSCOMPARE),
+                           "the comparator that sealed this receipt: _decode_gate at L546-L610, "
+                           "its activation branch gated on method == fp8-block-dequant-to-bf16",
+                           lines="546-610"))
+        sources.append(receipt_src)
+    return disc("record_note", "info", detail, provenance=True, sources=sources)
 
 
 def build_measurements_glm53(artifacts_map):
@@ -5736,10 +6164,110 @@ def build_measurements_glm53(artifacts_map):
                       % G53_HEAD_SHA[:12]),
                  disc("third_party_artifact_self_measured", "info",
                       "davidsyoung's weights, our measurement.")]),
+        # --- 2026-09-06: captured AND compared on their own pod, so `pod` (a
+        # second, shared-head comparison of the same two datasets) does not
+        # exist for any of them and `compare_pin` is the capture pin.
+        dict(mid="measurement--glm-5.3.nvfp4-radixark.corpus5x5-v1", art=G53_NVFP4_RADIXARK,
+             desc=G53_RADIXARK_DESC, ds_url=G53_RADIXARK_DS, ds_rev=G53_RADIXARK_DS_REV,
+             name="comparison.glm-5.3-nvfp4-radixark.corpus5x5-v1.json", pod=None,
+             repro="reproduction.glm-5.3-nvfp4-radixark.json", pin=G53_PIN_RADIXARK,
+             compare_pin=G53_PIN_RADIXARK, pod_replay=True,
+             runtime={"engines/tools/hf_capture.py": "200ba12ca74fb97531307965cbbaa5c10553a5c26e008e524ea2d8aecb005b95",
+                      "engines/tools/layer_outer.py": "7774859c3064b2c7b9271c476adb7882b0b32bf512f4f4ffaf47c9f559b8ecfd",
+                      "bin/fidelity/panel.py": "0bf78fca76289920e0dc10d58082f42f24f4f2db6e0ecde61daefa4c22de286d"},
+             card="https://huggingface.co/RadixArk/GLM-5.3-NVFP4", card_rev=G53_RADIXARK_REV,
+             discussion=None,
+             disclosures=[G53_NVFP4_DECODE_DISC, G53_NVFP4_ACT_ROW_DISC,
+                          disc("third_party_artifact_self_measured", "info",
+                               "RadixArk's weights, our measurement."),
+                          G53_NVFP4_HEAD_DISC]),
+        dict(mid="measurement--glm-5.3.nvfp4-incoai.corpus5x5-v1", art=G53_NVFP4_INCOAI,
+             desc=G53_INCOAI_DESC, ds_url=G53_INCOAI_DS, ds_rev=G53_INCOAI_DS_REV,
+             name="comparison.glm-5.3-nvfp4-incoai.corpus5x5-v1.json", pod=None,
+             repro="reproduction.glm-5.3-nvfp4-incoai.json", pin=G53_PIN_INCOAI,
+             compare_pin=G53_PIN_INCOAI, pod_replay=True,
+             class_mismatch_note=(
+                 "The difference is not scientific, and this is the disclosure of it. This "
+                 "comparison was sealed at 2026-09-05T12:40:12Z by the comparator at "
+                 "d8ff55952dc7, whose history does NOT contain 3eee3f0 (authored 12:34:04Z, "
+                 "six minutes earlier -- the pod was running a bundle built before it): its "
+                 "activation branch fired only for `fp8-block-dequant-to-bf16` with a dynamic "
+                 "scheme, so an NVFP4 decode with declared STATIC input scales got no caveat "
+                 "and the field stayed `strict`. The evidence that it should not have: this "
+                 "candidate's own sealed dataset carries `activation_scales_not_applied` for "
+                 "the same 57,600 per-tensor F32 input_scale tensors as RadixArk's and "
+                 "Inferact's, whose comparison receipts -- sealed at 20:47Z and 14:36Z by "
+                 "comparators that DO carry 3eee3f0, on the identical decode method "
+                 "`nvfp4-modelopt-dequant-to-bf16` -- say `advisory`. Filing this row on the "
+                 "sealed field would have made three rows of one decode differ on the age of "
+                 "the code rather than on what was measured."),
+             runtime={"engines/tools/hf_capture.py": "42c99a0009c1a5676c75542bcf46ced2651a66bc2b9de0939349ab83351a27eb",
+                      "engines/tools/layer_outer.py": "4bb1439150fb0d1ee4c1e1764929354369720e20eac2c57cee39431491dcd5be",
+                      "bin/fidelity/panel.py": "84e02b78781663293c24f5da94e50fecdcf34ad1c72202155792dc54e33f4324"},
+             card="https://huggingface.co/incoai/GLM-5.3-NVFP4", card_rev=G53_INCOAI_REV,
+             discussion=None,
+             disclosures=[G53_NVFP4_DECODE_DISC, G53_NVFP4_ACT_ROW_DISC,
+                          disc("third_party_artifact_self_measured", "info",
+                               "incoai's weights, our measurement."),
+                          G53_NVFP4_HEAD_DISC]),
+        dict(mid="measurement--glm-5.3.nvfp4-inferact.corpus5x5-v1", art=G53_NVFP4_INFERACT,
+             desc=G53_INFERACT_DESC, ds_url=G53_INFERACT_DS, ds_rev=G53_INFERACT_DS_REV,
+             name="comparison.glm-5.3-nvfp4-inferact.corpus5x5-v1.json", pod=None,
+             repro="reproduction.glm-5.3-nvfp4-inferact.json", pin=G53_PIN_INFERACT,
+             compare_pin=G53_PIN_INFERACT, pod_replay=True,
+             runtime={"engines/tools/hf_capture.py": "d66f5b57632f4f402336d33d78d35b5e132cf553c4c853f1585685083a398c51",
+                      "engines/tools/layer_outer.py": "bec648063597523da369a753bf8193602eeb056225d2c10f29fbc81b9553c619",
+                      "bin/fidelity/panel.py": "e3e4f2305ee0cc18878106849fcb1a7496ba8dabab8cebee08fd113e1fb53e4c"},
+             card="https://huggingface.co/Inferact/GLM-5.3-NVFP4", card_rev=G53_INFERACT_REV,
+             discussion=None,
+             disclosures=[G53_NVFP4_DECODE_DISC, G53_NVFP4_ACT_ROW_DISC,
+                          disc("third_party_artifact_self_measured", "info",
+                               "Inferact's weights, our measurement."),
+                          G53_NVFP4_HEAD_DISC]),
+        dict(mid="measurement--glm-5.3.gguf-unsloth-udq4kxl.corpus5x5-v1", art=G53_GGUF_UDQ4KXL,
+             desc=G53_GGUF_DESC, ds_url=G53_GGUF_DS, ds_rev=G53_GGUF_DS_REV,
+             name="comparison.glm-5.3-gguf-unsloth-udq4kxl.corpus5x5-v1.json", pod=None,
+             repro="reproduction.glm-5.3-gguf-unsloth-udq4kxl.json", pin=G53_PIN_GGUF,
+             compare_pin=G53_PIN_GGUF, pod_replay=True,
+             runtime={"engines/tools/hf_capture.py": "200ba12ca74fb97531307965cbbaa5c10553a5c26e008e524ea2d8aecb005b95",
+                      "engines/tools/layer_outer.py": "7774859c3064b2c7b9271c476adb7882b0b32bf512f4f4ffaf47c9f559b8ecfd",
+                      "bin/fidelity/panel.py": "0bf78fca76289920e0dc10d58082f42f24f4f2db6e0ecde61daefa4c22de286d"},
+             card="https://huggingface.co/unsloth/GLM-5.3-GGUF", card_rev=G53_GGUF_REV,
+             discussion=None,
+             disclosures=[
+                 disc("lossy_capture_codec", "caveat",
+                      "RECONSTRUCTED, NOT EXECUTED. Every GGUF tensor is dequantized to bf16 on "
+                      "the capture host (gguf-dequant-to-bf16) before the loader, k-quant block "
+                      "traits read from the tensor tables themselves. The decoder is proven "
+                      "BITWISE against gguf-py 0.19.0's own gguf.quants.dequantize on real "
+                      "fetched blocks of this repository at this revision (Q4_K, Q5_K, Q6_K, "
+                      "Q8_0 and the IQ family; engines/tools/gguf-evidence/), so the DECODE is "
+                      "not in question. What is absent is the serving engine: llama.cpp runs "
+                      "these weights through its own kernels and its own KV-cache "
+                      "quantization, and none of that is in this number. This row is advisory "
+                      "because it measures the STORED WEIGHTS, not a llama.cpp deployment.", True),
+                 disc("quantized_head", "caveat",
+                      "HEAD-1d with a QUANTIZED head: this build's lm_head is Q8_0, so the "
+                      "candidate side replayed through its own dequantized head (%s...) and "
+                      "the reference through the official bf16 head (%s...). The head's own "
+                      "quantization error is therefore inside this value -- unlike the three "
+                      "NVFP4 rows, whose heads are the official tensor byte for byte. Read the "
+                      "difference between this row and an NVFP4 row as codec-plus-head, not "
+                      "codec alone." % (G53_GGUF_HEAD_SHA[:12], G53_HEAD_SHA[:12]), True),
+                 disc("record_note", "info",
+                      "The build ships no config.json; the lane bound the official "
+                      "zai-org/GLM-5.3-BF16 config (ca8f2f47...) to build the architecture, "
+                      "which is the digest the sealed dataset's weights block records. The "
+                      "weights are entirely the GGUF build's."),
+                 disc("third_party_artifact_self_measured", "info",
+                      "unsloth's build, our measurement.")]),
     ]
     for cand in candidates:
+        compare_pin = cand.get("compare_pin", G53_PIN_COMPARE)
         c = _g53_comparison(cand["name"], want_kind="measurement", want_head_policy="native_head",
-                            reference_ds=G53_ROOT_DESC, candidate_ds=cand["desc"])
+                            reference_ds=G53_ROOT_DESC, candidate_ds=cand["desc"],
+                            compared_at=compare_pin)
+        derived_cls, decode_method, _recon, _act = _g53_derived_class(c, cand["name"], cand["desc"])
         pod = _g53_json(cand["pod"]) if cand["pod"] else None
         repro = _g53_json(cand["repro"])
         # The pod replayed on its own host CPU (AVX-512 OpenBLAS kernels); the
@@ -5817,20 +6345,33 @@ def build_measurements_glm53(artifacts_map):
                      "The checkpoint's MTP block (layer index 78) is present and unused; the "
                      "unused set matched the pinned allowlist exactly on both captures."),
                 disc("local_device_reduction_order", "info",
-                     "REPLAY HOST. This value was computed on the maintainer's workstation "
-                     "(Intel Xeon X5570, SSE4.2 OpenBLAS kernels, python 3.14.4, torch "
-                     "2.11.0+cpu) from the two sealed datasets; %s. comparator.replay_backend "
-                     "names only the backend class (numpy:cpu:float32), so the fp32 GEMM "
-                     "accumulation order is a per-host term below 1e-8 nats on this panel "
-                     "(1.8e-10 to 3.8e-9 in magnitude across the five rows that have a "
-                     "pod-side receipt) -- five orders below "
-                     "anything the panel can resolve, and stated here so nobody mistakes the "
-                     "ninth decimal for a signal."
-                     % ("the pod's own comparison of the same two datasets on its host CPU "
-                        "gives %r, a difference of %.3e nats at identical top-1"
-                        % (pod["metric"]["value"], host_delta) if pod is not None else
-                        "no pod-side comparison exists for this candidate (the pod refused "
-                        "HEAD-1b before the own-head rule existed)")),
+                     ("REPLAY HOST. This value was computed on the POD's host CPU by its own "
+                      "compare_reference stage (%s, scipy-openblas, 64 threads, python 3.12.3) "
+                      "from the two sealed datasets, and no workstation re-computation exists "
+                      "for this row. comparator.replay_backend names only the backend class "
+                      "(numpy:cpu:float32), so the fp32 GEMM accumulation order is a per-host "
+                      "term measured between 1.8e-10 and 3.8e-9 nats on the five rows of this "
+                      "family that were replayed on both hosts -- five orders below anything "
+                      "the panel can resolve, and stated here so nobody mistakes the ninth "
+                      "decimal for a signal."
+                      % (c["comparator"]["replay_env"]["cpu_model"]))
+                     if cand.get("pod_replay") else
+                     ("REPLAY HOST. This value was computed on the maintainer's workstation "
+                      "(Intel Xeon X5570, SSE4.2 OpenBLAS kernels, python 3.14.4, torch "
+                      "2.11.0+cpu) from the two sealed datasets; %s. comparator.replay_backend "
+                      "names only the backend class (numpy:cpu:float32), so the fp32 GEMM "
+                      "accumulation order is a per-host term below 1e-8 nats on this panel "
+                      "(1.8e-10 to 3.8e-9 in magnitude across the five rows that have a "
+                      "pod-side receipt) -- five orders below "
+                      "anything the panel can resolve, and stated here so nobody mistakes the "
+                      "ninth decimal for a signal."
+                      % ("the pod's own comparison of the same two datasets on its host CPU "
+                         "gives %r, a difference of %.3e nats at identical top-1"
+                         % (pod["metric"]["value"], host_delta) if pod is not None else
+                         "no pod-side comparison exists for this candidate (the pod refused "
+                         "HEAD-1b before the own-head rule existed)"))),
+                _g53_class_disclosure(c, cand["name"], derived_cls, decode_method, compare_pin,
+                                      mismatch_note=cand.get("class_mismatch_note")),
                 disc("record_note", "info",
                      "The sealed dataset's scope block spells the same allocation as this "
                      "artifact's scope in the earlier two-rows-per-class form; the registry "
@@ -5838,10 +6379,12 @@ def build_measurements_glm53(artifacts_map):
                      "describing the same bytes." % art["scope_digest"][:24])],
             logits_dtype=logits_dtype_of(c), **est))
         rows[-1]["harness"] = _g53_harness(
-            pin_compare=G53_PIN_COMPARE,
+            pin_compare=compare_pin,
             capture_pins={"reference": (G53_PIN_ROOT_CAPTURE, root_runtime),
                           "candidate": (cand["pin"], cand["runtime"])},
-            note=G53_HARNESS_SPAN_NOTE % "dd0f4f57, %s, %s" % (cand["pin"][:8], G53_PIN_COMPARE[:8]))
+            compare_tool_versions=(G53_POD_COMPARE_TOOL_VERSIONS if cand.get("pod_replay")
+                                   else None),
+            note=G53_HARNESS_SPAN_NOTE % "dd0f4f57, %s, %s" % (cand["pin"][:8], compare_pin[:8]))
     return rows
 
 
@@ -6326,6 +6869,820 @@ def build_measurements_glm53_hf(artifacts_map):
     return rows
 
 
+# ===========================================================================
+# 10. GLM-5.2, same lane, its OWN root (registry slug `glm-5.2`).
+#
+# A NEW FAMILY, not an extension of the GLM-5.3 one. The panel is literally the
+# same object -- panel--glm53.malaiwah.corpus5x5-v1, same token ids, same
+# suite_token_hash_sha256, and the 5.2 captures bind the identical tokenizer.json
+# and tokenizer_config.json by digest -- so the panel record is SHARED and its
+# model_scope grows. Everything downstream of the panel is new: these rows are
+# scored against a fresh BF16 capture of zai-org/GLM-5.2, which is a DIFFERENT
+# teacher, so the reference record is new and the comparability key is new.
+#
+# NOT AN UPGRADE, and the receipts say how far from it. The two roots were
+# compared against each other on this very panel, both directions:
+# KL(5.2 root || 5.3 root) = 0.1941 nats and KL(5.3 root || 5.2 root) = 0.1960,
+# top-1 agreement 0.8767. That is two orders of magnitude above the differences
+# between the quantization rows being ranked inside either family, which is the
+# quantitative reason a 5.2 root does not "upgrade" a row measured against the
+# 5.3 root (or against brandonmusic's Flash teacher logits): it is not a better
+# measurement of the same thing, it is a measurement of a different thing.
+#
+# The two lineage receipts are cited as EVIDENCE and are deliberately NOT rows.
+# See G52_LINEAGE_NOTE.
+#
+# Every number below is READ from a committed receipt in
+# registry/protocol/glm-5.2/ at seed time; nothing is transcribed by hand.
+# ===========================================================================
+G52 = "model--zai-org.glm-5.2"
+G52_BF16 = "artifact--zai-org.glm-5.2-bf16"
+G52_FP8 = "artifact--zai-org.glm-5.2-fp8"
+G52_NVFP4_NVIDIA = "artifact--nvidia.glm-5.2-nvfp4"
+G52_EXL3_BM30 = "artifact--brandonmusic.glm-5.2-exl3-tr3-3.0bpw"
+R_G52_HF = "reference--malaiwah.glm-5.2-bf16-hf.corpus5x5-v1"
+
+G52_PROTOCOL = "protocol/glm-5.2/"
+G52_GH = ("https://github.com/malaiwah/quant-fidelity-suite/blob/main/registry/"
+          "protocol/glm-5.2/")
+G52_ROOT_REV = "cf457fa734ab149ffef225f80893eb38c6ff5cdc"
+G52_FP8_REV = "f33c6dc501ee5a2c7e35155653b1b1abbc320951"
+G52_NVFP4_REV = "53e0691e21895a3863a606dfd12910c69eba94ab"
+G52_BM30_REV = "f79c9167690ca705e877ae4dc55a841d1aae1247"
+G52_ROOT_DS = "https://huggingface.co/datasets/malaiwah/glm52-fidelity-root-v1"
+G52_ROOT_DS_REV = "5977559307ee9fb7d6478e81a875faa10ffee9b8"
+G52_FP8_DS = "https://huggingface.co/datasets/malaiwah/glm52-fidelity-fp8-v1"
+G52_FP8_DS_REV = "cd09d64a60923a857eba857eb086573abe883ab8"
+G52_NVFP4_DS = "https://huggingface.co/datasets/malaiwah/glm52-fidelity-nvfp4-nvidia-v1"
+G52_NVFP4_DS_REV = "042a71bc2df002edcf69c31026193cd3f64f0a60"
+G52_BM30_DS = ("https://huggingface.co/datasets/malaiwah/"
+               "glm52-fidelity-exl3-tr3-3.0bpw-brandonmusic-v1")
+G52_BM30_DS_REV = "e4345aa35c1afe5f3ff23aacd7ed35c87d5b0f66"
+
+# The commits whose bytes ran, found exactly as the GLM-5.3 pins were: each
+# sealed dataset's runtime/capture-runtime.json records the sha256 of
+# hf_capture.py, layer_outer.py and panel.py, and one commit's tree holds all
+# three (`git show <pin>:<path> | sha256sum`; _g53_harness re-verifies at seed
+# time). Every 5.2 run captured AND compared on its own pod, so one commit is
+# both pins.
+G52_PIN_ROOT = "2026710465b74de4dc8d28d9c38df5fa175d5e29"
+G52_PIN_FP8 = "a2d7ae2cca7c069530ce3fe7b4a0541e392957fe"
+G52_PIN_NVFP4 = "a2d7ae2cca7c069530ce3fe7b4a0541e392957fe"
+G52_PIN_BM30 = "a2d7ae2cca7c069530ce3fe7b4a0541e392957fe"
+
+
+def _g52_json(name):
+    return _g53_json(name, G52_PROTOCOL)
+
+
+def _g52_sha(name):
+    return _g53_sha(name, G52_PROTOCOL)
+
+
+def _g52_dataset(name, **kw):
+    return _g53_dataset(name, protocol=G52_PROTOCOL, **kw)
+
+
+def _g52_comparison(name, **kw):
+    return _g53_comparison(name, protocol=G52_PROTOCOL, **kw)
+
+
+G52_ROOT_DESC = _g52_dataset("dataset.glm-5.2-bf16-root.json", want_role="root",
+                             want_repository="malaiwah/glm52-fidelity-root-v1")
+G52_ROOT_REPEAT_DESC = _g52_dataset("dataset.glm-5.2-bf16-root-repeat.json", want_role="root",
+                                    want_repository="malaiwah/glm52-fidelity-root-v1")
+G52_FP8_DESC = _g52_dataset("dataset.glm-5.2-fp8-dequantized.json", want_role="quant",
+                            want_repository="malaiwah/glm52-fidelity-fp8-v1")
+G52_NVFP4_DESC = _g52_dataset("dataset.glm-5.2-nvfp4-nvidia.json", want_role="quant",
+                              want_repository="malaiwah/glm52-fidelity-nvfp4-nvidia-v1")
+G52_BM30_DESC = _g52_dataset("dataset.glm-5.2-exl3-tr3-3.0bpw-brandonmusic.json",
+                             want_role="quant",
+                             want_repository="malaiwah/glm52-fidelity-exl3-tr3-3.0bpw-"
+                                             "brandonmusic-v1")
+G52_ROOT_DS_SHA = G52_ROOT_DESC["dataset_sha256"]
+G52_ROOT_CAPTURE_SHA = G52_ROOT_DESC["capture"]["capture_content_digest"]
+G52_HEAD_SHA = G52_ROOT_DESC["head"]["tensor_content_sha256"]
+G52_STACK_FINGERPRINT_SHA = G52_ROOT_DESC["runtime"]["stack_fingerprint_sha256"]
+if G52_ROOT_REPEAT_DESC["capture"]["capture_content_digest"] != G52_ROOT_CAPTURE_SHA:
+    raise SystemExit("seed_registry: the two GLM-5.2 root captures differ")
+if G52_ROOT_DESC["weights"]["revision"] != G52_ROOT_REV:
+    raise SystemExit("seed_registry: the GLM-5.2 root capture is not %s" % G52_ROOT_REV[:12])
+# The panel is the 5.3 family's object by CONTENT, not by name only.
+if G52_ROOT_DESC["panel"]["suite_token_hash_sha256"] != G53_PANEL_TOKEN_SHA \
+        or G52_ROOT_DESC["panel"]["panel_receipt_sha256"] != G53_PANEL_RECEIPT_SHA:
+    raise SystemExit("seed_registry: the GLM-5.2 captures did not run on the corpus5x5 panel")
+for _desc, _rev in ((G52_FP8_DESC, G52_FP8_REV), (G52_NVFP4_DESC, G52_NVFP4_REV),
+                    (G52_BM30_DESC, G52_BM30_REV)):
+    if _desc["weights"]["revision"] != _rev:
+        raise SystemExit("seed_registry: a GLM-5.2 candidate captured an unpinned revision")
+    if _desc["runtime"]["stack_fingerprint_sha256"] != G52_STACK_FINGERPRINT_SHA:
+        raise SystemExit("seed_registry: a GLM-5.2 candidate ran on a different stack")
+    if _desc["head"]["tensor_content_sha256"] != G52_HEAD_SHA:
+        raise SystemExit("seed_registry: a GLM-5.2 candidate head differs from the root's")
+    if _desc["panel"]["suite_token_hash_sha256"] != G53_PANEL_TOKEN_SHA:
+        raise SystemExit("seed_registry: a GLM-5.2 candidate ran on another panel")
+# The 5.2 root and the 5.3 root are DIFFERENT weights on the same architecture:
+# same capture engine, same lane fingerprint, different capture content.
+if G52_ROOT_CAPTURE_SHA == G53_ROOT_CAPTURE_SHA or G52_HEAD_SHA == G53_HEAD_SHA:
+    raise SystemExit("seed_registry: the GLM-5.2 root capture is not distinct from the GLM-5.3 one")
+if G52_STACK_FINGERPRINT_SHA != G53_STACK_FINGERPRINT_SHA:
+    raise SystemExit("seed_registry: the GLM-5.2 captures ran on a different stack than GLM-5.3's; "
+                     "the rows claim one lane")
+G52_ROOT_SCOPE = _g53_dataset_scope(G52_ROOT_DESC)
+G52_FP8_SCOPE = scope_from_evidence("engines/scopes/scope--glm52-fp8.json")
+G52_NVFP4_SCOPE = scope_from_evidence("engines/scopes/scope--glm52-nvfp4-nvidia.json")
+G52_BM30_SCOPE = scope_from_evidence("engines/scopes/scope--glm52-exl3-tr3-3.0bpw-brandonmusic.json")
+G52_BM30_PROVENANCE = ("engines/tools/layer-outer-evidence/"
+                       "glm52-exl3-tr3-3.0bpw-brandonmusic-nonrouted-provenance.json")
+
+# The two ROOT-vs-ROOT comparisons. Read here so the numbers in the notes are
+# the receipts' and the digests are the files'.
+G52_LINEAGE = "lineage/comparison.glm52-root-vs-glm53-root.corpus5x5-v1.json"
+G53_LINEAGE = "lineage/comparison.glm53-root-vs-glm52-root.corpus5x5-v1.json"
+G52_LINEAGE_FWD = _g52_json(G52_LINEAGE)
+G52_LINEAGE_REV = _g52_json(G53_LINEAGE)
+for _lin, _ref, _cand in ((G52_LINEAGE_FWD, G52_ROOT_DESC["dataset_sha256"],
+                           G53_ROOT_DESC["dataset_sha256"]),
+                          (G52_LINEAGE_REV, G53_ROOT_DESC["dataset_sha256"],
+                           G52_ROOT_DESC["dataset_sha256"])):
+    if _lin["reference"]["dataset_sha256"] != _ref or _lin["candidate"]["dataset_sha256"] != _cand:
+        raise SystemExit("seed_registry: a GLM-5.2 lineage receipt does not compare the two roots")
+    if _lin["candidate"]["role"] != "root" or _lin["reference"]["role"] != "root":
+        raise SystemExit("seed_registry: a GLM-5.2 lineage receipt has a non-root side")
+    if _lin["top1_agreement"] != G52_LINEAGE_FWD["top1_agreement"]:
+        raise SystemExit("seed_registry: the two lineage directions disagree on top-1 agreement")
+
+# WHY THE LINEAGE RECEIPTS ARE NOT ROWS.
+#
+# A measurement row in this registry is the fidelity of ONE artifact of ONE
+# model against that model's reference. These two receipts are root-vs-root:
+# the candidate side is another model's unquantized base. Filing them as rows
+# would break in three independent ways, and only the first is cosmetic:
+#
+#  1. REF-003 forces model_ref = artifacts[artifact_ref].model_ref, so the
+#     forward direction would be a `glm-5.3` row whose reference is the 5.2
+#     root -- legal only with a cross_model_reference disclosure ON THE
+#     REFERENCE, which would then sit on a record that also backs three
+#     ordinary 5.2 quantization rows and weaken what it says about them.
+#  2. The receipts' own comparability keys are the FAMILY keys
+#     (cmp--e493aa0720acdd18 forward, cmp--3b19974d0dc2c657 reverse), so as
+#     rows they would land in exactly the groups the quantization rows rank in,
+#     and 0.194 nats of MODEL difference would be tabled beside 0.025 nats of
+#     FP8 quantization error as if the two were commensurable. BIAS-005 labels
+#     a floor row by `artifact_ref == the reference's artifact_ref`; that test
+#     does not fire here, so the renderer would rank them.
+#  3. Giving them a key of their own would mean minting a panel or reference
+#     record that no receipt names, i.e. inventing an identity to hold a number.
+#
+# So they are cited: by sha256, on the reference record and on every 5.2 row,
+# as the measured distance between the two teachers. That is the form this
+# registry already uses for evidence that is not a quantization measurement.
+G52_LINEAGE_NOTE = (
+    "NOT AN UPGRADE, AND HERE IS THE DISTANCE. This row is measured against the GLM-5.2 "
+    "same-lane root (%s), which is a DIFFERENT TEACHER from the GLM-5.3 root and from "
+    "brandonmusic's Flash teacher logits. A 5.2 same-lane root does not upgrade, re-rank or "
+    "supersede any row measured against another teacher, and no row from this group may be "
+    "subtracted from or tabled beside one from another (BIAS-006). The two roots were "
+    "compared to each other on THIS panel, both directions, by the same comparator: "
+    "KL(5.2 root || 5.3 root) = %.17g nats and KL(5.3 root || 5.2 root) = %.17g nats, top-1 "
+    "agreement %.17g. Those root-vs-root comparisons are cited as evidence and are NOT rows "
+    "in this registry: they measure a model difference, not a quantization, and putting them "
+    "in a quantization group would rank 0.19 nats of model change beside hundredths of a nat "
+    "of codec error.")
+G52_LINEAGE_SOURCES = [
+    src("github_file", G52_GH + G52_LINEAGE, _g52_sha(G52_LINEAGE),
+        "malaiwah.fidelity-comparison-receipt.v1, KL(5.2 root || 5.3 root) on corpus5x5-v1, "
+        "HEAD-1d own heads on both sides (receipt_sha256 %s...)"
+        % G52_LINEAGE_FWD["receipt_sha256"][:8]),
+    src("github_file", G52_GH + G53_LINEAGE, _g52_sha(G53_LINEAGE),
+        "the reverse direction (receipt_sha256 %s...); KL is not symmetric and both are "
+        "published rather than one being quoted as 'the' distance"
+        % G52_LINEAGE_REV["receipt_sha256"][:8]),
+]
+
+MODELS += [
+    {"schema_version": V, "id": G52, "name": "GLM-5.2", "family": "glm-5.2",
+     "publisher": ZAI("model-publisher"),
+     "huggingface": hf("zai-org/GLM-5.2", G52_ROOT_REV, "hf_api"),
+     "architecture": {
+         "kind": "moe-decoder", "hidden_size": 6144, "num_layers": 78, "vocab_size": 154880,
+         "has_mtp": True, "total_parameters": None, "active_parameters": None,
+         "note": "GlmMoeDsaForCausalLM. config.json at the pinned revision (sha256 "
+                 "185f93ee..., 3,732 bytes) has canonical JSON IDENTICAL to GLM-5.3's "
+                 "(ca8f2f47...) apart from the loader-only key transformers_version -- the "
+                 "root capture's own tokenizer_config_loader_keys_ignored disclosure is the "
+                 "evidence -- so the architecture is the same shape the GLM-5.3 record "
+                 "describes: 78 decoder layers (3 dense + 75 sparse), 256 routed experts at "
+                 "top-8 plus 1 shared, hidden 6144, MLA with a DSA indexer, and one MTP block "
+                 "at layer index 78 whose 791 tensors transformers never builds (the capture "
+                 "matched the pinned unused-name allowlist 969cee60... exactly). Parameter "
+                 "counts are not asserted: the bf16 checkpoint is 1,506,667,387,408 bytes over "
+                 "282 shards and no receipt here counts parameters. The WEIGHTS are not the "
+                 "5.3 release's: the two roots' captures differ and are 0.19 nats apart on the "
+                 "corpus5x5 panel."},
+     "tokenizer": {"id": "glm-5.3", "repository": "zai-org/GLM-5.2", "revision": G52_ROOT_REV,
+                   "vocab_size": 154880},
+     "canonical_weights": {"artifact_ref": G52_BF16, "precision": "bf16"},
+     "license": "mit",
+     "cross_refs": lair(),
+     "sources": [src("model_card", "https://huggingface.co/zai-org/GLM-5.2", None,
+                     "revision %s; 282 shards; config.json sha256 185f93ee..., weight index "
+                     "sha256 5fd47a92...; every shard's sha256 is in the root dataset's "
+                     "runtime/capture-runtime.json" % G52_ROOT_REV[:12]),
+                 src("github_file", G52_GH + "dataset.glm-5.2-bf16-root.json",
+                     _g52_sha("dataset.glm-5.2-bf16-root.json"),
+                     "the sealed root dataset descriptor, byte-verbatim: it carries the "
+                     "tokenizer file digests, the config digest and the unused-tensor "
+                     "allowlist this record quotes")],
+     "disclosures": [
+         disc("record_note", "info",
+              "TOKENIZER IDENTITY. tokenizer.id is `glm-5.3` because the tokenizer IS "
+              "GLM-5.3's: tokenizer.json (19e77364..., 20,217,442 bytes) and "
+              "tokenizer_config.json (98b12715...) are byte-identical to the files the "
+              "corpus5x5 panel was built with, which is what lets this model share that panel "
+              "record (REF-007). Only LICENSE and chat_template.jinja differ, and the root "
+              "capture admitted both as per-model provenance rather than panel identity."),
+         disc("record_note", "info",
+              "SAME TENSOR INVENTORY, DIFFERENT WEIGHTS. The 5.2 and 5.3 BF16 releases have "
+              "byte-identical weight indexes (model.safetensors.index.json sha256 5fd47a92... "
+              "on both) and the identical 1,506,667,387,408-byte total, so the shard layout "
+              "and tensor names are the same; the VALUES are not, and the registry never "
+              "treats one as evidence about the other."),
+         disc("record_note", "info",
+              "The root, every candidate capture, the reference and every measurement in this "
+              "family have the same author. No third party has reproduced any of these rows; "
+              "the sealed datasets are public precisely so that one can.")]},
+]
+
+# The panel record is SHARED with GLM-5.3 -- same object, same token ids, same
+# digest -- so its model_scope grows rather than a second panel being minted for
+# the same tokens (PANEL-004 exists to stop exactly that).
+for _panel in PANELS:
+    if _panel["id"] == P_G53_C55:
+        _panel["model_scope"] = [G53, G52]
+        _panel["disclosures"].append(disc(
+            "record_note", "info",
+            "TWO MODELS, ONE PANEL. GLM-5.2 captures read this panel's token ids byte for "
+            "byte (suite_token_hash_sha256 %s..., panel receipt %s...) and bind the identical "
+            "tokenizer.json, so model_scope carries both GLM-5.3 and GLM-5.2. Sharing the "
+            "panel does NOT make their numbers comparable: each family is scored against its "
+            "own root, so the two live in different comparability groups."
+            % (G53_PANEL_TOKEN_SHA[:12], G53_PANEL_RECEIPT_SHA[:8])))
+        break
+else:
+    raise SystemExit("seed_registry: the corpus5x5 panel record is missing; GLM-5.2 needs it")
+
+ARTIFACTS += [
+    artifact(G52_BF16, G52, "GLM-5.2 BF16 (the official full-precision release)", "base",
+             hf("zai-org/GLM-5.2", G52_ROOT_REV, "hf_api"),
+             "safetensors", "BF16", 1506667387408,
+             codec("bf16", None),
+             G52_ROOT_SCOPE,
+             ZAI("model-publisher"),
+             [src("model_card", "https://huggingface.co/zai-org/GLM-5.2", None,
+                  "revision %s; 282 shards; config.json sha256 185f93ee..., index sha256 "
+                  "5fd47a92..., every shard's sha256 in the root dataset's "
+                  "runtime/capture-runtime.json" % G52_ROOT_REV[:12]),
+              src("dataset_card", G52_ROOT_DS, None,
+                  "the reference capture of these weights at revision %s: dataset_sha256 "
+                  "%s..., capture_content_digest %s..."
+                  % (G52_ROOT_DS_REV[:12], G52_ROOT_DS_SHA[:8], G52_ROOT_CAPTURE_SHA[:8]))],
+             [disc("record_note", "info",
+                   "Scope is the sealed root dataset's own scope block: every tensor bf16, "
+                   "lm_head [154880, 6144] bf16 with tensor content sha256 %s... The MTP block "
+                   "(layer index 78, 791 tensors) is present in the checkpoint and "
+                   "intentionally unused; its complete name set matched the pinned allowlist "
+                   "969cee60... exactly." % G52_HEAD_SHA[:12])],
+             weights_extra={"size_basis": "repo_weight_files", "shard_count": 282,
+                            "config_sha256": G52_ROOT_DESC["weights"]["config_sha256"],
+                            "index_sha256": "5fd47a926aefce0f2c917f42523e5e0f3c87e23e389e767c3681536a62f5cf5e"},
+             availability={"status": "public", "uri": "https://huggingface.co/zai-org/GLM-5.2"},
+             cross_refs=lair(), seal={"sealed": False}),
+    artifact(G52_FP8, G52, "GLM-5.2 FP8 (the official block-scaled release)", "quant",
+             hf("zai-org/GLM-5.2-FP8", G52_FP8_REV, "hf_api"),
+             "safetensors", "FP8", 755632050320,
+             codec("fp8_e4m3", 8.0, 8.0, tool="unknown (publisher's own pipeline)"),
+             G52_FP8_SCOPE,
+             ZAI("quantizer"),
+             [src("model_card", "https://huggingface.co/zai-org/GLM-5.2-FP8", None,
+                  "revision %s; 141 shards; config.json sha256 %s...; index sha256 e0fe7f28..."
+                  % (G52_FP8_REV[:12], G52_FP8_DESC["weights"]["config_sha256"][:8])),
+              src("github_file", "https://github.com/malaiwah/quant-fidelity-suite/blob/main/"
+                                 "engines/scopes/scope--glm52-fp8.json",
+                  _receipt_sha("../engines/scopes/scope--glm52-fp8.json"),
+                  "scope authored from the checkpoint's own index bytes by "
+                  "engines/tools/fp8_scope.py: a tensor is fp8_e4m3 with a 128x128 block scale "
+                  "exactly when it has a weight_scale_inv sibling")],
+             [disc("record_note", "info",
+                   "Scope read from the weight index, not the README: every 2-D projection "
+                   "with a weight_scale_inv sibling is fp8_e4m3 (attention, the dense MLPs, "
+                   "all 57,600 routed expert matrices, the shared experts and 778 of the MTP "
+                   "block's tensors), while embed_tokens, lm_head, the norms and the router "
+                   "stay bf16. The head is bf16 and content-identical to the BF16 release's "
+                   "(%s...)." % G52_HEAD_SHA[:12]),
+              disc("estimator_scope_narrower_than_artifact", "caveat",
+                   "The checkpoint declares activation_scheme: dynamic (the comparison "
+                   "receipt's activation_quantization_not_captured disclosure names it), so a "
+                   "served W8A8 deployment also quantizes activations per token. Every "
+                   "measurement of this artifact here is weights-only (dequantize-and-run) and "
+                   "is expected to understate that deployment; the activation term is not "
+                   "measured.", True)],
+             weights_extra={"size_basis": "repo_weight_files", "shard_count": 141,
+                            "config_sha256": G52_FP8_DESC["weights"]["config_sha256"],
+                            "index_sha256": "e0fe7f28c1f853d4824e4d796374e3dacf1fe470988773952c79b063768134bf"},
+             derived_from_artifact_ref=None,
+             availability={"status": "public", "uri": "https://huggingface.co/zai-org/GLM-5.2-FP8"},
+             cross_refs=lair(), seal={"sealed": False}),
+    artifact(G52_NVFP4_NVIDIA, G52,
+             "NVIDIA GLM-5.2-NVFP4 (routed experts NVFP4 e2m1 group 16, rest native)", "quant",
+             hf("nvidia/GLM-5.2-NVFP4", G52_NVFP4_REV, "hf_api"),
+             "safetensors", "NVFP4", 464823042096,
+             codec("nvfp4", 4.0, None, tool="nvidia-modelopt",
+                   version="modelopt 0.46.0.dev65+g977d34dc3", group_size=16),
+             G52_NVFP4_SCOPE,
+             attr("NVIDIA", "quantizer", handle="nvidia", url="https://huggingface.co/nvidia"),
+             [src("model_card", "https://huggingface.co/nvidia/GLM-5.2-NVFP4", None,
+                  "revision %s; 47 shards; config.json sha256 %s... declares "
+                  "quantization_config quant_method modelopt / quant_algo NVFP4, "
+                  "config_groups.group_0.weights num_bits 4 group_size 16, producer modelopt "
+                  "0.46.0.dev65+g977d34dc3; index sha256 2aa8397b..."
+                  % (G52_NVFP4_REV[:12], G52_NVFP4_DESC["weights"]["config_sha256"][:8])),
+              src("github_file", "https://github.com/malaiwah/quant-fidelity-suite/blob/main/"
+                                 "engines/scopes/scope--glm52-nvfp4-nvidia.json",
+                  _receipt_sha("../engines/scopes/scope--glm52-nvfp4-nvidia.json"),
+                  "scope authored from the index bytes and a ranged read of every shard header "
+                  "by engines/tools/nvfp4_scope.py")],
+             [disc("record_note", "info", G53_NVFP4_DECODE_NOTE
+                   % ("The router reads native:mixed (75 bf16 gate weights beside 75 fp32 "
+                      "e_score_correction_bias tensors) and the MTP block is native "
+                      "throughout.")),
+              disc("native_head_retained", "info",
+                   "lm_head.weight is a plain bf16 tensor, content-identical to the BF16 "
+                   "release's head (%s...)." % G52_HEAD_SHA[:12]),
+              G53_NVFP4_ACT_DISC,
+              disc("third_party_artifact_self_measured", "info",
+                   "NVIDIA's weights, our measurement."),
+              disc("revision_unpinned", "caveat",
+                   "The release declares no source revision for the BF16 weights it converted, "
+                   "so derived_from_artifact_ref is left empty rather than guessed; the "
+                   "bitwise-identical lm_head is the link to zai-org/GLM-5.2 @ %s, not a "
+                   "digest of the whole tree." % G52_ROOT_REV[:12])],
+             weights_extra={"size_basis": "repo_weight_files", "shard_count": 47,
+                            "config_sha256": G52_NVFP4_DESC["weights"]["config_sha256"],
+                            "index_sha256": "2aa8397b501d9f6a232d153f328feb912f813c389061aac4cf72b04914fa5b74"},
+             derived_from_artifact_ref=None,
+             availability={"status": "public",
+                           "uri": "https://huggingface.co/nvidia/GLM-5.2-NVFP4"},
+             cross_refs=lair(), seal={"sealed": False}),
+    artifact(G52_EXL3_BM30, G52,
+             "brandonmusic GLM-5.2-EXL3-TR3-3.0bpw (routed experts trellis K3, TP4 "
+             "rank-sharded, rest native)", "quant",
+             hf("brandonmusic/GLM-5.2-EXL3-TR3-3.0bpw", G52_BM30_REV, "hf_api"),
+             "exl3", "3.0bpw", 316420224008,
+             codec("exl3-mcg", 3.0, None, tool="exllamav3",
+                   calibration={"used": False, "corpus": None, "tokens": None,
+                                "overlaps_any_panel": False, "overlapping_panel_refs": []}),
+             G52_BM30_SCOPE,
+             BRANDON("quantizer"),
+             [src("model_card", "https://huggingface.co/brandonmusic/GLM-5.2-EXL3-TR3-3.0bpw",
+                  None,
+                  "revision %s; 81 shards; config.json sha256 %s... declares the artifact in "
+                  "hybrid_tr3_tail (format exl3-trellis, codebook mcg, tp 4, bits_avg 3.0); "
+                  "index sha256 346227a4..."
+                  % (G52_BM30_REV[:12], G52_BM30_DESC["weights"]["config_sha256"][:8])),
+              src("github_file", "https://github.com/malaiwah/quant-fidelity-suite/blob/main/"
+                                 "engines/scopes/scope--glm52-exl3-tr3-3.0bpw-brandonmusic.json",
+                  _receipt_sha("../engines/scopes/"
+                               "scope--glm52-exl3-tr3-3.0bpw-brandonmusic.json"),
+                  "scope authored from the index bytes and shard headers by "
+                  "engines/tools/exl3_scope.py; the codebook (mcg) is read from the payload "
+                  "objects each module carries")],
+             [disc("tp_sliced_artifact", "info",
+                   "Read from bytes: the 57,600 routed-expert matrices are stored as FOUR "
+                   "tensor-parallel rank shards each (230,400 trellis payload groups, all at "
+                   "K=3, mcg codebook, 58,368 mcg objects), and the capture composed them into "
+                   "whole weights in ascending rank order along the one axis the shapes admit. "
+                   "The MTP block's 768 expert projections are trellis-quantized too; "
+                   "everything else -- attention, the dense MLPs, the shared experts, "
+                   "embed_tokens, lm_head, the norms and the router -- is native."),
+              disc("record_note", "info",
+                   "NON-ROUTED PATH IS THE BF16 RELEASE'S, PROVEN. Unlike drowzeys' GLM-5.3 "
+                   "release, whose 16-bit attention/MLP tensors turned out to be the FP8 "
+                   "release's dequantized values, this artifact's are the BF16 release's: byte "
+                   "evidence over attn.qkv, attn.o, mlp.{gate,up,down} and moe.shared_expert "
+                   "(%s, verdict stored_16bit_of_bf16_root) shows every sampled tensor bitwise "
+                   "equal to zai-org/GLM-5.2 @ %s cast to the stored dtype and NOT equal to "
+                   "zai-org/GLM-5.2-FP8 @ %s dequantized. So this row's error is the codec on "
+                   "the routed experts, not a mixture with somebody else's 8-bit path."
+                   % (G52_BM30_PROVENANCE, G52_ROOT_REV[:8], G52_FP8_REV[:8]),
+                   provenance=True,
+                   sources=[src("github_file", G53_GH_BLOB + "main/" + G52_BM30_PROVENANCE,
+                                _receipt_sha("../" + G52_BM30_PROVENANCE),
+                                "fidelity.nonrouted-provenance.v1 over six tensor classes")]),
+              disc("declared_scheme_mismatch", "caveat",
+                   "config.json's quantization_config does not describe these bytes (the "
+                   "sealed capture records it as quantization_config_mislabels_artifact); the "
+                   "registry describes the bytes: trellis payload groups with the mcg codebook "
+                   "at K=3, declared bits_avg 3.0 in hybrid_tr3_tail."),
+              disc("native_head_retained", "info",
+                   "lm_head.weight is a plain bf16 tensor, content-identical to the BF16 "
+                   "release's head (%s...)." % G52_HEAD_SHA[:12]),
+              disc("third_party_artifact_self_measured", "info",
+                   "brandonmusic's weights, our measurement.")],
+             weights_extra={"size_basis": "repo_weight_files", "shard_count": 81,
+                            "config_sha256": G52_BM30_DESC["weights"]["config_sha256"],
+                            "index_sha256": "346227a4ea44b6063017739ee38a830319dc10305ccf714734095e27b28064c2"},
+             derived_from_artifact_ref=G52_BF16,
+             availability={"status": "public",
+                           "uri": "https://huggingface.co/brandonmusic/GLM-5.2-EXL3-TR3-3.0bpw"},
+             cross_refs=lair(), seal={"sealed": False}),
+]
+
+REFERENCES += [
+    {"schema_version": V, "id": R_G52_HF,
+     "name": "malaiwah GLM-5.2 BF16 hidden-state capture, hf-transformers layer-outer "
+             "streaming lane, corpus5x5-v1 panel",
+     "artifact_ref": G52_BF16, "panel_ref": P_G53_C55, "reference_kind": "native_bf16",
+     "capture": {"stack": "transformers", "stack_version": "5.16.1",
+                 "pipeline_ref": PL_FIDDS_G53,
+                 "compute_dtype": "bf16", "logits_dtype": "fp32", "kv_cache_dtype": "bf16",
+                 "head_source": "own_head", "head_sha256": G52_HEAD_SHA,
+                 "batch_invariant": None,
+                 "capture_receipt_sha256": G52_ROOT_DS_SHA},
+     "author": MAL("measurer"), "logits_available": True,
+     "self_consistency": {
+         "floor_measurement_ref": "measurement--glm-5.2.bf16-selfcompare-floor.corpus5x5-v1",
+         "note": "Reference and candidates are captured by the SAME engine on the SAME lane "
+                 "and compared offline in fp64, so there is no cross-stack floor term to "
+                 "subtract. Measured, not assumed: two cold captures of these weights in two "
+                 "fresh processes on one H200 agree bitwise (capture_content_digest %s...), "
+                 "and the pod's qualify_root compared them with --force-compute over all "
+                 "51,175 x 154,880 logits and got exactly 0.0 nats at top-1 agreement 1.0."
+                 % G52_ROOT_CAPTURE_SHA[:8]},
+     "sources": [src("dataset_card", G52_ROOT_DS, None,
+                     "malaiwah.fidelity-dataset.v1 at revision %s; dataset_sha256 %s..., "
+                     "capture_content_digest %s..., model revision %s..."
+                     % (G52_ROOT_DS_REV[:12], G52_ROOT_DS_SHA[:8], G52_ROOT_CAPTURE_SHA[:8],
+                        G52_ROOT_REV[:8])),
+                 src("github_file", G52_GH + "dataset.glm-5.2-bf16-root.json",
+                     _g52_sha("dataset.glm-5.2-bf16-root.json"),
+                     "the sealed dataset descriptor, byte-verbatim"),
+                 src("github_file", G52_GH + "dataset.glm-5.2-bf16-root-repeat.json",
+                     _g52_sha("dataset.glm-5.2-bf16-root-repeat.json"),
+                     "the repeat capture's sealed descriptor (root-cold-2)")]
+                + G52_LINEAGE_SOURCES,
+     "disclosures": [
+         disc("record_note", "info",
+              "NEW GROUP, NOT AN UPGRADE. This is a different TEACHER, not a better capture of "
+              "an existing one: it is a fresh same-lane capture of zai-org/GLM-5.2, while the "
+              "GLM-5.3 rows on this same panel are scored against "
+              "reference--malaiwah.glm-5.3-bf16-hf.corpus5x5-v1. The comparability key binds "
+              "the reference, so this record forms a separate group; nothing here upgrades, "
+              "re-ranks or supersedes a row measured against another teacher, and no floor "
+              "crosses between them (BIAS-006). Measured distance between the two teachers on "
+              "this panel: KL(5.2 root || 5.3 root) = %.17g nats, the reverse %.17g nats, "
+              "top-1 agreement %.17g -- an order of magnitude above every quantization effect "
+              "either group ranks."
+              % (G52_LINEAGE_FWD["metric"]["value"], G52_LINEAGE_REV["metric"]["value"],
+                 G52_LINEAGE_FWD["top1_agreement"])),
+         disc("record_note", "info",
+              "ROOT-VS-ROOT EVIDENCE, NOT ROWS. The two lineage receipts cited in sources are "
+              "root-vs-root comparisons: the candidate side is another model's unquantized "
+              "base. They are evidence about the distance between teachers and are "
+              "deliberately not filed as measurement rows -- their own comparability keys are "
+              "this registry's family keys, so as rows they would be ranked beside "
+              "quantization results of a few hundredths of a nat, which is a category error."),
+         disc("record_note", "info",
+              "OWN HEADS. The capture is hidden-form (after the final RMSNorm, before lm_head) "
+              "and ships the root's own lm_head (%s...); every comparison against it replays "
+              "EACH side through the head its own dataset sealed (HEAD-1d, head_policy "
+              "native_head). All three candidates filed against it carry a head that is "
+              "content-identical to this one, so no head term separates them."
+              % G52_HEAD_SHA[:12]),
+         disc("architecture_subset_loaded", "info",
+              "The checkpoint's MTP block (layer index 78, 791 tensors) is present and "
+              "intentionally unused: GlmMoeDsaForCausalLM builds 78 decoder layers and no "
+              "draft head. The unused set matched the pinned allowlist 969cee60... exactly on "
+              "both captures; every other tensor loaded with 0 missing, 0 unexpected and 0 "
+              "mismatched."),
+         disc("record_note", "info",
+              "LANE IDENTITY. transformers 5.16.1 eager attention, bf16 weights streamed one "
+              "decoder layer at a time (layer-outer / window-inner schedule), torch "
+              "2.11.0+cu130 on one NVIDIA H200 (RunPod), cuda 13.0, default matmul precision "
+              "with no TF32 override. stack_fingerprint_sha256 %s... is identical on this root, "
+              "on every GLM-5.2 candidate capture AND on the whole GLM-5.3 family -- one lane, "
+              "two teachers."
+              % G52_STACK_FINGERPRINT_SHA[:12])]},
+]
+
+
+def build_measurements_glm52(artifacts_map):
+    """The GLM-5.2 rows: a MEASURED 0.0 floor and the three candidates scored against it."""
+    M = lambda *a, **k: measurement(*a, artifacts_map=artifacts_map, **k)
+    est = dict(accumulation="float64", head_policy="native_head",
+               vocab_chunk=8192, two_pass=True, stack_relation="same_stack")
+
+    def logits_dtype_of(receipt):
+        backend = (receipt.get("comparator") or {}).get("replay_backend") or ""
+        parts = backend.split(":")
+        names = {"float32": "fp32", "float64": "fp64", "bfloat16": "bf16", "float16": "fp16"}
+        if len(parts) != 3 or parts[2] not in names:
+            raise SystemExit("seed_registry: cannot derive logits_dtype from "
+                             "comparator.replay_backend %r" % backend)
+        return names[parts[2]]
+
+    def aux_of(c):
+        kl = c["kl"]
+        domains = dict(c["per_domain"] or {})
+        if sorted(domains) != ["code", "encyclopedic", "literary", "multilingual", "scientific"]:
+            raise SystemExit("seed_registry: a GLM-5.2 receipt lacks the five per-domain means")
+        return {"median_kld": kl["median"], "p95_kld": kl["p95"], "p99_kld": kl["p99"],
+                "p999_kld": kl["p99_9"], "max_kld": kl["max"],
+                "context_macro_mean_kld": sum(domains.values()) / len(domains),
+                "strata": domains}
+
+    def notes_of(c):
+        pc = c["per_context"] or []
+        means = [w["mean"] for w in pc]
+        lo = min(pc, key=lambda w: w["mean"])
+        hi = max(pc, key=lambda w: w["mean"])
+        return ("Per-window mean %.17g, population sd %.17g, min %.17g (%s, %s), max %.17g "
+                "(%s, %s) over %d windows; the token mean is the published value. NEW GROUP: "
+                "scored against the GLM-5.2 same-lane root %s, not against the GLM-5.3 root -- "
+                "do not read it beside a GLM-5.3 row on this panel."
+                % (sum(means) / len(means), L.population_stddev(means), lo["mean"],
+                   lo["window_id"], lo["domain"], hi["mean"], hi["window_id"], hi["domain"],
+                   len(pc), R_G52_HF))
+
+    ds_root = src("dataset_card", G52_ROOT_DS, None,
+                  "reference capture at revision %s: dataset_sha256 %s..., "
+                  "capture_content_digest %s..."
+                  % (G52_ROOT_DS_REV[:12], G52_ROOT_DS_SHA[:8], G52_ROOT_CAPTURE_SHA[:8]))
+    root_runtime = {
+        "engines/tools/hf_capture.py": "200ba12ca74fb97531307965cbbaa5c10553a5c26e008e524ea2d8aecb005b95",
+        "engines/tools/layer_outer.py": "5594403e2c47720489b1c72ac497a2853b70c77f29aa360cb539c2af903d5566",
+        "bin/fidelity/panel.py": "0bf78fca76289920e0dc10d58082f42f24f4f2db6e0ecde61daefa4c22de286d",
+    }
+    rows = []
+
+    # -- the floor -----------------------------------------------------------
+    floor_name = "comparison.glm-5.2-bf16-selfcompare-floor.corpus5x5-v1.pod-shared-head.json"
+    floor = _g52_comparison(floor_name, want_kind="reproduction_confirmation",
+                            want_head_policy="shared_reference_head",
+                            reference_ds=G52_ROOT_DESC, candidate_ds=G52_ROOT_REPEAT_DESC)
+    if floor["metric"]["value"] != 0.0 or floor["top1_agreement"] != 1.0 \
+            or not floor["self_compare"]["force_compute_agreed"] \
+            or not floor["self_compare"]["capture_content_digest_equal"] \
+            or not floor["self_compare"]["head_digest_equal"] \
+            or not floor["self_compare"]["weights_identity_equal"]:
+        raise SystemExit("seed_registry: the GLM-5.2 floor receipt is not an exact, "
+                         "force-computed 0.0 over one artifact's two captures")
+    rows.append(M(
+        "measurement--glm-5.2.bf16-selfcompare-floor.corpus5x5-v1",
+        G52, G52_BF16, P_G53_C55, R_G52_HF, PL_FIDDS_G53, 0.0,
+        top1=1.0, scored_positions=51175, contexts=25,
+        runs=2, cold=True, identical=True,
+        evidence_kind="hidden_state_tensor_sha256",
+        evidence_hashes=[G52_ROOT_CAPTURE_SHA],
+        det_note="TWO cold captures of the same bf16 weights, in two fresh processes on one "
+                 "H200, produced the same capture_content_digest %s... Their dataset_sha256 "
+                 "values differ (%s... vs %s...) because a manifest embeds timestamps and a "
+                 "cold-run label, which is exactly why determinism evidence is taken over "
+                 "tensor CONTENT."
+                 % (G52_ROOT_CAPTURE_SHA[:8], G52_ROOT_DS_SHA[:8],
+                    G52_ROOT_REPEAT_DESC["dataset_sha256"][:8]),
+        sources=[ds_root,
+                 src("github_file", G52_GH + floor_name, _g52_sha(floor_name),
+                     "malaiwah.fidelity-comparison-receipt.v1 for the pod's qualify_root "
+                     "--self-compare --force-compute over the two cold root captures "
+                     "(receipt_sha256 %s...); tokenwise-kld digest %s..."
+                     % (floor["receipt_sha256"][:8],
+                        floor["self_compare"]["expected_tokenwise_sha256"][:8])),
+                 src("github_file", G52_GH + "dataset.glm-5.2-bf16-root-repeat.json",
+                     _g52_sha("dataset.glm-5.2-bf16-root-repeat.json"),
+                     "the repeat capture's sealed descriptor (root-cold-2)")],
+        disclosures=[
+            disc("record_note", "info",
+                 "THE FLOOR, MEASURED. `fidelity-dataset compare --self-compare "
+                 "--force-compute` over all 51,175 x 154,880 logits in fp64 returns mean "
+                 "tokenwise KLD exactly 0.0 nats at top-1 agreement 1.0, with every percentile "
+                 "also 0.0, and the forced computation reproduced the hash proof's "
+                 "tokenwise-kld digest %s... byte for byte. Every candidate row on this "
+                 "reference therefore reports an excess over control EQUAL to its raw KLD."
+                 % floor["self_compare"]["expected_tokenwise_sha256"][:8]),
+            disc("record_note", "info",
+                 "HEAD POLICY. The receipt states head_policy `shared_reference_head` "
+                 "(HEAD-1a): it is the pod's qualification self-compare, run before any "
+                 "own-head comparison existed for this family. The row records native_head "
+                 "because on THIS comparison the two are the same arithmetic -- both sides are "
+                 "the same artifact's two captures and the receipt asserts head_digest_equal "
+                 "and weights_identity_equal, so 'each side through its own head' and 'both "
+                 "through the reference head' apply the identical tensor. The GLM-5.3 family "
+                 "measured that equivalence directly: its HEAD-1a and HEAD-1d floor receipts "
+                 "carry the same tokenwise-kld digest. No own-head re-computation of this "
+                 "self-compare exists, and none is asserted."),
+            disc("record_note", "info",
+                 "NEW GROUP, NOT AN UPGRADE: this floor belongs to the GLM-5.2 same-lane "
+                 "reference only. The GLM-5.3 rows on this panel keep their own reference and "
+                 "their own measured 0.0 floor; nothing is subtracted across the two groups "
+                 "(BIAS-006)."),
+            disc("reduced_run_count", "info",
+                 "TWO cold captures, not the campaign's usual five: the evidence is a CONTENT "
+                 "digest rather than a spread over run means, so a third run would restate a "
+                 "bitwise identity rather than tighten an estimate."),
+            disc("architecture_subset_loaded", "info",
+                 "The MTP block's 791 tensors are present and unused; the set matched the "
+                 "pinned allowlist exactly on both captures.")],
+        logits_dtype=logits_dtype_of(floor), **est))
+    rows[-1]["harness"] = _g53_harness(
+        pin_compare=G52_PIN_ROOT,
+        capture_pins={"reference": (G52_PIN_ROOT, root_runtime),
+                      "repeat": (G52_PIN_ROOT, root_runtime)},
+        compare_tool_versions=G53_POD_COMPARE_TOOL_VERSIONS,
+        note=G53_HARNESS_SPAN_NOTE % "%s (both captures and the comparison, one pod)"
+             % G52_PIN_ROOT[:8])
+
+    # -- the candidates ------------------------------------------------------
+    candidates = [
+        dict(mid="measurement--glm-5.2.fp8-dequantized.corpus5x5-v1", art=G52_FP8,
+             desc=G52_FP8_DESC, ds_url=G52_FP8_DS, ds_rev=G52_FP8_DS_REV,
+             name="comparison.glm-5.2-fp8-dequantized.corpus5x5-v1.json",
+             repro="reproduction.glm-5.2-fp8-dequantized.json", pin=G52_PIN_FP8,
+             runtime={"engines/tools/hf_capture.py": "200ba12ca74fb97531307965cbbaa5c10553a5c26e008e524ea2d8aecb005b95",
+                      "engines/tools/layer_outer.py": "7774859c3064b2c7b9271c476adb7882b0b32bf512f4f4ffaf47c9f559b8ecfd",
+                      "bin/fidelity/panel.py": "0bf78fca76289920e0dc10d58082f42f24f4f2db6e0ecde61daefa4c22de286d"},
+             card="https://huggingface.co/zai-org/GLM-5.2-FP8", card_rev=G52_FP8_REV,
+             ds_note=("Published by hand after the controller process died in its publish "
+                      "step, so this run wrote NO publish-root.json and no published-verify "
+                      "receipt: the revision below was confirmed against the Hub and the "
+                      "published bytes were re-verified with `fidelity-dataset describe`, "
+                      "which reproduced this dataset_sha256 and capture_content_digest from "
+                      "the public copy. The hashed anchors this registry holds for the row are "
+                      "the comparison and reproduction receipts, not a publish receipt."),
+             disclosures=[
+                 disc("lossy_capture_codec", "caveat",
+                      "RECONSTRUCTED, NOT EXECUTED. The candidate was captured from a bf16 "
+                      "materialisation of the stored fp8 weights: every fp8_e4m3 tensor is "
+                      "decoded on the host with its 128x128 weight_scale_inv block scale "
+                      "(fp8-block-dequant-to-bf16, accumulated fp32, stored bf16) BEFORE it "
+                      "reaches the loader, so no scale can be silently dropped. This is the "
+                      "dequantize-and-run methodology: it measures the error of the STORED "
+                      "weights, not of a vendor kernel.", True),
+                 disc("estimator_scope_narrower_than_artifact", "caveat",
+                      "WEIGHT-ONLY: the checkpoint declares activation_scheme dynamic, so a "
+                      "served W8A8 deployment also quantizes activations per token at runtime. "
+                      "That term is absent here, so the value is expected to understate the "
+                      "served divergence; it is not a mathematical bound on a mean KL.", True),
+                 disc("record_note", "info",
+                      "Head identity: the FP8 release's lm_head is content-identical to the "
+                      "BF16 root's (%s...), so own-head replay and shared-head replay are the "
+                      "same arithmetic." % G52_HEAD_SHA[:12])]),
+        dict(mid="measurement--glm-5.2.nvfp4-nvidia.corpus5x5-v1", art=G52_NVFP4_NVIDIA,
+             desc=G52_NVFP4_DESC, ds_url=G52_NVFP4_DS, ds_rev=G52_NVFP4_DS_REV,
+             name="comparison.glm-5.2-nvfp4-nvidia.corpus5x5-v1.json",
+             repro="reproduction.glm-5.2-nvfp4-nvidia.json", pin=G52_PIN_NVFP4,
+             runtime={"engines/tools/hf_capture.py": "200ba12ca74fb97531307965cbbaa5c10553a5c26e008e524ea2d8aecb005b95",
+                      "engines/tools/layer_outer.py": "7774859c3064b2c7b9271c476adb7882b0b32bf512f4f4ffaf47c9f559b8ecfd",
+                      "bin/fidelity/panel.py": "0bf78fca76289920e0dc10d58082f42f24f4f2db6e0ecde61daefa4c22de286d"},
+             card="https://huggingface.co/nvidia/GLM-5.2-NVFP4", card_rev=G52_NVFP4_REV,
+             ds_note=None,
+             disclosures=[G53_NVFP4_DECODE_DISC, G53_NVFP4_ACT_ROW_DISC,
+                          disc("third_party_artifact_self_measured", "info",
+                               "NVIDIA's weights, our measurement."),
+                          disc("record_note", "info",
+                               "Head identity: this release's lm_head is content-identical to "
+                               "the BF16 root's (%s...), so own-head and shared-head replay "
+                               "are the same arithmetic." % G52_HEAD_SHA[:12])]),
+        dict(mid="measurement--glm-5.2.exl3-tr3-3.0bpw-brandonmusic.corpus5x5-v1",
+             art=G52_EXL3_BM30,
+             desc=G52_BM30_DESC, ds_url=G52_BM30_DS, ds_rev=G52_BM30_DS_REV,
+             name="comparison.glm-5.2-exl3-tr3-3.0bpw-brandonmusic.corpus5x5-v1.json",
+             repro="reproduction.glm-5.2-exl3-tr3-3.0bpw-brandonmusic.json", pin=G52_PIN_BM30,
+             runtime={"engines/tools/hf_capture.py": "200ba12ca74fb97531307965cbbaa5c10553a5c26e008e524ea2d8aecb005b95",
+                      "engines/tools/layer_outer.py": "7774859c3064b2c7b9271c476adb7882b0b32bf512f4f4ffaf47c9f559b8ecfd",
+                      "bin/fidelity/panel.py": "0bf78fca76289920e0dc10d58082f42f24f4f2db6e0ecde61daefa4c22de286d"},
+             card="https://huggingface.co/brandonmusic/GLM-5.2-EXL3-TR3-3.0bpw",
+             card_rev=G52_BM30_REV, ds_note=None,
+             disclosures=[
+                 disc("lossy_capture_codec", "caveat",
+                      "RECONSTRUCTED, NOT EXECUTED. The 230,400 trellis payload groups (57,600 "
+                      "modules x four TP rank shards, all K=3) are decoded to bf16 per module "
+                      "before the loader by engines/tools/exl3hf_surface.py:decode_payload_hf, "
+                      "this repository's transcription of exllamav3's mcg codebook, and "
+                      "composed in ascending rank order. That decoder has NOT been proven "
+                      "bitwise against a running exllamav3 kernel -- it is proven against "
+                      "in-house fp64 routes and real payloads only -- and the served "
+                      "exllamav3 numerics are not in this number either. Both are why this row "
+                      "is advisory.", True),
+                 disc("tp_sliced_artifact", "info",
+                      "The routed-expert modules were stored as four tensor-parallel rank "
+                      "shards each and composed into whole weights in ascending rank order "
+                      "along the axis the artifact's hybrid_tr3_tail declares "
+                      "(tp_rank_payloads_composed in the sealed dataset); every expert at K=3, "
+                      "including the MTP block's."),
+                 disc("record_note", "info",
+                      "Head identity: this release's lm_head is content-identical to the BF16 "
+                      "root's (%s...), so own-head and shared-head replay are the same "
+                      "arithmetic." % G52_HEAD_SHA[:12]),
+                 disc("third_party_artifact_self_measured", "info",
+                      "brandonmusic's weights, our measurement.")]),
+    ]
+    for cand in candidates:
+        c = _g52_comparison(cand["name"], want_kind="measurement",
+                            want_head_policy="native_head",
+                            reference_ds=G52_ROOT_DESC, candidate_ds=cand["desc"],
+                            compared_at=cand["pin"])
+        derived_cls, decode_method, _r, _a = _g53_derived_class(c, cand["name"], cand["desc"])
+        repro = _g52_json(cand["repro"])
+        if repro["comparison_kind"] != "reproduction_confirmation" \
+                or repro["metric"]["value"] != 0.0 \
+                or not repro["self_compare"]["capture_content_digest_equal"] \
+                or cand["desc"]["capture"]["capture_content_digest"] not in (
+                    repro["reference"]["capture_content_digest"],
+                    repro["candidate"]["capture_content_digest"]):
+            raise SystemExit("seed_registry: %s: the reproduction receipt does not confirm the "
+                             "canonical candidate capture" % cand["mid"])
+        art = artifacts_map[cand["art"]]
+        rows.append(M(
+            cand["mid"], G52, cand["art"], P_G53_C55, R_G52_HF, PL_FIDDS_G53,
+            c["metric"]["value"], top1=c["top1_agreement"], aux=aux_of(c), notes=notes_of(c),
+            scored_positions=51175, contexts=25,
+            runs=2, cold=True, identical=True,
+            evidence_kind="hidden_state_tensor_sha256",
+            evidence_hashes=[cand["desc"]["capture"]["capture_content_digest"]],
+            det_note="TWO cold captures of the candidate in two fresh processes on one H200 "
+                     "produced the same capture_content_digest %s...; the pod's qualify_root "
+                     "stage compared them with --self-compare --force-compute and got exactly "
+                     "0.0 (reproduction receipt %s...). The reference side is the "
+                     "two-capture-verified root the floor row uses."
+                     % (cand["desc"]["capture"]["capture_content_digest"][:8],
+                        repro["receipt_sha256"][:8]),
+            cls="advisory",
+            sources=[ds_root,
+                     src("dataset_card", cand["ds_url"], None,
+                         "candidate capture at revision %s: dataset_sha256 %s..., "
+                         "capture_content_digest %s...%s"
+                         % (cand["ds_rev"][:12], cand["desc"]["dataset_sha256"][:8],
+                            cand["desc"]["capture"]["capture_content_digest"][:8],
+                            (" " + cand["ds_note"]) if cand.get("ds_note") else "")),
+                     src("model_card", cand["card"], None,
+                         "revision %s..." % cand["card_rev"][:8]),
+                     src("github_file", G52_GH + cand["name"], _g52_sha(cand["name"]),
+                         "malaiwah.fidelity-comparison-receipt.v1, HEAD-1d own-head replay on "
+                         "the pod (receipt_sha256 %s...)" % c["receipt_sha256"][:8]),
+                     src("github_file", G52_GH + cand["repro"], _g52_sha(cand["repro"]),
+                         "the pod's two-cold-run reproduction confirmation for the candidate"),
+                     src("github_file", G52_GH + "dataset.glm-5.2-%s.json"
+                         % cand["name"].split("comparison.glm-5.2-")[1].split(".corpus5x5")[0],
+                         _g52_sha("dataset.glm-5.2-%s.json"
+                                  % cand["name"].split("comparison.glm-5.2-")[1]
+                                                .split(".corpus5x5")[0]),
+                         "the candidate's sealed dataset descriptor, byte-verbatim")]
+                    + G52_LINEAGE_SOURCES,
+            disclosures=cand["disclosures"] + [
+                disc("record_note", "info",
+                     G52_LINEAGE_NOTE % (R_G52_HF, G52_LINEAGE_FWD["metric"]["value"],
+                                         G52_LINEAGE_REV["metric"]["value"],
+                                         G52_LINEAGE_FWD["top1_agreement"]),
+                     provenance=True, sources=G52_LINEAGE_SOURCES),
+                disc("record_note", "info",
+                     "Attributable error EQUALS this value: the floor on this reference is a "
+                     "measured 0.0, so nothing is subtracted."),
+                disc("reduced_run_count", "info",
+                     "TWO cold captures of the candidate, not the campaign's usual five: the "
+                     "evidence is a CONTENT digest (both captures bitwise identical) rather "
+                     "than a spread over run means. The comparison itself is deterministic "
+                     "offline arithmetic over the two sealed datasets."),
+                disc("architecture_subset_loaded", "info",
+                     "The checkpoint's MTP block (layer index 78) is present and unused; the "
+                     "unused set matched the pinned allowlist exactly on both captures."),
+                disc("local_device_reduction_order", "info",
+                     "REPLAY HOST. This value was computed on the POD's host CPU by its own "
+                     "compare_reference stage (%s, scipy-openblas, 64 threads, python 3.12.3) "
+                     "from the two sealed datasets; no workstation re-computation exists for "
+                     "this row. comparator.replay_backend names only the backend class "
+                     "(numpy:cpu:float32), so the fp32 GEMM accumulation order is a per-host "
+                     "term measured between 1.8e-10 and 3.8e-9 nats on the GLM-5.3 rows that "
+                     "were replayed on two hosts -- five orders below anything this panel can "
+                     "resolve." % c["comparator"]["replay_env"]["cpu_model"]),
+                _g53_class_disclosure(c, cand["name"], derived_cls, decode_method, cand["pin"],
+                                      gh=G52_GH, protocol=G52_PROTOCOL),
+                disc("record_note", "info",
+                     "The sealed dataset's scope block spells the same allocation as this "
+                     "artifact's scope in the earlier two-rows-per-class form; the registry "
+                     "scope_digest (%s...) therefore differs from the receipt's string while "
+                     "describing the same bytes." % art["scope_digest"][:24])],
+            logits_dtype=logits_dtype_of(c), **est))
+        rows[-1]["harness"] = _g53_harness(
+            pin_compare=cand["pin"],
+            capture_pins={"reference": (G52_PIN_ROOT, root_runtime),
+                          "candidate": (cand["pin"], cand["runtime"])},
+            compare_tool_versions=G53_POD_COMPARE_TOOL_VERSIONS,
+            note=G53_HARNESS_SPAN_NOTE % "%s, %s, %s (the pod compared at its own commit)"
+                 % (G52_PIN_ROOT[:8], cand["pin"][:8], cand["pin"][:8]))
+    return rows
+
+
 def stamp_harness(measurements):
     """Attach the harness block, and mark what predates it.
 
@@ -6411,7 +7768,7 @@ def main():
     measurements = (build_measurements(amap) + build_measurements_runtime(amap)
                     + build_measurements_qwen(amap) + build_measurements_fruit(amap)
                     + build_measurements_qwen38_hf(amap) + build_measurements_glm53(amap)
-                    + build_measurements_glm53_hf(amap))
+                    + build_measurements_glm53_hf(amap) + build_measurements_glm52(amap))
     # Joint fidelity standard (2026-08-29): window-clustered BCa intervals, the
     # per-domain table, sigma_run in quadrature, the protocol stamp, and the
     # calibration-clean scope siblings. Implemented in tools/joint_enrich.py so

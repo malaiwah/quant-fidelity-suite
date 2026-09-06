@@ -2,27 +2,27 @@
   "collections": {
     "artifacts": {
       "file": "data/artifacts.jsonl",
-      "record_count": 48,
+      "record_count": 56,
       "schema": "schema/artifact.schema.json",
-      "sha256": "4c390d0bfc307755815ab6661c215d407f5995e3a133873cb74193ae95e9fcd8"
+      "sha256": "6260462aea0196f6ca0cf64cb8132af4de5b538d10a07e92f9c4e7d1e8cc76e6"
     },
     "measurements": {
       "file": "data/measurements.jsonl",
-      "record_count": 85,
+      "record_count": 93,
       "schema": "schema/measurement.schema.json",
-      "sha256": "420f705d5fafd81b4d67a53454de677ce8c732b5fbb390e7ab4f4bb9ddc3ee3f"
+      "sha256": "f309191b14a7ca1bcc119de5b180cffa5fda02ee83e4223a209d03c30ccba6bf"
     },
     "models": {
       "file": "data/models.jsonl",
-      "record_count": 4,
+      "record_count": 5,
       "schema": "schema/model.schema.json",
-      "sha256": "00aa0ae5eadedb16768768fa398960517ef75c6d2a18f3dbb9f79342ccbbc944"
+      "sha256": "5b03d7bda928b9ef72ba8c3dc7307e3bc6aec3a87cf01b862d98f2d665188e05"
     },
     "panels": {
       "file": "data/panels.jsonl",
       "record_count": 13,
       "schema": "schema/panel.schema.json",
-      "sha256": "28a435ab7d623547ccf1628d30ab7fba32c17875d5e6c99d69db923d60759d95"
+      "sha256": "4707baf7b5b8251c9b42bfd6e8bc0a5b9f7b23704133263e310c0db8251debcb"
     },
     "pipelines": {
       "file": "data/pipelines.jsonl",
@@ -32,9 +32,9 @@
     },
     "references": {
       "file": "data/references.jsonl",
-      "record_count": 15,
+      "record_count": 16,
       "schema": "schema/reference.schema.json",
-      "sha256": "ea9e8a60285e5f7b06eadfabd30cc12d56a9c8cfdfef91926a97a561a4c18976"
+      "sha256": "dbb42689e6867dc23828f961b1ffc7b354199837cab164f47ff98a0d89f1d3b6"
     }
   },
   "comparability_keys": [
@@ -478,6 +478,54 @@
       "stack_relation": "cross_stack"
     },
     {
+      "accumulation_dtype": "float64",
+      "comparability": {
+        "comparable": "false",
+        "live_member_count": 4,
+        "predicate_version": "comparability-predicate/v1",
+        "reasons": [
+          "scope: members span {attn.o+attn.other+attn.qkv+mlp.down+mlp.gate+mlp.up+moe.experts+moe.shared_expert+mtp|head=native|kv=bf16, moe.experts+mtp|head=native|kv=bf16, moe.experts|head=native|kv=bf16} -- these are different interventions; equal nominal bpw does not make a routed-experts-only quant and a full-forward quant the same thing (docs/GGUF-MEASUREMENT.md)"
+        ],
+        "secondary": {
+          "hardware": {
+            "status": "pass",
+            "values": [
+              "1x NVIDIA H200"
+            ]
+          },
+          "lane": {
+            "status": "pass",
+            "values": [
+              "sealed-ep8"
+            ]
+          },
+          "pipeline": {
+            "status": "pass",
+            "values": [
+              "pipeline--malaiwah.fidelity-dataset-hf.h200-layer-outer"
+            ]
+          },
+          "scope": {
+            "status": "fail",
+            "values": [
+              "attn.o+attn.other+attn.qkv+mlp.down+mlp.gate+mlp.up+moe.experts+moe.shared_expert+mtp|head=native|kv=bf16",
+              "moe.experts+mtp|head=native|kv=bf16",
+              "moe.experts|head=native|kv=bf16"
+            ]
+          }
+        }
+      },
+      "direction": "reference_to_candidate",
+      "head_policy": "native_head",
+      "key": "cmp--6ccc41df40f849da",
+      "label": "mean_tokenwise_kld on panel--glm53.malaiwah.corpus5x5-v1 (same_stack, native_head)",
+      "member_count": 4,
+      "metric_name": "mean_tokenwise_kld",
+      "panel_id": "panel--glm53.malaiwah.corpus5x5-v1",
+      "reference_id": "reference--malaiwah.glm-5.2-bf16-hf.corpus5x5-v1",
+      "stack_relation": "same_stack"
+    },
+    {
       "accumulation_dtype": "float32_reduce_legacy",
       "comparability": {
         "comparable": "false",
@@ -899,10 +947,10 @@
       "accumulation_dtype": "float64",
       "comparability": {
         "comparable": "false",
-        "live_member_count": 7,
+        "live_member_count": 11,
         "predicate_version": "comparability-predicate/v1",
         "reasons": [
-          "scope: members span {attn.o+attn.other+attn.qkv+mlp.down+mlp.gate+mlp.up+moe.experts+moe.shared_expert+mtp|head=native|kv=bf16, attn.o+attn.qkv+mlp.down+mlp.gate+mlp.up+moe.experts+moe.shared_expert|head=native|kv=bf16, moe.experts+mtp|head=native|kv=bf16} -- these are different interventions; equal nominal bpw does not make a routed-experts-only quant and a full-forward quant the same thing (docs/GGUF-MEASUREMENT.md)"
+          "scope: members span {attn.o+attn.other+attn.qkv+embed_tokens+lm_head+mlp.down+mlp.gate+mlp.up+moe.experts+moe.shared_expert+mtp|head=quantized|kv=not_applicable, attn.o+attn.other+attn.qkv+mlp.down+mlp.gate+mlp.up+moe.experts+moe.shared_expert+mtp|head=native|kv=bf16, attn.o+attn.qkv+mlp.down+mlp.gate+mlp.up+moe.experts+moe.shared_expert|head=native|kv=bf16, moe.experts+mtp|head=native|kv=bf16, moe.experts|head=native|kv=bf16} -- these are different interventions; equal nominal bpw does not make a routed-experts-only quant and a full-forward quant the same thing (docs/GGUF-MEASUREMENT.md)"
         ],
         "secondary": {
           "hardware": {
@@ -926,9 +974,11 @@
           "scope": {
             "status": "fail",
             "values": [
+              "attn.o+attn.other+attn.qkv+embed_tokens+lm_head+mlp.down+mlp.gate+mlp.up+moe.experts+moe.shared_expert+mtp|head=quantized|kv=not_applicable",
               "attn.o+attn.other+attn.qkv+mlp.down+mlp.gate+mlp.up+moe.experts+moe.shared_expert+mtp|head=native|kv=bf16",
               "attn.o+attn.qkv+mlp.down+mlp.gate+mlp.up+moe.experts+moe.shared_expert|head=native|kv=bf16",
-              "moe.experts+mtp|head=native|kv=bf16"
+              "moe.experts+mtp|head=native|kv=bf16",
+              "moe.experts|head=native|kv=bf16"
             ]
           }
         }
@@ -937,7 +987,7 @@
       "head_policy": "native_head",
       "key": "cmp--fdbd312a2551db89",
       "label": "mean_tokenwise_kld on panel--glm53.malaiwah.corpus5x5-v1 (same_stack, native_head)",
-      "member_count": 7,
+      "member_count": 11,
       "metric_name": "mean_tokenwise_kld",
       "panel_id": "panel--glm53.malaiwah.corpus5x5-v1",
       "reference_id": "reference--malaiwah.glm-5.3-bf16-hf.corpus5x5-v1",
@@ -947,18 +997,18 @@
   "comparability_predicate_rule": "Per group: comparable='true' means lane, pipeline, scope coverage and hardware are recorded and homogeneous across live members; 'false' means a recorded dimension differs (ranking across it attributes a lane/pipeline/hardware/scope effect to quantization quality); 'unknown' means no recorded difference but at least one dimension is unrecorded. Recomputed by the validator (CMP-007); a hand-edited predicate is rejected.",
   "comparability_rule": "The seven-field comparability.key is a NECESSARY partition key, not a sufficient certificate: two measurement values with different keys are NEVER comparable, and a table that mixes keys is malformed. Equal keys make two rows candidates for comparison ONLY -- the key deliberately omits measurement lane, candidate pipeline, hardware and artifact scope, all of which this project has MEASURED moving results by more than the gaps it publishes between quantizers. Before ranking rows as like-for-like, a consumer must also check each group's comparability_keys[].comparability predicate: comparable=true/false/unknown with machine-readable reasons.",
   "counts": {
-    "artifacts": 48,
-    "measurements": 85,
-    "measurements_advisory": 78,
+    "artifacts": 56,
+    "measurements": 93,
+    "measurements_advisory": 85,
     "measurements_author_reported": 15,
     "measurements_independently_verified": 0,
-    "measurements_self_measured": 70,
-    "measurements_strict": 7,
+    "measurements_self_measured": 78,
+    "measurements_strict": 8,
     "measurements_third_party_reported": 0,
-    "models": 4,
+    "models": 5,
     "panels": 13,
     "pipelines": 16,
-    "references": 15
+    "references": 16
   },
   "cross_refs": {
     "local_ai_registry": {
@@ -968,13 +1018,13 @@
       "url": "https://huggingface.co/datasets/0xSero/local-ai-registry"
     }
   },
-  "generated_at": "2026-09-05T18:45:12+00:00",
+  "generated_at": "2026-09-06T05:13:44+00:00",
   "registry_id": "malaiwah/quant-fidelity-registry",
   "resolver_rule": "Every *_ref is the id field of a record in the collection named by the ref's id prefix: model--, artifact--, panel--, reference--, pipeline--, measurement--.",
   "schema_version": "quant-fidelity-registry/v1",
   "validator": {
     "invariants_file": "schema/invariants.json",
-    "last_run_at": "2026-09-05T18:45:12+00:00",
+    "last_run_at": "2026-09-06T05:13:44+00:00",
     "passed": true,
     "tool": "tools/registry_validate.py"
   }
