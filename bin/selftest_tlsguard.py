@@ -445,32 +445,61 @@ def section_verdicts():
           and verdict["failures"][0]["code"] == "TLS-UNREACHABLE",
           verdict["failures"])
     check("T9b and it does not accuse the host",
-          "destroy this instance" not in verdict["failures"][0]["message"],
+          "destroy this instance" not in verdict["failures"][0]["message"]
+          and "interception" not in verdict["failures"][0]["message"],
           verdict["failures"][0]["message"])
-    verdict = tlsguard.evaluate_peer_evidence(dict(attested, http_status=429),
-                                              host="huggingface.co",
-                                              host_id="vast:1")
+    rate_limited = tlsguard.evaluate_peer_evidence(
+        dict(attested, http_status=429), host="huggingface.co",
+        host_id="vast:1")
     check("T9c HTTP 429 over a verified peer stays ATTESTED, as a disclosure",
-          verdict["ok"] and any("429" in d for d in verdict["disclosures"]),
-          verdict["disclosures"])
+          rate_limited["ok"]
+          and any("429" in d for d in rate_limited["disclosures"]),
+          rate_limited["disclosures"])
     eof = {"host": "huggingface.co", "tls_ok": False,
            "error_class": "SSLEOFError",
            "error_text": "[SSL: UNEXPECTED_EOF_WHILE_READING]",
            "resolved_addresses": ["1.2.3.4"], "chain_depth": None}
     verdict = tlsguard.evaluate_peer_evidence(eof, host="huggingface.co",
                                               host_id="vast:68004")
-    check("T9d the recorded Nevada failure (SSLEOFError) is an IDENTITY "
-          "refusal, not a retry",
-          verdict["verdict"] == "refused" and not verdict["retryable"]
-          and verdict["failures"][0]["code"] == "TLS-PEER-HANDSHAKE-REFUSED",
+    remedy = verdict["failures"][0]["remedy"]
+    # MEASURED 2026-09-06: machine 68004, the host that produced this exact
+    # error on 2026-09-05, has NO interceptor -- its DNS answers are forged on
+    # the path to 1.1.1.1. So the guard must refuse the credential WITHOUT
+    # accusing the host's TLS, and must name the measurement that tells the
+    # three candidate causes apart.
+    check("T9d an UNEXPECTED_EOF refuses the credential but does NOT accuse "
+          "the host of interception",
+          verdict["verdict"] == "refused"
+          and verdict["failures"][0]["code"] == "TLS-PEER-UNVERIFIED",
           verdict["failures"])
+    check("T9e and it names all THREE candidate causes plus the discriminating "
+          "measurement",
+          "forged DNS" in remedy and "interception proxy" in remedy
+          and "cache" in remedy and "compare leaf digests" in remedy,
+          remedy)
+    dns_forged = dict(eof, pinned_address_dials=[
+        {"address": "3.168.73.106", "ok": True,
+         "leaf": {"subject_cn": "huggingface.co", "spki_sha256": "a" * 64,
+                  "san_dns": ["huggingface.co"]}}])
+    verdict = tlsguard.evaluate_peer_evidence(dns_forged, host="huggingface.co",
+                                              host_id="vast:68004")
+    remedy = verdict["failures"][0]["remedy"]
+    check("T9f when a controller-verified ADDRESS works and the resolved one "
+          "does not, the verdict blames RESOLUTION, not the host",
+          verdict["failures"][0]["code"] == "TLS-RESOLUTION-SUSPECT"
+          and "host's TLS is not implicated"
+          in verdict["failures"][0]["message"], verdict["failures"])
+    check("T9g and it explicitly says not to report the operator, while still "
+          "refusing the credential",
+          "do NOT report the host operator" in remedy
+          and "do NOT use a credential" in remedy and not verdict["ok"], remedy)
     diverged = tlsguard.evaluate_peer_evidence(
         attested, host="huggingface.co", host_id="vast:1",
         reference={"spki_sha256": "b" * 64})
-    check("T9e a leaf differing from the controller-verified leaf is refused",
+    check("T9h a leaf differing from the controller-verified leaf is refused",
           any(f["code"] == "TLS-PEER-LEAF-DIVERGENCE"
               for f in diverged["failures"]), diverged["failures"])
-    check("T9f that refusal names the override that would accept it",
+    check("T9i that refusal names the override that would accept it",
           tlsguard.OVERRIDE_LEAF_ENV in diverged["failures"][0]["remedy"],
           diverged["failures"][0]["remedy"])
     os.environ[tlsguard.OVERRIDE_LEAF_ENV] = "1"
@@ -480,7 +509,7 @@ def section_verdicts():
             reference={"spki_sha256": "b" * 64})
     finally:
         os.environ.pop(tlsguard.OVERRIDE_LEAF_ENV, None)
-    check("T9g with the override it is attested AND disclosed",
+    check("T9j with the override it is attested AND disclosed",
           allowed["ok"] and any(tlsguard.OVERRIDE_LEAF_ENV in d
                                 for d in allowed["disclosures"]),
           allowed["disclosures"])

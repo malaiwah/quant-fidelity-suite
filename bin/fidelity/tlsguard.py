@@ -367,7 +367,8 @@ def _chain_shas(tls, method):
     return out
 
 
-def collect(host, port=443, timeout=15.0, cafile=None, http_path=None):
+def collect(host, port=443, timeout=15.0, cafile=None, http_path=None,
+            pinned=None):
     evidence = {
         "host": host, "port": port,
         "python_version": "%d.%d.%d" % sys.version_info[:3],
@@ -478,6 +479,56 @@ def collect(host, port=443, timeout=15.0, cafile=None, http_path=None):
         evidence["presented_error_class"] = exc.__class__.__name__
         evidence["presented_error_text"] = str(exc)
 
+    # (3b) THE DISCRIMINATOR.  A failed handshake has two very different
+    # causes and they must not be reported as one.  MEASURED 2026-09-06 on
+    # Vast machine 68004, the host that produced the 2026-09-05 UNEXPECTED_EOF:
+    # there is NO TLS interceptor there.  Its path to 1.1.1.1 is subject to
+    # forged UDP DNS injection -- a query for huggingface.co gets three
+    # replies, two of them third-party blackholes arriving before the real
+    # CloudFront set -- so the box dials a stranger's address and the
+    # handshake dies. Dialling the REAL addresses from that same box, with
+    # SNI and full verification, succeeds with a byte-identical leaf.
+    #
+    # So: connect to each controller-supplied known-good ADDRESS with this
+    # host's SNI and verify normally. Interception fails both dials (it is on
+    # the path, whatever address we pick); DNS injection fails only the
+    # resolved one. Without this, the guard blames a host operator whose TLS
+    # is untouched -- and a certificate-layer observation cannot support that.
+    if pinned:
+        results = []
+        for address in pinned:
+            record = {"address": address, "ok": False}
+            try:
+                context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+                context.check_hostname = True
+                context.verify_mode = ssl.CERT_REQUIRED
+                context.minimum_version = ssl.TLSVersion.TLSv1_2
+                if cafile:
+                    context.load_verify_locations(cafile=cafile)
+                else:
+                    context.load_default_certs(ssl.Purpose.SERVER_AUTH)
+                sock = socket.create_connection((address, port),
+                                                timeout=timeout)
+                try:
+                    tls = context.wrap_socket(sock, server_hostname=host)
+                    try:
+                        record["ok"] = True
+                        der = tls.getpeercert(binary_form=True)
+                        if der:
+                            record["leaf"] = describe_cert(der)
+                    finally:
+                        tls.close()
+                except BaseException:
+                    sock.close()
+                    raise
+            except Exception as exc:
+                record["error_class"] = exc.__class__.__name__
+                record["error_text"] = str(exc)
+            results.append(record)
+        evidence["pinned_address_dials"] = results
+        evidence["resolution_matches_pinned"] = bool(
+            set(evidence["resolved_addresses"]) & set(pinned))
+
     # (4) REACHABILITY, kept separate from identity on purpose: a rate-limited
     # Hub (429) must never be reported as a lying host.  Anonymous request, no
     # Authorization header, no token read.
@@ -502,8 +553,11 @@ if __name__ == "__main__":
     _cafile = sys.argv[2] if len(sys.argv) > 2 and sys.argv[2] else None
     _path = sys.argv[3] if len(sys.argv) > 3 and sys.argv[3] else None
     _port = int(sys.argv[4]) if len(sys.argv) > 4 and sys.argv[4] else 443
-    sys.stdout.write(json.dumps(collect(_host, port=_port, cafile=_cafile,
-                                        http_path=_path), sort_keys=True) + "\n")
+    _pinned = ([a for a in sys.argv[5].split(",") if a]
+               if len(sys.argv) > 5 and sys.argv[5] else None)
+    sys.stdout.write(json.dumps(
+        collect(_host, port=_port, cafile=_cafile, http_path=_path,
+                pinned=_pinned), sort_keys=True) + "\n")
 '''
 
 
@@ -535,22 +589,28 @@ def describe_cert(der: bytes) -> Dict[str, Any]:
 
 def collect_peer_evidence(host: str, *, port: int = 443, timeout: float = 15.0,
                           cafile: Optional[str] = None,
-                          http_path: Optional[str] = None) -> Dict[str, Any]:
+                          http_path: Optional[str] = None,
+                          pinned: Optional[Sequence[str]] = None) -> Dict[str, Any]:
     """Run the collector in THIS process -- the same code the box runs."""
-    return _collector()["collect"](host, port, timeout, cafile, http_path)
+    return _collector()["collect"](host, port, timeout, cafile, http_path,
+                                   list(pinned) if pinned else None)
 
 
 def remote_collector_command(host: str, *, port: int = 443,
                              cafile: Optional[str] = None,
                              http_path: Optional[str] = None,
+                             pinned: Optional[Sequence[str]] = None,
                              python: str = "python3") -> str:
     """One shell command that runs the collector where nothing of ours exists.
 
     base64 so no provider exec channel can mangle the quoting, and so no repo
-    file has to be present on the far side.
+    file has to be present on the far side.  `pinned` carries the addresses
+    the CONTROLLER resolved and verified, which is what lets the box's answer
+    distinguish forged DNS from interception.
     """
     payload = base64.b64encode(_COLLECTOR_SOURCE.encode("utf-8")).decode("ascii")
-    args = [host, cafile or "", http_path or "", str(port)]
+    args = [host, cafile or "", http_path or "", str(port),
+            ",".join(pinned or ())]
     quoted = " ".join("'%s'" % a.replace("'", "'\\''") for a in args)
     # `del sys.argv[1]` drops the base64 blob so the collector sees exactly the
     # argv it sees when run as a file: argv[1] is the host.  Without it the
@@ -772,9 +832,24 @@ def evaluate_peer_evidence(evidence: Dict[str, Any], *, host: str = HUB_HOST,
                "a certificate that is not the Hub's is hostile until proven "
                "otherwise, and %s must not receive a credential" % where)
     record = ("record the provider machine id (%s) so that marketplace host is "
-              "avoided on the next rental; a misconfigured transparent Hub "
-              "cache looks identical here, so report interception, not theft"
-              % (host_id or "unknown"))
+              "avoided on the next rental" % (host_id or "unknown"))
+    # MEASURED 2026-09-06 (MitmForensics, on the very host that produced the
+    # 2026-09-05 failure): Vast machine 68004 has NO TLS interceptor. Its path
+    # to 1.1.1.1 suffers forged UDP DNS injection, so it dials a third party's
+    # blackhole and the handshake dies -- while dialling the REAL addresses
+    # from that same box, with SNI and full verification, succeeds with a
+    # byte-identical leaf. So an UNEXPECTED_EOF or a hostname mismatch does
+    # NOT license an accusation about the host's TLS: the discriminator is the
+    # pinned-address dial (interception fails both dials, forged DNS fails
+    # only the resolved one), and a misconfigured transparent Hub cache is a
+    # third explanation. Name the candidates and the next measurement instead.
+    dials = evidence.get("pinned_address_dials") or []
+    pinned_ok = [d for d in dials if d.get("ok")]
+    resolution_suspect = bool(dials) and bool(pinned_ok)
+    diagnose = ("dial a known-good address for %s with SNI from that box and "
+                "compare leaf digests: interception fails BOTH dials, forged "
+                "DNS fails only the resolved one, and a transparent Hub cache "
+                "fails neither but serves its own certificate" % host)
 
     leaf = evidence.get("leaf") or evidence.get("presented_leaf")
     presented = evidence.get("presented_leaf")
@@ -804,26 +879,49 @@ def evaluate_peer_evidence(evidence: Dict[str, Any], *, host: str = HUB_HOST,
             % (where, host, error_class))
     elif not evidence.get("tls_ok"):
         text = _redact(evidence.get("error_text")) or ""
-        if error_class in _UNREACHABLE_ERRORS and not presented:
+        if resolution_suspect:
+            # The box CAN reach the real host at an address we verified, and
+            # cannot at the one it resolved. That is name resolution being
+            # tampered with, not the host operator's TLS.
+            failures.append({
+                "code": "TLS-RESOLUTION-SUSPECT",
+                "message": "%s failed TLS to %s at the address it RESOLVED "
+                           "(%s: %s) but succeeded at a controller-verified "
+                           "address (%s) with a valid certificate. Its DNS "
+                           "answers for %s are wrong; the host's TLS is not "
+                           "implicated."
+                           % (where, host, error_class, text,
+                              pinned_ok[0].get("address"), host),
+                "remedy": "do NOT use a credential here and do NOT report the "
+                          "host operator for interception -- this is forged or "
+                          "broken name resolution (measured on Vast machine "
+                          "68004: a single query to 1.1.1.1 returning "
+                          "third-party addresses ahead of the real ones). "
+                          "Next: re-create elsewhere, or pin a resolver "
+                          "(8.8.8.8 / 9.9.9.9 answered correctly there); " + record})
+        elif error_class in _UNREACHABLE_ERRORS and not presented:
             failures.append({
                 "code": "TLS-UNREACHABLE",
                 "message": "%s could not open a TLS connection to %s (%s: %s)"
                            % (where, host, error_class, text),
                 "remedy": "retry with backoff: a timeout or a refused "
                           "connection is reachability, not identity. If it "
-                          "repeats while the evidence DOES contain a "
-                          "certificate, treat it as interception and " + destroy})
+                          "repeats, " + diagnose})
         else:
             extra = ("" if not presented else
                      "; the certificate it DID present names %r, issued by %r"
                      % (presented.get("subject_cn"), presented.get("issuer_cn")))
             failures.append({
-                "code": "TLS-PEER-HANDSHAKE-REFUSED",
-                "message": "%s failed TLS verification against %s (%s: %s)%s"
+                "code": "TLS-PEER-UNVERIFIED",
+                "message": "%s could not verify %s (%s: %s)%s"
                            % (where, host, error_class, text, extra),
-                "remedy": "this is the 2026-09-05 Vast signature "
-                          "(UNEXPECTED_EOF / hostname mismatch): " + destroy
-                          + "; " + record})
+                "remedy": "this is the 2026-09-05 shape (UNEXPECTED_EOF / "
+                          "hostname mismatch) and it has THREE candidate "
+                          "causes -- forged DNS, an interception proxy, or a "
+                          "misconfigured transparent Hub cache. No credential "
+                          "goes here until it is told apart: " + diagnose
+                          + ". Meanwhile the safe move is to re-create "
+                          "elsewhere; " + record})
 
     if leaf is not None:
         names = list(leaf.get("san_dns") or ())
@@ -836,7 +934,16 @@ def evaluate_peer_evidence(evidence: Dict[str, Any], *, host: str = HUB_HOST,
                            "(subject %r, SAN %s, issuer %r)"
                            % (where, host, leaf.get("subject_cn"),
                               ",".join(names) or "none", leaf.get("issuer_cn")),
-                "remedy": destroy + "; " + record})
+                # A forged DNS answer that happens to land on a stranger's
+                # real TLS server produces exactly this, and so does an
+                # interception proxy: the certificate alone cannot tell them
+                # apart, so the refusal names the measurement that can.
+                "remedy": ("no credential goes here. If the certificate names "
+                           "an unrelated site, the likeliest cause is a forged "
+                           "or stale DNS answer pointing at a third party -- "
+                           "%s. If it names a private or host-local CA, it is "
+                           "interception. Either way the safe move is to "
+                           "re-create elsewhere; %s" % (diagnose, record))})
 
     if verify is not None and not verify.get("ok"):
         failures.append({
@@ -1031,8 +1138,14 @@ def attest_before_credential(provider: Any, machine_id: Any, *,
                  "disclosure set %s=/path/to.pem" % OVERRIDE_BUNDLE_ENV],
                 evidence=local)
         http_path = "/api/models/gpt2" if host == HUB_HOST else None
+        # The addresses the CONTROLLER resolved and verified against our own
+        # bundle. The box dials them too, with SNI, which is what separates
+        # forged DNS on the box (only its resolved address fails) from an
+        # interception proxy in front of it (every address fails).
+        pinned = list((local["evidence"].get("resolved_addresses") or ())[:4])
         command = remote_collector_command(host, port=port, cafile=box_bundle,
-                                           http_path=http_path, python=python)
+                                           http_path=http_path, pinned=pinned,
+                                           python=python)
         evidence = _parse_collector_output(
             runner(machine_id, command, timeout=timeout),
             host=host, host_id=host_id)
