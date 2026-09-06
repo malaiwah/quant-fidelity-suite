@@ -853,6 +853,16 @@ class LambdaCloud(SSHTransport):
                 return i
         return None
 
+    # A URL WITH A PATH in a create body is a bearer capability: anyone
+    # holding a result-sink URL can read a run's results, which is the same
+    # insight as the ntfy-topic finding. tlsguard's shared matcher does NOT
+    # flag one today (VastParity established that by running the portability
+    # suite against the real module before pushing), so this profile carries
+    # the property explicitly. DELETE this and its rungs the moment tlsguard
+    # covers it -- it is a named policy of the Lambda safe profile, not a
+    # second "looks like a secret" matcher.
+    _BEARER_URL_RE = re.compile(r"https?://[^\s/]+/\S+")
+
     def _refuse_credential_payload(self, payload: Dict[str, Any], *,
                                    operation: str = "create") -> None:
         """Refuse before a credential enters Lambda's own records.
@@ -861,34 +871,36 @@ class LambdaCloud(SSHTransport):
         environment BEFORE the instance exists, so no ordering and no
         attestation can protect it -- there is nothing to attest yet.
 
-        `tlsguard` owns the one implementation of "looks like a secret"; it is
-        imported lazily so this adapter still refuses on a checkout where that
-        module is not present yet. The fallback is deliberately narrower and
-        FAIL-CLOSED (any nonempty env or user_data at all), never a pass:
-        two implementations of a security property drift, and the drifting one
-        is always the untested one, so the local branch exists only to keep a
-        window where neither guard runs from ever existing.
+        `tlsguard` owns the one implementation of "looks like a secret". It is
+        imported lazily and its ABSENCE is a refusal, not a second code path:
+        a fail-closed fallback that is the only branch a test ever reaches is
+        an untested primary wearing a green badge, which is exactly how
+        Vast's `TlsRefusal` escaped its own adapter boundary today. So there
+        is one detector, one wrapper, and no shadow implementation.
         """
+        for key, value in sorted(payload.items()):
+            if isinstance(value, str) and self._BEARER_URL_RE.search(value):
+                raise LambdaError(
+                    "safe Lambda %s refuses a URL with a path in `%s`: a "
+                    "result-sink or webhook URL is a BEARER CAPABILITY -- "
+                    "anyone holding it can read this run's results -- and a "
+                    "create body is stored by the provider" % (operation, key))
         try:
             from .tlsguard import (TlsRefusal,
                                    refuse_credential_in_provider_payload)
-        except ImportError:
-            carriers = sorted(
-                key for key in ("env", "user_data", "docker_cmd", "onstart")
-                if payload.get(key))
-            if carriers:
-                raise LambdaError(
-                    "lambda %s payload carries %s and fidelity.tlsguard is "
-                    "absent from this checkout, so the credential guard cannot "
-                    "run: refusing rather than transmitting an unscanned "
-                    "payload into provider-persisted records"
-                    % (operation, ", ".join(carriers)))
-            return
+        except ImportError as exc:
+            raise LambdaError(
+                "cannot check a Lambda %s payload for credentials: "
+                "fidelity.tlsguard is not importable (%s). It is in "
+                "bin/BUNDLE.txt; refusing rather than transmitting an "
+                "unchecked payload into the provider's own records"
+                % (operation, exc))
         try:
             refuse_credential_in_provider_payload(
                 dict(payload, provider="lambda"), operation=operation)
         except TlsRefusal as exc:
-            raise LambdaError(exc.reason)
+            raise LambdaError(
+                "%s -- %s" % (exc.reason, "; ".join(exc.advice)))
 
     def create(self, **kw) -> Dict[str, Any]:
         # BEFORE the dry short-circuit: a payload that would carry a
