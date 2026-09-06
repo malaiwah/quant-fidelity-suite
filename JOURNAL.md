@@ -3790,3 +3790,49 @@ pinned files). (6) Inline-script IndentationError → `ee85b38`. (7) `KeyError
 layers, 26 windows) succeeded on every attempt that reached the pod; every failure
 was in the controller or assembly path, never in the model math. Balance $139.28
 → $113.83 (delta includes other lanes' pods).
+
+## 2026-09-06 — GLM-5.2 FP8 and NVFP4 measured against the 5.2 same-lane root; GGUF blocked by HF 429
+
+**Published.** Two format-matched candidates against `malaiwah/glm52-fidelity-root-v1@59775593`
+(capture `a544e029…`, dataset_sha256 `b7e876d6…`) on `panel--glm53.malaiwah.corpus5x5-v1`,
+51,175 scored positions, same lane, floor 0.0, every receipt `strict`:
+
+| artifact | declared bits | KL(root ‖ cand) nats | top-1 | dataset |
+|---|---:|---:|---:|---|
+| `zai-org/GLM-5.2-FP8` @ `f33c6dc501ee` | 8 | 0.025368987988553686 | 0.9541963849535906 | `glm52-fidelity-fp8-v1@cd09d64a` |
+| `nvidia/GLM-5.2-NVFP4` @ `53e0691e2189` | 4 | 0.05483693836564808 | 0.9343820224719102 | `glm52-fidelity-nvfp4-nvidia-v1@042a71bc` |
+
+FP8: block-scaled e4m3 [128,128] decoded to bf16 per tensor (fp8-block-dequant-to-bf16),
+541 modules native. Disclosure `activation_quantization_not_captured` (caveat, advisory —
+dynamic activation quantization not in the number, by design). Percentiles: median 0.001470,
+p95 0.108746, p99 0.369274, max 5.306723. Discussion posted at
+huggingface.co/zai-org/GLM-5.2-FP8/discussions/2.
+
+NVFP4: modelopt routed-experts-only four-key layout (weight/weight_scale/weight_scale_2/
+input_scale), 57,600 routed modules decoded to bf16 per module (nvfp4-modelopt-dequant-to-bf16),
+all non-routed names official bf16. Disclosure `activation_quantization_not_captured` (caveat,
+advisory — static input_scale not applied, by design). Discussion posted at
+huggingface.co/nvidia/GLM-5.2-NVFP4/discussions/14. nvidia's card names GPQA Diamond/SciCode/
+IFBench/AA-LCR/τ²-Bench Telecom but carries no accuracy values and no KLD.
+
+Scopes + allowlists committed at `fcb528d`; receipts at `3a01693` (FP8) and `7dea7d6` (NVFP4)
+under `registry/protocol/glm-5.2/`. Monotone in bit rate across two formats on one root, same
+panel, same lane. Not claimed: a 5.2 same-lane root does not upgrade any row measured against
+another teacher; admissibility is the registry session's call.
+
+**GGUF UD-Q4_K_XL** (unsloth/GLM-5.2-GGUF @ abc55e72527792c6e77069c99b4cb7de16fa9f23, --path
+UD-Q4_K_XL): scope and allowlist committed, dry-run green, but two paid attempts both died at
+`fetch_reference` on HTTP 429 (HF rate limit fetching the 2.4 GB root dataset after the 465 GB
+GGUF target fetched fine). Transient HF infrastructure, not a gate or science failure. Stopped
+per the two-attempt rule; retryable when the rate limit clears.
+
+**Three controller defects fixed by Main before the runs landed.** (1) `measure_cloud.py:5332`
+relabelled the panel binding's tokenizer pin to the reference root's repo/rev, but
+`_validate_glm53_root_panel` expected the 5.3 pin — fixed `e7ebe65`. (2) `stage_measure.sh`'s
+candidate tokenizer root did not stage the panel-pinned LICENSE/chat_template.jinja/config.json
+under `.reference/` for per-model provenance equivalence — fixed `7feb6af`. (3) The server-time
+evidence seal expired before the provider POST on some launches (30s max age vs ~2min plan
+computation) — transient, retried successfully. FP8 attempt 1 also died on defect (2) after a
+full 761 GB fetch (~$8); FP8 attempt 2's science completed but the local controller was killed
+by a bash shell timeout during publish (lesson: controllers MUST run under `hub op:start`,
+never a bare shell). Balance $109.54 → $61.33; no pods live.
