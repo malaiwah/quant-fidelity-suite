@@ -544,14 +544,24 @@ cloud_refusal_check() {
   tail -20 "$log"
   return 1
 }
+# Both of these assert the PROPERTY -- a paid run refuses with exit 3 before
+# any provider is touched -- and deliberately not a sentence. Their original
+# needles ("requires explicit --provider runpod; provider X is refused") went
+# stale at 8bba0b5 when the paid lifecycle stopped being RunPod-only, and the
+# rungs went red while the refusal was still firing correctly at rc=3 and had
+# become STRONGER: it now enumerates the provider's own unmet
+# definition-of-done prerequisites instead of a blanket "only runpod".
+# Measured 2026-09-06: both exit 3. A rung anchored on prose reports a
+# regression when the message improves, which is the shape LambdaParity's
+# sshbase grep hit the same day.
 t "missing provider refuses before provider mutation" 0 \
   cloud_refusal_check "$TMP/c0.log" \
-    "requires explicit --provider runpod; provider <missing> is refused" \
+    "requires an explicit --provider" \
     --model "$MODEL" --panel "$PANEL" --lane streaming \
     --max-runtime 12h --dry-run --out "$TMP/c0"
 t "non-RunPod paid providers refuse before provider mutation" 0 \
   cloud_refusal_check "$TMP/c1.log" \
-    "requires explicit --provider runpod; provider jarvislabs is refused" \
+    "refused on jarvislabs" \
     --provider jarvislabs --model "$MODEL" --panel "$PANEL" \
     --lane streaming --max-runtime 12h --dry-run --out "$TMP/c1"
 
@@ -696,8 +706,23 @@ t "registry live selftest (T8: snapshot, keys, tripwire)" 0 \
 echo "== teardown backstop dispatch (OFFLINE) =="
 t "reaper requires an explicit provider" 3 \
   "$PY" bin/measure_cloud.py reaper --list
-t "unsupported provider reaper refuses before account access" 3 \
+# This rung used to read "unsupported provider reaper refuses before account
+# access" and expect EXIT_REFUSED. Its premise is gone: the reaper was
+# generalised, so all four providers dispatch and `vast` is not "unsupported"
+# any more -- an unknown NAME is now refused by argparse (rc=2) instead.
+# Ruled 2026-09-06 rather than adjusted: what replaces it is a STRONGER
+# property, that a dispatchable provider with no installed reaper timer
+# reports a leak risk instead of a clean exit. EXIT_LEAK is 90 and it is the
+# contract ("teardown could not be confirmed"); returning 0 here would be the
+# dangerous answer, because the operator would read "no leases, all fine" on
+# a provider whose teardown backstop is not installed at all. Measured: vast
+# 90 / health not healthy, runpod 0 / health ok, and the verdict is identical
+# with a scratch --lease-dir, so it is a property of the installed timer and
+# not of this workstation's lease store.
+t "a provider with no installed reaper timer reports a leak risk, not OK" 90 \
   "$PY" bin/measure_cloud.py reaper --provider vast --list
+t "an unknown provider name is refused by the CLI contract" 2 \
+  "$PY" bin/measure_cloud.py reaper --provider bogus --list
 
 echo "== registry =="
 t "offline selftest"        0 "$VPY" registry/tools/registry_validate.py --root registry --offline-selftest
