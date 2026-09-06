@@ -1,0 +1,706 @@
+{
+  "candidate": {
+    "capture_content_digest": "ba5ec5586548dbd1d24944edce7cc3e9c347efdcd62f6d20a66323c4eb77ab1e",
+    "dataset_id": "fidelity--glm52.malaiwah.quant.exl3-tr3v4-3.5bpw-mtp78-brandonmusic",
+    "dataset_sha256": "690f2fed016fd60c1a36efb5ebcd49bcafdfbb329f1e2b84ccae2acfb5b83fab",
+    "form": "hidden",
+    "head": {
+      "bits": 16,
+      "quantized": false,
+      "raw_tensor_sha256": "a012be05e7716292407d418b408222de256d4dbe2fe2143a44d27d8e3553bfba",
+      "source": "native",
+      "tensor_content_sha256": "a012be05e7716292407d418b408222de256d4dbe2fe2143a44d27d8e3553bfba"
+    },
+    "label": "candidate",
+    "lane": "streaming",
+    "lane_identity_sha256": "025ae83c1cb0e2c518baa8bd0c46965f0c17b6aaca5b1b875ca5fcea71f565d5",
+    "repository": "malaiwah/glm52-fidelity-exl3-tr3v4-3.5bpw-mtp78-brandonmusic-v1",
+    "revision": null,
+    "role": "quant",
+    "scope_digest": "attn.o=native:bf16@16|attn.o=quantized:exl3-mcg@3|attn.other=native:bf16@16|attn.qkv=quantized:mixed|embed_tokens=native:bf16@16|lm_head=native:bf16@16|mlp.down=native:bf16@16|mlp.gate=native:bf16@16|mlp.up=native:bf16@16|moe.experts=quantized:exl3-mcg@3|moe.router=native:mixed|moe.shared_expert=native:bf16@16|mtp=quantized:mixed|norm=native:bf16@16|head=native|kv=bf16",
+    "stack_fingerprint_sha256": "e7ddf6b280474c1709836e227b55dda1247b32148313bc87fd88a2ada704f0e0",
+    "weights": {
+      "artifact_ref": null,
+      "checkpoint_identity_sha256": "cc2a7927f967b909c52c54e6c9434e60dcf402bf9309be63563d9add1c704e57",
+      "codec": "exl3-mcg",
+      "config_sha256": "fabb73eb513ec64f3a365da396b38de8d55b3930edfb11baeecbf34ecafa6126",
+      "declared_bits": 3.0,
+      "declared_head_bits": 16,
+      "index_sha256": null,
+      "model_ref": null,
+      "model_revision": "7c73450f05a151439d0f184f216b1eefcc394a31",
+      "quantized": true,
+      "repository": "brandonmusic/GLM-5.2-EXL3-TR3v4-3.5bpw-MTP78",
+      "revision": "7c73450f05a151439d0f184f216b1eefcc394a31"
+    }
+  },
+  "comparability": {
+    "bias": null,
+    "class": "advisory",
+    "key": "cmp--e493aa0720acdd18",
+    "key_inputs": {
+      "accumulation_dtype": "float64",
+      "direction": "reference_to_candidate",
+      "head_policy": "native_head",
+      "metric_name": "mean_tokenwise_kld",
+      "note": "provisional; the registry recomputes with its reference record id (registry CMP-001)",
+      "panel_id": "panel--glm53.malaiwah.corpus5x5-v1",
+      "reference_id": "fidelity--glm52.malaiwah.root.bf16",
+      "stack_relation": "same_stack"
+    },
+    "same_lane": true,
+    "usable_as_floor": true
+  },
+  "comparator": {
+    "accumulation_dtype": "float64",
+    "bf16_reduced_precision_reduction": false,
+    "cublas_workspace_config": null,
+    "deterministic_algorithms": true,
+    "device": "cpu",
+    "estimator_backend": "torch:k6_kld_report._token_kld",
+    "head_applied_candidate_tensor_content_sha256": "a012be05e7716292407d418b408222de256d4dbe2fe2143a44d27d8e3553bfba",
+    "head_applied_reference_tensor_content_sha256": "a012be05e7716292407d418b408222de256d4dbe2fe2143a44d27d8e3553bfba",
+    "head_applied_tensor_content_sha256": null,
+    "logprob_dtype": "float64",
+    "position_block": 128,
+    "replay_backend": "numpy:cpu:float32",
+    "replay_env": {
+      "blas_configuration": "OpenBLAS 0.3.34.0.0  USE64BITINT DYNAMIC_ARCH NO_AFFINITY Haswell MAX_THREADS=64",
+      "blas_name": "scipy-openblas",
+      "blas_threads": 64,
+      "blas_threads_source": "ctypes:scipy_openblas_get_num_threads64_",
+      "blas_version": "0.3.34.0.0",
+      "cpu_model": "INTEL(R) XEON(R) PLATINUM 8568Y+",
+      "library": "numpy",
+      "numpy_version": "2.5.2",
+      "replay_dtype": "float32"
+    },
+    "replay_peak_device_bytes": null,
+    "short_circuited": false,
+    "source_file_hashes_verified": true,
+    "tensor_content_digests_verified": true,
+    "tf32": false,
+    "tool": {
+      "entrypoint": "bin/fidelity-dataset compare",
+      "note": "the fp64 estimator is k6_kld_report._token_kld, imported not copied, whenever torch is importable; estimator_backend records which path ran."
+    },
+    "two_pass": true,
+    "vocab_chunk": 8192
+  },
+  "comparison_kind": "measurement",
+  "context_depth_buckets": {
+    "0000-0255": 0.08358830571490988,
+    "0256-0511": 0.06467089661039227,
+    "0512-1023": 0.06156395976464155,
+    "1024-1535": 0.05417785876615995,
+    "1536-2046": 0.049629578932692084
+  },
+  "created_utc": "2026-09-06T07:56:18Z",
+  "determinism": {
+    "cold_start_per_run": null,
+    "distinct_evidence_hash_count": 2,
+    "evidence_hashes": [
+      "a544e029a0392c2ae633715b0076ca040821128088fc0025a36de342fa4c0a78",
+      "ba5ec5586548dbd1d24944edce7cc3e9c347efdcd62f6d20a66323c4eb77ab1e"
+    ],
+    "evidence_kind": "hidden_state_tensor_sha256",
+    "identical_across_runs": null,
+    "max_run_mean": 0.05988025486939588,
+    "min_run_mean": 0.05988025486939588,
+    "note": "one comparison of two sealed captures. identical_across_runs is null, not true: that claim needs two independently produced captures of the SAME weights (SC-2), which is a different receipt.",
+    "population_stddev_of_run_means": 0.0,
+    "run_count": 1,
+    "run_means": [
+      0.05988025486939588
+    ]
+  },
+  "disclosures": [
+    {
+      "affects_comparability": false,
+      "code": "native_head_replay",
+      "detail": "HEAD-1d: each side replayed through its own sealed head (reference a012be05e771, candidate a012be05e771); head error is inside the measurement, as under HEAD-2, and nothing is substituted. The heads are content-identical.",
+      "severity": "info"
+    },
+    {
+      "affects_comparability": true,
+      "code": "weights_reconstructed",
+      "detail": "candidate was captured from a WEIGHTS-ONLY RECONSTRUCTION: 57750 trellis payload group(s) were decoded to bf16 by engines/tools/exl3hf_surface.py:decode_payload_hf, this repository's transcription of exllamav3's mul1/mcg codebooks (exllamav3_ext/quant/codebook.cuh, pack.cu), before the transformers forward (method exl3-trellis-tp-compose-to-bf16; K histogram K3 x 28881, K4 x 28638, K5 x 81, K6 x 150). 0 module(s) stored as tp=4 rank shards were composed in ascending rank order. the decoder has NOT been proven bitwise against exllamav3 itself (no engines/tools/layer-outer-evidence/exl3-decoder-parity-vs-exllamav3.json evidence); it is proven against in-house fp64 routes and real payloads only. the served exllamav3 kernel's fp16 activations and on-the-fly dequant are not in this number. The comparison is advisory.",
+      "severity": "caveat"
+    }
+  ],
+  "estimator": {
+    "accumulation_dtype": "float64",
+    "head_policy": "native_head",
+    "hidden_dtype": "bf16",
+    "logits_dtype": "float32",
+    "softmax_note": "full vocabulary, torch.log_softmax in float64; no truncation, no top-k, no clamp. A non-finite intermediate is a hard refusal.",
+    "stack_relation": "same_stack",
+    "two_pass": true,
+    "vocab_chunk": 8192,
+    "zero_handling": null
+  },
+  "format_version": 1,
+  "gates": {
+    "coverage": {
+      "detail": "25 of 25/25 declared records shared",
+      "overridden_by": null,
+      "passed": true
+    },
+    "decode": {
+      "detail": "weights_decode reference none; candidate exl3-trellis-tp-compose-to-bf16",
+      "overridden_by": null,
+      "passed": true
+    },
+    "form": {
+      "detail": "hidden vs hidden",
+      "overridden_by": null,
+      "passed": true
+    },
+    "geometry": {
+      "detail": "vocab_size 154880 equal; hidden_width 6144",
+      "overridden_by": null,
+      "passed": true
+    },
+    "head": {
+      "detail": "HEAD-1d: own heads on both sides (a012be05e771 vs a012be05e771)",
+      "overridden_by": null,
+      "passed": true
+    },
+    "lane": {
+      "detail": "lane=streaming vs streaming",
+      "overridden_by": null,
+      "passed": true
+    },
+    "lossy": {
+      "detail": "lossy_codec null on both sides",
+      "overridden_by": null,
+      "passed": true
+    },
+    "panel": {
+      "detail": "suite_token_hash_sha256 equal; 25 shared records; per-record token and mask digests equal; scoring_window equal",
+      "overridden_by": null,
+      "passed": true
+    },
+    "seal": {
+      "detail": "both manifests self-seal and checksums.txt verified; every tensor_content_sha256 recomputed",
+      "overridden_by": null,
+      "passed": true
+    },
+    "stack": {
+      "detail": "lane_identity equal / stack_fingerprint equal -> same_stack",
+      "overridden_by": null,
+      "passed": true
+    }
+  },
+  "high_kld_contexts": [
+    {
+      "allocation_stratum": null,
+      "domain": "literary",
+      "index": 14,
+      "max": 3.0156203763016776,
+      "mean": 0.15192899663170173,
+      "scored_rows": 2047,
+      "window_id": "final-0014"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "literary",
+      "index": 13,
+      "max": 6.717177573774982,
+      "mean": 0.1483245858136989,
+      "scored_rows": 2047,
+      "window_id": "final-0013"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "code",
+      "index": 4,
+      "max": 8.916060191307972,
+      "mean": 0.08371318468884019,
+      "scored_rows": 2047,
+      "window_id": "final-0004"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "encyclopedic",
+      "index": 7,
+      "max": 3.127838308539403,
+      "mean": 0.08062183912754085,
+      "scored_rows": 2047,
+      "window_id": "final-0007"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "multilingual",
+      "index": 17,
+      "max": 5.189003849483534,
+      "mean": 0.08056566489507942,
+      "scored_rows": 2047,
+      "window_id": "final-0017"
+    }
+  ],
+  "kl": {
+    "max": 8.916060191307972,
+    "mean": 0.05988025486939588,
+    "median": 0.003573138411004301,
+    "p95": 0.2625207377985588,
+    "p99": 0.9448078082313551,
+    "p99_9": 2.7802980329561624
+  },
+  "kl_macro_stratum_mean": null,
+  "kl_micro_token_mean": 0.05988025486939588,
+  "measurement_scope": {
+    "contexts": 25,
+    "covers_full_panel": true,
+    "position_filter": "all",
+    "positions_per_context": 2047,
+    "scored_positions": 51175,
+    "subset_detail": null
+  },
+  "metric": {
+    "direction": "reference_to_candidate",
+    "direction_label": "KL(reference || candidate)",
+    "higher_is_better": false,
+    "name": "mean_tokenwise_kld",
+    "units": "nats",
+    "value": 0.05988025486939588
+  },
+  "panel": {
+    "context_length": 2048,
+    "contexts": 25,
+    "panel_id": "panel--glm53.malaiwah.corpus5x5-v1",
+    "panel_token_sha256_legacy": "d177a85308683012b4289e35770ef08e4bdc8e17adf59c5d26de3e5da9479734",
+    "scored_positions": 51175,
+    "scoring_window": {
+      "dropped_positions_total": 0,
+      "min_left_context_tokens": 1,
+      "policy": "every causal prediction position of every window is scored; nothing is dropped",
+      "score_from": 0,
+      "windowed": false
+    },
+    "suite_token_hash_sha256": "f09ee395f635225a077695ed193d61f7d1e70650cebe1b68f82b16f59d399f86",
+    "tokenizer": {
+      "files": [
+        {
+          "bytes": 4263,
+          "name": "LICENSE",
+          "sha256": "96e1622099fc9d6b70c9760f007d99e66d7497eec636b63c60fe208401e9170c"
+        },
+        {
+          "bytes": 10465,
+          "name": "chat_template.jinja",
+          "sha256": "69bb3ab52067898e2466b855407636de559568947f367945842aabcb7fcc1705"
+        },
+        {
+          "bytes": 3732,
+          "name": "config.json",
+          "sha256": "ca8f2f47b07919a514c0ca223dc2ea2bc7445afaa5ac76c013a3784e096426ca"
+        },
+        {
+          "bytes": 194,
+          "name": "generation_config.json",
+          "sha256": "ac76b43d8683d3b930126870fc8be73d8679308fe752fa1f381096d8354f6a55"
+        },
+        {
+          "bytes": 20217442,
+          "name": "tokenizer.json",
+          "sha256": "19e773648cb4e65de8660ea6365e10acca112d42a854923df93db4a6f333a82d"
+        },
+        {
+          "bytes": 761,
+          "name": "tokenizer_config.json",
+          "sha256": "98b1271574f41abf89427ae2dda030d94dc9478f0edc5a8bd240db213c6fd5fc"
+        }
+      ],
+      "files_verified": true,
+      "id": "zai-org/GLM-5.3-BF16",
+      "identity_sha256": "b18e4d378be7e75fd2b323f7c81cc65640f6a08e1842d3bf4e025d88a9d78bf9",
+      "maximum_token_id_exclusive": 154820,
+      "receipt": null,
+      "repository": "zai-org/GLM-5.3-BF16",
+      "revision": "304b8051cfb2b260b61ce0cbe330e02a98e73639",
+      "vocab_size": 154820
+    },
+    "tokenizer_candidate": {
+      "files": [
+        {
+          "bytes": 4263,
+          "name": "LICENSE",
+          "sha256": "96e1622099fc9d6b70c9760f007d99e66d7497eec636b63c60fe208401e9170c"
+        },
+        {
+          "bytes": 10465,
+          "name": "chat_template.jinja",
+          "sha256": "69bb3ab52067898e2466b855407636de559568947f367945842aabcb7fcc1705"
+        },
+        {
+          "bytes": 3732,
+          "name": "config.json",
+          "sha256": "ca8f2f47b07919a514c0ca223dc2ea2bc7445afaa5ac76c013a3784e096426ca"
+        },
+        {
+          "bytes": 194,
+          "name": "generation_config.json",
+          "sha256": "ac76b43d8683d3b930126870fc8be73d8679308fe752fa1f381096d8354f6a55"
+        },
+        {
+          "bytes": 20217442,
+          "name": "tokenizer.json",
+          "sha256": "19e773648cb4e65de8660ea6365e10acca112d42a854923df93db4a6f333a82d"
+        },
+        {
+          "bytes": 761,
+          "name": "tokenizer_config.json",
+          "sha256": "98b1271574f41abf89427ae2dda030d94dc9478f0edc5a8bd240db213c6fd5fc"
+        }
+      ],
+      "files_verified": true,
+      "id": "zai-org/GLM-5.3-BF16",
+      "identity_sha256": "b18e4d378be7e75fd2b323f7c81cc65640f6a08e1842d3bf4e025d88a9d78bf9",
+      "maximum_token_id_exclusive": 154820,
+      "receipt": null,
+      "repository": "zai-org/GLM-5.3-BF16",
+      "revision": "304b8051cfb2b260b61ce0cbe330e02a98e73639",
+      "vocab_size": 154820
+    },
+    "tokenizer_identity_equal": true,
+    "tokenizer_reference": {
+      "files": [
+        {
+          "bytes": 4263,
+          "name": "LICENSE",
+          "sha256": "96e1622099fc9d6b70c9760f007d99e66d7497eec636b63c60fe208401e9170c"
+        },
+        {
+          "bytes": 10465,
+          "name": "chat_template.jinja",
+          "sha256": "69bb3ab52067898e2466b855407636de559568947f367945842aabcb7fcc1705"
+        },
+        {
+          "bytes": 3732,
+          "name": "config.json",
+          "sha256": "ca8f2f47b07919a514c0ca223dc2ea2bc7445afaa5ac76c013a3784e096426ca"
+        },
+        {
+          "bytes": 194,
+          "name": "generation_config.json",
+          "sha256": "ac76b43d8683d3b930126870fc8be73d8679308fe752fa1f381096d8354f6a55"
+        },
+        {
+          "bytes": 20217442,
+          "name": "tokenizer.json",
+          "sha256": "19e773648cb4e65de8660ea6365e10acca112d42a854923df93db4a6f333a82d"
+        },
+        {
+          "bytes": 761,
+          "name": "tokenizer_config.json",
+          "sha256": "98b1271574f41abf89427ae2dda030d94dc9478f0edc5a8bd240db213c6fd5fc"
+        }
+      ],
+      "files_verified": true,
+      "id": "zai-org/GLM-5.3-BF16",
+      "identity_sha256": "b18e4d378be7e75fd2b323f7c81cc65640f6a08e1842d3bf4e025d88a9d78bf9",
+      "maximum_token_id_exclusive": 154820,
+      "receipt": null,
+      "repository": "zai-org/GLM-5.3-BF16",
+      "revision": "304b8051cfb2b260b61ce0cbe330e02a98e73639",
+      "vocab_size": 154820
+    }
+  },
+  "per_context": [
+    {
+      "allocation_stratum": null,
+      "domain": "code",
+      "index": 0,
+      "max": 6.224455619951605,
+      "mean": 0.032319190221500656,
+      "scored_rows": 2047,
+      "window_id": "final-0000"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "code",
+      "index": 1,
+      "max": 1.8970448668916402,
+      "mean": 0.05058460214460645,
+      "scored_rows": 2047,
+      "window_id": "final-0001"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "code",
+      "index": 2,
+      "max": 4.265880255822239,
+      "mean": 0.04790499644029821,
+      "scored_rows": 2047,
+      "window_id": "final-0002"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "code",
+      "index": 3,
+      "max": 4.915725800736647,
+      "mean": 0.05951527743132411,
+      "scored_rows": 2047,
+      "window_id": "final-0003"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "code",
+      "index": 4,
+      "max": 8.916060191307972,
+      "mean": 0.08371318468884019,
+      "scored_rows": 2047,
+      "window_id": "final-0004"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "encyclopedic",
+      "index": 5,
+      "max": 4.248227960551122,
+      "mean": 0.06385283955656039,
+      "scored_rows": 2047,
+      "window_id": "final-0005"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "encyclopedic",
+      "index": 6,
+      "max": 5.488606882542713,
+      "mean": 0.07646180862204581,
+      "scored_rows": 2047,
+      "window_id": "final-0006"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "encyclopedic",
+      "index": 7,
+      "max": 3.127838308539403,
+      "mean": 0.08062183912754085,
+      "scored_rows": 2047,
+      "window_id": "final-0007"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "encyclopedic",
+      "index": 8,
+      "max": 4.1322615757363605,
+      "mean": 0.07291124276737047,
+      "scored_rows": 2047,
+      "window_id": "final-0008"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "encyclopedic",
+      "index": 9,
+      "max": 1.2932942453829759,
+      "mean": 0.0342183011089336,
+      "scored_rows": 2047,
+      "window_id": "final-0009"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "literary",
+      "index": 10,
+      "max": 5.860665840099253,
+      "mean": 0.015212224606461447,
+      "scored_rows": 2047,
+      "window_id": "final-0010"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "literary",
+      "index": 11,
+      "max": 4.146403923046296,
+      "mean": 0.08051794954646535,
+      "scored_rows": 2047,
+      "window_id": "final-0011"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "literary",
+      "index": 12,
+      "max": 2.094997766999914,
+      "mean": 0.007894798935262298,
+      "scored_rows": 2047,
+      "window_id": "final-0012"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "literary",
+      "index": 13,
+      "max": 6.717177573774982,
+      "mean": 0.1483245858136989,
+      "scored_rows": 2047,
+      "window_id": "final-0013"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "literary",
+      "index": 14,
+      "max": 3.0156203763016776,
+      "mean": 0.15192899663170173,
+      "scored_rows": 2047,
+      "window_id": "final-0014"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "multilingual",
+      "index": 15,
+      "max": 3.9548660711304575,
+      "mean": 0.05121060456450529,
+      "scored_rows": 2047,
+      "window_id": "final-0015"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "multilingual",
+      "index": 16,
+      "max": 1.2649356246655858,
+      "mean": 0.0400890728191683,
+      "scored_rows": 2047,
+      "window_id": "final-0016"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "multilingual",
+      "index": 17,
+      "max": 5.189003849483534,
+      "mean": 0.08056566489507942,
+      "scored_rows": 2047,
+      "window_id": "final-0017"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "multilingual",
+      "index": 18,
+      "max": 1.1242343755568005,
+      "mean": 0.04475157350443791,
+      "scored_rows": 2047,
+      "window_id": "final-0018"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "multilingual",
+      "index": 19,
+      "max": 3.2387764626864235,
+      "mean": 0.06496040939622466,
+      "scored_rows": 2047,
+      "window_id": "final-0019"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "scientific",
+      "index": 20,
+      "max": 0.8274487486674631,
+      "mean": 0.03597221958186441,
+      "scored_rows": 2047,
+      "window_id": "final-0020"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "scientific",
+      "index": 21,
+      "max": 1.5858763510311902,
+      "mean": 0.03674549101562749,
+      "scored_rows": 2047,
+      "window_id": "final-0021"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "scientific",
+      "index": 22,
+      "max": 1.4561099742862702,
+      "mean": 0.051130289657249015,
+      "scored_rows": 2047,
+      "window_id": "final-0022"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "scientific",
+      "index": 23,
+      "max": 1.1009047058828465,
+      "mean": 0.03796226216661415,
+      "scored_rows": 2047,
+      "window_id": "final-0023"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "scientific",
+      "index": 24,
+      "max": 6.4692495189662536,
+      "mean": 0.04763694649151618,
+      "scored_rows": 2047,
+      "window_id": "final-0024"
+    }
+  ],
+  "per_domain": {
+    "code": 0.054807450185313925,
+    "encyclopedic": 0.06561320623649022,
+    "literary": 0.08077571110671794,
+    "multilingual": 0.05631546503588312,
+    "scientific": 0.04188944178257425
+  },
+  "per_stratum": null,
+  "receipt_sha256": "597981097fa8505bbd492c3689ee2907b89225658df3365c155d7f88479ca4be",
+  "reference": {
+    "capture_content_digest": "a544e029a0392c2ae633715b0076ca040821128088fc0025a36de342fa4c0a78",
+    "dataset_id": "fidelity--glm52.malaiwah.root.bf16",
+    "dataset_sha256": "b7e876d61b3eaa12d41489b92c83076738aa1f9bc4fee26c02c3f198e769dd56",
+    "form": "hidden",
+    "head": {
+      "bits": 16,
+      "quantized": false,
+      "raw_tensor_sha256": "a012be05e7716292407d418b408222de256d4dbe2fe2143a44d27d8e3553bfba",
+      "source": "native",
+      "tensor_content_sha256": "a012be05e7716292407d418b408222de256d4dbe2fe2143a44d27d8e3553bfba"
+    },
+    "label": "root",
+    "lane": "streaming",
+    "lane_identity_sha256": "025ae83c1cb0e2c518baa8bd0c46965f0c17b6aaca5b1b875ca5fcea71f565d5",
+    "repository": "malaiwah/glm52-fidelity-root-v1",
+    "revision": null,
+    "role": "root",
+    "scope_digest": "attn.o=native:bf16@16|attn.qkv=native:bf16@16|embed_tokens=native:bf16@16|lm_head=native:bf16@16|mlp.down=native:bf16@16|mlp.gate=native:bf16@16|mlp.up=native:bf16@16|moe.experts=native:bf16@16|norm=native:bf16@16|head=native|kv=bf16",
+    "stack_fingerprint_sha256": "e7ddf6b280474c1709836e227b55dda1247b32148313bc87fd88a2ada704f0e0",
+    "weights": {
+      "artifact_ref": null,
+      "checkpoint_identity_sha256": "e1c5ce53eed43322da34760e1e4972bbf77bb39b07a829a6b8afe6fdfae751dd",
+      "codec": null,
+      "config_sha256": "185f93ee6d12548e16a847e279dc0c3c90b1524c970b0866b42fb545747d859a",
+      "declared_bits": null,
+      "declared_head_bits": 16,
+      "index_sha256": null,
+      "model_ref": null,
+      "model_revision": "cf457fa734ab149ffef225f80893eb38c6ff5cdc",
+      "quantized": false,
+      "repository": "zai-org/GLM-5.2",
+      "revision": "cf457fa734ab149ffef225f80893eb38c6ff5cdc"
+    }
+  },
+  "schema": "malaiwah.fidelity-comparison-receipt.v1",
+  "self_compare": null,
+  "submission": {
+    "emitted": false,
+    "path": null,
+    "receipt_sha256": null,
+    "refusal": null,
+    "submission_schema": null
+  },
+  "tokenwise": {
+    "bytes": 409528,
+    "path": "tokenwise-kld.npy",
+    "sha256": "f7f2dbab3966e09bd3e7cd2cd6b6c00518055fb834f66da0314a6e36537a0510"
+  },
+  "top1_agreement": 0.9336590131900342,
+  "top1_discordant_contexts": [],
+  "uncertainty": {
+    "ci95_high": null,
+    "ci95_low": null,
+    "cluster_unit": null,
+    "clusters": null,
+    "method": "none",
+    "samples": null,
+    "seed": null
+  }
+}
