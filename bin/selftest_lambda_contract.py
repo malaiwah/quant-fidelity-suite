@@ -709,17 +709,17 @@ def create_rungs(scratch: str) -> None:                     # noqa: C901
             launcher = self
 
             class Body:
-                def __enter__(self_inner):
-                    return self_inner
+                def __enter__(self):
+                    return self
 
-                def __exit__(self_inner, *exc):
+                def __exit__(self, *exc):
                     return False
 
-                def read(self_inner, limit=None):
+                def read(self, limit=None):
                     return json.dumps(launcher.outcome).encode("utf-8")
 
             class Opener:
-                def open(self_inner, request, timeout=None):
+                def open(self, request, timeout=None):
                     launcher.opened += 1
                     if isinstance(launcher.outcome, Exception):
                         raise launcher.outcome
