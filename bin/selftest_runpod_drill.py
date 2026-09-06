@@ -387,7 +387,12 @@ class AutonomousTimer:
         return stamp
     def _write(self):
         self.state_dir.mkdir(parents=True, exist_ok=True)
-        (self.state_dir / "reaper-health.json").write_text(
+        # The health stamp is PER PROVIDER since the reaper became a systemd
+        # template unit (cloudlease._health_path: reaper-health-<provider>.json);
+        # this fixture wrote the old singleton name, so the drill could not read
+        # the stamp it had just written (selftest_all's "RunPod controller-loss
+        # drill contracts", 2026-09-06).
+        (self.state_dir / "reaper-health-runpod.json").write_text(
             json.dumps(self.stamp, sort_keys=True) + "\n")
     def health(self, **unused):
         return {"ok": self.healthy, "stamp_ok": self.healthy,

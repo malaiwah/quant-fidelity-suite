@@ -488,7 +488,13 @@ class StubVast(Vast):
 
 _v = StubVast(dry=False, ssh_key="/nonexistent/id_ed25519")
 _SECRET = "hf_secret_token_abc123xyz"
-_SINK = "https://ntfy.sh/s3cret-topic-with-cred"
+# A credential-bearing sink, used only to prove the value never reaches argv or
+# onstart. It deliberately does NOT name ntfy.sh: SEC-02 refuses any tracked
+# file that hardcodes an ntfy topic, and it cannot tell a fixture topic from a
+# live one (a real topic IS the credential -- anyone holding it can read a
+# run's results). `.invalid` is reserved by RFC 6761, so this can never be a
+# reachable endpoint.
+_SINK = "https://sink.invalid/s3cret-topic-with-cred"
 
 _v.create(
     ask_id=42, storage=80,

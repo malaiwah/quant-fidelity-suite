@@ -39,6 +39,16 @@ have_module() {  # have_module <python> <module>
   "$1" -c "import $2" >/dev/null 2>&1
 }
 
+# TPY: the first interpreter that actually has torch. Selected HERE, before the
+# first rung that needs it -- it used to be computed at the mlx section, so
+# every earlier torch rung was hardcoded to a literal `python3` and reported
+# FAIL on a box whose torch lives in a venv, no matter what FIDELITY_PYTHON
+# said. A FAIL that only means "wrong interpreter" trains the reader to ignore
+# the battery (2026-09-06).
+TPY="$VPY"
+have_module "$TPY" torch || TPY="$PY"
+have_module "$TPY" torch || TPY=""
+
 MODEL=brandonmusic/GLM-5.3-Flash-tr3-4bpw
 PANEL=brandonmusic/GLM-5.3-Flash-BF16-Teacher-Logits
 
@@ -76,13 +86,27 @@ t "provider portability (T5d)"             0 python3 bin/selftest_provider_porta
 # WHICH container ran must not move stack_fingerprint_sha256, because that digest
 # is what dscompare reads to decide stack_relation.
 t "container transport (T17)"                0 "$VPY" bin/selftest_container.py
-t "fp8 -> bf16 losslessness (T5e)"         0 python3 bin/selftest_fp8_lossless.py
+# fp8 dequantisation is a torch computation, so it runs under $TPY (not a bare
+# python3) -- and SKIPs, with the reason, when no interpreter here has torch.
+if [ -n "$TPY" ]; then
+  t "fp8 -> bf16 losslessness (T5e)"       0 "$TPY" bin/selftest_fp8_lossless.py
+else
+  s "fp8 -> bf16 losslessness (T5e)" "no torch in $VPY or $PY -- export FIDELITY_PYTHON"
+fi
 t "canonical_json: bin == registry (T5f)"  0 python3 bin/selftest_canonical_json.py
 # P1-08. NaN/Infinity are not JSON: refused at the parse (parse_constant), by
 # both canonical serializers (allow_nan=False), and by the minischema's
 # recursive finiteness walk -- bound checks fail open on NaN otherwise.
 t "non-finite rejection: ingest/seal/render (P1-08)" 0 python3 bin/selftest_nonfinite_rejection.py
-t "bundle completeness (T5g)"              0 python3 bin/selftest_bundle_complete.py
+# The bundle rungs RUN the bundled engine selftests (dione/exl3hf/gguf/tr3) from
+# the staged bundle alone, and those import torch -- so this needs $TPY too. It
+# was a literal python3, which turned "the bundle is complete" into "this box
+# has torch on its system interpreter".
+if [ -n "$TPY" ]; then
+  t "bundle completeness (T5g)"            0 "$TPY" bin/selftest_bundle_complete.py
+else
+  s "bundle completeness (T5g)" "no torch in $VPY or $PY -- export FIDELITY_PYTHON"
+fi
 # T18. The guards for what a NAMING SWEEP can destroy. This tree is being swept
 # of GLM/K6 names now that it measures four families; half those strings are
 # identity, not history. 157 registry ids and 239 receipt schema literals are
@@ -178,7 +202,7 @@ t "jl list envelope (T11: an unreadable answer is not an empty account)" \
 # patch series, malformed BUDGET_USD values. These guards used to be `A && B`
 # lists, which `set -e` exempts, so they asserted nothing.
 t "shell guards (T10: SH-02/03/14/19/21/23 + SEC-01 fixtures)" \
-                                           0 bash bin/selftest_shell_guards.sh
+  0 env FIDELITY_PYTHON="${TPY:-$PY}" bash bin/selftest_shell_guards.sh
 # T16. The stage driver, EXECUTED. Two of its eleven stages were ever run by a
 # test; the rest were "covered" by grepping the file for a substring -- which is
 # the shape of test all four of the expensive stage bugs walked straight through
@@ -318,13 +342,7 @@ fi
 # indexes, and the registry adapter exercised. Needs torch (float8 + MPS); its
 # two conditional rungs (live compressed-tensors, stream_score --dry-run) print
 # their own SKIP line rather than failing, so this stays one case either way.
-# TPY: the first interpreter that actually has torch.  Selecting $VPY and then
-# SKIPPING when the venv has no torch meant these rungs had never run on this
-# machine at all -- a skip is a verdict, and "not run" is not one of the good
-# ones.
-TPY="$VPY"
-have_module "$TPY" torch || TPY="$PY"
-have_module "$TPY" torch || TPY=""
+# TPY (the first interpreter with torch) is selected once, at the top.
 if [ -n "$TPY" ]; then
   t "nvfp4 surface offline (decode vs compressed-tensors, census, registry adapter)" \
                                            0 "$TPY" engines/tools/selftest_nvfp4_offline.py \

@@ -10310,13 +10310,23 @@ def build_parser() -> argparse.ArgumentParser:
              "(--install, --list, --sweep). drill: run a paid controller-loss "
              "drill that seals a safety proof for strict campaign mode. "
              "adopt: not supported on RunPod.")
+    # The MEASUREMENT paths default to runpod (the only provider paid runs
+    # use), but `reaper` and `drill` must be told a provider EXPLICITLY: they
+    # act on a whole provider ACCOUNT, and a guessed account is how a reaper
+    # sweeps someone else's pods. Argparse therefore keeps default=None and
+    # the runpod default is applied below, after the subcommand is known --
+    # a plain `default="runpod"` made the reaper's `is None` refusal
+    # unreachable and `reaper --list` answered for RunPod with no provider
+    # named at all (caught by selftest_all's "reaper requires an explicit
+    # provider", 2026-09-06).
     p.add_argument(
-        "--provider", default="runpod",
+        "--provider", default=None,
         choices=("jarvislabs", "runpod", "vast", "lambda"),
-        help="default runpod, the only provider paid measurement runs on; "
-             "jarvislabs is accepted solely for `reaper` cleanup of "
-             "historical leases, vast and lambda are refused before any "
-             "provider mutation.")
+        help="default runpod for a measurement run, the only provider paid "
+             "measurement runs on; REQUIRED explicitly for `reaper` and "
+             "`drill`, which act on a whole provider account; jarvislabs is "
+             "accepted solely for `reaper` cleanup of historical leases, vast "
+             "and lambda are refused before any provider mutation.")
 
     t = p.add_argument_group("what to measure")
     t.add_argument(
@@ -10695,6 +10705,17 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Optional[List[str]] = None) -> int:
     args = build_parser().parse_args(argv)
     con = Console()
+
+    # NO implicit provider anywhere. Every path here either spends money on a
+    # provider ACCOUNT (a measurement run) or acts on one wholesale (reaper,
+    # drill), and a guessed account is how a run bills the wrong person or a
+    # sweep touches someone else's pods. A `default="runpod"` on --provider
+    # (added for convenience) made both refusals below unreachable: `reaper
+    # --list` answered for RunPod with no provider named, and a measurement
+    # invocation with no --provider proceeded instead of refusing before any
+    # provider mutation. Both are asserted by selftest_all ("reaper requires
+    # an explicit provider", "missing provider refuses before provider
+    # mutation"); every documented recipe already passes --provider runpod.
 
     if args.subcommand == "reaper":
         if args.provider is None:

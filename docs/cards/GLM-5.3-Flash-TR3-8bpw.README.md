@@ -143,12 +143,12 @@ x_fidelity:
     - measurement--glm53.k8-8bpw-stream.brandonmusic-final25.clean17
     snapshot:
       data_sha256:
-        models: 00aa0ae5eadedb16768768fa398960517ef75c6d2a18f3dbb9f79342ccbbc944
-        artifacts: ddf35af88e42d1a3150faea8968825c4a3277400cff30d632493ceeede26b941
-        panels: 28a435ab7d623547ccf1628d30ab7fba32c17875d5e6c99d69db923d60759d95
-        references: 08e3349cce7ff0fe1494e98d74714ce392d23950ab037baa0133a61c50141e39
+        models: 5b03d7bda928b9ef72ba8c3dc7307e3bc6aec3a87cf01b862d98f2d665188e05
+        artifacts: 6260462aea0196f6ca0cf64cb8132af4de5b538d10a07e92f9c4e7d1e8cc76e6
+        panels: 4707baf7b5b8251c9b42bfd6e8bc0a5b9f7b23704133263e310c0db8251debcb
+        references: dbb42689e6867dc23828f961b1ffc7b354199837cab164f47ff98a0d89f1d3b6
         pipelines: c46ef96f9ed4d37add26c6edae94a56a58a4737d6ac679113126503794c3648b
-        measurements: f14424e98220b6e169207957c2297ea2a22c808003bb0c641eab7c25b3c86c8e
+        measurements: f309191b14a7ca1bcc119de5b180cffa5fda02ee83e4223a209d03c30ccba6bf
   scope_digest: attn.o=native:bf16@16|attn.other=native:mixed|attn.qkv=native:bf16@16|embed_tokens=native:bf16@16|lm_head=native:bf16@16|mlp.down=native:bf16@16|mlp.gate=native:bf16@16|mlp.up=native:bf16@16|moe.experts=quantized:exl3-mcg@8|moe.router=native:fp32@32|moe.shared_expert=native:bf16@16|mtp=quantized:exl3-mcg@8|norm=native:bf16@16|other=native:bf16@16|head=native|kv=bf16
   head:
     policy: native

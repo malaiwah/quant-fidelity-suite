@@ -109,27 +109,34 @@ pace_verdict() {  # pace_verdict <contexts_reached> <threshold>
 # identical without ever escalating to five cold runs. The snippet under test is
 # EXTRACTED FROM THE SHIPPED SCRIPT, so this cannot pass on a grep for the fix.
 DIONE_PY="$TMP/tensor_digest.py"
-python3 "$ROOT/bin/_extract_dione_digest.py" \
+# SH-06's positive case writes and re-reads a real safetensors window, so it
+# needs the interpreter that HAS safetensors -- not a bare python3. Its own
+# failure text says "SKIPs as a FAIL if safetensors is unavailable", which is
+# the right verdict for a missing dependency but the wrong one for merely
+# asking the wrong interpreter (2026-09-06).
+SHPY="${FIDELITY_PYTHON:-python3}"
+"$SHPY" -c 'import safetensors' >/dev/null 2>&1 || SHPY=python3
+"$SHPY" "$ROOT/bin/_extract_dione_digest.py" \
         "$ROOT/engines/tools/measure_dione.sh" "$DIONE_PY" >/dev/null 2>&1 \
   && ok "SH-06 the tensor_digest snippet was extracted from measure_dione.sh" \
   || no "SH-06 the tensor_digest snippet was extracted from measure_dione.sh" \
         "extraction failed -- the two cases below would pass for the wrong reason"
 EMPTY="$TMP/dione-empty"; mkdir -p "$EMPTY/logits"
-if python3 "$DIONE_PY" "$EMPTY" >/dev/null 2>&1; then
+if "$SHPY" "$DIONE_PY" "$EMPTY" >/dev/null 2>&1; then
   no "SH-06 a digest over zero logits windows must REFUSE" "it printed a digest"
 else
   ok "SH-06 a digest over zero logits windows refuses (sha256 of nothing is a constant)"
 fi
 MISSING="$TMP/dione-missing"; mkdir -p "$MISSING"
-if python3 "$DIONE_PY" "$MISSING" >/dev/null 2>&1; then
+if "$SHPY" "$DIONE_PY" "$MISSING" >/dev/null 2>&1; then
   no "SH-06 a digest over a missing logits/ must REFUSE" "it printed a digest"
 else
   ok "SH-06 a digest over a missing logits/ refuses"
 fi
 # And it must still answer for a real window, or the refusal above is just a broken tool.
 GOOD="$TMP/dione-good"; mkdir -p "$GOOD/logits"
-if python3 "$ROOT/bin/_extract_dione_digest.py" --write-window "$GOOD/logits/window-0000.safetensors" \
-   >/dev/null 2>&1 && python3 "$DIONE_PY" "$GOOD" 2>/dev/null | grep -qE '^[0-9a-f]{64} [0-9]+$'; then
+if "$SHPY" "$ROOT/bin/_extract_dione_digest.py" --write-window "$GOOD/logits/window-0000.safetensors" \
+   >/dev/null 2>&1 && "$SHPY" "$DIONE_PY" "$GOOD" 2>/dev/null | grep -qE '^[0-9a-f]{64} [0-9]+$'; then
   ok "SH-06 a digest over a real window still answers, with its tensor count"
 else
   no "SH-06 a digest over a real window still answers, with its tensor count" \
