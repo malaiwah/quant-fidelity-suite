@@ -427,16 +427,28 @@ panel = SUITE / "engines" / "panels" / "panel--minimaxm3.malaiwah.corpus5x5"
 check("the committed MiniMax panel is a panel directory",
       (panel / "panel.json").is_file() and (panel / "arrays").is_dir())
 
-# A panel outside the suite has no remote path, because the uploader addresses
-# files RELATIVE to the suite root.
+# On the LEGACY uploader path a panel outside the suite has no remote path,
+# because that uploader addresses files RELATIVE to the suite root. The rung
+# must name the provider it tests: --provider now defaults to runpod, where
+# the panel travels as a job-bound tar and an outside panel is admitted, so
+# a provider-less invocation stopped exercising this refusal at all and the
+# rung was passing on an unrelated HTTP 401 (found 2026-09-06).
 with tempfile.TemporaryDirectory() as tmp:
     outside = Path(tmp) / "panel"
     (outside / "arrays").mkdir(parents=True)
     (outside / "panel.json").write_text("{}")
-    rc, out = cli("--role", "root", "--model", "a/b", "--panel-dir", str(outside),
-                  "--dataset-id", "d", "--lane", "streaming", "--dry-run")
-    check("a --panel-dir outside the suite checkout is refused",
+    rc, out = cli("--provider", "jarvislabs", "--role", "root", "--model", "a/b",
+                  "--panel-dir", str(outside), "--dataset-id", "d",
+                  "--lane", "streaming", "--dry-run")
+    check("a --panel-dir outside the suite checkout is refused on the legacy "
+          "uploader path, naming the checkout",
           "must live inside the suite checkout" in out)
+    rc2, out2 = cli("--provider", "runpod", "--role", "root", "--model", "a/b",
+                    "--panel-dir", str(outside), "--dataset-id", "d",
+                    "--lane", "streaming", "--dry-run")
+    check("on runpod the same panel is NOT refused for living outside the "
+          "checkout (it travels as a job-bound archive)",
+          "must live inside the suite checkout" not in out2)
 
 print()
 if FAILED:
