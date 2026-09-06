@@ -300,8 +300,6 @@ class PreparedVastCreate:
 _LIVE_ATTEST_SCRIPT = r'''
 import json
 import os
-import socket
-import ssl
 import subprocess
 import sys
 import time
@@ -338,52 +336,13 @@ def filesystem(path):
                 "available_bytes": None,
                 "error": "%s: %s" % (type(exc).__name__, str(exc)[:200])}
 
-# A Vast host is one person's machine on one person's uplink. Machine 68004
-# answered huggingface.co through an SSL proxy with a mismatched certificate
-# and UNEXPECTED_EOF, and the capture died at the setup stage after the box
-# was already billing. This proves the Hub is reachable WITH a verified
-# certificate from THIS host before anything is uploaded or spent.
-def hub_probe(host, request_path):
-    row = {"host": host, "tls_ok": False, "cert_subject_cn": None,
-           "cert_issuer_cn": None, "cert_not_after": None,
-           "http_status": None, "error": None}
-    try:
-        context = ssl.create_default_context()
-        context.check_hostname = True
-        context.verify_mode = ssl.CERT_REQUIRED
-        with socket.create_connection((host, 443), timeout=30) as raw:
-            with context.wrap_socket(raw, server_hostname=host) as tls:
-                cert = tls.getpeercert() or {}
-                subject = {}
-                for entry in cert.get("subject", ()):
-                    for key, value in entry:
-                        subject[key] = value
-                issuer = {}
-                for entry in cert.get("issuer", ()):
-                    for key, value in entry:
-                        issuer[key] = value
-                row["cert_subject_cn"] = subject.get("commonName")
-                row["cert_issuer_cn"] = issuer.get("commonName")
-                row["cert_not_after"] = cert.get("notAfter")
-                row["tls_ok"] = True
-                if request_path:
-                    tls.sendall((
-                        "HEAD %s HTTP/1.1\r\nHost: %s\r\n"
-                        "User-Agent: quant-fidelity-suite/0.1\r\n"
-                        "Accept: */*\r\nConnection: close\r\n\r\n"
-                        % (request_path, host)).encode("ascii"))
-                    head = b""
-                    while b"\r\n" not in head and len(head) < 4096:
-                        chunk = tls.recv(1024)
-                        if not chunk:
-                            break
-                        head += chunk
-                    fields = head.split(b"\r\n", 1)[0].split()
-                    if len(fields) >= 2 and fields[1].isdigit():
-                        row["http_status"] = int(fields[1])
-    except Exception as exc:
-        row["error"] = "%s: %s" % (type(exc).__name__, str(exc)[:200])
-    return row
+# NOTE: this script deliberately carries NO TLS peer probe. Judging whether a
+# box talks to the REAL Hub is `fidelity.tlsguard`'s single implementation --
+# it verifies the chain against our own digest-pinned roots and compares the
+# leaf against one the controller verified, neither of which a hand-rolled
+# default-context handshake here could do, and two implementations of one
+# security property is how they drift. `attest_live_resource` runs tlsguard's
+# own collector over this same exec channel and records its verdict.
 
 mem_kib = None
 with open("/proc/meminfo", "r", encoding="ascii") as stream:
@@ -498,8 +457,6 @@ print(json.dumps({
     "compute_apps_exit_code": apps.returncode,
     "filesystems": {"root": filesystem("/"),
                     "workspace": filesystem("/workspace")},
-    "hub_reachability": [hub_probe("huggingface.co", "/api/models/gpt2"),
-                         hub_probe("cdn-lfs.hf.co", "")],
 }, sort_keys=True, separators=(",", ":"), allow_nan=False))
 '''
 
@@ -1292,7 +1249,7 @@ class Vast(SSHTransport):
                 "memtotal_bytes", "effective_memory_bytes",
                 "nvidia_smi_exit_code", "nvidia_smi_error", "gpus", "cuda",
                 "compute_processes", "compute_apps_exit_code",
-                "filesystems", "hub_reachability",
+                "filesystems",
             }
             if set(observed) != exact_observed:
                 failures.append("live attestation keys differ")
@@ -1412,99 +1369,63 @@ class Vast(SSHTransport):
                     >= container_available_bytes_minimum
                     and workspace["available_bytes"]
                     >= workspace_available_bytes_minimum)
-            hub = observed.get("hub_reachability")
-            hub_keys = {"host", "tls_ok", "cert_subject_cn", "cert_issuer_cn",
-                        "cert_not_after", "http_status", "error"}
-            if (not isinstance(hub, list) or len(hub) != len(HUB_PROBE_HOSTS)
-                    or any(not isinstance(row, dict) or set(row) != hub_keys
-                           for row in hub)
-                    or [row["host"] for row in hub] != list(HUB_PROBE_HOSTS)):
-                failures.append("hub reachability probe keys differ")
-                hub = []
-            checks["hub_tls_verified"] = bool(hub) and all(
-                row.get("tls_ok") is True and row.get("error") is None
-                for row in hub)
-            api_rows = [row for row in hub
-                        if row.get("host") == "huggingface.co"]
-            # Reachability and IDENTITY are separate properties. Identity is
-            # the verified certificate above; this only asks whether the peer
-            # spoke HTTP at all. It must not demand 200: live on a healthy
-            # Vast T4 (2026-09-06) `HEAD /api/models/gpt2` answered **307**,
-            # so an equality check on 200 refused a perfectly good box. A 429
-            # or 5xx is an OUTAGE rather than a bad host, and it is still not
-            # evidence the box can fetch, so it fails this floor without
-            # implying the host is hostile.
-            def answered(row):
-                status = row.get("http_status")
-                return (isinstance(status, int)
-                        and not isinstance(status, bool)
-                        and 200 <= status < 500 and status != 429)
-
-            checks["hub_api_answers"] = bool(api_rows) and all(
-                answered(row) for row in api_rows)
+            # No hub checks here: `fidelity.tlsguard` owns that verdict and
+            # runs its own collector over this same channel below.
             failures.extend(
                 name for name, passed in sorted(checks.items()) if not passed)
-        # The hub probe above is a FLOOR, not proof of Hub identity: a
-        # certificate hostname mismatch is the signature of a MITM TLS proxy,
-        # and judging one is `fidelity.tlsguard`'s job so there is exactly one
-        # implementation of that property. When the module is present its
-        # collector runs on the box and its verdict is authoritative; when it
-        # is not, the document says so in `hub_tls_verdict_source` and the
-        # attestation is explicitly NOT proof of Hub identity.
+        # Whether this box talks to the REAL Hub is `fidelity.tlsguard`'s
+        # single implementation, and it is strictly stronger than anything
+        # this file could do inline: it verifies the chain against our own
+        # digest-pinned roots, compares the leaf against one the controller
+        # verified, and separates "this host is lying" from "we could not
+        # reach anything". It drives its own collector over this adapter's
+        # exec channel, so the probe still runs BEFORE any credential exists
+        # on the box. If tlsguard cannot be reached at all the attestation
+        # FAILS -- there is no local floor to fall back to, because a second
+        # implementation of one security property is how they drift.
+        machine = str((self.get_lifecycle_resource(instance_id) or {})
+                      .get("provider_machine_id"))
         hub_verdict: Dict[str, Any] = {
-            "source": "inline-floor",
-            "ok": None,
-            "verdict": None,
-            "failures": [],
-            "disclosures": [
-                "fidelity.tlsguard is unavailable: this attestation proves a "
-                "verified TLS handshake and an anonymous HTTP 200 from the "
-                "box, NOT that the peer is the real Hub"],
-            "evidence": None,
+            "source": "tlsguard", "ok": False, "verdict": None,
+            "failures": [], "disclosures": [], "evidence": None,
+            "hosts": list(HUB_PROBE_HOSTS),
         }
         try:
             from . import tlsguard
-        except ImportError:
-            tlsguard = None
-        if tlsguard is not None:
-            hub_verdict = {"source": "tlsguard", "ok": False,
-                           "verdict": None, "failures": [],
-                           "disclosures": [], "evidence": None}
-            try:
-                collector = tlsguard.collector_script_text()
-                peer_evidence = None
-                if not self.dry:
-                    peer_raw = self.exec_stdout(
-                        instance_id,
-                        "python3 -c 'import base64;"
-                        "exec(base64.b64decode(\"%s\").decode(\"utf-8\"))' %s"
-                        % (base64.b64encode(
-                            collector.encode("utf-8")).decode("ascii"),
-                           HUB_PROBE_HOSTS[0]),
-                        timeout=180)
-                    peer_evidence = _strict_json_loads(peer_raw)
-                judged = tlsguard.evaluate_peer_evidence(
-                    peer_evidence,
-                    host_id=str((self.get_lifecycle_resource(instance_id)
-                                 or {}).get("provider_machine_id")),
-                    host=HUB_PROBE_HOSTS[0])
-                hub_verdict.update({
-                    "ok": bool(judged.get("ok")),
-                    "verdict": judged.get("verdict"),
-                    "failures": judged.get("failures") or [],
-                    "disclosures": judged.get("disclosures") or [],
-                    "evidence": judged.get("evidence"),
-                })
-            except Exception as exc:                      # noqa: BLE001
-                hub_verdict["failures"] = [{
-                    "code": "tlsguard_unavailable",
-                    "message": redact(str(exc))[:300],
-                    "remedy": "run the tlsguard peer attestation before any "
-                              "credential reaches this box",
-                }]
-            checks["hub_identity_attested"] = bool(hub_verdict["ok"])
-            if not checks["hub_identity_attested"]:
-                failures.append("hub_identity_attested")
+            if self.dry:
+                raise VastError("dry mode cannot attest a live TLS peer")
+            judged = tlsguard.attest_before_credential(
+                self, instance_id, host_id=machine,
+                hosts=HUB_PROBE_HOSTS, timeout=240.0)
+            hub_verdict.update({
+                "ok": bool(judged.get("ok")),
+                "verdict": judged.get("verdict"),
+                "failures": judged.get("failures") or [],
+                "disclosures": judged.get("disclosures") or [],
+                "evidence": judged.get("evidence") or judged,
+            })
+        except ImportError as exc:
+            hub_verdict["failures"] = [{
+                "code": "TLSGUARD-UNAVAILABLE",
+                "message": "fidelity.tlsguard is not importable: %s"
+                           % redact(str(exc))[:200],
+                "remedy": "ship bin/fidelity/tlsguard.py (it is in "
+                          "bin/BUNDLE.txt); without it nothing attests that "
+                          "this box reaches the real Hub",
+            }]
+        except Exception as exc:                          # noqa: BLE001
+            code = getattr(exc, "code", None)
+            hub_verdict["failures"] = [{
+                "code": str(code) if code else "TLS-ATTESTATION-FAILED",
+                "message": redact(str(getattr(exc, "reason", exc)))[:300],
+                "remedy": "; ".join(getattr(exc, "advice", ()) or [
+                    "attest the TLS peer from this box before any credential "
+                    "reaches it"])[:500],
+            }]
+            hub_verdict["retryable"] = bool(getattr(exc, "retryable", False))
+        checks["hub_identity_attested"] = bool(hub_verdict["ok"])
+        if not checks["hub_identity_attested"]:
+            failures.append("hub_identity_attested")
         provider_record = {
             "provider_machine_id": None, "provider_host_id": None,
             "location": None, "gpu_type_id": None, "gpu_ram_mib": None,
@@ -2342,71 +2263,67 @@ class Vast(SSHTransport):
         }
         return result
 
-    # A credential in a create body is exposed BEFORE the box exists, so no
-    # ordering fix can protect it: it lands in Vast's own records and in the
-    # host's `docker run` environment with no host key, no attestation and no
-    # TLS check yet possible -- there is nothing to attest, because there is
-    # no instance. `docs/CLOUD-RECIPES.md` advice to prefer env over argv was
-    # protecting against a different leak (argv in a host process list) and
-    # is superseded for credentials: provider-persisted is worse than
-    # process-visible on a box we authenticated. So container mode may
-    # measure PUBLIC artifacts and nothing else, and the adapter is the last
-    # place that can tell, which is why it refuses here.
-    _CREDENTIAL_NAME_TOKENS = (
-        "token", "key", "secret", "password", "passwd", "credential",
-        "auth", "sink")
-
     def _refuse_credential_payload(self, *, env: Any, onstart: Any,
                                    docker_cmd: Any) -> None:
-        """Refuse any credential-shaped material bound for the create body."""
-        try:
-            from .tlsguard import (                       # noqa: F401
-                refuse_credential_in_provider_payload as guard)
-        except ImportError:
-            guard = None
+        """Refuse credential-shaped material bound for the create body.
+
+        A create payload is exposed BEFORE the box exists: it lands in Vast's
+        own records and in the host's `docker run` environment with no host
+        key, no attestation and no TLS check yet possible, because there is no
+        instance yet. No ordering fix can protect it, so the adapter -- the
+        last place that can tell -- refuses. `docs/CLOUD-RECIPES.md`'s advice
+        to prefer `env` over argv was protecting against a DIFFERENT leak
+        (argv in a host process list) and is superseded for credentials:
+        provider-persisted is worse than process-visible on a box we
+        authenticated. Vast container mode may therefore measure PUBLIC
+        artifacts and nothing else.
+
+        The judgement is `fidelity.tlsguard`'s, not ours: one implementation
+        for all four adapters, whose findings name the JSON path, the key and
+        a character count and never the value. If it cannot be imported this
+        REFUSES rather than transmitting an unchecked payload.
+        """
         payload = {"provider": "vast", "env": env, "onstart": onstart,
-                   "argv": docker_cmd}
-        if guard is not None:
-            try:
-                guard(payload)
-                return
-            except TypeError:
-                # The shared guard exists with another signature; fall through
-                # to the local fail-closed check rather than skipping it.
-                pass
-        offenders = []
-        for key, value in (env or {}).items():
-            name = str(key)
-            text = str(value)
-            lowered = name.lower()
-            if any(token in lowered for token in
-                   self._CREDENTIAL_NAME_TOKENS):
-                offenders.append("env %s (name is credential-shaped)" % name)
-            elif redact(text) != text:
-                offenders.append("env %s (value matches a known token shape)"
-                                 % name)
-            elif text.startswith(("http://", "https://")) and len(
-                    urllib.parse.urlsplit(text).path.strip("/")) > 0:
-                # A result-sink URL IS a credential: whoever holds it can read
-                # the run's results.
-                offenders.append(
-                    "env %s (a URL with a path is a bearer capability)" % name)
-        for label, blob in (("onstart", onstart),
-                            ("docker_cmd", " ".join(
-                                str(item) for item in docker_cmd or ()))):
-            text = str(blob or "")
-            if text and redact(text) != text:
-                offenders.append("%s carries a known token shape" % label)
-        if offenders:
+                   "docker_cmd": docker_cmd}
+        try:
+            from .tlsguard import (
+                TlsRefusal, refuse_credential_in_provider_payload)
+        except ImportError as exc:
             raise VastError(
-                "refusing to put credential-shaped material in a Vast create "
-                "body: %s. A create payload is provider-persisted and reaches "
-                "the host BEFORE any host key, attestation or TLS check "
-                "exists, so no ordering makes it safe. Vast container mode "
-                "may measure PUBLIC artifacts with no credential at all; a "
-                "token-bearing run must use the SSH+bundle path, which "
-                "transports the token as a 0600 file after the host key is "
-                "authenticated." % "; ".join(sorted(offenders)))
+                "cannot check a Vast create payload for credentials: "
+                "fidelity.tlsguard is not importable (%s). It is in "
+                "bin/BUNDLE.txt; refusing rather than transmitting an "
+                "unchecked payload into the provider's own records."
+                % redact(str(exc))[:200])
+        try:
+            refuse_credential_in_provider_payload(payload, operation="create")
+        except TlsRefusal as exc:
+            # The guard's own exception must NOT cross this boundary: every
+            # caller catches `VastError` (the JLError family), so a TlsRefusal
+            # escaping here dies uncaught instead of refusing. LambdaParity
+            # caught exactly that on the committed version, where only
+            # TypeError was handled -- and it survived testing because the
+            # tlsguard-absent path WAS wrapped while the real path was not.
+            # A fallback that differs from the primary is the drift nobody
+            # looks at, which is why there is no fallback here any more.
+            raise VastError("%s -- %s" % (exc.reason, "; ".join(exc.advice)))
+        # One property the shared guard does not yet carry, kept here as the
+        # Vast profile's own policy rather than as a second secret-detector:
+        # a URL WITH A PATH in a create body is a BEARER CAPABILITY. A result
+        # sink is the live example -- whoever holds the topic URL can read the
+        # run's results -- and it is the same insight as this morning's ntfy
+        # finding. Requested of `tlsguard.credential_findings`; when it lands
+        # there, delete this and let the one implementation carry it.
+        for key, value in (env or {}).items():
+            text = str(value)
+            if (text.startswith(("http://", "https://"))
+                    and urllib.parse.urlsplit(text).path.strip("/")):
+                raise VastError(
+                    "vast create payload is provider-persisted and carries a "
+                    "bearer capability: env %s is a URL with a path, and "
+                    "whoever holds it can read this run's output. Pass it "
+                    "after the box is attested, over the authenticated exec "
+                    "channel, or use a run that needs no sink." % key)
 
     def create(self, **kw) -> Dict[str, Any]:
         """Marketplace rental, container-native or SSH.

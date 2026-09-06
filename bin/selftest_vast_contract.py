@@ -31,6 +31,7 @@ import json
 import os
 import sys
 import time
+import types
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from fidelity import vastapi                              # noqa: E402
@@ -371,20 +372,44 @@ def payload(**over):
                  "interpreter": "/usr/bin/python3.12"},
         "filesystems": {"root": disk,
                         "workspace": dict(disk, path="/workspace")},
-        "hub_reachability": [
-            {"host": "huggingface.co", "tls_ok": True,
-             "cert_subject_cn": "huggingface.co",
-             "cert_issuer_cn": "Amazon RSA 2048 M01",
-             "cert_not_after": "Feb 27 23:59:59 2027 GMT",
-             "http_status": 200, "error": None},
-            {"host": "cdn-lfs.hf.co", "tls_ok": True,
-             "cert_subject_cn": "hf.co",
-             "cert_issuer_cn": "Amazon RSA 2048 M01",
-             "cert_not_after": "Feb  9 23:59:59 2027 GMT",
-             "http_status": None, "error": None}],
+        # No hub_reachability key: fidelity.tlsguard owns the TLS peer
+        # verdict and runs its own collector, so this script carries no
+        # second peer probe.
     }
     document.update(over)
     return json.dumps(document)
+
+
+# tlsguard's peer attestation opens a real socket, so the offline suite
+# substitutes its verdict at the seam. The verdict CONTENT is tlsguard's
+# contract, not ours; what is asserted here is that this adapter refuses
+# unless that verdict says the box reaches the real Hub.
+TLS_VERDICT = {"ok": True, "verdict": "attested", "failures": [],
+               "disclosures": [], "evidence": {"host": "huggingface.co"}}
+
+
+def _install_tls_stub():
+    try:
+        from fidelity import tlsguard as real
+        module = real
+        present = True
+    except ImportError:
+        module = types.ModuleType("fidelity.tlsguard")
+        sys.modules["fidelity.tlsguard"] = module
+        present = False
+
+    def attest_before_credential(provider, machine_id, **kw):
+        if TLS_VERDICT is None:
+            raise RuntimeError("tlsguard attestation was not stubbed")
+        if isinstance(TLS_VERDICT, Exception):
+            raise TLS_VERDICT
+        return dict(TLS_VERDICT, machine_id=str(machine_id))
+
+    module.attest_before_credential = attest_before_credential
+    return present
+
+
+HAS_TLSGUARD = _install_tls_stub()
 
 
 def attest(payload_text, rows=(LIVE_INSTANCE,), **over):
@@ -393,14 +418,13 @@ def attest(payload_text, rows=(LIVE_INSTANCE,), **over):
 
 
 good = attest(payload())
-HAS_TLSGUARD = good["hub_tls_verdict_source"] == "tlsguard"
 check("a healthy T4 attests: torch's 14912 MB against nvidia-smi's 15360 MiB "
       "is inside the band, so a real card is not refused for 448 MiB",
       good["checks"]["gpu_model"] and good["checks"]["gpu_vram"]
       and good["checks"]["cuda_usable"])
-check("the document is sealed and names its hub verdict source",
+check("the document is sealed and names tlsguard as the hub verdict's source",
       len(good["attestation_sha256"]) == 64
-      and good["hub_tls_verdict_source"] in ("tlsguard", "inline-floor"))
+      and good["hub_tls_verdict_source"] == "tlsguard")
 check("the document NAMES the attester of each half: a postcondition "
       "evaluated by the party it constrains is not proof, so the box's "
       "self-report is labelled as not independently verifiable",
@@ -413,16 +437,9 @@ check("...and the two independent parties are required to AGREE, which is "
       "what a single party's word cannot give",
       good["checks"]["provider_gpu_model_agrees"] is True
       and good["checks"]["provider_vram_agrees"] is True)
-if HAS_TLSGUARD:
-    check("[INFO] tlsguard is present, so its verdict governs Hub identity",
-          "hub_identity_attested" in good["checks"])
-else:
-    check("without tlsguard the document DISCLOSES it is not Hub-identity "
-          "proof",
-          any("NOT that the peer is the real Hub" in text
-              for text in good["hub_tls_verdict"]["disclosures"]))
-    check("...and the attestation still passes on its own floor",
-          good["ok"] is True and good["failures"] == [])
+check("an attested Hub peer passes the gate",
+      good["checks"]["hub_identity_attested"] is True
+      and good["ok"] is True and good["failures"] == [])
 check("one pod-scoped filesystem is recognised as one",
       good["single_filesystem"] is True)
 check("the provider record carries the machine and host that answered -- the "
@@ -464,60 +481,62 @@ no_cuda = attest(payload(cuda={
     "error": "CUDA driver version is insufficient", "interpreter": None}))
 check("a box whose torch cannot see CUDA fails the gate",
       no_cuda["ok"] is False and "cuda_usable" in no_cuda["failures"])
-mitm = attest(payload(hub_reachability=[
-    {"host": "huggingface.co", "tls_ok": False, "cert_subject_cn": None,
-     "cert_issuer_cn": None, "cert_not_after": None, "http_status": None,
-     "error": "SSLEOFError: [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred "
-              "in violation of protocol"},
-    {"host": "cdn-lfs.hf.co", "tls_ok": True, "cert_subject_cn": "hf.co",
-     "cert_issuer_cn": "Amazon RSA 2048 M01",
-     "cert_not_after": "Feb  9 23:59:59 2027 GMT",
-     "http_status": None, "error": None}]))
-check("the 2026-09-05 failure mode (UNEXPECTED_EOF to the Hub, the signature "
-      "of an intercepting proxy) fails the gate BEFORE upload or spend",
-      mitm["ok"] is False and "hub_tls_verified" in mitm["failures"])
-proxy = attest(payload(hub_reachability=[
-    {"host": "huggingface.co", "tls_ok": True,
-     "cert_subject_cn": "proxy.local", "cert_issuer_cn": "Host CA",
-     "cert_not_after": "Feb 27 23:59:59 2027 GMT", "http_status": 502,
-     "error": None},
-    {"host": "cdn-lfs.hf.co", "tls_ok": True, "cert_subject_cn": "hf.co",
-     "cert_issuer_cn": "Amazon RSA 2048 M01",
-     "cert_not_after": "Feb  9 23:59:59 2027 GMT",
-     "http_status": None, "error": None}]))
-check("a Hub the box cannot fetch from (5xx) fails the gate",
-      proxy["ok"] is False and "hub_api_answers" in proxy["failures"])
-# Live on a healthy Vast T4, 2026-09-06: HEAD /api/models/gpt2 answered 307.
-# An equality check on 200 refused that box, so this rung is the regression.
-redirected = attest(payload(hub_reachability=[
-    {"host": "huggingface.co", "tls_ok": True,
-     "cert_subject_cn": "huggingface.co",
-     "cert_issuer_cn": "Amazon RSA 2048 M01",
-     "cert_not_after": "Feb 27 23:59:59 2027 GMT", "http_status": 307,
-     "error": None},
-    {"host": "cdn-lfs.hf.co", "tls_ok": True, "cert_subject_cn": "hf.co",
-     "cert_issuer_cn": "Amazon RSA 2048 M01",
-     "cert_not_after": "Feb  9 23:59:59 2027 GMT",
-     "http_status": None, "error": None}]))
-check("the Hub's real 307 redirect is an ANSWER, not a failure: identity is "
-      "the verified certificate, reachability is only that it spoke HTTP",
-      redirected["ok"] is True
-      and redirected["checks"]["hub_api_answers"] is True)
-throttled = attest(payload(hub_reachability=[
-    {"host": "huggingface.co", "tls_ok": True,
-     "cert_subject_cn": "huggingface.co",
-     "cert_issuer_cn": "Amazon RSA 2048 M01",
-     "cert_not_after": "Feb 27 23:59:59 2027 GMT", "http_status": 429,
-     "error": None},
-    {"host": "cdn-lfs.hf.co", "tls_ok": True, "cert_subject_cn": "hf.co",
-     "cert_issuer_cn": "Amazon RSA 2048 M01",
-     "cert_not_after": "Feb  9 23:59:59 2027 GMT",
-     "http_status": None, "error": None}]))
-check("a 429 fails the reachability floor while the certificate still "
-      "verifies, so the host is not implied to be hostile",
-      throttled["ok"] is False
-      and "hub_api_answers" in throttled["failures"]
-      and throttled["checks"]["hub_tls_verified"] is True)
+# The Hub verdict is tlsguard's; what this adapter owes is to REFUSE unless
+# that verdict attests the peer, and to record the verdict verbatim.
+
+_attested = TLS_VERDICT
+try:
+    TLS_VERDICT = {
+        "ok": False, "verdict": "refused",
+        "failures": [{"code": "TLS-PEER-EOF",
+                      "message": "huggingface.co: SSLEOFError [SSL: "
+                                 "UNEXPECTED_EOF_WHILE_READING]",
+                      "remedy": "destroy this box and record host 68004"}],
+        "disclosures": [], "evidence": {"host": "huggingface.co"}}
+    mitm = attest(payload())
+    check("the 2026-09-05 failure mode (UNEXPECTED_EOF to the Hub, the "
+          "signature of an intercepting proxy) fails the gate BEFORE upload "
+          "or spend",
+          mitm["ok"] is False
+          and "hub_identity_attested" in mitm["failures"]
+          and mitm["hub_tls_verdict"]["failures"][0]["code"]
+          == "TLS-PEER-EOF")
+    check("...and the verdict's own remedy survives into the document, so "
+          "the operator is told which host to destroy",
+          "68004" in mitm["hub_tls_verdict"]["failures"][0]["remedy"])
+
+    class Refused(Exception):
+        code = "TLS-PEER-HOSTNAME-MISMATCH"
+        reason = "huggingface.co presented a certificate for proxy.local"
+        advice = ("destroy this box and record its host id",)
+        retryable = False
+
+    TLS_VERDICT = Refused()
+    raised = attest(payload())
+    check("a tlsguard REFUSAL (raised, not returned) fails the gate with its "
+          "code, reason and remedy recorded",
+          raised["ok"] is False
+          and raised["hub_tls_verdict"]["failures"][0]["code"]
+          == "TLS-PEER-HOSTNAME-MISMATCH"
+          and "proxy.local"
+          in raised["hub_tls_verdict"]["failures"][0]["message"])
+
+    class Unreachable(Exception):
+        code = "TLS-UNREACHABLE"
+        reason = "huggingface.co: timed out"
+        advice = ("retry: this is an outage, not a hostile host",)
+        retryable = True
+
+    TLS_VERDICT = Unreachable()
+    outage = attest(payload())
+    check("an OUTAGE still fails the gate but is marked retryable, so a "
+          "429 or a timeout never accuses the host",
+          outage["ok"] is False
+          and outage["hub_tls_verdict"]["retryable"] is True
+          and outage["hub_tls_verdict"]["failures"][0]["code"]
+          == "TLS-UNREACHABLE")
+finally:
+    TLS_VERDICT = _attested
 # Live shape on machine 150014: / is a 128 GB overlay and /workspace is a
 # SEPARATE xfs on the host's own 1.6 TB disk, so the pod-scoped-single-disk
 # assumption is not universal and both branches must work.
@@ -584,12 +603,12 @@ print()
 print("== the on-box attestation script ==")
 compile(vastapi._LIVE_ATTEST_SCRIPT, "<attest>", "exec")
 check("the script compiles as python", True)
-check("it probes exactly the declared hub hosts",
-      all('"%s"' % host in vastapi._LIVE_ATTEST_SCRIPT
-          for host in vastapi.HUB_PROBE_HOSTS))
-check("it verifies certificates rather than merely connecting",
-      "check_hostname = True" in vastapi._LIVE_ATTEST_SCRIPT
-      and "CERT_REQUIRED" in vastapi._LIVE_ATTEST_SCRIPT)
+check("it carries NO second TLS peer probe: judging the Hub's identity is "
+      "fidelity.tlsguard's single implementation, and two implementations "
+      "of one security property is how they drift",
+      "import ssl" not in vastapi._LIVE_ATTEST_SCRIPT
+      and "create_default_context" not in vastapi._LIVE_ATTEST_SCRIPT
+      and "hub_probe" not in vastapi._LIVE_ATTEST_SCRIPT)
 check("it never weakens TLS",
       "CERT_NONE" not in vastapi._LIVE_ATTEST_SCRIPT
       and "check_hostname = False" not in vastapi._LIVE_ATTEST_SCRIPT
@@ -605,34 +624,46 @@ print("== no credential may enter a Vast CREATE body ==")
 # parameterised over all four adapters; these two keep the Vast-specific
 # refusal text honest.
 ASK_OK = {"/asks/": {"success": True, "new_contract": 50055626}}
-refuses("create refuses a provider-carried HF credential",
-        lambda: StubVast(responses=ASK_OK,
-                         ssh_key="/nonexistent/id_ed25519").create(
-            ask_id=42, storage=80, env={"HF_TOKEN": "hf_" + "a" * 34},
-            docker_cmd=["capture"], onstart="mkdir -p /workspace",
-            name="vast-x"),
-        needle="provider-persisted")
-refuses("create refuses a token embedded in onstart TEXT too",
-        lambda: StubVast(responses=ASK_OK,
-                         ssh_key="/nonexistent/id_ed25519").create(
-            ask_id=42, storage=80,
-            onstart="export HF_TOKEN=hf_" + "c" * 34, name="vast-x"),
-        needle="onstart carries a known token shape")
-refuses("create refuses a result-sink URL: a URL with a path is a bearer "
-        "capability, exactly like this morning's ntfy topic",
-        lambda: StubVast(responses=ASK_OK,
-                         ssh_key="/nonexistent/id_ed25519").create(
-            ask_id=42, storage=80,
-            env={"FIDELITY_RESULT_SINK": "https://sink.invalid/topic-cred"},
-            name="vast-x"),
-        needle="credential-shaped")
-public_run = StubVast(responses=ASK_OK,
-                      ssh_key="/nonexistent/id_ed25519").create(
-    ask_id=42, storage=80, docker_cmd=["capture", "--model", "gpt2"],
-    env={"FIDELITY_PANEL_ID": "panel--fruit.malaiwah.heldout-v1"},
-    onstart="mkdir -p /workspace", name="vast-public")
-check("a PUBLIC-artifact container run with no credential still works",
-      public_run["machine_id"] == 50055626)
+if HAS_TLSGUARD:
+    refuses("create refuses a provider-carried HF credential",
+            lambda: StubVast(responses=ASK_OK,
+                             ssh_key="/nonexistent/id_ed25519").create(
+                ask_id=42, storage=80, env={"HF_TOKEN": "hf_" + "a" * 34},
+                docker_cmd=["capture"], onstart="mkdir -p /workspace",
+                name="vast-x"),
+            needle="provider-persisted")
+    refuses("create refuses a token embedded in onstart TEXT too",
+            lambda: StubVast(responses=ASK_OK,
+                             ssh_key="/nonexistent/id_ed25519").create(
+                ask_id=42, storage=80,
+                onstart="export HF_TOKEN=hf_" + "c" * 34, name="vast-x"),
+            needle="carries a credential")
+    refuses("create refuses a result-sink URL: a URL with a path is a "
+            "bearer capability, exactly like this morning's ntfy topic",
+            lambda: StubVast(responses=ASK_OK,
+                             ssh_key="/nonexistent/id_ed25519").create(
+                ask_id=42, storage=80,
+                env={"FIDELITY_RESULT_SINK":
+                     "https://sink.invalid/topic-cred"},
+                name="vast-x"),
+            needle="bearer capability")
+    public_run = StubVast(responses=ASK_OK,
+                          ssh_key="/nonexistent/id_ed25519").create(
+        ask_id=42, storage=80, docker_cmd=["capture", "--model", "gpt2"],
+        env={"FIDELITY_PANEL_ID": "panel--fruit.malaiwah.heldout-v1"},
+        onstart="mkdir -p /workspace", name="vast-public")
+    check("a PUBLIC-artifact container run with no credential still works",
+          public_run["machine_id"] == 50055626)
+else:
+    # tlsguard is not in this checkout, so the FAIL-CLOSED half is what is
+    # assertable here: an unchecked payload is never transmitted.
+    refuses("with fidelity.tlsguard absent, create REFUSES rather than "
+            "transmitting an unchecked payload into the provider's records",
+            lambda: StubVast(responses=ASK_OK,
+                             ssh_key="/nonexistent/id_ed25519").create(
+                ask_id=42, storage=80, env={"HF_TOKEN": "hf_" + "a" * 34},
+                name="vast-x"),
+            needle="tlsguard is not importable")
 
 print()
 print("== prepare_safe_create: everything refuses before anything bills ==")
