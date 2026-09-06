@@ -394,6 +394,18 @@ check("a healthy T4 attests: torch's 14912 MB against nvidia-smi's 15360 MiB "
 check("the document is sealed and names its hub verdict source",
       len(good["attestation_sha256"]) == 64
       and good["hub_tls_verdict_source"] in ("tlsguard", "inline-floor"))
+check("the document NAMES the attester of each half: a postcondition "
+      "evaluated by the party it constrains is not proof, so the box's "
+      "self-report is labelled as not independently verifiable",
+      set(good["evidence_sources"]) == {"observed", "provider_record",
+                                        "checks", "hub_tls_verdict"}
+      and "not independently verifiable"
+      in good["evidence_sources"]["observed"]
+      and "independent of" in good["evidence_sources"]["provider_record"])
+check("...and the two independent parties are required to AGREE, which is "
+      "what a single party's word cannot give",
+      good["checks"]["provider_gpu_model_agrees"] is True
+      and good["checks"]["provider_vram_agrees"] is True)
 if HAS_TLSGUARD:
     check("[INFO] tlsguard is present, so its verdict governs Hub identity",
           "hub_identity_attested" in good["checks"])

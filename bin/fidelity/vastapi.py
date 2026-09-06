@@ -1508,6 +1508,24 @@ class Vast(SSHTransport):
             "hub_tls_verdict": hub_verdict,
             "expected": expected, "observed": observed,
             "transport_error": transport_error,
+            # Name the ATTESTER of each half, because a postcondition
+            # evaluated by the party it constrains is not proof. `observed`
+            # is the rented box describing itself; `provider_record` is
+            # Vast describing the same box; `checks` are ours over both. The
+            # value is that the two independent parties must AGREE
+            # (provider_gpu_model_agrees, provider_vram_agrees) -- a single
+            # party's word never carries a check on its own.
+            "evidence_sources": {
+                "observed": "the rented box, self-reported over "
+                            "host-key-authenticated SSH; a hostile host can "
+                            "report anything and this is not independently "
+                            "verifiable",
+                "provider_record": "Vast's own API over TLS, independent of "
+                                   "the box",
+                "checks": "computed by the controller over both halves, "
+                          "requiring the two parties to agree",
+                "hub_tls_verdict": hub_verdict["source"],
+            },
             "checks": checks, "failures": sorted(set(failures)),
             "ok": bool(not failures and transport_error is None
                        and checks and all(checks.values())),
