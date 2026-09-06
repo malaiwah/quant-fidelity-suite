@@ -853,7 +853,49 @@ class LambdaCloud(SSHTransport):
                 return i
         return None
 
+    def _refuse_credential_payload(self, payload: Dict[str, Any], *,
+                                   operation: str = "create") -> None:
+        """Refuse before a credential enters Lambda's own records.
+
+        A create body is provider-persisted and lands in the host's
+        environment BEFORE the instance exists, so no ordering and no
+        attestation can protect it -- there is nothing to attest yet.
+
+        `tlsguard` owns the one implementation of "looks like a secret"; it is
+        imported lazily so this adapter still refuses on a checkout where that
+        module is not present yet. The fallback is deliberately narrower and
+        FAIL-CLOSED (any nonempty env or user_data at all), never a pass:
+        two implementations of a security property drift, and the drifting one
+        is always the untested one, so the local branch exists only to keep a
+        window where neither guard runs from ever existing.
+        """
+        try:
+            from .tlsguard import (TlsRefusal,
+                                   refuse_credential_in_provider_payload)
+        except ImportError:
+            carriers = sorted(
+                key for key in ("env", "user_data", "docker_cmd", "onstart")
+                if payload.get(key))
+            if carriers:
+                raise LambdaError(
+                    "lambda %s payload carries %s and fidelity.tlsguard is "
+                    "absent from this checkout, so the credential guard cannot "
+                    "run: refusing rather than transmitting an unscanned "
+                    "payload into provider-persisted records"
+                    % (operation, ", ".join(carriers)))
+            return
+        try:
+            refuse_credential_in_provider_payload(
+                dict(payload, provider="lambda"), operation=operation)
+        except TlsRefusal as exc:
+            raise LambdaError(exc.reason)
+
     def create(self, **kw) -> Dict[str, Any]:
+        # BEFORE the dry short-circuit: a payload that would carry a
+        # credential into provider-persisted records is a refusal even when
+        # this call would transmit nothing, because the caller's intent is
+        # the defect and a dry run is where it should be caught.
+        self._refuse_credential_payload(dict(kw), operation="create")
         if self.dry:
             return {"dry_run": True, **kw}
         itype = kw.get("gpu_type") or kw.get("instance_type")
@@ -2057,6 +2099,11 @@ class LambdaCloud(SSHTransport):
             raise LambdaError(
                 "safe Lambda profile refuses %s"
                 % "; ".join("%s (%s)" % (key, forbidden[key]) for key in used))
+        # The key-name refusals above catch the CARRIERS. This catches the
+        # VALUE wherever it was smuggled -- a token in `name`, in a tag, in a
+        # hostname -- because the guard scans the payload rather than a list
+        # of field names somebody remembered to extend.
+        self._refuse_credential_payload(dict(kw), operation="prepare-create")
         if kw.get("spot", False) is not False:
             raise LambdaError(
                 "safe Lambda profile requires spot exactly false; Lambda "
