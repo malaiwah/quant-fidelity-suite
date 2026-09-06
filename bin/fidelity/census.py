@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import json
 import math
+import pathlib
 from dataclasses import dataclass, field, asdict
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -1219,3 +1220,178 @@ def layer_outer_plan(
         breakdown=breakdown, modelled_peak_bytes=modelled, measured=measured,
         required_device_bytes=required, device_bytes=device.memory_bytes,
         fits=fits, reason=reason)
+
+
+# --------------------------------------------------------------------------
+# Root capture fit (`measure-cloud --role root`)
+# --------------------------------------------------------------------------
+# A root capture does NOT run the window-major streaming lane.  It runs
+# `hf_capture.py --schedule layer-outer` over the target's own checkpoint, and
+# its working set is the resident non-layer parameters plus ONE streamed layer
+# -- never the whole decoded checkpoint.  Sizing a root against
+# `lane_requirement(glm53_flash_census(), "streaming")` therefore quotes a
+# constant 63 GB/GPU for every target, because that number is GLM-5.3-Flash's
+# OBSERVED window-major peak (47 GB) times a headroom factor and has nothing
+# to do with the artifact being captured.
+#
+# That defect was paid for twice during the GH200 qualification
+# (docs/REVIEW-DEFERRED.md ROOT-2): a 10.10 GB Fruit checkpoint was refused on
+# every Lambda type under 63 GB -- including a `gpu_1x_a100_sxm4` with capacity
+# -- so the control arm had to be rented from another provider, and the same
+# arithmetic priced the run at 25 windows when the panel it was given has 16.
+#
+# The counter-evidence is committed and real: engines/tools/layer-outer-evidence/
+# fruit-cuda-l4.json measured that exact checkpoint under `--schedule
+# layer-outer` on one L4 at 2.167 GB CUDA allocated (1.471 GB of that resident
+# weights), against 10.409 GB for the same capture under window-outer.  The
+# refused hardware would have worked with a factor of twenty to spare.
+
+
+class PanelWindowsUnknown(ValueError):
+    """A panel directory does not state how many windows a capture will run."""
+
+
+def panel_window_count(panel_dir: Any) -> int:
+    """Window count read from the panel directory the planner was given.
+
+    The planner already opens this file to extract `panel_id`, so the count is
+    free; assuming 25 because GLM-5.3-Flash's panel had 25 prices a job nobody
+    asked for.  `windows` is the authority and `contexts`, when the panel
+    publishes it, must agree -- a panel whose two statements of its own size
+    disagree is refused rather than silently resolved.
+    """
+    root = pathlib.Path(str(panel_dir))
+    path = root / "panel.json" if root.is_dir() else root
+    try:
+        with open(path, encoding="utf-8") as stream:
+            doc = json.load(stream)
+    except (OSError, ValueError) as exc:
+        raise PanelWindowsUnknown(
+            "cannot read the window count from %s: %s" % (path, exc))
+    if not isinstance(doc, dict):
+        raise PanelWindowsUnknown("%s is not a panel object" % path)
+    windows = doc.get("windows")
+    if not isinstance(windows, list) or not windows:
+        raise PanelWindowsUnknown(
+            "%s has no non-empty `windows` array; a capture's window count "
+            "cannot be inferred from a panel id" % path)
+    count = len(windows)
+    contexts = doc.get("contexts")
+    if contexts is not None:
+        if isinstance(contexts, bool) or not isinstance(contexts, int):
+            raise PanelWindowsUnknown(
+                "%s publishes a non-integer `contexts`" % path)
+        if contexts != count:
+            raise PanelWindowsUnknown(
+                "%s disagrees with itself: contexts=%d but %d windows are "
+                "listed" % (path, contexts, count))
+    return count
+
+
+# The requirement below is quoted against a discrete CUDA card, whose default
+# budget is a flat 90% of the card (`default_budget`) at every size -- so
+# `required_device_bytes` is the same number for any non-unified device and the
+# root requirement is genuinely device-independent.  H200 is named only so the
+# breakdown and the measured GLM-5.3-class anchor come out of the one function
+# that owns that arithmetic.
+_ROOT_FIT_REFERENCE_DEVICE = H200
+
+
+@dataclass
+class RootFit:
+    """What a `--role root` capture of THIS target actually needs.
+
+    `requirement` is shaped exactly like `lane_requirement`'s result so a
+    planner can print it through the same code path; `windows` is the panel's
+    own count, not a family default.
+    """
+
+    model_id: Optional[str]
+    surface: str
+    ctx: int
+    windows: int
+    windows_source: str
+    geometry: LayerGeometry
+    breakdown: Dict[str, float]
+    modelled_peak_bytes: float
+    measured: Optional[Dict[str, Any]]
+    requirement: LaneRequirement
+
+    @property
+    def per_gpu_bytes(self) -> float:
+        return self.requirement.per_gpu_bytes
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "model_id": self.model_id,
+            "surface": self.surface,
+            "ctx": self.ctx,
+            "windows": self.windows,
+            "windows_source": self.windows_source,
+            "geometry": self.geometry.to_dict(),
+            "breakdown_gb": {k: round(gb(v), 3)
+                             for k, v in self.breakdown.items()},
+            "modelled_peak_gb": round(gb(self.modelled_peak_bytes), 2),
+            "measured": self.measured,
+            "requirement": self.requirement.to_dict(),
+            "engine": "engines/tools/hf_capture.py --schedule layer-outer",
+        }
+
+
+def root_fit(
+    config: Dict[str, Any],
+    *,
+    surface: str = "native-bf16",
+    panel_dir: Any = None,
+    windows: Optional[int] = None,
+    ctx: int = 2048,
+    model_id: Optional[str] = None,
+) -> RootFit:
+    """Size a `--role root` capture from the TARGET's census and ITS panel.
+
+    Exactly one of `panel_dir` / `windows` must be given: a window count is
+    either read from the panel the run was handed or supplied explicitly, and
+    never defaulted -- defaulting it is how a 16-window job got priced as 25.
+    `GeometryUnknown` propagates unchanged, because a root whose per-layer
+    arithmetic has not been reconciled to a real checkpoint must be refused
+    rather than planned against another model's numbers.
+    """
+    if (panel_dir is None) == (windows is None):
+        raise ValueError(
+            "root_fit needs exactly one of panel_dir (read the panel's own "
+            "window count) or windows (state it explicitly)")
+    if panel_dir is not None:
+        count = panel_window_count(panel_dir)
+        source = "panel.json:windows in %s" % panel_dir
+    else:
+        if isinstance(windows, bool) or not isinstance(windows, int) or windows <= 0:
+            raise ValueError("root_fit windows must be a positive integer")
+        count = windows
+        source = "explicit"
+    geometry = layer_geometry(config)
+    plan = layer_outer_plan(
+        geometry, surface=surface, device=_ROOT_FIT_REFERENCE_DEVICE,
+        ctx=ctx, windows=count)
+    required = plan.required_device_bytes
+    components = dict(plan.breakdown)
+    components["budget_headroom"] = max(0.0, required - plan.modelled_peak_bytes)
+    requirement = LaneRequirement(
+        lane="root-layer-outer",
+        gpus=1,
+        ep_size=1,
+        per_gpu_bytes=required,
+        components=components,
+        rationale=(
+            "a root capture runs hf_capture.py --schedule layer-outer, which "
+            "holds the resident non-layer parameters (%.2f GB) plus ONE "
+            "streamed layer (%.2f GB) -- not the %.2f GB decoded checkpoint "
+            "-- over %d window%s; %s"
+            % (gb(geometry.resident_bytes), gb(geometry.largest_layer_bytes),
+               gb(geometry.total_bf16_bytes), count,
+               "" if count == 1 else "s", plan.reason)),
+    )
+    return RootFit(
+        model_id=model_id, surface=surface, ctx=ctx, windows=count,
+        windows_source=source, geometry=geometry, breakdown=plan.breakdown,
+        modelled_peak_bytes=plan.modelled_peak_bytes, measured=plan.measured,
+        requirement=requirement)

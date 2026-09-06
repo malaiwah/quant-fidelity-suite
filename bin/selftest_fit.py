@@ -52,6 +52,17 @@ def near(a: float, b: float, tol: float) -> bool:
     return abs(a - b) <= tol
 
 
+def _refuses(exc_type, call, *args, **kw) -> bool:
+    """True when `call` refuses with `exc_type` instead of returning a guess."""
+    try:
+        call(*args, **kw)
+    except exc_type:
+        return True
+    except Exception:                                       # noqa: BLE001
+        return False
+    return False
+
+
 def main() -> int:
     c = glm53_flash_census()
 
@@ -371,6 +382,121 @@ def main() -> int:
         except GeometryUnknown as exc:
             check("an unverified model_type is refused, not guessed",
                   "llama" in str(exc) and "verified" in str(exc))
+
+    print("\n[10] ROOT FIT (docs/REVIEW-DEFERRED.md ROOT-2): a --role root plan is")
+    print("     sized from the TARGET's census and the PANEL's own window count")
+    # The two rungs that entry asks for.  Both failed before `root_fit` existed,
+    # because the planner sized every root against
+    # lane_requirement(glm53_flash_census(), "streaming") -- a constant 63 GB of
+    # VRAM and a 25-window price for whatever was being captured.  A 10.10 GB
+    # Fruit checkpoint was refused on every Lambda type under 63 GB during the
+    # GH200 qualification, including an a100_sxm4 that had capacity, and the
+    # control arm had to be rented from another provider.
+    #
+    # FRUIT_SCALE is a Fruit-SCALE glm_moe_dsa geometry -- 13 layers, hidden
+    # 1024, vocab 154880, exactly as engines/tools/layer-outer-evidence/
+    # fruit-cuda-l4.json reports for the real run -- with the routed set sized
+    # so the checkpoint totals ~10 GB.  It is NOT a copy of Fruit's config.json
+    # (that is not committed here), so nothing below asserts equality with
+    # Fruit's own tensors; what it asserts is the arithmetic's behaviour at that
+    # scale, and the committed L4 measurement is the corroborating anchor.
+    #
+    # `_root_plan` is deliberately written against the CONTRACT ("how is a root
+    # plan sized?") rather than against one implementation: when census offers
+    # no root arithmetic it falls back to the pre-fix path the planner really
+    # used -- Flash's streaming-lane requirement at a defaulted 25 windows --
+    # so the two named rungs go RED on the old code instead of vanishing with an
+    # ImportError.  Verified against 1e282f5: both fail there, 63.45 GB and 25.
+    def _root_plan(config, panel_dir):
+        try:
+            from fidelity.census import root_fit as _root_fit
+        except ImportError:
+            legacy = lane_requirement(glm53_flash_census(), "streaming")
+            return legacy.per_gpu_bytes, 25, "defaulted", None
+        got = _root_fit(config, surface="native-bf16", panel_dir=panel_dir,
+                        model_id="fruit-scale")
+        return got.per_gpu_bytes, got.windows, got.windows_source, got
+    FRUIT_SCALE = {
+        "model_type": "glm_moe_dsa", "hidden_size": 1024, "vocab_size": 154880,
+        "num_hidden_layers": 13, "num_attention_heads": 16, "q_lora_rank": 512,
+        "kv_lora_rank": 256, "qk_nope_head_dim": 64, "qk_rope_head_dim": 32,
+        "qk_head_dim": 96, "v_head_dim": 64, "intermediate_size": 3072,
+        "moe_intermediate_size": 1024, "n_routed_experts": 144,
+        "n_shared_experts": 1, "index_n_heads": 8, "index_head_dim": 64,
+        "index_topk": 512, "num_nextn_predict_layers": 0,
+        "mlp_layer_types": ["dense"] * 3 + ["sparse"] * 10,
+        "indexer_types": ["full"] * 13,
+    }
+    FRUIT_PANEL = Path(__file__).resolve().parent.parent \
+        / "engines" / "panels" / "panel--fruit.malaiwah.heldout-v1"
+    # The measured L4 layer-outer peak for the real Fruit checkpoint, quoted
+    # from the committed evidence file rather than retyped as a bare number.
+    L4_EVIDENCE = (Path(__file__).resolve().parent.parent / "engines" / "tools"
+                   / "layer-outer-evidence" / "fruit-cuda-l4.json")
+    import json as _json
+    _l4 = _json.loads(L4_EVIDENCE.read_text(encoding="utf-8"))
+    l4_layer_outer_bytes = _l4["layer-outer"]["memory"]["peak_cuda_allocated_bytes"]
+
+    phantom = gb(lane_requirement(c, "streaming").per_gpu_bytes)
+    per_gpu_bytes, windows, windows_source, fit = _root_plan(
+        FRUIT_SCALE, FRUIT_PANEL)
+    print("      required VRAM    %8.2f GB/GPU  (streaming lane says %.0f GB "
+          "for every target)" % (gb(per_gpu_bytes), phantom))
+    print("      windows          %8d  from %s" % (windows, windows_source))
+    check("the streaming-lane number a root used to be sized against really is "
+          "the phantom 63 GB", 62.0 <= phantom <= 64.0, "%.2f GB" % phantom)
+    # ---- the two rungs docs/REVIEW-DEFERRED.md ROOT-2 asks for --------------
+    check("a root plan for a 10 GB checkpoint does NOT demand 63 GB of VRAM",
+          gb(per_gpu_bytes) < 40.0, "%.2f GB/GPU" % gb(per_gpu_bytes))
+    check("a root plan's window count equals the panel's (16, not 25)",
+          windows == 16, "%d windows" % windows)
+    # ------------------------------------------------------------------------
+    check("...and the plan fits the gpu_1x_a100_sxm4 (43 GB) the old "
+          "arithmetic refused during the GH200 qualification",
+          per_gpu_bytes <= 43 * GB, "%.2f GB" % gb(per_gpu_bytes))
+    if fit is None:
+        check("census exposes root fit arithmetic at all", False,
+              "no root_fit(); the rungs above ran against the pre-fix path")
+    else:
+        from fidelity.census import (GeometryUnknown,  # noqa: E402
+                                     PanelWindowsUnknown, panel_window_count,
+                                     root_fit)
+        print("      target census    %8.2f GB decoded (whole checkpoint)"
+              % gb(fit.geometry.total_bf16_bytes))
+        print("      resident+1 layer %8.2f GB  <- what layer-outer holds"
+              % gb(fit.geometry.resident_bytes + fit.geometry.largest_layer_bytes))
+        check("a ~10 GB checkpoint is a ~10 GB checkpoint (the premise)",
+              9.5 <= gb(fit.geometry.total_bf16_bytes) <= 10.5,
+              "%.2f GB" % gb(fit.geometry.total_bf16_bytes))
+        check("the model still brackets the MEASURED L4 layer-outer peak from "
+              "above (%.2f GB) -- conservative, never optimistic"
+              % gb(l4_layer_outer_bytes),
+              fit.modelled_peak_bytes >= l4_layer_outer_bytes,
+              "modelled %.2f GB" % gb(fit.modelled_peak_bytes))
+        check("the requirement is the target's own census, not Flash's 642.70 GB",
+              fit.geometry.total_bf16_bytes < 0.1 * c.total_bf16_bytes
+              and "642" not in fit.requirement.rationale)
+        check("the window count is traceable to the panel file, not defaulted",
+              "panel.json:windows" in windows_source
+              and panel_window_count(FRUIT_PANEL) == 16)
+        check("more windows cost more carried state (the count is really "
+              "wired into the arithmetic, not just reported)",
+              root_fit(FRUIT_SCALE, surface="native-bf16", windows=25
+                       ).breakdown["carried_state"]
+              > fit.breakdown["carried_state"])
+        check("naming neither a panel nor a window count is refused, not "
+              "defaulted", _refuses(ValueError, root_fit, FRUIT_SCALE))
+        check("naming both is refused too",
+              _refuses(ValueError, root_fit, FRUIT_SCALE,
+                       panel_dir=FRUIT_PANEL, windows=25))
+        check("a panel directory with no window array is refused",
+              _refuses(PanelWindowsUnknown, panel_window_count,
+                       Path(__file__).resolve().parent))
+        check("an unverified target architecture is still refused for a root, "
+              "never planned against another model's census",
+              _refuses(GeometryUnknown, root_fit,
+                       {"model_type": "llama", "hidden_size": 4096},
+                       windows=16))
 
     print("\n" + "-" * 72)
     print("selftest_fit: %d passed, %d failed" % (len(PASS), len(FAIL)))
