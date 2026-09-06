@@ -8669,6 +8669,70 @@ def execute_paid(
                 fs=shlex.quote(fs_root), deadline=int(workload_epoch),
                 heartbeat=int(args.heartbeat_timeout)))
         watchdog_armed = True
+        # ATTEST, THEN TRANSPORT.  The ordering IS the property: on
+        # 2026-09-05 the token was already on the box when the TLS proxy was
+        # hit, so a check after the transport proves nothing about a
+        # credential that has already been written.  This runs before
+        # `token_cleanup_required` and before `_transport_hf_token`, so when
+        # it refuses NO credential exists on the box to clean up.
+        #
+        # `fs_root` is passed because the bundle is already uploaded by here,
+        # which makes the BOX verify against our own digest-pinned roots
+        # (bin/fidelity/tls-roots.pem) rather than only against whatever
+        # store the image shipped.  The provider API is in `hosts` on
+        # purpose: RunPod's host-key attribution is a fingerprint read from
+        # api.runpod.io over TLS, so an intercepted provider API poisons
+        # result ATTRIBUTION and not merely secrecy.
+        from fidelity import tlsguard
+        try:
+            tls_attestation = tlsguard.attest_before_credential(
+                provider, pod_id,
+                host_id="%s:%s" % (provider_name, pod_id),
+                hosts=(tlsguard.HUB_HOST,
+                       tlsguard.PROVIDER_API_HOSTS[provider_name]),
+                fs_root=fs_root)
+        except tlsguard.TlsRefusal as exc:
+            # THREE distinct classes, and one generic remedy for all three
+            # points an operator at the wrong fix (the 429 that printed
+            # `--token-file` advice when the answer was "wait"):
+            #
+            #   TLS-UNREACHABLE (retryable)  the Hub said "wait". NOT
+            #     evidence about this box, and it must not take the
+            #     destroy-and-recreate path -- that conflation cost two lanes
+            #     paid pods yesterday, one after a complete 254 GB fetch.
+            #   TLS-TRUST-*                  OUR bundle is stale or OUR
+            #     network is intercepted. Never the rented host's fault, so
+            #     the line must not accuse it.
+            #   TLS-PEER-* / TLS-RESOLUTION-SUSPECT   an identity refusal
+            #     about this host: destroy, re-create elsewhere, record the
+            #     host id. TLS-RESOLUTION-SUSPECT is forged DNS and
+            #     explicitly does NOT justify reporting the operator
+            #     (MitmForensics measured machine 68004: injected DNS
+            #     answers, no interceptor).
+            #
+            # All three raise -- teardown is guaranteed either way, and no
+            # credential exists on the box yet because this ran BEFORE the
+            # transport -- but the reason and the remedy stay distinct.
+            if exc.retryable:
+                verdict = ("could not complete (%s): treat as transient, "
+                           "retry; this is NOT evidence about the host"
+                           % exc.code)
+            elif exc.code.startswith("TLS-TRUST-"):
+                verdict = ("refused on OUR side (%s): our root bundle or our "
+                           "own network, not the rented host" % exc.code)
+            else:
+                verdict = ("REFUSED on identity (%s): destroy this host, "
+                           "re-create elsewhere, and record the host id"
+                           % exc.code)
+            con.warn("TLS attestation %s" % verdict)
+            raise Refusal(exc.reason, list(exc.advice))
+        tls_attestation_sha256 = tlsguard.write_attestation(
+            tls_attestation, outdir / "receipts" / "tls-attestation.json")
+        con.ok("peer TLS attested before the credential",
+               "hosts %s; attestation %s"
+               % (", ".join((tlsguard.HUB_HOST,
+                             tlsguard.PROVIDER_API_HOSTS[provider_name])),
+                  tls_attestation_sha256[:12]))
         # `token_cleanup_required` is set BEFORE the transport, deliberately:
         # a half-completed transport must be cleaned by the `finally`, not
         # skipped because the flag was never reached.

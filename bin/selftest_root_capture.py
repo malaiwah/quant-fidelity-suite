@@ -464,28 +464,47 @@ panel = SUITE / "engines" / "panels" / "panel--minimaxm3.malaiwah.corpus5x5"
 check("the committed MiniMax panel is a panel directory",
       (panel / "panel.json").is_file() and (panel / "arrays").is_dir())
 
-# On the LEGACY uploader path a panel outside the suite has no remote path,
-# because that uploader addresses files RELATIVE to the suite root. The rung
-# must name the provider it tests: --provider now defaults to runpod, where
-# the panel travels as a job-bound tar and an outside panel is admitted, so
-# a provider-less invocation stopped exercising this refusal at all and the
-# rung was passing on an unrelated HTTP 401 (found 2026-09-06).
+# The suite-relative panel restriction is GONE, deliberately, and this rung
+# is the one that had to change rather than the code.
+#
+# It used to assert that `--panel-dir` outside the checkout is refused "on
+# the legacy uploader path", because `_bootstrap_and_run` addressed bundle
+# files by their path RELATIVE to the suite root, so an outside panel had no
+# remote path.  That uploader is deleted (2026-09-06): it had no call site,
+# it transported the AMBIENT possibly-write-scoped credential with no
+# host-key gate, and it enforced the bundle contract more weakly than the
+# paid path.  With it gone the restriction guarded nothing and its
+# `if args.provider != "runpod"` branch would have refused a perfectly good
+# panel on every provider except RunPod -- a per-provider special case in the
+# one place a provider-generic paid path must not have one.
+#
+# So the property under test is now the OPPOSITE, and it is provider-generic:
+# the shared paid path freezes the panel into a sealed bundle by digest, so
+# an outside panel is admitted EVERYWHERE and identically.  What is still
+# refused, everywhere, is a panel directory that is not one.
 with tempfile.TemporaryDirectory() as tmp:
     outside = Path(tmp) / "panel"
     (outside / "arrays").mkdir(parents=True)
     (outside / "panel.json").write_text("{}")
-    rc, out = cli("--provider", "jarvislabs", "--role", "root", "--model", "a/b",
-                  "--panel-dir", str(outside), "--dataset-id", "d",
-                  "--lane", "streaming", "--dry-run")
-    check("a --panel-dir outside the suite checkout is refused on the legacy "
-          "uploader path, naming the checkout",
-          "must live inside the suite checkout" in out)
-    rc2, out2 = cli("--provider", "runpod", "--role", "root", "--model", "a/b",
-                    "--panel-dir", str(outside), "--dataset-id", "d",
-                    "--lane", "streaming", "--dry-run")
-    check("on runpod the same panel is NOT refused for living outside the "
-          "checkout (it travels as a job-bound archive)",
-          "must live inside the suite checkout" not in out2)
+    for provider in ("jarvislabs", "lambda", "runpod", "vast"):
+        rc, out = cli("--provider", provider, "--role", "root",
+                      "--model", "a/b", "--panel-dir", str(outside),
+                      "--dataset-id", "d", "--lane", "streaming",
+                      "--dry-run")
+        check("a --panel-dir outside the checkout is NOT refused on %s: the "
+              "paid path freezes the panel by digest, and the legacy "
+              "suite-relative uploader that needed it is deleted" % provider,
+              "must live inside the suite checkout" not in out)
+    empty = Path(tmp) / "not-a-panel"
+    empty.mkdir()
+    for provider in ("jarvislabs", "lambda", "runpod", "vast"):
+        rc, out = cli("--provider", provider, "--role", "root",
+                      "--model", "a/b", "--panel-dir", str(empty),
+                      "--dataset-id", "d", "--lane", "streaming",
+                      "--dry-run")
+        check("...and a directory with no panel.json is still refused on %s, "
+              "before the plan and before any spend" % provider,
+              "has no panel.json" in out)
 
 print()
 if FAILED:
