@@ -417,7 +417,8 @@
         "receipt_sha256": "7b497db48cffe4f779328e6c3cf4eb3a8c58051649ce361d1c436d2e14460ab4"
       },
       "numpy_result": null,
-      "verdict": "a Tesla T4 carried a STRICT-class reproduction confirmation over the full 512-context / 1,048,064-position Qwen3.8 panel with --replay-device cuda: exactly 0.0 nats, top-1 agreement 1.0, comparability class=strict, usable_as_floor=True. So the comparison half of this pipeline runs correctly and completely on a 16 GB Turing card, at 47% of its memory."
+      "verdict": "a Tesla T4 carried a STRICT-class reproduction confirmation over the full 512-context / 1,048,064-position Qwen3.8 panel with --replay-device cuda: exactly 0.0 nats, top-1 agreement 1.0, comparability class=strict, usable_as_floor=True. So the comparison half of this pipeline runs correctly and completely on a 16 GB Turing card, at 47% of its memory.",
+      "numpy_note": "NOT COMPLETED. The numpy replay of this panel was launched and killed at ~3.5 min by the wall-clock teardown, so the T4's own numpy->cuda RATIO on the Qwen3.8 panel is UNMEASURED and no speedup figure is claimed for it. It did confirm 0 MiB of device memory over 425 samples, i.e. the numpy path uses no GPU. The measured speedup in this file is the Fruit panel's 4.97x only."
     },
     "do_not_claim": "the 1754.71s / 173.27s / 10.13x / 7.13 GB figures are docs/CAPTURE-SCALING-PLAN.md's measurement on an RTX PRO 6000, NOT measured here. The Fruit figures above are this box's own."
   },
@@ -471,5 +472,43 @@
       "note": "a 448 MiB spread on a healthy card; an attestation demanding torch's total_memory equal the provider's gpu_ram would refuse every healthy T4."
     }
   },
-  "measured_utc": "2026-09-06T13:13:46Z"
+  "measured_utc": "2026-09-06T13:13:46Z",
+  "ledger": {
+    "_comment": "spend is the Vast CREDIT DELTA across the whole task, which is stronger than rate x wall clock; Vast exposes no settled per-contract cost after destroy.",
+    "credit_before_first_create": 19.481281938881693,
+    "credit_after_final_destroy": 18.796255772791596,
+    "total_spend_usd": 0.685026,
+    "share_cap_usd": 3.0,
+    "instances": [
+      {
+        "id": "50054271",
+        "machine_id": 150014,
+        "gpu": "Tesla T4",
+        "usd_per_hour_contract": 0.16666666666666666,
+        "purpose": "first attempt; unreachable via a dead ssh2.vast.ai reverse tunnel, then destroyed in error on a stale log tail",
+        "destroyed_and_proven_absent": true
+      },
+      {
+        "id": "50055626",
+        "machine_id": 150014,
+        "gpu": "Tesla T4",
+        "usd_per_hour_contract": 0.16666666666666666,
+        "wall_seconds": 5078,
+        "wall_hours": 1.41,
+        "purpose": "all four questions",
+        "destroyed_and_proven_absent": true
+      },
+      {
+        "id": "50056958",
+        "machine_id": 150014,
+        "gpu": "Tesla T4",
+        "usd_per_hour_contract": 0.16666666666666666,
+        "purpose": "authorised cross-contract host-key keyscan, ~2 min",
+        "destroyed_and_proven_absent": true
+      }
+    ],
+    "absence_proof": "Vast list_instances() returned [] after the final destroy; all three contract ids confirmed absent.",
+    "wall_time_source": "now - start_date. NEVER the API's `duration` field, which on a live Vast contract is time REMAINING and counts DOWN from 180 days.",
+    "no_reaper": "measure-cloud reaper --provider vast refuses, so a detached local watchdog with a hard wall-clock cap was armed at create and stood down on the owner's cancel marker."
+  }
 }
