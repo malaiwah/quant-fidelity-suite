@@ -28,8 +28,10 @@ Stub provider, no network, $0.00.  Stage-level publication ordering and argv
 composition live in bin/selftest_stage_measure.py, which executes the real
 script.
 """
+import importlib
 import importlib.util
 import json
+import re
 import hashlib
 import sys
 import tempfile
@@ -300,25 +302,80 @@ def main():
     check("RP7d and no refusal echoes the credential it refused "
           "(a refusal string ends up in logs and receipt warnings)",
           not guard_leaked, guard_leaked)
-    # And each adapter must actually CALL it.  A guard nothing calls is a guard
-    # that protects nothing, so this reads the adapters rather than trusting
-    # that they were updated.  A lane that has not landed its call yet is a
-    # printed SKIP naming the owner, never a silent pass.
-    adapter_owners = {"runpodapi": "RunPod", "vastapi": "VastParity",
-                      "lambdaapi": "LambdaParity", "jlapi": "JLParity"}
-    for module, owner in adapter_owners.items():
-        source = (ROOT / "bin" / "fidelity" / ("%s.py" % module)).read_text()
-        calls_shared = "refuse_credential_in_provider_payload" in source
-        own_refusal = ("provider env" in source
-                       or "provider environment" in source
-                       or "provider-persisted" in source)
-        if calls_shared or own_refusal:
-            check("RP7e %s refuses provider-carried credentials before mutation"
-                  % module, True)
+    # RP7e: each adapter, DRIVEN -- not grepped.  RP7b's second clause is the
+    # whole gate: it asserts the raise AND that `submitted == []`, i.e. that
+    # nothing was transmitted, which is the only property that matters when
+    # the create body IS the disclosure.  A source grep passes on a refusal
+    # that exists textually but is unreachable, or placed AFTER the payload is
+    # assembled -- which is precisely the ordering defect this rung exists to
+    # prevent, and the shape T16's comment records four expensive stage bugs
+    # walking straight through.
+    #
+    # All four adapters share the `submit_prepared_create` transmit seam, so
+    # one loop drives all four: stub the seam, call create() with a
+    # credential-bearing env, and classify by what actually happened.
+    #   refused as a credential + nothing transmitted -> PASS
+    #   transmitted                                   -> FAIL (the real defect)
+    #   refused for another reason, nothing sent      -> SKIP, owner named
+    adapters = [
+        ("runpodapi", "RunPod", "RunPod"),
+        ("vastapi", "Vast", "VastParity"),
+        ("lambdaapi", "LambdaCloud", "LambdaParity"),
+        ("jlapi", "JL", "JLParity"),
+    ]
+    for module_name, class_name, owner in adapters:
+        module = importlib.import_module("fidelity.%s" % module_name)
+        adapter_class = getattr(module, class_name)
+        adapter = adapter_class.__new__(adapter_class)
+        transmitted = []
+        adapter.submit_prepared_create = lambda prepared: transmitted.append(
+            prepared)
+        # `__new__` skips __init__ (no account, no key file), so the first
+        # touch of an instance attribute raises AttributeError before the
+        # guard is reached.  Seed exactly the attributes the adapter asks for
+        # -- nothing is stubbed out and no branch is bypassed.  `dry` is seeded
+        # TRUE on purpose: this rung must never be able to attempt a real
+        # provider mutation, and an adapter whose dry path returns before the
+        # guard shows up as an explicit SKIP rather than a pass.
+        raised = None
+        for _ in range(8):
+            raised = None
+            try:
+                adapter.create(env={"HF_TOKEN": token})
+            except AttributeError as exc:
+                missing = re.search(r"has no attribute '([A-Za-z_0-9]+)'",
+                                    str(exc))
+                raised = exc
+                if not missing:
+                    break
+                name = missing.group(1)
+                setattr(adapter, name, True if name == "dry" else "")
+                continue
+            except BaseException as exc:        # any refusal shape counts
+                raised = exc
+            break
+        text = "" if raised is None else str(raised)
+        credential_refusal = any(
+            phrase in text for phrase in
+            ("provider env", "provider environment", "provider-persisted",
+             "credential"))
+        if transmitted:
+            check("RP7e %s refuses a provider-carried credential BEFORE "
+                  "transmitting the create body" % module_name, False,
+                  "TRANSMITTED a create body carrying a credential (owner: %s)"
+                  % owner)
+        elif credential_refusal:
+            check("RP7e %s refuses a provider-carried credential BEFORE "
+                  "transmitting the create body" % module_name, True)
+            check("RP7f %s's refusal does not echo the credential"
+                  % module_name, token not in text, text[:120])
         else:
-            print("  SKIP  RP7e %s has no credential refusal in its create "
-                  "path (owner: %s; the shared guard exists and is unused "
-                  "here)" % (module, owner))
+            print("  SKIP  RP7e %s transmitted nothing but did not refuse the "
+                  "CREDENTIAL (raised %s: %s) -- owner %s adds "
+                  "tlsguard.refuse_credential_in_provider_payload at the top "
+                  "of create()"
+                  % (module_name, type(raised).__name__ if raised else "nothing",
+                     text[:80], owner))
 
     # RP9: qualification is mandatory, the exact returned commit is refetched
     # (never mutable main), and the receipt binds the bytes actually refetched.

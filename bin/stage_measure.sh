@@ -22,6 +22,25 @@
 # Token bytes are file-only: never put them in argv, logs, or process environments.
 set -euo pipefail
 unset HF_TOKEN HUGGING_FACE_HUB_TOKEN HUGGINGFACE_HUB_TOKEN HF_TOKEN_PATH
+# Trust-widening variables are removed here, in the same place as the token
+# names, because on the container path the environment belongs to the HOST.
+#
+# It is not enough to CHECK the peer: `requests` (and therefore
+# huggingface_hub, and therefore the authenticated `hf download` below)
+# resolves its verify path as REQUESTS_CA_BUNDLE or CURL_CA_BUNDLE if either
+# is set, and only falls back to `certifi.where()` otherwise. So a host that
+# sets REQUESTS_CA_BUNDLE=/opt/its-own-ca.pem makes the fetch trust a store
+# our check never looked at -- the check cannot see the thing that varies.
+# Unsetting them makes certifi the store BY CONSTRUCTION, which is what makes
+# recording certifi's digest (tls_peer_gate, below) attest the store actually
+# used. SSL_CERT_FILE/SSL_CERT_DIR do the same for anything stdlib.
+#
+# HTTPS_PROXY/https_proxy are deliberately NOT unset: a proxy may be the only
+# egress a rented host has, and with the CA overrides gone a CONNECT proxy
+# cannot decrypt TLS anyway -- it can only be seen. tlsguard records any that
+# are set as a disclosure in the per-stage evidence instead.
+unset REQUESTS_CA_BUNDLE CURL_CA_BUNDLE SSL_CERT_FILE SSL_CERT_DIR \
+      NODE_EXTRA_CA_CERTS PYTHONHTTPSVERIFY SSLKEYLOGFILE
 
 STAGE="${1:?usage: stage_measure.sh <stage>}"
 SCRIPT_PATH="$(readlink -f -- "$0")"
