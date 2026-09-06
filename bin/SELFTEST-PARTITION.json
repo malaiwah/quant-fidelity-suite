@@ -1,0 +1,482 @@
+{
+  "schema": "fidelity-suite/selftest-partition.v1",
+  "why": "The hermetic partition of the selftest estate, DECLARED so that .github/workflows/selftest.yml cannot drift from it. bin/selftest_partition.py FAILS when a selftest file on disk is in neither \"selftests\" nor \"exclusions\", so a new selftest must be categorised before it can land and CI coverage cannot silently lag the estate. It is the same shape as the provider-parity table in bin/fidelity/providers.py, which the controller also reads, so a declaration cannot disagree with behaviour. Written 2026-09-06 from per-file measurements taken for this file; the two read-only reviews it acts on are local/CiCoverage-report.md (GitHub CI) and local/LocalCoverage-report.md (the local battery).",
+  "measured": {
+    "date": "2026-09-06",
+    "ref": "1b063d2",
+    "host": "Intel Xeon X5570 (2009), python3 3.14.4, no .venv in the worktree",
+    "method": "each file executed once, in a detached worktree at a committed ref, with HOME set to an empty runner-shaped directory (755 ancestry: fidelity.cloudlease correctly refuses a source path under a group-writable parent, and that guard must not be weakened to make CI pass) and a PYTHONPATH shim that raises socket.gaierror for any DNS name other than loopback, OSError for any non-loopback connect, and ImportError for torch, numpy, safetensors, transformers, huggingface_hub, yaml, jsonschema, scipy, pandas, mlx, gguf, exllamav3, compressed_tensors, accelerate, rich, hf_transfer and quant_pipeline. A GitHub ubuntu-latest runner is 2-3x faster per core, so every seconds_xeon_x5570 is an upper bound.",
+    "hermetic_files": 54,
+    "fast_files": 46,
+    "fast_seconds_total": 44.1,
+    "full_files": 8,
+    "full_seconds_total": 268.4,
+    "gpu_rungs": 0,
+    "paid_rungs": 0,
+    "credential_rungs": 0
+  },
+  "tiers": {
+    "hermetic": "offline, stock python3, no installs, no GPU, no credential, no spend -- AND it asserts something under exactly those conditions. Split by `job`: `fast` is the push gate's first verdict, `full` runs on the same push in parallel so the fast verdict is never delayed.",
+    "torch": "needs torch / numpy / safetensors / PyYAML. Nightly (.github/workflows/selftest.yml job `nightly-torch`).",
+    "network": "needs a live endpoint. Nightly only: a red push build must never be able to mean the Hub hiccuped. No selftest FILE is in this tier -- the battery's networked rungs are CLI invocations (bin/measure, registry-view --selftest-live), not selftest files, and they stay in bin/selftest_all.sh.",
+    "gpu": "needs a real accelerator. Empty, and that is measured rather than assumed: 0 rungs in this estate need a GPU (CiCoverage-report.md partition (d), LocalCoverage-report.md section 4). The device rungs INSIDE torch-tier files skip loudly on a CPU box and name the device they wanted.",
+    "pipeline": "needs a quant_pipeline tree (--pipeline-root). Neither a device nor a wheel, and installable neither on the buildbox nor on a runner. LocalCoverage-report.md section 3.2 records that this whole dependency tier is invisible in the battery's output.",
+    "orphan-dead": "must not be wired anywhere yet, with the reason."
+  },
+  "exclusions": {
+    "bin/selftest_all.sh": "The battery itself, not a rung: it RUNS most of the files below plus networked CLI rungs, so putting it in a push job would both duplicate every hermetic rung and drag the network into the gate. It stays the local command of record (AGENTS.md, \"Commands that define done\") and Main owns it."
+  },
+  "selftests": {
+    "bin/selftest_annotations.py": {
+      "tier": "hermetic",
+      "job": "full",
+      "seconds_xeon_x5570": 6.91,
+      "assertions_measured": 5
+    },
+    "bin/selftest_battery_harness.py": {
+      "tier": "hermetic",
+      "job": "fast",
+      "seconds_xeon_x5570": 0.09,
+      "assertions_measured": 12
+    },
+    "bin/selftest_bundle_complete.py": {
+      "tier": "torch",
+      "reason": "4-5 FAILED on a bare runner: it runs the bundled engine selftests, which import torch/numpy. It hard-fails rather than pretending, which is the honest shape -- so it is a nightly rung, and the battery already guards it with $TPY.",
+      "missing_module_measured": "numpy"
+    },
+    "bin/selftest_campaign_admission.py": {
+      "tier": "hermetic",
+      "job": "fast",
+      "seconds_xeon_x5570": 0.88,
+      "assertions_measured": 37
+    },
+    "bin/selftest_canonical_json.py": {
+      "tier": "hermetic",
+      "job": "fast",
+      "seconds_xeon_x5570": 0.2,
+      "assertions_measured": 48
+    },
+    "bin/selftest_container.py": {
+      "tier": "hermetic",
+      "job": "full",
+      "seconds_xeon_x5570": 21.07,
+      "assertions_measured": 184
+    },
+    "bin/selftest_contract_harness.py": {
+      "tier": "torch",
+      "reason": "T27, the fixture-scale contract harness, needs numpy: rc=1 'no module named numpy' on a bare runner. It hard-fails rather than self-skipping, which is the honest shape -- so it is a nightly rung and never a push rung.",
+      "missing_module_measured": "numpy"
+    },
+    "bin/selftest_decode_parity.py": {
+      "tier": "torch",
+      "reason": "rc=2, self-reported 'torch is not installed. This selftest needs it'. Its bitwise cpu==cuda rung is also the open DecoderParity/T4Verdict question, which needs a GPU to answer; the cpu half needs only torch."
+    },
+    "bin/selftest_fetch_truncated.py": {
+      "tier": "hermetic",
+      "job": "fast",
+      "seconds_xeon_x5570": 0.27,
+      "assertions_measured": 11
+    },
+    "bin/selftest_fidelity_card.py": {
+      "tier": "torch",
+      "reason": "needs PyYAML: card annotation is an optional lazy-import mode, exactly as AGENTS.md's dependency discipline requires, so a bare runner cannot run it.",
+      "missing_module_measured": "yaml"
+    },
+    "bin/selftest_fidelity_compare.py": {
+      "tier": "torch",
+      "reason": "the dataset comparator needs numpy: rc=1 on a bare runner, hard-failing rather than pretending. Nightly.",
+      "missing_module_measured": "numpy"
+    },
+    "bin/selftest_fidelity_dataset.py": {
+      "tier": "torch",
+      "reason": "T6, the fidelity dataset format, needs numpy: rc=1 on a bare runner. Its own run also skips I10-I15 and R1 when the published deliverables are not on the machine, which is a second reason it is a nightly rung with its skips read.",
+      "missing_module_measured": "numpy"
+    },
+    "bin/selftest_fidelity_post.py": {
+      "tier": "hermetic",
+      "job": "fast",
+      "seconds_xeon_x5570": 0.13,
+      "assertions_measured": 10
+    },
+    "bin/selftest_fidelity_reducer.py": {
+      "tier": "torch",
+      "reason": "P1-06, the fidelity reducer, needs torch: rc=1 on a bare runner. The battery routes it through $VPY, which falls back to $PY on a clone with no .venv -- LocalCoverage-report.md section 2.3's latent fifth straggler.",
+      "missing_module_measured": "torch"
+    },
+    "bin/selftest_fit.py": {
+      "tier": "hermetic",
+      "job": "fast",
+      "seconds_xeon_x5570": 0.09,
+      "assertions_measured": 70
+    },
+    "bin/selftest_fp8_lossless.py": {
+      "tier": "torch",
+      "reason": "T5e needs torch; it hard-fails rather than self-skipping, which is correct, and the battery already guards it with $TPY.",
+      "missing_module_measured": "torch"
+    },
+    "bin/selftest_gguf_lane.py": {
+      "tier": "hermetic",
+      "job": "fast",
+      "seconds_xeon_x5570": 1.29,
+      "assertions_measured": 33
+    },
+    "bin/selftest_hf_capture.py": {
+      "tier": "torch",
+      "reason": "A1-A22 assert 48 things with torch and MEASURED 0 without it (CiCoverage-report.md section 2, LocalCoverage-report.md section 2.2): the file catches ImportError, prints one SKIP and returns 0. It is hermetic in the sense that it EXITS 0 on a bare runner, which is exactly why it must not be in the hermetic job -- that would launder an empty run into green.",
+      "missing_module_measured": "torch"
+    },
+    "bin/selftest_hf_capture_allowlist.py": {
+      "tier": "hermetic",
+      "job": "fast",
+      "seconds_xeon_x5570": 0.19,
+      "assertions_measured": 19
+    },
+    "bin/selftest_hf_redirect.py": {
+      "tier": "hermetic",
+      "job": "fast",
+      "seconds_xeon_x5570": 0.82,
+      "assertions_measured": 9
+    },
+    "bin/selftest_hub_retry.py": {
+      "tier": "hermetic",
+      "job": "fast",
+      "seconds_xeon_x5570": 0.32,
+      "assertions_measured": 34
+    },
+    "bin/selftest_jl_parity.py": {
+      "tier": "hermetic",
+      "job": "fast",
+      "seconds_xeon_x5570": 0.34,
+      "assertions_measured": 163
+    },
+    "bin/selftest_jlapi.py": {
+      "tier": "hermetic",
+      "job": "fast",
+      "seconds_xeon_x5570": 0.15,
+      "assertions_measured": 11
+    },
+    "bin/selftest_job_identity.py": {
+      "tier": "hermetic",
+      "job": "fast",
+      "seconds_xeon_x5570": 0.11,
+      "assertions_measured": 1
+    },
+    "bin/selftest_joint_standard.py": {
+      "tier": "hermetic",
+      "job": "full",
+      "seconds_xeon_x5570": 5.53,
+      "assertions_measured": 108
+    },
+    "bin/selftest_lambda_contract.py": {
+      "tier": "hermetic",
+      "job": "fast",
+      "seconds_xeon_x5570": 1.02,
+      "assertions_measured": 210
+    },
+    "bin/selftest_layer_outer.py": {
+      "tier": "torch",
+      "reason": "L1-L14: 61 assertions with torch, MEASURED 0 without. Same self-skip-to-zero shape; belongs to the nightly torch job, not to a push gate.",
+      "missing_module_measured": "torch"
+    },
+    "bin/selftest_measure_cloud_candidate.py": {
+      "tier": "hermetic",
+      "job": "fast",
+      "seconds_xeon_x5570": 0.31,
+      "assertions_measured": 23
+    },
+    "bin/selftest_measure_cloud_prespend.py": {
+      "tier": "hermetic",
+      "job": "fast",
+      "seconds_xeon_x5570": 0.88,
+      "assertions_measured": 23
+    },
+    "bin/selftest_measure_front_gate.py": {
+      "tier": "hermetic",
+      "job": "fast",
+      "seconds_xeon_x5570": 0.22,
+      "assertions_measured": 17
+    },
+    "bin/selftest_naming_sweep.py": {
+      "tier": "hermetic",
+      "job": "fast",
+      "seconds_xeon_x5570": 0.82,
+      "assertions_measured": 20
+    },
+    "bin/selftest_nonfinite_rejection.py": {
+      "tier": "hermetic",
+      "job": "fast",
+      "seconds_xeon_x5570": 0.18,
+      "assertions_measured": 11
+    },
+    "bin/selftest_panel.py": {
+      "tier": "hermetic",
+      "job": "fast",
+      "seconds_xeon_x5570": 2.81,
+      "assertions_measured": 49
+    },
+    "bin/selftest_partition.py": {
+      "tier": "hermetic",
+      "job": "fast",
+      "seconds_xeon_x5570": 0.2,
+      "assertions_measured": 16,
+      "note": "the guard that keeps this declaration complete; it categorises itself so the rule has no exception."
+    },
+    "bin/selftest_preview_stats.py": {
+      "tier": "hermetic",
+      "job": "full",
+      "seconds_xeon_x5570": 10.56,
+      "assertions_measured": 17
+    },
+    "bin/selftest_progress.py": {
+      "tier": "hermetic",
+      "job": "fast",
+      "seconds_xeon_x5570": 1.0,
+      "assertions_measured": 15
+    },
+    "bin/selftest_provider_portability.py": {
+      "tier": "hermetic",
+      "job": "fast",
+      "seconds_xeon_x5570": 0.46,
+      "assertions_measured": 173
+    },
+    "bin/selftest_py39_floor.py": {
+      "tier": "hermetic",
+      "job": "fast",
+      "seconds_xeon_x5570": 3.82,
+      "assertions_measured": 9
+    },
+    "bin/selftest_race_mode.py": {
+      "tier": "torch",
+      "reason": "T15: 18 assertions with torch, MEASURED 0 without. Same shape.",
+      "missing_module_measured": "torch"
+    },
+    "bin/selftest_readme_recipes.py": {
+      "tier": "hermetic",
+      "job": "fast",
+      "seconds_xeon_x5570": 0.39,
+      "assertions_measured": 60
+    },
+    "bin/selftest_reaper.py": {
+      "tier": "hermetic",
+      "job": "full",
+      "seconds_xeon_x5570": 18.77,
+      "assertions_measured": 164
+    },
+    "bin/selftest_registry_determinism.py": {
+      "tier": "hermetic",
+      "job": "fast",
+      "seconds_xeon_x5570": 0.09,
+      "assertions_measured": 29
+    },
+    "bin/selftest_registry_view.py": {
+      "tier": "hermetic",
+      "job": "fast",
+      "seconds_xeon_x5570": 0.26,
+      "assertions_measured": 31
+    },
+    "bin/selftest_replay_device.py": {
+      "tier": "torch",
+      "reason": "T12 needs numpy: 11 assertions with torch, 4 without, and a cuda axis that only a real accelerator makes real.",
+      "missing_module_measured": "numpy"
+    },
+    "bin/selftest_result_sink.py": {
+      "tier": "hermetic",
+      "job": "fast",
+      "seconds_xeon_x5570": 3.04,
+      "assertions_measured": 138
+    },
+    "bin/selftest_root_capture.py": {
+      "tier": "hermetic",
+      "job": "fast",
+      "seconds_xeon_x5570": 3.12,
+      "assertions_measured": 83
+    },
+    "bin/selftest_root_publish.py": {
+      "tier": "hermetic",
+      "job": "fast",
+      "seconds_xeon_x5570": 4.56,
+      "assertions_measured": 50
+    },
+    "bin/selftest_runpod_drill.py": {
+      "tier": "hermetic",
+      "job": "full",
+      "seconds_xeon_x5570": 7.25,
+      "assertions_measured": 1
+    },
+    "bin/selftest_runpod_safe.py": {
+      "tier": "hermetic",
+      "job": "fast",
+      "seconds_xeon_x5570": 1.91,
+      "assertions_measured": 1
+    },
+    "bin/selftest_runpodsafety.py": {
+      "tier": "hermetic",
+      "job": "fast",
+      "seconds_xeon_x5570": 0.28,
+      "assertions_measured": 1
+    },
+    "bin/selftest_scope_crosscheck.py": {
+      "tier": "hermetic",
+      "job": "fast",
+      "seconds_xeon_x5570": 0.36,
+      "assertions_measured": 61
+    },
+    "bin/selftest_seal_gate.py": {
+      "tier": "hermetic",
+      "job": "fast",
+      "seconds_xeon_x5570": 0.65,
+      "assertions_measured": 8
+    },
+    "bin/selftest_secret_files.py": {
+      "tier": "hermetic",
+      "job": "fast",
+      "seconds_xeon_x5570": 0.52,
+      "assertions_measured": 19
+    },
+    "bin/selftest_shell_guards.sh": {
+      "tier": "hermetic",
+      "job": "fast",
+      "seconds_xeon_x5570": 2.52,
+      "assertions_measured": 25
+    },
+    "bin/selftest_sshbase.py": {
+      "tier": "hermetic",
+      "job": "fast",
+      "seconds_xeon_x5570": 0.39,
+      "assertions_measured": 19
+    },
+    "bin/selftest_stackprint.py": {
+      "tier": "hermetic",
+      "job": "fast",
+      "seconds_xeon_x5570": 0.72,
+      "assertions_measured": 24
+    },
+    "bin/selftest_stage_measure.py": {
+      "tier": "hermetic",
+      "job": "full",
+      "seconds_xeon_x5570": 103.09,
+      "assertions_measured": 146
+    },
+    "bin/selftest_stage_panel_paths.py": {
+      "tier": "hermetic",
+      "job": "fast",
+      "seconds_xeon_x5570": 0.23,
+      "assertions_measured": 13
+    },
+    "bin/selftest_stats.py": {
+      "tier": "hermetic",
+      "job": "fast",
+      "seconds_xeon_x5570": 0.3,
+      "assertions_measured": 31
+    },
+    "bin/selftest_submission_refusal.py": {
+      "tier": "hermetic",
+      "job": "fast",
+      "seconds_xeon_x5570": 0.13,
+      "assertions_measured": 17
+    },
+    "bin/selftest_support_matrix.py": {
+      "tier": "hermetic",
+      "job": "fast",
+      "seconds_xeon_x5570": 0.71,
+      "assertions_measured": 6
+    },
+    "bin/selftest_teardown.py": {
+      "tier": "hermetic",
+      "job": "full",
+      "seconds_xeon_x5570": 95.27,
+      "assertions_measured": 32
+    },
+    "bin/selftest_tlsguard.py": {
+      "tier": "hermetic",
+      "job": "fast",
+      "seconds_xeon_x5570": 2.76,
+      "assertions_measured": 139
+    },
+    "bin/selftest_vast_contract.py": {
+      "tier": "hermetic",
+      "job": "fast",
+      "seconds_xeon_x5570": 3.58,
+      "assertions_measured": 153
+    },
+    "bin/selftest_zero_floor.py": {
+      "tier": "torch",
+      "reason": "T4: 9 assertions with torch/safetensors, MEASURED 0 without -- and its verdict line prints the word SKIP while returning 0 ('PASS if PASS else SKIP'). The clearest instance in the tree of a rung reporting PASS having asserted nothing.",
+      "missing_module_measured": "torch"
+    },
+    "engines/tools/selftest_dione_offline.py": {
+      "tier": "pipeline",
+      "reason": "needs BOTH numpy and a quant_pipeline tree: rc=1 'no module named numpy' on a bare runner, and rc=1 'pass --pipeline-root (tree containing quant_pipeline)' once numpy and torch ARE present (measured under .venv/bin/python: 0.2 s, immediate refusal). So it is not a nightly-torch rung -- the wheel is not what it is missing. It is reached indirectly through selftest_bundle_complete.py (T5g) in the 'does it run from the bundle' sense only, and that rung explicitly downgrades a --pipeline-root failure, so on a box without quant_pipeline it contributes a bundle-staging verdict and no science (LocalCoverage-report.md section 1.3b).",
+      "missing_module_measured": "numpy"
+    },
+    "engines/tools/selftest_dione_stream_offline.py": {
+      "tier": "torch",
+      "reason": "needs torch; reached indirectly through selftest_bundle_complete.py (T5g) in the bundle-staging sense only.",
+      "missing_module_measured": "torch"
+    },
+    "engines/tools/selftest_engine_profiles.py": {
+      "tier": "orphan-dead",
+      "reason": "rc=1 at this ref: 'root timing rows bind exact target metadata' fails on two drifted model_bytes pins in bin/engines.json while config_sha256 and index_sha256 still match (LocalCoverage-report.md section 1.3d). Main has FROZEN action on it pending an explanation of how a size pin moved while content digests held. It must NOT be wired into CI or the battery until that is answered: model_bytes is an input to root fit arithmetic, the same neighbourhood as this session's failure 15. Frozen, not dead -- revisit, do not delete."
+    },
+    "engines/tools/selftest_exl3hf_offline.py": {
+      "tier": "torch",
+      "reason": "needs numpy; reached indirectly through selftest_bundle_complete.py (T5g).",
+      "missing_module_measured": "numpy"
+    },
+    "engines/tools/selftest_gguf_offline.py": {
+      "tier": "torch",
+      "reason": "needs numpy; its 1b accelerator rung additionally needs CUDA or MPS (measured green on a T4 by T4Verdict: 8 quant types bitwise cpu-vs-cuda on real UD-Q4_K_XL bytes) and its live gguf-py recompute needs gguf-py.",
+      "missing_module_measured": "numpy"
+    },
+    "engines/tools/selftest_index_census_allowlist.py": {
+      "tier": "hermetic",
+      "job": "fast",
+      "seconds_xeon_x5570": 0.91,
+      "assertions_measured": 40
+    },
+    "engines/tools/selftest_k8_offline.py": {
+      "tier": "pipeline",
+      "reason": "rc=1 without a quant_pipeline tree ('usage: test_k8_synthetic.py <pipeline-root>'). Not dead and not torch-blocked: blocked on a package that is installable neither on the buildbox nor on a runner."
+    },
+    "engines/tools/selftest_kld_report_offline.py": {
+      "tier": "torch",
+      "reason": "the KLD report engine needs numpy: rc=1 on a bare runner. 45 assertions with numpy, and it is also an ORPHAN the battery never invokes -- so it is nightly-torch coverage that nothing runs today.",
+      "missing_module_measured": "numpy"
+    },
+    "engines/tools/selftest_launch_plan.py": {
+      "tier": "pipeline",
+      "reason": "rc=2, argparse requires --pipeline-root."
+    },
+    "engines/tools/selftest_mlx_offline.py": {
+      "tier": "torch",
+      "reason": "needs numpy; rung 3 (live mlx equality) is macOS-only and cannot run on any Linux runner, which the file says in its own output.",
+      "missing_module_measured": "numpy"
+    },
+    "engines/tools/selftest_nvfp4_offline.py": {
+      "tier": "torch",
+      "reason": "needs numpy; its device rung is gated on torch.backends.mps only, so neither a Linux runner nor a CUDA card unlocks it (LocalCoverage-report.md section 4.3).",
+      "missing_module_measured": "numpy"
+    },
+    "engines/tools/selftest_offline.py": {
+      "tier": "pipeline",
+      "reason": "rc=2, argparse requires --pipeline-root.",
+      "missing_module_measured": "numpy"
+    },
+    "engines/tools/selftest_scope_provenance.py": {
+      "tier": "hermetic",
+      "job": "fast",
+      "seconds_xeon_x5570": 0.08,
+      "assertions_measured": 41
+    },
+    "engines/tools/selftest_tr3_offline.py": {
+      "tier": "torch",
+      "reason": "needs numpy; the tr3-vs-exl3hf bitwise rung additionally needs quant_pipeline, where the MCG LUT lives.",
+      "missing_module_measured": "numpy"
+    },
+    "engines/tools/selftest_trellis_decode_offline.py": {
+      "tier": "torch",
+      "reason": "the trellis decode surface needs torch: rc=1 on a bare runner. 106 assertions with torch, modified 2026-09-06, and an ORPHAN the battery never invokes -- the bitwise-vs-exllamav3 evidence DecoderParity landed today has no automated home until this nightly job exists.",
+      "missing_module_measured": "torch"
+    }
+  }
+}

@@ -17,8 +17,10 @@ measurement, and three of them could have left a billing instance running.
 
 These are offline: no provider is contacted.
 """
+import atexit
 import json
 import os
+import shutil
 import sys
 import tempfile
 from pathlib import Path
@@ -26,6 +28,7 @@ from pathlib import Path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import measure_cloud as mc                                # noqa: E402
 from fidelity.jlapi import Instance                       # noqa: E402
+from fidelity.runpodapi import RunPod, RunPodError        # noqa: E402
 
 FAILED = []
 
@@ -34,6 +37,23 @@ def check(label, ok):
     print("  %s  %s" % ("PASS" if ok else "FAIL", label))
     if not ok:
         FAILED.append(label)
+
+
+def _fixture_key_file():
+    """A 0600 fixture key path, injected so no rung reads a credential.
+
+    Returns a path, not a key: the loader's contract is a 0600 regular file
+    owned by the caller, and the 36 characters inside only have to survive
+    that shape check.  Nothing is sent anywhere -- every provider here is
+    constructed dry.
+    """
+    root = tempfile.mkdtemp(prefix="portability-key-")
+    atexit.register(shutil.rmtree, root, True)
+    path = os.path.join(root, "runpod-fixture-key")
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+        handle.write("F" * 36 + "\n")
+    return path
 
 
 def inst(mid, status="Running", name="fidcloud-x"):
@@ -166,15 +186,33 @@ for name, sep in (("jarvislabs", True), ("runpod", False), ("vast", False),
 # 100 GB is right ONLY where the big disk is a separate filesystem. Getting
 # this wrong is not a create error: it is "No space left on device" after paid
 # setup. Exercise the actual dry RunPod request rather than source text.
-rpb._validated_ssh_public_key = lambda: "ssh-ed25519 AAAA"
-storage_request = rpb.create(
-    gpu_type="NVIDIA L4", storage_gb=237, container_disk_gb=41,
-    region="secure", spot=False, offer="on-demand",
-    name="fidcloud-" + "a" * 64 + "-a" + "b" * 24,
-    terminate_after="2099-01-01T00:00:00Z")
-check("a non-separable provider is sized from the plan, not 100 GB",
-      storage_request["request"]["volume_gb"] == 237
-      and storage_request["request"]["container_disk_gb"] == 41)
+#
+# prepare_safe_create loads the API key BEFORE it builds the mutation, even
+# under dry=True, and with no key_file it falls back to $RUNPOD_KEY_FILE and
+# then to ~/.config/runpod/api_key. So this file used to die HERE with an
+# unhandled RunPodError on any box without an operator credential -- a bare CI
+# runner, a fresh clone -- taking the ~500 assertions below it with it, and to
+# pass on a developer's box only because a real key happened to sit in $HOME
+# (measured 2026-09-06: any 36-character fake key made it rc=0). The key path
+# is injected as a 0600 fixture; a credential is never read, and a key the
+# loader still refuses is a named FAIL with its reason rather than a traceback
+# that suppresses the rest of the file.
+rp_create = RunPod(dry=True, key_file=_fixture_key_file())
+rp_create._validated_ssh_public_key = lambda: "ssh-ed25519 AAAA"
+try:
+    storage_request = rp_create.create(
+        gpu_type="NVIDIA L4", storage_gb=237, container_disk_gb=41,
+        region="secure", spot=False, offer="on-demand",
+        name="fidcloud-" + "a" * 64 + "-a" + "b" * 24,
+        terminate_after="2099-01-01T00:00:00Z")
+except RunPodError as exc:
+    check("a non-separable provider is sized from the plan, not 100 GB "
+          "-- REFUSED, the injected fixture key path did not load: %s" % exc,
+          False)
+else:
+    check("a non-separable provider is sized from the plan, not 100 GB",
+          storage_request["request"]["volume_gb"] == 237
+          and storage_request["request"]["container_disk_gb"] == 41)
 
 print("\n== no path may assume JarvisLabs except the two exported roots ==")
 # Every hardcoded /home/jl_fs literal in the on-instance tools is a run that
