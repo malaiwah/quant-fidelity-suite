@@ -31,7 +31,9 @@ dataset at all.
     A21 checkpoint tensors the architecture does not use REFUSE the capture
     A22 --device-map dispatches instead of materialising, and skips the .to() that
         cannot work for a checkpoint bigger than one device
-    A23 --allow-unexpected-tensors captures instead, and stamps a BLOCKING disclosure
+    A23 --allow-unexpected-tensors is a REFUSED obsolete route: it captures
+        nothing, says "obsolete", and writes no manifest (broad acceptance
+        proves nothing; an exact digest-bound census is the admitted route)
     A24 the unexpected-tensor branch reads its own flag, not --allow-missing-weights
     A25 the FP8 quantizer's parallel-plan crash is identified by its own frame
     A26 neutralize_parallel_plan empties tp+ep plans, sub-configs included
