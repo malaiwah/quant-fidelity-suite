@@ -74,6 +74,50 @@ log() { echo "[$(date -u +%FT%TZ)] bootstrap_measure: $*"; }
 ASROOT=""
 [ "$(id -u)" = 0 ] || ASROOT="sudo"
 
+# ---- 0. is this box talking to the real Hugging Face? ---------------------
+#
+# 2026-09-05 (docs/CLOUD-RECIPES.md): a rented Vast host served a certificate
+# for huggingface.co with a hostname mismatch and then UNEXPECTED_EOF -- a
+# man-in-the-middle TLS proxy.  This runs BEFORE anything is installed and
+# before any credential is used by this script's descendants.
+#
+# DEPENDENCIES, ALL OF THEM: the system `python3` with the stdlib `ssl` module,
+# and $FS/bin/fidelity/tlsguard.py + tls-roots.pem.  Deliberately nothing else
+# -- at this point in the sequence python3.12, the venv, certifi, requests and
+# huggingface_hub do not exist yet, and a guard gated on a dependency it does
+# not have is how `hf_transfer` was silently skipped on pre-provisioned hosts.
+#
+# The wheel installs below are NOT protected by this check and do not need to
+# be: every wheel, including transitive ones, is pinned by exact URL + SHA-256
+# in requirements-cu130-py312.lock, so an interceptor cannot substitute
+# content without failing that digest.  What this check protects is the
+# credential-bearing Hub traffic that comes later.
+TLSGUARD="$FS/bin/fidelity/tlsguard.py"
+if [ -n "${FIDELITY_BOOTSTRAP_INSTALL_ONLY:-}" ]; then
+  # container/Dockerfile bakes this recipe at BUILD time, where no credential
+  # exists and the wheels are digest-pinned. Checking a build machine's egress
+  # would fail closed on a CI network for no security gain, so it is skipped
+  # LOUDLY: the runtime check above still runs at container start.
+  log "TLS peer check skipped: install-only (image build). No credential here; wheels are digest-pinned. stage_measure.sh setup checks the peer at container start."
+elif [ -f "$TLSGUARD" ]; then
+  if python3 "$TLSGUARD" attest --host huggingface.co --role bootstrap \
+      --host-id "${FIDELITY_MACHINE_ID:-unidentified}" \
+      --json "$RCPT/tls-peer-bootstrap.json"; then
+    log "TLS peer attested for huggingface.co before any install"
+  else
+    code=$?
+    if [ "$code" = 75 ]; then
+      log "TLS peer check could not REACH huggingface.co (reachability, not identity) -- continuing; the credential-bearing stage checks again"
+    else
+      log "REFUSED: this box is not talking to the real huggingface.co (see $RCPT/tls-peer-bootstrap.json). Next: destroy this instance and re-create elsewhere, record the machine id, and do not use a credential here. If OUR bundle is merely stale, add the root to bin/fidelity/tls-roots.pem or set FIDELITY_TLS_TRUST_BUNDLE as a recorded disclosure."
+      exit "$code"
+    fi
+  fi
+else
+  log "REFUSED: $TLSGUARD is missing. It is listed in bin/BUNDLE.txt, so re-upload the bundle rather than editing the box."
+  exit 3
+fi
+
 # ---- 1. python 3.12 -------------------------------------------------------
 if ! command -v python3.12 >/dev/null; then
   log "installing python3.12 (deadsnakes)"

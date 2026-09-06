@@ -22,6 +22,25 @@
 # Token bytes are file-only: never put them in argv, logs, or process environments.
 set -euo pipefail
 unset HF_TOKEN HUGGING_FACE_HUB_TOKEN HUGGINGFACE_HUB_TOKEN HF_TOKEN_PATH
+# Trust-widening variables are removed here, in the same place as the token
+# names, because on the container path the environment belongs to the HOST.
+#
+# It is not enough to CHECK the peer: `requests` (and therefore
+# huggingface_hub, and therefore the authenticated `hf download` below)
+# resolves its verify path as REQUESTS_CA_BUNDLE or CURL_CA_BUNDLE if either
+# is set, and only falls back to `certifi.where()` otherwise. So a host that
+# sets REQUESTS_CA_BUNDLE=/opt/its-own-ca.pem makes the fetch trust a store
+# our check never looked at -- the check cannot see the thing that varies.
+# Unsetting them makes certifi the store BY CONSTRUCTION, which is what makes
+# recording certifi's digest (tls_peer_gate, below) attest the store actually
+# used. SSL_CERT_FILE/SSL_CERT_DIR do the same for anything stdlib.
+#
+# HTTPS_PROXY/https_proxy are deliberately NOT unset: a proxy may be the only
+# egress a rented host has, and with the CA overrides gone a CONNECT proxy
+# cannot decrypt TLS anyway -- it can only be seen. tlsguard records any that
+# are set as a disclosure in the per-stage evidence instead.
+unset REQUESTS_CA_BUNDLE CURL_CA_BUNDLE SSL_CERT_FILE SSL_CERT_DIR \
+      NODE_EXTRA_CA_CERTS PYTHONHTTPSVERIFY SSLKEYLOGFILE
 
 STAGE="${1:?usage: stage_measure.sh <stage>}"
 SCRIPT_PATH="$(readlink -f -- "$0")"
@@ -354,6 +373,67 @@ PYTOKEN
   export HF_HUB_DISABLE_IMPLICIT_TOKEN=0
 }
 
+# tls_peer_gate <tag> [<certifi-python>]
+#   Prove THIS BOX reaches the real huggingface.co before the credential is
+#   used, and record what its stores look like.
+#
+#   WHY.  2026-09-05 (docs/CLOUD-RECIPES.md): a rented Vast host served a
+#   certificate for huggingface.co with a hostname mismatch and then
+#   UNEXPECTED_EOF -- a man-in-the-middle TLS proxy.  The controller now
+#   attests the peer BEFORE transporting the token
+#   (fidelity.tlsguard.attest_before_credential), but `hf download` does not go
+#   through our opener at all: it uses huggingface_hub -> requests -> certifi,
+#   a THIRD trust store, on the box.  So the box checks the peer itself, and
+#   against certifi's bundle specifically, before the token is used.
+#
+#   DEPENDENCIES, ALL OF THEM: python3 with the stdlib `ssl` module, and
+#   $FS/bin/fidelity/tlsguard.py + tls-roots.pem (both in bin/BUNDLE.txt).
+#   No certifi, no requests, no venv needed for the check itself; when a venv
+#   interpreter is passed its certifi bundle digest is recorded too.
+#
+#   ORDERING, precisely: in `setup` this runs before the bootstrap and before
+#   any load_token, so the credential is not yet in this process tree -- but
+#   the controller may already have WRITTEN the 0600 file to disk, so this is
+#   "before the token is USED", not "before it exists".  The stronger
+#   guarantee is the controller's, and it is the one that has to hold.
+#
+#   The receipt path is per-stage and written atomically: fetch_reference runs
+#   CONCURRENTLY with fetch_target, and one shared path is how a stale record
+#   satisfied a check instantly (2026-09-06).
+#
+#   No trap is installed here: this script has exactly ONE EXIT handler by
+#   design, and a second one replaced the sibling exit-record handler once.
+tls_peer_gate() {
+  local tag="$1"
+  local certifi_python="${2:-}"
+  local guard="$FS/bin/fidelity/tlsguard.py"
+  local out="$RCPT/tls-peer-$tag.json"
+  if [ ! -f "$guard" ]; then
+    echo "TLS peer gate REFUSED: $guard is missing. It is listed in bin/BUNDLE.txt, so re-upload the bundle rather than editing the box; do not use a credential here." >&2
+    return 3
+  fi
+  mkdir -p "$RCPT"
+  local args=(--host huggingface.co --http-path /api/models/gpt2
+              --role "$tag" --json "$out")
+  [ -z "${FIDELITY_MACHINE_ID:-}" ] || args+=(--host-id "$FIDELITY_MACHINE_ID")
+  if [ -n "$certifi_python" ] && [ -x "$certifi_python" ]; then
+    args+=(--certifi-python "$certifi_python")
+  fi
+  # No `set -x` anywhere in this path, and the guard prints peer identity only:
+  # its evidence is about the PEER, never about the credential.
+  if python3 "$guard" "${args[@]}" >>"$LOGS/$STAGE.log" 2>&1; then
+    log "TLS peer attested for huggingface.co ($tag); evidence in $out"
+    return 0
+  fi
+  local code=$?
+  if [ "$code" = 75 ]; then
+    log "TLS peer check could not REACH huggingface.co ($tag) -- reachability, not identity; see $out"
+    return 0
+  fi
+  echo "TLS peer gate REFUSED for huggingface.co ($tag): this box is not talking to the real Hub. Evidence: $out and $LOGS/$STAGE.log. Next: destroy this instance and re-create elsewhere, record the machine id, and do not retry a credential-bearing operation against it. If OUR root bundle is merely stale, add the root to bin/fidelity/tls-roots.pem or set FIDELITY_TLS_TRUST_BUNDLE (a recorded disclosure)." >&2
+  return "$code"
+}
+
 # stage_panel_reference_files <tokenizer_root> <compared_repo> <compared_rev>
 #   The panel's tokenizer pin names one release (zai-org/GLM-5.3-BF16@<rev>)
 #   as the identity source. When the capture's tokenizer root is built from a
@@ -508,6 +588,10 @@ PYCENSUS
 case "$STAGE" in
 
 setup)
+  # BEFORE the bootstrap and before any load_token in this stage: if this box
+  # is behind a TLS interceptor, stop here rather than installing a stack and
+  # then using a credential against it.  `setup` has no concurrent sibling.
+  tls_peer_gate setup
   # The measurement lane owns its bootstrap (bin/bootstrap_measure.sh).  It
   # used to call engines/stage_campaign.sh, which (a) was never in the upload bundle and
   # (b) hard-stops a decode-only run on an ENCODER closure gate.  See that
@@ -534,15 +618,24 @@ setup)
   mkdir -p "$BF16_DIR" "$ROOT"
   if [ ! -f "$BF16_DIR/config.json" ] || [ ! -f "$BF16_DIR/model.safetensors.index.json" ]; then
     log "fetching BF16 metadata skeleton @ $BF16_REV (config + index only, ~16 MB)"
-    python3 - "$BF16_DIR" "$BF16_REV" <<'PYSKEL'
-import sys, urllib.request, pathlib
-root, rev = pathlib.Path(sys.argv[1]), sys.argv[2]
+    python3 - "$BF16_DIR" "$BF16_REV" "$FS/bin/fidelity/tlsguard.py" <<'PYSKEL'
+import sys, urllib.request, pathlib, importlib.util
+root, rev, guard = pathlib.Path(sys.argv[1]), sys.argv[2], sys.argv[3]
+# These two files are IDENTITY, not convenience: the capture binds
+# inventory.config_sha256/index_sha256 to them, so an intercepted fetch here
+# changes a published number rather than merely leaking something. Verify
+# against the roots WE ship instead of the box's ambient store.
+spec = importlib.util.spec_from_file_location("_tlsguard", guard)
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+opener = urllib.request.build_opener(
+    urllib.request.HTTPSHandler(context=module.explicit_ssl_context()))
 base = "https://huggingface.co/zai-org/GLM-5.3-Flash-BF16/resolve/%s/" % rev
 for name in ("config.json", "model.safetensors.index.json"):
     dest = root / name
     if dest.exists():
         continue
-    with urllib.request.urlopen(base + name, timeout=300) as r:
+    with opener.open(base + name, timeout=300) as r:
         dest.write_bytes(r.read())
     print("fetched", name, dest.stat().st_size, "bytes")
 PYSKEL
@@ -674,6 +767,11 @@ PYINV
   ;;
 
 fetch_target)
+  # The authenticated fetch below runs through huggingface_hub -> requests ->
+  # certifi, NOT through our opener, so the peer is checked again here against
+  # certifi's own bundle, and that bundle's digest is recorded: the image is
+  # pinned by digest, so a changed CA bundle is evidence, not noise.
+  tls_peer_gate fetch_target "$VENV/bin/python"
   load_token
   REPO="$(jqget target.repo_id)"
   REV="$(jqget target.revision)"
