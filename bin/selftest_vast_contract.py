@@ -409,7 +409,23 @@ def _install_tls_stub():
     return present
 
 
+def _guard_flags_capability():
+    """Does the SHARED guard carry the bearer-capability detector (13b4eb5)?
+
+    Asked of the module rather than assumed from its presence: this suite
+    runs against whatever tlsguard the checkout has, and a rung that assumes
+    a newer guard than is present reports a defect that is not there.
+    """
+    try:
+        from fidelity.tlsguard import credential_findings
+    except ImportError:
+        return False
+    return bool(credential_findings(
+        {"env": {"FIDELITY_RESULT_SINK": "https://sink.invalid/topic-cred"}}))
+
+
 HAS_TLSGUARD = _install_tls_stub()
+HAS_CAPABILITY_DETECTOR = _guard_flags_capability()
 
 
 def attest(payload_text, rows=(LIVE_INSTANCE,), **over):
@@ -638,15 +654,38 @@ if HAS_TLSGUARD:
                 ask_id=42, storage=80,
                 onstart="export HF_TOKEN=hf_" + "c" * 34, name="vast-x"),
             needle="carries a credential")
-    refuses("create refuses a result-sink URL: a URL with a path is a "
-            "bearer capability, exactly like this morning's ntfy topic",
-            lambda: StubVast(responses=ASK_OK,
-                             ssh_key="/nonexistent/id_ed25519").create(
+    def _sink_refusal_text():
+        try:
+            StubVast(responses=ASK_OK,
+                     ssh_key="/nonexistent/id_ed25519").create(
                 ask_id=42, storage=80,
                 env={"FIDELITY_RESULT_SINK":
                      "https://sink.invalid/topic-cred"},
-                name="vast-x"),
-            needle="bearer capability")
+                name="vast-x")
+        except VastError as exc:
+            return str(exc)
+        return ""
+
+    if HAS_CAPABILITY_DETECTOR:
+        refuses("create refuses a result-sink URL, which is a bearer "
+                "capability carrying no token shape at all -- the shared "
+                "guard's third detector, landed at 13b4eb5",
+                lambda: StubVast(responses=ASK_OK,
+                                 ssh_key="/nonexistent/id_ed25519").create(
+                    ask_id=42, storage=80,
+                    env={"FIDELITY_RESULT_SINK":
+                         "https://sink.invalid/topic-cred"},
+                    name="vast-x"),
+                needle="BEARER CAPABILITY")
+        check("...and the refusal never repeats the URL, because the URL IS "
+              "the capability",
+              "topic-cred" not in _sink_refusal_text())
+    else:
+        print("  NOT ASSERTED HERE  the bearer-capability detector: this "
+              "checkout's fidelity.tlsguard predates 13b4eb5 (owner "
+              "TlsAttestation), so a result-sink URL in a create body is "
+              "not yet refused. Nothing in this adapter compensates: the "
+              "property belongs to the one shared guard.")
     public_run = StubVast(responses=ASK_OK,
                           ssh_key="/nonexistent/id_ed25519").create(
         ask_id=42, storage=80, docker_cmd=["capture", "--model", "gpt2"],

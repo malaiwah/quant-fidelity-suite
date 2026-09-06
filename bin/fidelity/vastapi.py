@@ -2307,23 +2307,13 @@ class Vast(SSHTransport):
             # A fallback that differs from the primary is the drift nobody
             # looks at, which is why there is no fallback here any more.
             raise VastError("%s -- %s" % (exc.reason, "; ".join(exc.advice)))
-        # One property the shared guard does not yet carry, kept here as the
-        # Vast profile's own policy rather than as a second secret-detector:
-        # a URL WITH A PATH in a create body is a BEARER CAPABILITY. A result
-        # sink is the live example -- whoever holds the topic URL can read the
-        # run's results -- and it is the same insight as this morning's ntfy
-        # finding. Requested of `tlsguard.credential_findings`; when it lands
-        # there, delete this and let the one implementation carry it.
-        for key, value in (env or {}).items():
-            text = str(value)
-            if (text.startswith(("http://", "https://"))
-                    and urllib.parse.urlsplit(text).path.strip("/")):
-                raise VastError(
-                    "vast create payload is provider-persisted and carries a "
-                    "bearer capability: env %s is a URL with a path, and "
-                    "whoever holds it can read this run's output. Pass it "
-                    "after the box is attested, over the authenticated exec "
-                    "channel, or use a run that needs no sink." % key)
+        # The bearer-capability property (a URL with a PATH in a create body
+        # IS an authorisation) lived here as the Vast profile's own interim
+        # policy until `tlsguard.credential_findings` grew it at 13b4eb5.
+        # Deleted rather than left beside the shared detector: the reason it
+        # was ever here was that the guard did not carry it, and a second
+        # implementation kept "for safety" is the drift this file has already
+        # been bitten by once today.
 
     def create(self, **kw) -> Dict[str, Any]:
         """Marketplace rental, container-native or SSH.
