@@ -536,6 +536,82 @@ check("ssh path has no args field", "args" not in _ssh)
 check("ssh path onstart is empty", _ssh.get("onstart") == "")
 check("ssh path env is empty dict", _ssh.get("env") == {})
 
+# ---------------------------------------------------------------- CONFORMANCE
+# A provider you can RENT from is not a provider you can PUBLISH from. The
+# controller drives a provider through a fixed surface, and the difference
+# between the two is these twelve methods: four that prove the live resource is
+# the one requested (and, via attest_live_resource, that it is the DEVICE the
+# root was captured on), four that prove nothing of ours is still alive, and
+# four that reconcile what it cost against the provider's own clock and billing.
+#
+# Provider is not a comparability axis -- two A100s in two clouds agree bitwise
+# (docs/ARCHITECTURE-DETERMINISM.md), and four GLM-5.3-Flash rows landed on one
+# comparability key across three datacenters -- so parity here is legitimate
+# science, not convenience. What blocks it is that we cannot yet prove what we
+# rented, prove it is gone, or reconcile its cost on any provider but RunPod.
+#
+# This rung is offline and contacts nothing. docs/PROVIDER-PARITY.md carries the
+# per-provider blockers and the definition of done.
+PROVIDER_CONTRACT = (
+    # is this the thing I asked for?
+    "prepare_safe_create", "submit_prepared_create",
+    "validate_safe_resource_binding", "attest_live_resource",
+    # is anything of mine still alive?
+    "list_lifecycle_resources", "get_lifecycle_resource",
+    "list_network_volumes", "chargeable_inventory",
+    # what did it cost, and whose clock says so?
+    "server_time_evidence", "ssh_host_ed25519_fingerprint",
+    "billing_history", "reconcile_billing",
+)
+
+
+def _adapter_classes():
+    from fidelity.runpodapi import RunPod
+    from fidelity.vastapi import Vast
+    from fidelity.lambdaapi import LambdaCloud
+    from fidelity.jlapi import JL
+    return (("runpod", RunPod), ("vast", Vast),
+            ("lambda", LambdaCloud), ("jarvislabs", JL))
+
+
+# Each provider DECLARES its level, and the rung enforces the declaration in
+# BOTH directions: a provider claiming parity must have all twelve, and one
+# claiming not-yet must really be missing at least one. That way the list
+# cannot silently lag an implementation, and implementing the twelve without
+# flipping the declaration -- which would leave the controller still refusing
+# the provider for no reason -- fails here.
+PROVIDER_PARITY = {
+    "runpod": "reference",      # the implementation the contract is read from
+    "vast": "not-yet",          # blocker: no reaper sweep, so no teardown backstop
+    "lambda": "not-yet",        # blocker: the twelve, plus the root fit arithmetic
+    "jarvislabs": "historical",  # reaper cleanup of old leases only
+}
+
+print()
+print("== provider contract conformance (offline) ==")
+for _name, _cls in _adapter_classes():
+    _missing = [m for m in PROVIDER_CONTRACT if not callable(getattr(_cls, m, None))]
+    _level = PROVIDER_PARITY[_name]
+    if _level in ("reference", "parity"):
+        check("%s declares %s, so it must implement all %d contract methods%s"
+              % (_name, _level, len(PROVIDER_CONTRACT),
+                 "" if not _missing else " -- missing %d: %s"
+                 % (len(_missing), ", ".join(_missing))),
+              not _missing)
+    else:
+        check("%s declares %s and the declaration is accurate (%d of %d "
+              "contract methods still missing; see docs/PROVIDER-PARITY.md) -- "
+              "implement them and flip this declaration together"
+              % (_name, _level, len(_missing), len(PROVIDER_CONTRACT)),
+              bool(_missing))
+# RunPod is the reference: if IT fails above, the contract list has drifted
+# from the implementation and the LIST is what is wrong.
+check("the contract names only methods RunPod actually has (the list cannot "
+      "drift from the reference implementation)",
+      not [m for m in PROVIDER_CONTRACT
+           if not callable(getattr(_adapter_classes()[0][1], m, None))])
+check("every provider the CLI accepts has a declared parity level",
+      set(PROVIDER_PARITY) == {"jarvislabs", "runpod", "vast", "lambda"})
 print()
 if FAILED:
     print("selftest_provider_portability: %d FAILED" % len(FAILED))
