@@ -868,8 +868,29 @@ print("\n== [OFFLINE] no credential may enter a provider payload ==")
 # which is why this cannot be fixed by ordering. `jl create` has no env flag,
 # so JL cannot leak by that exact route, but every create value becomes ARGV
 # (visible in `ps` on a shared host, echoed back by the CLI) and
-# --script-args is provider-stored. The guard is tlsguard's single
-# implementation; the fallback here is fail-closed.
+# --script-args is provider-stored.
+#
+# The guard is tlsguard's single implementation, lazily imported, with a
+# FAIL-CLOSED local fallback. Both branches are exercised deliberately,
+# because LambdaParity found the branch trap on Vast: there the fallback was
+# the ONLY path under test (tlsguard did not exist when the rung was written)
+# and the primary drifted, letting TlsRefusal escape uncaught. A fail-closed
+# fallback that is the only branch measured is an untested primary wearing a
+# green badge -- so the rungs below name which branch they took, and the
+# primary is asserted whenever the module is importable rather than skipped.
+try:
+    from fidelity.tlsguard import TlsRefusal          # noqa: E402,F401
+    GUARD = "tlsguard (shared implementation)"
+except ImportError:                                   # pragma: no cover
+    TlsRefusal = None
+    GUARD = "fail-closed local fallback"
+print("  ..    guard branch under test: %s" % GUARD)
+if TlsRefusal is None:
+    print("  ..    NOT ASSERTED HERE: the shared guard branch needs "
+          "fidelity.tlsguard (TlsAttestation, 7a0a637); this checkout has "
+          "only the fail-closed fallback, so the assertions below measure "
+          "that branch and the primary is verified once the module is on "
+          "this ref")
 SECRET = "hf_" + "aBcD" * 8
 for path, kw in (("create", dict(gpu_type="A100", name=SECRET)),
                  ("create", dict(gpu_type="A100", script_args="HF_TOKEN=" + SECRET)),
@@ -877,15 +898,22 @@ for path, kw in (("create", dict(gpu_type="A100", name=SECRET)),
     acct_guard = account(**{"create": {"machine_id": 1}})
     call = (acct_guard.create if path == "create"
             else acct_guard.prepare_safe_create)
-    raised = False
+    raised = escaped = False
     try:
         call(**kw)
     except JLError as exc:
         raised = SECRET not in str(exc)
         if not raised:
             print("      REFUSAL LEAKED THE VALUE: %s" % str(exc)[:120])
-    check("%s refuses a credential-shaped value, and the refusal never "
-          "repeats the value" % path, raised)
+    except Exception as exc:                          # noqa: BLE001
+        # The Vast defect exactly: TlsRefusal escaping the adapter's own
+        # error type, so every caller's `except <Provider>Error` misses it.
+        escaped = True
+        print("      %s ESCAPED as %s" % (path, type(exc).__name__))
+    check("%s refuses a credential-shaped value via the %s, and the refusal "
+          "never repeats the value" % (path, GUARD), raised)
+    check("...and the refusal is a JLError, not a foreign exception type "
+          "escaping the adapter", not escaped)
     check("...and nothing was transmitted to the provider",
           acct_guard.calls == [])
 check("a create with no credential still goes through",
