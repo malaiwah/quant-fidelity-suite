@@ -9447,6 +9447,29 @@ def _job_document(args, plan_data) -> Dict[str, Any]:
         # the identity of the dataset it will WRITE, because a capture with no
         # identity cannot be published or cited.
         pdir = getattr(args, "panel_dir", None)
+        # The job document records the panel by its path RELATIVE to the suite
+        # root, so a panel outside the checkout has no representable value
+        # here. 8bba0b5 deleted the two guards that used to refuse it -- one
+        # inside the removed `_bootstrap_and_run`, correctly, and one at the
+        # CLI, which left this `relative_to` to raise a bare ValueError on the
+        # first real target instead of refusing. An expected invalid state is
+        # a refusal, not a traceback (AGENTS.md), so it refuses here, where
+        # the requirement actually is, rather than in a provider-conditional
+        # branch that stopped being reachable when every provider gained a
+        # job-bound archive. Restored 2026-09-06.
+        if pdir is not None:
+            try:
+                Path(pdir).resolve().relative_to(SUITE_ROOT)
+            except ValueError:
+                raise Refusal(
+                    "--panel-dir must live inside the suite checkout (%s)"
+                    % SUITE_ROOT,
+                    ["The job document records the panel by its path RELATIVE "
+                     "to the suite root, so a panel outside it has no "
+                     "representable value and the pod could not find it.",
+                     "Commit the panel under engines/panels/ and pass that "
+                     "path.",
+                     "Nothing was created. $0.00 spent."])
         capture = {
             "role": "root",
             "form": getattr(args, "form", "hidden"),

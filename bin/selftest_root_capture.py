@@ -16,6 +16,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import types
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -464,28 +465,56 @@ panel = SUITE / "engines" / "panels" / "panel--minimaxm3.malaiwah.corpus5x5"
 check("the committed MiniMax panel is a panel directory",
       (panel / "panel.json").is_file() and (panel / "arrays").is_dir())
 
-# On the LEGACY uploader path a panel outside the suite has no remote path,
-# because that uploader addresses files RELATIVE to the suite root. The rung
-# must name the provider it tests: --provider now defaults to runpod, where
-# the panel travels as a job-bound tar and an outside panel is admitted, so
-# a provider-less invocation stopped exercising this refusal at all and the
-# rung was passing on an unrelated HTTP 401 (found 2026-09-06).
+# A panel outside the suite has no representable value in the job document,
+# which records it RELATIVE to the suite root. This is asserted against
+# `_job_document` DIRECTLY rather than through the CLI, and that matters:
+#   * the old rung drove `--provider jarvislabs`, which since 8bba0b5 refuses
+#     earlier (no paid execution profile), so the panel guard became
+#     unreachable and the rung went red while nothing was wrong with it;
+#   * driving `--provider runpod` instead does not work either -- it refuses
+#     on an HTTP 401 for the fake target first, which is exactly how this
+#     rung was passing for the wrong reason before 2026-09-06.
+# Asserting the function means the guard is tested whatever the enabled set
+# of providers is, and with no network at all.
 with tempfile.TemporaryDirectory() as tmp:
     outside = Path(tmp) / "panel"
     (outside / "arrays").mkdir(parents=True)
-    (outside / "panel.json").write_text("{}")
-    rc, out = cli("--provider", "jarvislabs", "--role", "root", "--model", "a/b",
-                  "--panel-dir", str(outside), "--dataset-id", "d",
-                  "--lane", "streaming", "--dry-run")
-    check("a --panel-dir outside the suite checkout is refused on the legacy "
-          "uploader path, naming the checkout",
-          "must live inside the suite checkout" in out)
-    rc2, out2 = cli("--provider", "runpod", "--role", "root", "--model", "a/b",
-                    "--panel-dir", str(outside), "--dataset-id", "d",
-                    "--lane", "streaming", "--dry-run")
-    check("on runpod the same panel is NOT refused for living outside the "
-          "checkout (it travels as a job-bound archive)",
-          "must live inside the suite checkout" not in out2)
+    (outside / "panel.json").write_text('{"panel_id": "p"}')
+    inside = mc.SUITE_ROOT / "engines" / "panels" / \
+        "panel--minimaxm3.malaiwah.corpus5x5"
+
+    args = types.SimpleNamespace(
+        role="root", panel_dir=str(outside), dataset_id="d",
+        dataset_name=None, form="hidden", schedule="layer-outer",
+        lane="streaming", cold_runs=2, model="a/b", scope_json=None)
+    # Minimal plan: enough to reach the panel-location guard and no more.
+    plan = {"panel": {}, "target": {}, "profile": {}}
+    refused = None
+    try:
+        mc._job_document(args, plan)
+    except mc.Refusal as exc:
+        refused = str(exc.args[0] if exc.args else exc)
+    except Exception as exc:                      # noqa: BLE001
+        refused = "NOT-A-REFUSAL: %s: %s" % (type(exc).__name__, exc)
+    check("a --panel-dir outside the suite checkout is REFUSED, naming the "
+          "checkout -- not a bare ValueError from relative_to()",
+          refused is not None
+          and "must live inside the suite checkout" in refused)
+    if refused is None or "must live inside" not in (refused or ""):
+        print("      got: %r" % (refused,))
+
+    args.panel_dir = str(inside)
+    committed = None
+    try:
+        mc._job_document(args, plan)
+    except mc.Refusal as exc:
+        committed = str(exc.args[0] if exc.args else exc)
+    except Exception:                             # noqa: BLE001
+        committed = None                          # other refusals are fine
+    check("a committed panel INSIDE the checkout is not refused for its "
+          "location",
+          committed is None
+          or "must live inside the suite checkout" not in committed)
 
 print()
 if FAILED:
