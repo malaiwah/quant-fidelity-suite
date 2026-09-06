@@ -1625,3 +1625,51 @@ extract `panel_id`.
 
 **Test:** a fit rung asserting that a root plan for a 10 GB checkpoint does not demand 63 GB
 of VRAM, and that its window count equals the panel's. Both fail today.
+
+## A publishing run's job hash is per-invocation: `publication_preflight.checked_at`
+
+**Found 2026-09-06, during the GLM-5.3-Flash re-measurement campaign. Deferred
+deliberately: two lanes were creating pods against quoted job hashes at the time,
+and perturbing job identity mid-campaign is a worse risk than the defect.**
+
+The job hash is stable from dry-run through create — proven twice on
+non-publishing runs (`71b239c1fd3f58ce…` and `37731403b6c2c9ec…` quoted at
+dry-run and carried identically into `job.json`, the ledger name and the pod
+name; K2 quoted `6290cf8fa74244d1…` and its terminal receipt carries the same
+64 hex through 35 minutes of pod work). Per-run entropy lives in a **separate**
+`execution_attempt.attempt_id`, and `execution_attempt` is already excluded from
+the digest (`jobcontract._EXCLUDED_TOP_LEVEL`).
+
+Pass `--publish-root-to` and that stability is lost. One request produced three
+hashes nine minutes apart: `8f7f859beb7c83f3…` (dry-run 09:31),
+`b0dc03e92a560793…` (create 09:40), `e559a1ed53a0fda7…` (dry-run 09:41). A full
+key diff of the dry-run plan against the created `job.json` leaves exactly one
+substantive moving input:
+
+```
+/publication_preflight/checked_at      2026-09-06T09:41:58Z  vs  2026-09-06T09:40:24Z
+/publication_preflight/receipt_sha256  8d1efeb0c5e07928…     vs  12606de897b62e4f…
+```
+
+`receipt_sha256` moves only because it digests a block containing that wall
+clock. Nothing else did: target, revision, branch, panel, scope, codec, bits,
+reference dataset, cap, deadline, publish destination and code digests are all
+byte-identical, and every chargeable field is unchanged (`hard_cap_usd 26`,
+`4.59`/h, `retrieval_delete_reserve_seconds 13518`, `container_disk_size_gb
+200`). `--out` is outside the hash entirely.
+
+Consequence: "the same hash proves this quote authorized this run" — the
+assumption under every dry-run-then-launch instruction — is unavailable on any
+publishing run. Nothing about spend or measurement is affected.
+
+**Suggested shape:** add `publication_preflight` to
+`jobcontract._EXCLUDED_TOP_LEVEL`, exactly as `execution_attempt` already is. The
+preflight stays IN the job document as evidence that publication was checked
+against the live Hub before spend — which is worth keeping — but stops feeding
+the identity. The publication destination is unaffected: it lives at
+`capture.publish_root_to`, which is hashed, so adding or changing the flag still
+moves the hash while re-invoking the same request no longer does.
+
+**Test:** two `_plan_runpod` dry-runs of one publishing request, with the clock
+advanced between them, must produce the identical `job_id_full`; and changing
+`--publish-root-to` must still move it. The first fails today.
