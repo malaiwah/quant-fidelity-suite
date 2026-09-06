@@ -711,6 +711,43 @@ def section_payload_guard():
             check("T13 %s/%s remedy names the next thing to try"
                   % (provider, label),
                   "0600 file" in blob and "PUBLIC artifacts" in blob, blob[:160])
+    # A URL WITH A PATH is a bearer capability and matches no token shape --
+    # VastParity's find, and this morning's ntfy-topic finding generalised.
+    # The legitimate cases below are the ones that make a naive "flag every
+    # URL" rule unusable: a repo pin, a wheel URL and an endpoint all carry
+    # paths and all belong in a create body.
+    capabilities = {
+        "result sink": {"env": {"FIDELITY_RESULT_SINK":
+                                "https://sink.invalid/topic-cred"}},
+        "notify topic in onstart": {
+            "onstart": "FIDELITY_NOTIFY_URL=https://ntfy.invalid/secret-topic "
+                       "bash run.sh"},
+        "presigned link under a bland name": {
+            "env": {"UPLOAD": "https://s3.invalid/bucket/"
+                              "AKIAsigned0123456789abcdef?X-Amz-Signature=1"}},
+    }
+    for label, payload in capabilities.items():
+        findings = tlsguard.credential_findings(payload)
+        check("T13 capability/%s is refused as a bearer capability" % label,
+              findings and any("BEARER CAPABILITY" in f for f in findings),
+              findings)
+        check("T13 capability/%s finding does not repeat the URL" % label,
+              all("topic-cred" not in f and "secret-topic" not in f
+                  and "X-Amz-Signature" not in f for f in findings), findings)
+    legitimate_urls = {
+        "repo pin": {"onstart": "PIPE_REPO=https://github.invalid/owner/repo "
+                                "bash go.sh"},
+        "wheel url": {"onstart": "pip install https://github.invalid/o/r/"
+                                 "releases/download/v2.8.3/flash_attn.whl"},
+        "official endpoint": {"env": {"HF_ENDPOINT": "https://huggingface.co"}},
+        "image digest": {"image": "ghcr.invalid/measure@sha256:" + "a" * 64},
+    }
+    for label, payload in legitimate_urls.items():
+        check("T13 legitimate/%s is NOT flagged (a guard that fires on a repo "
+              "pin gets routed around)" % label,
+              not tlsguard.credential_findings(payload),
+              tlsguard.credential_findings(payload))
+
     legitimate = {
         "env": {"HF_TOKEN_PATH": "/root/.secrets/hf_token",
                 "HF_HUB_DISABLE_IMPLICIT_TOKEN": "1",

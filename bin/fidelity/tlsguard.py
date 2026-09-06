@@ -1183,6 +1183,26 @@ def attest_before_credential(provider: Any, machine_id: Any, *,
             "This proves a passive or naive interception proxy fails closed, "
             "records the peer identity the box reported, and guarantees no "
             "credential was transported before both happened."),
+        # A green provider-API attestation is the single easiest thing here to
+        # over-read, and JarvisLabs is the case where it would be worst: the
+        # vendor CLI passes StrictHostKeyChecking=no with
+        # UserKnownHostsFile=/dev/null (jarvislabs/ssh.py:22-30), so a verified
+        # read of api.jarvislabs.net says nothing about the channel the result
+        # archive returns over. Naming the attester and the scope in the
+        # document is cheaper than correcting a receipt later.
+        "does_not_attest": (
+            "This is a TLS peer attestation and nothing else. It does NOT "
+            "attest the SSH/exec transport: a provider whose client disables "
+            "host-key checking (JarvisLabs) returns the result archive and its "
+            "digest over a channel that authenticates nobody, so both values "
+            "are attacker-suppliable and their agreement proves internal "
+            "consistency rather than provenance. Transport authentication is "
+            "sshbase.SSHTransport's per-attempt known_hosts (RunPod, Vast, "
+            "Lambda) or sshbase.PinnedEndpointSSH.attest_endpoint, and its "
+            "proof carries channel_verifies_host_key separately from this "
+            "document. A verified provider API means our READ of that API was "
+            "not intercepted -- which is what host-key attribution rests on -- "
+            "not that the channel to the box is authenticated."),
     }
     if failures:
         first = failures[0]
@@ -1313,6 +1333,44 @@ _NAME_EXEMPT_SUFFIX = ("_PATH", "_FILE", "_ID", "_NAME", "_DIR", "_ENDPOINT")
 _SECRET_NAME_TAIL = re.compile(
     r"(TOKEN|SECRET|PASSWORD|PASSWD|APIKEY|API_KEY|CREDENTIAL|PRIVATE_KEY)$")
 
+# A URL WITH A PATH is a bearer capability, and it matches no token shape --
+# which is exactly why a shape-based matcher misses it (VastParity, 2026-09-06:
+# `{"FIDELITY_RESULT_SINK": "https://sink.invalid/topic-cred"}` passed clean).
+# Whoever holds a result-sink or ntfy-style topic URL can read the run's
+# output, so in a provider-persisted payload it is a credential in every sense
+# that matters. Two detectors, because either alone is wrong:
+#   * a capability-shaped NAME whose value is a URL carrying a path -- a repo
+#     or wheel URL (PIPE_REPO=https://github.com/owner/repo) is legitimate and
+#     must not trip it, which is why the NAME decides here;
+#   * a presigned-style path segment (>=20 chars of URL-safe alphabet) under
+#     any name at all, which is what an S3/CloudFront signed URL looks like.
+_CAPABILITY_NAME = re.compile(
+    r"(?i)(SINK|WEBHOOK|CALLBACK|NOTIFY|HOOK|TOPIC|PRESIGN|SIGNED_URL|INVITE)")
+_URL_WITH_PATH = re.compile(r"(?i)\b(https?)://([^\s/\"']+)(/[^\s\"']*)")
+_OPAQUE_SEGMENT = re.compile(r"/[A-Za-z0-9_\-]{20,}(?:[/?#]|$)")
+
+
+def _capability_findings(path: str, name: Optional[str], value: Any) -> List[str]:
+    """A URL that IS an authorisation, reported without repeating it."""
+    if not isinstance(value, str):
+        return []
+    found: List[str] = []
+    for match in _URL_WITH_PATH.finditer(value):
+        url_path = match.group(3)
+        if url_path in ("/", ""):
+            continue
+        named = bool(name and _CAPABILITY_NAME.search(name))
+        opaque = bool(_OPAQUE_SEGMENT.search(url_path))
+        if not (named or opaque):
+            continue
+        found.append(
+            "%s: %s carries a URL with a %d-character path on host %r -- a "
+            "BEARER CAPABILITY (whoever holds it can read or write that "
+            "endpoint), and it matches no token shape"
+            % (path, ("key %r" % name) if name else "value",
+               len(url_path), match.group(2)))
+    return found
+
 
 def _name_is_secret(name: str) -> bool:
     upper = name.upper()
@@ -1335,11 +1393,12 @@ def _value_is_secretish(value: Any) -> bool:
 def credential_findings(payload: Any, *, path: str = "$") -> List[str]:
     """Every credential-shaped thing in a provider request body, by PATH.
 
-    Two independent detectors, because either alone misses a real case: a token
-    SHAPE anywhere in any string (covers `docker_cmd`/`onstart` text and an
-    unknown key name), and a secret-looking KEY or `NAME=value` assignment with
+    Three independent detectors, because each alone misses a real case: a
+    token SHAPE anywhere in any string (covers `docker_cmd`/`onstart` text and
+    an unknown key name); a secret-looking KEY or `NAME=value` assignment with
     a non-trivial value (covers a credential format we cannot pattern-match,
-    e.g. after a rotation).
+    e.g. after a rotation); and a URL that IS an authorisation -- a result
+    sink, webhook or presigned link, which matches no token shape at all.
     """
     findings: List[str] = []
     if isinstance(payload, dict):
@@ -1350,6 +1409,8 @@ def credential_findings(payload: Any, *, path: str = "$") -> List[str]:
                 findings.append(
                     "%s: key %r carries a credential-shaped value "
                     "(%d characters)" % (child, key, len(value.strip())))
+            findings.extend(_capability_findings(
+                child, key if isinstance(key, str) else None, value))
             findings.extend(credential_findings(value, path=child))
     elif isinstance(payload, (list, tuple)):
         for index, value in enumerate(payload):
@@ -1365,7 +1426,21 @@ def credential_findings(payload: Any, *, path: str = "$") -> List[str]:
                 findings.append(
                     "%s: embeds %s=<%d characters> in a payload the provider "
                     "stores" % (path, name, len(value)))
-    return findings
+        # `NAME=https://host/topic-cred` inside onstart/docker_cmd text: the
+        # NAME is what makes it a capability rather than a repo pin, so the
+        # assignment is matched, not the bare URL.
+        for match in re.finditer(
+                r"(?i)\b([A-Za-z0-9_]+)\s*=\s*(https?://[^\s\"';]+)", payload):
+            findings.extend(_capability_findings(path, match.group(1),
+                                                 match.group(2)))
+        findings.extend(_capability_findings(path, None, payload))
+    # Two detectors can name the same thing (a capability-shaped NAME whose
+    # value is also presigned-shaped); a refusal should say it once.
+    unique: List[str] = []
+    for finding in findings:
+        if finding not in unique:
+            unique.append(finding)
+    return unique
 
 
 def refuse_credential_in_provider_payload(payload: Any,
@@ -1433,10 +1508,16 @@ def _cmd_attest(args: argparse.Namespace) -> int:
         "ca_bundle_digests": verdict["evidence"].get("ca_bundle_digests") or [],
         "ambient_trust_env": verdict["evidence"].get("ambient_trust_env") or {},
         "python_version": verdict["evidence"].get("python_version"),
+        "attester": ("the box itself (self-attested: a root-privileged host "
+                     "can forge this document)"),
         "guarantee_ends": (
             "run on the box itself: a root-privileged host can forge this. It "
             "proves a passive interception proxy fails closed and records what "
             "the peer looked like."),
+        "does_not_attest": (
+            "the SSH/exec transport, the store another client uses (certifi is "
+            "recorded separately when --certifi-python is given), or anything "
+            "about a credential -- this evidence is about the PEER"),
     }
     if args.certifi or args.certifi_python:
         facts = certifi_bundle_facts(args.certifi_python)
