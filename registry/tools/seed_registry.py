@@ -7654,7 +7654,11 @@ def build_measurements_glm52(artifacts_map):
                       "reaches the loader, so no scale can be silently dropped. This is the "
                       "dequantize-and-run methodology: it measures the error of the STORED "
                       "weights, not of a vendor kernel.", True),
-                 disc("estimator_scope_narrower_than_artifact", "caveat",
+                 # The code the RECEIPT emits for this gap, so the FP8 and NVFP4
+                 # rows of this family are groupable by code for one condition
+                 # (the artifact record keeps estimator_scope_narrower_than_artifact,
+                 # which is a statement about the artifact, not this measurement).
+                 disc("activation_quantization_not_captured", "caveat",
                       "WEIGHT-ONLY: the checkpoint declares activation_scheme dynamic, so a "
                       "served W8A8 deployment also quantizes activations per token at runtime. "
                       "That term is absent here, so the value is expected to understate the "
