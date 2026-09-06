@@ -114,8 +114,15 @@ def _endpoint_host() -> str:
 # anonymous on purpose, because reading the published root WITHOUT a token is
 # what proves it is publicly readable -- hit HTTP 429 eighteen seconds into a
 # paid rental on 2026-09-06 and the stage exited 3, turning a wait into a lost
-# pod. Three lanes pulling published roots share one unauthenticated per-IP
-# budget, so this is expected traffic, not an anomaly.
+# pod. Several lanes pulling published roots at once was the condition under
+# which it happened twice; whether the limit is per-client, per-object or
+# per-repo is NOT established, so nothing here assumes a mechanism.
+#
+# The wait is ANNOUNCED on stderr. A silently absorbed retry is
+# indistinguishable from a clean pass in summary output, which would make the
+# harness quietly slower under load with no way to tell -- and on a pod, stderr
+# is what lands in logs/<stage>.log, so the notice is the only evidence a
+# reader gets that a limit was hit at all.
 #
 # Retried statuses are only the ones the protocol says are temporary. 401, 403
 # and 404 are answers about the request and must still fail closed and fast.
@@ -127,6 +134,16 @@ _RETRY_ATTEMPTS = 5
 _RETRY_MAX_DELAY = 60.0
 _RETRY_TOTAL_BUDGET = 300.0
 _SLEEP = time.sleep
+
+
+def _announce_retry(url: str, exc, delay: float, attempt: int) -> None:
+    """Say, on stderr, that a transient status is being waited out."""
+    sys.stderr.write(
+        "hub: HTTP %s for %s -- transient, waiting %.1fs "
+        "(attempt %d of %d)\n"
+        % (getattr(exc, "code", "?"), common.redact(url), delay,
+           attempt, _RETRY_ATTEMPTS))
+    sys.stderr.flush()
 
 
 def _retry_after_seconds(exc) -> Optional[float]:
@@ -191,6 +208,7 @@ def _get(url: str, token: Optional[str] = None, binary: bool = False):
                 err = HubError("HTTP %s for %s" % (exc.code, common.redact(url)))
                 err.status = exc.code
                 raise err
+            _announce_retry(url, exc, delay, attempt)
             _SLEEP(delay)
             spent += delay
         except urllib.error.URLError as exc:
@@ -257,6 +275,7 @@ def _read_remote_exact(
                     % exc.code)
                 err.status = exc.code
                 raise err
+            _announce_retry(url, exc, delay, attempt)
             _SLEEP(delay)
             spent += delay
         except urllib.error.URLError as exc:

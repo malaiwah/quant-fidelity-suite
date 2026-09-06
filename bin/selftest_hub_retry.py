@@ -285,6 +285,39 @@ def main():
           FD._hub_error_advice(getattr(streamed, "status", None))
           == FD._hub_error_advice(429))
 
+
+    print()
+    print("== a retry must be VISIBLE ==")
+    # A silently absorbed retry is indistinguishable from a clean pass in
+    # summary output. Two lanes could not tell, from a successful run, whether
+    # a 429 had been waited out or never happened -- and on a pod stderr is
+    # what lands in logs/<stage>.log, so the notice is the only evidence a
+    # reader gets that a limit was hit (2026-09-06).
+    import contextlib
+    for label, module in (("dshub", DS), ("hfmeta", HM)):
+        buf = io.StringIO()
+        with contextlib.redirect_stderr(buf):
+            module._announce_retry("https://huggingface.co/api/x",
+                                   http_error(429, 3), 3.0, 2)
+        said = buf.getvalue()
+        check("%s: the wait is announced on stderr with the status, the wait "
+              "and the attempt count" % label,
+              "429" in said and "3.0s" in said
+              and "attempt 2 of %d" % module._RETRY_ATTEMPTS in said,
+              said.strip()[:110])
+
+    buf = io.StringIO()
+    original = DS._OPENER
+    try:
+        transport, _ = opener_that(DS, [http_error(429, 1), b'{"ok": 1}'])
+        DS._OPENER = type("O", (), {"open": staticmethod(transport)})
+        with contextlib.redirect_stderr(buf):
+            with_sleep(DS, lambda: DS._get("https://huggingface.co/api/x"))
+    finally:
+        DS._OPENER = original
+    check("a real absorbed retry leaves a trace, so a clean-looking pass can "
+          "be distinguished from one that waited",
+          "HTTP 429" in buf.getvalue(), buf.getvalue().strip()[:110])
     print()
     if FAILURES:
         print("selftest_hub_retry: %d FAILED" % len(FAILURES))

@@ -202,6 +202,19 @@ _RETRY_TOTAL_BUDGET = 300.0
 _SLEEP = time.sleep
 
 
+def _announce_retry(url: str, exc, delay: float, attempt: int) -> None:
+    """Say, on stderr, that a transient status is being waited out.
+
+    A silently absorbed retry looks exactly like a clean pass in summary
+    output, so a rate limit could slow every plan with nothing to show it.
+    """
+    import sys as _sys
+    _sys.stderr.write(
+        "hf: HTTP %s for %s -- transient, waiting %.1fs (attempt %d of %d)\n"
+        % (getattr(exc, "code", "?"), url, delay, attempt, _RETRY_ATTEMPTS))
+    _sys.stderr.flush()
+
+
 def _retry_after_seconds(exc) -> Optional[float]:
     """`Retry-After` in integer seconds, bounded, else None.
 
@@ -262,6 +275,7 @@ def _get(url: str, *, timeout: float = 30.0) -> Any:
         except urllib.error.HTTPError as exc:
             delay = _retry_delay(exc, attempt, spent)
             if delay is not None:
+                _announce_retry(url, exc, delay, attempt)
                 _SLEEP(delay)
                 spent += delay
                 continue
@@ -508,6 +522,7 @@ def fetch_file(repo_id: str, path: str, *, repo_type: str = "model",
             if delay is None:
                 raise HFError("HTTP %d fetching %s from %s"
                               % (exc.code, path, repo_id)) from None
+            _announce_retry(url, exc, delay, attempt)
             _SLEEP(delay)
             spent += delay
 
