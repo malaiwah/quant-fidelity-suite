@@ -1427,6 +1427,41 @@ def load_panel_descriptor(spec: Optional[str]) -> PanelDescriptor:
     path = Path(spec)
     if path.is_file():
         raw = json.loads(path.read_text(encoding="utf-8"))
+        # DESC-01 (T4Verdict, 2026-09-06). Passing a file that is JSON but not
+        # a descriptor is the OBVIOUS mistake, because a panel directory
+        # contains a file literally called `panel.json` -- and it used to
+        # crash with `KeyError: 'repo_id'`. Five keys are indexed directly
+        # below, so there were five such crashes. The function was already
+        # careful everywhere else: a repo_id that is present but malformed
+        # gets a named HFError, and a non-descriptor STRING gets the good
+        # refusal at the bottom of this function. Only the missing-key path
+        # was unguarded. AGENTS.md: an expected invalid state is a refusal,
+        # not a guess -- and the remedy has to name the keys, because the
+        # operator's next move is to look at the file they passed.
+        if not isinstance(raw, dict):
+            raise HFError(
+                "panel descriptor %s is %s, not a JSON object naming "
+                "repo_id, panel_ref, contexts, positions_per_context and "
+                "scored_positions" % (path, type(raw).__name__))
+        required = ("repo_id", "panel_ref", "contexts",
+                    "positions_per_context", "scored_positions")
+        missing = [key for key in required if key not in raw]
+        if missing:
+            raise HFError(
+                "panel descriptor %s is missing %s. A descriptor names "
+                "repo_id, panel_ref, contexts, positions_per_context and "
+                "scored_positions -- the runner will not guess a panel's "
+                "shape, because a wrong guess silently measures a different "
+                "thing. (A panel DIRECTORY's own panel.json is not a "
+                "descriptor; pass the descriptor, or pass the panel id.)"
+                % (path, ", ".join(missing)))
+        for key in ("contexts", "positions_per_context", "scored_positions"):
+            try:
+                int(raw[key])
+            except (TypeError, ValueError):
+                raise HFError(
+                    "panel descriptor %s has %s=%r, which is not an integer"
+                    % (path, key, raw[key]))
         # SEC-01 (companion).  These two strings travel verbatim into job.json
         # and from there into a shell command on a rented box that holds a live
         # HF token.  Validate them where they ENTER the tree, so a hostile value

@@ -170,13 +170,43 @@ def main() -> int:
         check("decode_choice_hf does not reference %s" % forbidden,
               forbidden not in body)
 
-    print("\n[2] BITWISE DEVICE PARITY")
-    if not accel:
-        print("  (no accelerator on this machine; parity is vacuous, skipping)")
+    # DECODE-PARITY-01. This section asserted `torch.equal(cpu, cuda)` and was
+    # therefore red on EVERY CUDA device ever pointed at it -- sm_75 and sm_80
+    # with identical max_abs_diff -- while passing vacuously on the CPU-only
+    # boxes that actually run the battery. So it was green for the life of the
+    # tree and had never once tested the thing it names.
+    #
+    # There are TWO non-bitwise axes at the Hadamard stage and a correct rung
+    # must say which one it bounds (DecoderParity + T4Verdict, 2026-09-06):
+    #
+    #   * the cpu-vs-cuda reduction ORDER axis, which is THIS rung: measured
+    #     9.537e-06 (T4, sm_75) and 6.676e-06 (A100, sm_80), and bit-identical
+    #     between those two architectures. It is fp32 matmul reduction order,
+    #     not a decode difference: the non-matmul half of the same decode is
+    #     bitwise-identical to CUDA over 115,343,360 elements.
+    #   * the same-device rounding COUNT axis versus exllamav3's four fp16
+    #     roundings: 6.1e-05 to 2.4e-04, one fp16 ULP. That is
+    #     engines/tools/exl3_decoder_parity_vs_exllamav3.py's job, NOT this
+    #     one, and it is where `weights_reconstructed` comes from.
+    #
+    # The bound below sits above the measured order axis and BELOW the
+    # rounding-count axis on purpose, so a regression that crosses into the
+    # other axis's magnitude fails here rather than being absorbed.
+    DEVICE_PARITY_MAX_ABS_DIFF = 5.0e-05
+    print("\n[2] DEVICE PARITY (fp32 reduction-order axis, bounded)")
     tiles = (16, 16) if args.quick else (256, 128)   # 256*16 x 128*16 = 8,388,608
     n_elem = tiles[0] * 16 * tiles[1] * 16
     print("  matrix: %d x %d = %s elements"
           % (tiles[0] * 16, tiles[1] * 16, "{:,}".format(n_elem)))
+    print("  bound:  max_abs_diff <= %.1e (measured 9.537e-06 sm_75, "
+          "6.676e-06 sm_80)" % DEVICE_PARITY_MAX_ABS_DIFF)
+    if not accel:
+        # A canonical marker, not prose. The previous line read "(no
+        # accelerator on this machine; parity is vacuous, skipping)", which no
+        # skip-detecting pattern in this estate matched -- so the battery
+        # counted it as nothing and an outer PASS hid it. A skip is a verdict.
+        print("  SKIP  [2] device parity: no accelerator on this machine "
+              "(needs cuda or mps; nothing here can measure the axis)")
 
     bit_list = [int(b) for b in args.bits.split(",") if b.strip()]
     for bits in bit_list:
@@ -188,8 +218,16 @@ def main() -> int:
             same = torch.equal(ref, got)
             ndiff = int((ref != got).sum()) if not same else 0
             maxabs = float((ref - got).abs().max()) if not same else 0.0
-            check("bits=%d decode %s == cpu, BITWISE" % (bits, dev), same,
-                  "max_abs_diff=%.3e ndiff=%d/%d" % (maxabs, ndiff, ref.numel()))
+            check("bits=%d decode %s vs cpu within the reduction-order bound"
+                  % (bits, dev),
+                  maxabs <= DEVICE_PARITY_MAX_ABS_DIFF,
+                  "max_abs_diff=%.3e (bound %.1e) ndiff=%d/%d bitwise=%s"
+                  % (maxabs, DEVICE_PARITY_MAX_ABS_DIFF, ndiff, ref.numel(),
+                     same))
+            # Bitwise is REPORTED, never asserted: it is false on every device
+            # measured so far, and asserting it is what made this rung dead.
+            print("        bits=%d %s bitwise=%s max_abs_diff=%.3e"
+                  % (bits, dev, same, maxabs))
 
         # int32 vs int64 unpack: values are 16-bit and the largest shift is
         # lag*bits (18 at bits=6), so int32 is safe -- and measurably faster on

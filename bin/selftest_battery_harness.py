@@ -154,6 +154,14 @@ MEASURED_SKIP_LINES = (
     "[skip] decoder parity vs exllamav3 reconstruct - receipt absent",
     "PASS 1b accelerator decode parity: SKIPPED (no CUDA and no MPS on this host)",
     "PASS  3 dequant known-answers ...; MPS absent: device rung SKIPPED",
+    # The eighth format. It used to read "(no accelerator on this machine;
+    # parity is vacuous, skipping)" -- prose, matched by nothing, so the
+    # battery counted it as no skip at all and an outer PASS hid it. Rather
+    # than widen SKIP_RE to chase prose, the EMISSION was made canonical
+    # (DECODE-PARITY-01, selftest_decode_parity.py section [2]), which is the
+    # structural fix LocalCoverage named. Pinned here so it stays canonical.
+    "  SKIP  [2] device parity: no accelerator on this machine "
+    "(needs cuda or mps; nothing here can measure the axis)",
 )
 # A summary line is NOT an internal skip. Without the `0 skipped` exclusion
 # every green rung reports a phantom one; a NONZERO count is real and counts.

@@ -1770,7 +1770,36 @@ operator needs in both cases.
 **Test:** `load_panel_descriptor` on a JSON file lacking `repo_id` must raise `HFError`, not
 `KeyError`. It raises `KeyError` today.
 
+**RESOLVED 2026-09-06** (additive note; the finding above is kept verbatim).
+Fixed in `bin/fidelity/hfmeta.py`: a non-dict payload, any of the five missing
+required keys, and a present-but-non-integer count each raise a named `HFError`
+whose remedy lists the required keys and says outright that a panel DIRECTORY's
+own `panel.json` is not a descriptor. Regression rung `DESC-01` in
+`bin/selftest_shell_guards.sh` covers all four inputs plus the negative case
+that a valid descriptor still loads — a guard satisfied by refusing everything
+would be worse than the crash it replaced. Verified failing against the
+pre-fix loader (KeyError) and passing after: 29 passed, 0 failed, 0 skipped.
+
 ## DECODE-PARITY-01 — `selftest_decode_parity.py` section [2] asserts a bitwise
+**RESOLVED 2026-09-06** (additive note; the finding above is kept verbatim).
+The rung now bounds the axis it actually measures instead of asserting an
+equality no device satisfies. `DEVICE_PARITY_MAX_ABS_DIFF = 5.0e-05` sits
+ABOVE the measured cpu-vs-cuda reduction-order axis (9.537e-06 sm_75,
+6.676e-06 sm_80 — bit-identical between those architectures) and BELOW the
+same-device rounding-count axis versus exllamav3's four fp16 roundings
+(6.1e-05 to 2.4e-04), so a regression that crosses into the other axis's
+magnitude fails here rather than being absorbed. Bitwise equality is still
+REPORTED on every device and never asserted, because asserting it is what made
+the rung dead. Two axes, and the rung now names which one it bounds.
+
+The vacuous-pass half is fixed at the EMISSION site rather than by widening a
+regex: the old `(no accelerator on this machine; parity is vacuous, skipping)`
+was prose that no skip pattern in the estate matched, so the battery counted it
+as no skip at all. It now prints a canonical `SKIP` marker naming the missing
+dependency, which `SKIP_RE` catches and which is pinned as the eighth format in
+`bin/selftest_battery_harness.py`. That retires the last known miss in the
+skip-detection set.
+
 ## cpu==cuda equality that FAILS on every CUDA device, and is vacuous on the boxes that run it
 
 **Found 2026-09-06.** T4 measurement by T4Verdict; the Ampere control was run by

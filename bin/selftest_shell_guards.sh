@@ -297,6 +297,46 @@ PY
   else
     no "SEC-01 load_panel_descriptor refuses a repo_id that is not owner/name"
   fi
+  # DESC-01. The same loader's missing-key path used to raise KeyError, and
+  # the input that triggers it is the OBVIOUS mistake: a panel DIRECTORY
+  # contains a file literally called panel.json, which is JSON and is not a
+  # descriptor. Five keys were indexed directly, so there were five crashes.
+  # Every case here must produce a NAMED refusal, and the valid descriptor
+  # must still load -- a guard satisfied by refusing everything is worse
+  # than the crash it replaced.
+  if python3 - "$ROOT" <<'PY'
+import json, sys, tempfile, pathlib
+sys.path.insert(0, sys.argv[1] + "/bin")
+from fidelity.hfmeta import load_panel_descriptor, HFError
+d = tempfile.mkdtemp()
+base = {"panel_ref": "p", "repo_id": "owner/name", "revision": "a" * 40,
+        "contexts": 25, "positions_per_context": 2047, "scored_positions": 51175}
+good = pathlib.Path(d, "g.json"); good.write_text(json.dumps(base))
+if load_panel_descriptor(str(good)).contexts != 25:
+    raise SystemExit(1)                    # a valid one must still load
+cases = [
+    {"panel_id": "p", "windows": []},      # a panel dir's own panel.json
+    [1, 2, 3],                             # JSON, but not an object
+    {k: v for k, v in base.items() if k != "scored_positions"},
+    dict(base, contexts="many"),           # present but not an integer
+]
+for i, payload in enumerate(cases):
+    p = pathlib.Path(d, "bad%d.json" % i)
+    p.write_text(json.dumps(payload))
+    try:
+        load_panel_descriptor(str(p))
+    except HFError:
+        continue                           # a named refusal: correct
+    except Exception:
+        raise SystemExit(1)                # KeyError/ValueError: the defect
+    raise SystemExit(1)                    # accepted it: worse
+raise SystemExit(0)
+PY
+  then
+    ok "DESC-01 load_panel_descriptor REFUSES a non-descriptor JSON file"
+  else
+    no "DESC-01 load_panel_descriptor REFUSES a non-descriptor JSON file"
+  fi
 fi
 
 # ---------------------------------------------------------------- SEC-02
