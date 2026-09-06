@@ -2501,7 +2501,7 @@ def _verify_tr3_seal(con: Console, repo_id: str, revision: str,
             [redact(str(exc)), "Nothing was created. $0.00 spent."])
     required_files = {
         "config.json", "model.safetensors.index.json",
-        tr3s.ABI_FILE, tr3s.MATERIALIZATION_FILE,
+        tr3s.ABI_FILE, tr3s.MATERIALIZATION_FILE, tr3s.QUANTIZATION_FILE,
     }
     if policy is not None:
         required_files.update(policy["raw_sha256"])
