@@ -1,0 +1,22 @@
+{
+  "dataset_sha256": "cd34d84818c9e508dce4bf304f30fc364bfd7df0809ce73b4b9b6aa606e95b7c",
+  "execution_kind": "runpod-ssh",
+  "local_execution": null,
+  "private": false,
+  "publication_source": "result-archive",
+  "published_at": "2026-09-06T06:06:28Z",
+  "published_dataset_sha256": "cd34d84818c9e508dce4bf304f30fc364bfd7df0809ce73b4b9b6aa606e95b7c",
+  "published_qualification_file_sha256": "c6e46c539212c76d04c25fb89264517ea1190babdc0147b3c83e20084f8288e5",
+  "qualification_file_sha256": "c6e46c539212c76d04c25fb89264517ea1190babdc0147b3c83e20084f8288e5",
+  "qualification_receipt_sha256": "d0917988ad3c32bfa4ef3430ea67a69164374208f6be91ca132f16eec387fb8b",
+  "receipt_sha256": "402e149054ad93167dc57e0f7574acd67ed1e343cfe42e5d0036107a3aaa2c82",
+  "repository": "malaiwah/glm52-fidelity-exl3-tr3-3.25bpw-willfalco-v1",
+  "result_archive_bytes": 5073854193,
+  "result_archive_sha256": "5c508f23e9f5579cb39eda3f63cfa4920f9b81dff8b697eec53d456fb1853a86",
+  "revision": "0b12b0236eefe12dfa26fba5de151560d8889742",
+  "revision_immutable": true,
+  "schema": "fidelity.publish-root-receipt.v2",
+  "verified_after_publish": true,
+  "verified_anonymously": true,
+  "verified_revision": "0b12b0236eefe12dfa26fba5de151560d8889742"
+}
