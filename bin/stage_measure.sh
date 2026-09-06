@@ -375,6 +375,51 @@ require_stage_marker() {  # prerequisite stage, bound to this exact job attempt
   fi
 }
 
+
+# ---------------------------------------------------------------------------
+# Concurrent sibling launcher (StageOverlap).
+#
+# A stage that overlaps another (fetch_reference alongside fetch_target;
+# compare_reference alongside capture_repeat) launches the sibling as its own
+# setsid leader so each self-records an independent per-stage pgid record
+# (runtime/stage-<name>.pgid) and the watchdog can signal both.  The sibling
+# runs the REAL stage_measure.sh for its stage, so its receipts, markers and
+# exit codes are identical to a serial run -- the only difference is WHEN the
+# wall clock sees them.  The parent waits for the sibling before writing its
+# own marker, so the composite's .done still gates the NEXT stage exactly as
+# the serial contract did.
+#
+# The sibling inherits NO token: the controller's wrapper stripped HF_TOKEN
+# and this helper re-strips it so the anonymous stages stay anonymous even
+# though the parent (fetch_target) holds a token.
+#
+#   launch_sibling <stage_name>          # start in background, setsid
+#   wait_sibling  <stage_name>           # wait, propagate exit code
+# ---------------------------------------------------------------------------
+SIBLING_PIDS=""
+launch_sibling() {
+  local sibling_stage="$1"
+  log "launching concurrent sibling: $sibling_stage"
+  setsid env -u HF_TOKEN -u HUGGING_FACE_HUB_TOKEN \
+      -u HUGGINGFACE_HUB_TOKEN -u HF_TOKEN_PATH \
+      HF_HUB_DISABLE_IMPLICIT_TOKEN=1 \
+      HF_HOME="$FS/hf-anonymous" \
+      bash "$FS/bin/stage_measure.sh" "$sibling_stage" \
+      >>"$LOGS/stage-$sibling_stage.log" 2>&1 </dev/null &
+  SIBLING_PIDS="$SIBLING_PIDS $!"
+}
+wait_sibling() {
+  local sibling_stage="$1" pid rc
+  for pid in $SIBLING_PIDS; do
+    rc=0; wait "$pid" || rc=$?
+    if [ "$rc" -ne 0 ]; then
+      echo "stage_measure: concurrent sibling $sibling_stage failed (exit $rc)" >&2
+      exit "$rc"
+    fi
+  done
+  log "concurrent sibling $sibling_stage completed"
+}
+
 require_target_census() {
   require_stage_marker fetch_target
   python3 - "$CONF" "$FS/bin" "$RCPT/fetch-target-census.json" \
@@ -593,6 +638,16 @@ fetch_target)
   REV="$(jqget target.revision)"
   DEST="$MODELS/target"
   [ -n "$REPO" ] || { echo "job.json has no target.repo_id" >&2; exit 2; }
+  # StageOverlap: a candidate fetches the published root (fetch_reference)
+  # CONCURRENTLY with the target weights.  The reference is anonymous
+  # (env -u HF_TOKEN, HF_HUB_DISABLE_IMPLICIT_TOKEN=1) and reads no target
+  # bytes -- its only serial dependency was the token choreography, not
+  # data.  The 2.4 GB rides the same link at <1% of the 465 GB-1.5 TB
+  # target.  The sibling self-records runtime/stage-fetch_reference.pgid;
+  # fetch_target.done is written only after BOTH succeed.
+  if [ -n "$(jqget capture.candidate.reference.repository)" ]; then
+    launch_sibling fetch_reference
+  fi
   mkdir -p "$DEST"
   # The plan binds every repository file needed by this exact execution.
   # Download only those literal paths. This prevents a mutable repository
@@ -894,6 +949,11 @@ PY
     fi
   fi
   df -h "$FS" | tee -a "$LOGS/fetch_target.log"
+  # StageOverlap: wait for the concurrent fetch_reference sibling before
+  # accepting the target fetch.  Its .done marker gates capture.
+  if [ -n "$(jqget capture.candidate.reference.repository)" ]; then
+    wait_sibling fetch_reference
+  fi
   write_marker
   log "done"
   ;;
@@ -1227,6 +1287,16 @@ PYIMPORT
     require_stage_marker verify
     OUT="$FS/dataset-repeat"
     PROCESS_LABEL="root-cold-2"
+    # StageOverlap: a candidate runs compare_reference CONCURRENTLY with
+    # capture_repeat.  compare_reference reads only $FS/reference (sealed
+    # by fetch_reference) and $FS/dataset (sealed by verify, which ran
+    # before capture_repeat).  It writes to a PENDING dir and writes NO
+    # marker; qualify_root promotes it after it succeeds.  capture_repeat
+    # writes $FS/dataset-repeat (a different tree) -- no shared read or
+    # write.
+    if [ -n "$(jqget capture.candidate.reference.repository)" ]; then
+      launch_sibling compare_reference
+    fi
   fi
   PANEL_BINDING="$(python3 - "$FS" "$PANEL_BINDING_REL" "$PANEL_BINDING_SHA" \
       "$CONF" "$FS/bin" <<'PYPANEL'
@@ -1617,6 +1687,26 @@ qualify_root)
       "${QUALIFY_EXTRA[@]}" \
       2>&1 | tee -a "$LOGS/qualify_root.log"
   write_marker
+  # StageOverlap: promote the concurrent compare_reference result.  The
+  # comparison was computed to a pending dir alongside capture_repeat; it
+  # is ACCEPTED only now, after qualification succeeded.  If compare_reference
+  # has not finished yet (it may still be running), the controller serial
+  # loop will reach it next and the pending dir is already in place.
+  if [ -d "$RCPT/reference-comparison.pending" ]; then
+    if [ -f "$RCPT/reference-comparison.pending/comparison-receipt.json" ]; then
+      mv "$RCPT/reference-comparison.pending" "$RCPT/reference-comparison"
+      log "compare_reference promoted: comparison accepted after qualification"
+      # Write the compare_reference marker (write_marker uses $STAGE which is
+      # qualify_root here, so set the marker path explicitly).
+      _saved_stage="$STAGE"; _saved_marker="$marker"
+      STAGE="compare_reference"; marker="$DONE/compare_reference.done"
+      write_marker
+      STAGE="$_saved_stage"; marker="$_saved_marker"
+    else
+      echo "qualify_root REFUSES: concurrent compare_reference left a pending dir with no receipt" >&2
+      exit 3
+    fi
+  fi
   log "done"
   ;;
 
@@ -1626,7 +1716,10 @@ fetch_reference)
   # tensors recomputed. The job names the exact seal and content digest it
   # expects, so a repository that moved under the same name refuses here,
   # before a cold run is paid for.
-  require_stage_marker fetch_target
+  # StageOverlap: this stage now runs CONCURRENTLY with fetch_target (launched
+  # as a sibling by the fetch_target composite).  The serial marker gate is
+  # removed -- fetch_reference reads no target bytes, and fetch_target.done
+  # still gates capture via require_target_census.
   REF_REPO="$(jqget capture.candidate.reference.repository)"
   REF_REV="$(jqget capture.candidate.reference.revision)"
   REF_SHA="$(jqget capture.candidate.reference.dataset_sha256)"
@@ -1702,7 +1795,9 @@ compare_reference)
   # comparator and settings compare_root used, so no replay caveat differs
   # between the floor and the number).
   require_stage_marker fetch_reference
-  require_stage_marker qualify_root
+  # StageOverlap: compare_reference runs concurrently with capture_repeat.
+  # The qualify_root marker gate is removed here -- qualification PROMOTES
+  # the comparison (see qualify_root), not the other way around.
   [ -L "$FS/reference" ] && [ -f "$FS/reference/fidelity-dataset.json" ] || {
     echo "compare_reference REFUSES: $FS/reference is not the verified reference dataset." >&2
     exit 3
@@ -1741,7 +1836,7 @@ compare_reference)
       --reference-label root --candidate-label candidate \
       --device "$COMPARE_DEVICE" \
       --replay-device "$REPLAY_DEVICE" --replay-dtype "$REPLAY_DTYPE" \
-      --vocab-chunk "$VOCAB_CHUNK" --out "$RCPT/reference-comparison" \
+      --vocab-chunk "$VOCAB_CHUNK" --out "$RCPT/reference-comparison.pending" \
       "${COMPARE_HEAD_ARGS[@]}" \
       2>&1 | tee -a "$LOGS/compare_reference.log"
   COMPARE_STATUS="${PIPESTATUS[0]}"
@@ -1750,11 +1845,21 @@ compare_reference)
     0|2) ;;
     *) echo "compare_reference REFUSES: comparator exited $COMPARE_STATUS" >&2; exit "$COMPARE_STATUS" ;;
   esac
-  [ -f "$RCPT/reference-comparison/comparison-receipt.json" ] || {
+  [ -f "$RCPT/reference-comparison.pending/comparison-receipt.json" ] || {
     echo "compare_reference REFUSES: no comparison receipt was sealed." >&2
     exit 3
   }
-  write_marker
+  # StageOverlap: the comparison is computed to a PENDING dir.  Its marker
+  # is written only by qualify_root after qualification succeeds -- so a run
+  # whose qualify_root refuses never accepts the comparison.  If
+  # qualify_root already succeeded (serial path, or the controller drives
+  # this stage standalone after qualification), promote immediately.
+  if [ -e "$DONE/qualify_root.done" ]; then
+    mv "$RCPT/reference-comparison.pending" "$RCPT/reference-comparison"
+    write_marker
+  else
+    log "comparison computed to pending dir; awaiting qualify_root to accept"
+  fi
   log "done"
   ;;
 
