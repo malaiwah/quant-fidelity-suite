@@ -1,0 +1,452 @@
+{
+  "capture": {
+    "capture_content_digest": "bd732412e97065789710ae873ea098b580dc7fd52eedd1f2b6469b887c24bdc9",
+    "dtype": "BF16",
+    "dtype_lossless": true,
+    "form": "hidden",
+    "head_not_separable_reason": null,
+    "head_separable": true,
+    "hidden_width": 6144,
+    "lossy_codec": null,
+    "manifest_file": "capture/manifest.json",
+    "manifest_file_sha256": "83fe2dc64d415e89f9a50e5ddd142912e064d29e5d7eddda5bf81dcca2730e6c",
+    "records_count": 25,
+    "scored_rows_total": 51175,
+    "semantic_point": "after_final_rmsnorm_before_lm_head",
+    "tensor_key": "hidden_states",
+    "total_size_bytes": 628845100,
+    "vocab_size": 154880
+  },
+  "coverage": {
+    "complete": true,
+    "declared_records": 25,
+    "index_range": [
+      0,
+      24
+    ],
+    "missing_indices_sample": [],
+    "present_records": 25,
+    "shard_of": null,
+    "subset_detail": null
+  },
+  "created_utc": "2026-09-05T20:44:40Z",
+  "dataset": {
+    "author": {
+      "handle": null,
+      "is_registry_maintainer": false,
+      "name": "malaiwah",
+      "role": "capture-author",
+      "url": null
+    },
+    "base_capture": null,
+    "id": "fidelity--glm53.malaiwah.quant.gguf-unsloth-udq4kxl",
+    "license": "mit",
+    "name": "fidelity--glm53.malaiwah.quant.gguf-unsloth-udq4kxl",
+    "qualification": null,
+    "repository": "malaiwah/glm53-fidelity-gguf-unsloth-udq4kxl-v1",
+    "revision": null,
+    "role": "quant",
+    "structural_status": "sealed"
+  },
+  "dataset_sha256": "f25e7544576ecd2ac924ffc84492a8eebc5a387217370559f7883e23dd52ce5b",
+  "determinism": {
+    "cold_start_per_run": true,
+    "distinct_evidence_hash_count": 1,
+    "evidence_hashes": [
+      "bd732412e97065789710ae873ea098b580dc7fd52eedd1f2b6469b887c24bdc9"
+    ],
+    "evidence_kind": "hidden_state_tensor_sha256",
+    "identical_across_runs": null,
+    "note": "a single cold capture; cross-run determinism is NOT asserted here. Capture a second cold run and run `fidelity-dataset compare --self-compare` -- an exactly 0.0 result is the SC-1 reproduction confirmation.",
+    "repeat_noise": null,
+    "repeats": [],
+    "run_count": 1
+  },
+  "disclosures": [
+    {
+      "affects_comparability": false,
+      "code": "no_known_deviations",
+      "detail": "captured by engines/tools/hf_capture.py",
+      "severity": "info"
+    },
+    {
+      "affects_comparability": false,
+      "code": "checkpoint_tensors_intentionally_unused",
+      "detail": "791 checkpoint tensor(s) were present but intentionally unused by this architecture. Their complete set exactly matched pinned allowlist 969cee605deba10dd82afbaa9b1b7a35d2339fdb122efece14530c9030aa1436 (canonical sorted-name SHA-256 61e5f26aed8bca408c5de5347d8e1668b0c5716237dad1fc98c47bc108f4ae57).",
+      "severity": "caveat"
+    },
+    {
+      "affects_comparability": false,
+      "code": "reduced_run_count",
+      "detail": "this dataset is ONE cold capture (run_count 1, the DET-D4 floor is 5). Cross-run determinism is not asserted by the dataset; it is established by a second cold capture plus `fidelity-dataset compare --self-compare`, whose exactly-0.0 result is the SC-1 reproduction confirmation.",
+      "severity": "caveat"
+    }
+  ],
+  "format_version": 1,
+  "generation_sanity_probe": {
+    "degenerate": false,
+    "enforced": true,
+    "entropy_nats": 3.72829434198921,
+    "expect": "Paris",
+    "expected_first_ids": [
+      1732,
+      12089,
+      40631,
+      59190
+    ],
+    "logit_spread": 25.78125,
+    "note": "one extra window through the same schedule; its hidden state is discarded and never enters the dataset.",
+    "prompt": "The capital of France is",
+    "schema": "malaiwah.generation-sanity-probe.v1",
+    "status": "pass",
+    "top1_id": 12089,
+    "top1_probability": 0.2680993287578442,
+    "top1_text": " Paris",
+    "top_k": [
+      {
+        "id": 12089,
+        "probability": 0.2680993287578442,
+        "text": " Paris"
+      },
+      {
+        "id": 264,
+        "probability": 0.11176042766044735,
+        "text": " a"
+      },
+      {
+        "id": 825,
+        "probability": 0.0870391085783515,
+        "text": " one"
+      },
+      {
+        "id": 279,
+        "probability": 0.059821046161424314,
+        "text": " the"
+      },
+      {
+        "id": 11240,
+        "probability": 0.04111436367280678,
+        "text": " famous"
+      }
+    ],
+    "uniform_entropy_nats": 11.950405902510404,
+    "vocab_size": 154880
+  },
+  "head": {
+    "applied_in_capture": false,
+    "bias": null,
+    "bits": 16,
+    "compat_tensor_key": "weight",
+    "dtype": "BF16",
+    "equality_receipt": null,
+    "file": "head/weight.safetensors",
+    "file_sha256": "ad533b7bb6b86bdec96fded4ea2e1fd8749ba681f9a2f26b46f33d0dbd98e223",
+    "final_norm": {
+      "applied_at_replay": false,
+      "applied_in_capture": true,
+      "dtype": null,
+      "file": null,
+      "file_sha256": null,
+      "shape": null,
+      "tensor_content_sha256": null,
+      "tensor_key": null
+    },
+    "head_json": "head/head.json",
+    "present": true,
+    "quantized": false,
+    "raw_tensor_sha256": "f5aa1c39b73b098b67e9f94dbaa2eb09c66076b54eb21e19065c22730f1e2326",
+    "shape": [
+      154880,
+      6144
+    ],
+    "source": "native",
+    "tensor_content_sha256": "f5aa1c39b73b098b67e9f94dbaa2eb09c66076b54eb21e19065c22730f1e2326",
+    "tensor_key": "lm_head.weight"
+  },
+  "interop": {
+    "adapted_from": null,
+    "compatible_with": [
+      "kimi-k3-distribution-fidelity/1"
+    ],
+    "divergences": [
+      {
+        "field": "head",
+        "id": "D-1",
+        "reason": "every capture declares its OWN head identity by tensor content digest; the comparator refuses a hidden-form comparison across differing heads."
+      },
+      {
+        "field": "runtime.lane",
+        "id": "D-2",
+        "reason": "lane is required and gated at compare time so registry BIAS-006 is checked before a number exists, not at submission."
+      },
+      {
+        "field": "panel.scoring_window",
+        "id": "D-3",
+        "reason": "scoring_window is part of panel identity, not a comparator flag: a score_from=1024 number is a different panel, not a variant."
+      },
+      {
+        "field": "comparison_kind",
+        "id": "D-4",
+        "reason": "self-compare is a first-class mode asserting exactly 0.0."
+      },
+      {
+        "field": "estimator.accumulation_dtype",
+        "id": "D-5",
+        "reason": "required, fp64 default; an fp32 estimator lands in a different comparability class on the same data and that must be visible."
+      },
+      {
+        "field": "coverage",
+        "id": "D-6",
+        "reason": "declared vs present record counts with shard_of; fixes our own manifest that claimed 5,120 captures in a 512-file repository."
+      },
+      {
+        "field": "panel",
+        "id": "D-7",
+        "reason": "the panel is a separately referenceable object, which is what makes a candidate capture publishable standalone."
+      },
+      {
+        "field": "capture.lossy_codec",
+        "id": "D-8",
+        "reason": "lets a llama.cpp .kld be ingested without laundering a lossy capture as exact."
+      },
+      {
+        "field": "capture.records[].attention_mask_sha256",
+        "id": "D-9",
+        "reason": "our packed and streaming lanes vary mask construction; a single-request capture path makes it invariant and has no equivalent field."
+      },
+      {
+        "field": "capture.head_separable",
+        "id": "D-10",
+        "reason": "hidden form is the default; logit form must declare head_separable:false with a reason."
+      }
+    ],
+    "k3_compat_emitted": false,
+    "note": null
+  },
+  "panel": {
+    "contamination": {
+      "checked": false,
+      "hits": null,
+      "method": "not established",
+      "receipt": null
+    },
+    "context_length": 2048,
+    "contexts": 25,
+    "panel_file": "panel/panel.json",
+    "panel_file_sha256": "a71d495140a7fc53387547d4cc87d610232c57303a059b57a62fd4f9333f4a4f",
+    "panel_id": "panel--glm53.malaiwah.corpus5x5-v1",
+    "panel_receipt_file": "panel/panel-receipt.json",
+    "panel_receipt_sha256": "9c3bc4f59e8825ac78b366ca0e2988a48ecdbcaf26fdaeaedd3251edb6f9a828",
+    "panel_token_sha256_legacy": "d177a85308683012b4289e35770ef08e4bdc8e17adf59c5d26de3e5da9479734",
+    "remap_file": null,
+    "repository": null,
+    "revision": null,
+    "scored_positions_total": 51175,
+    "scoring_window": {
+      "dropped_positions_total": 0,
+      "min_left_context_tokens": 1,
+      "policy": "every causal prediction position of every window is scored; nothing is dropped",
+      "score_from": 0,
+      "windowed": false
+    },
+    "suite_token_hash_sha256": "f09ee395f635225a077695ed193d61f7d1e70650cebe1b68f82b16f59d399f86",
+    "tokenizer": {
+      "files": [
+        {
+          "bytes": 4263,
+          "name": "LICENSE",
+          "sha256": "96e1622099fc9d6b70c9760f007d99e66d7497eec636b63c60fe208401e9170c"
+        },
+        {
+          "bytes": 10465,
+          "name": "chat_template.jinja",
+          "sha256": "69bb3ab52067898e2466b855407636de559568947f367945842aabcb7fcc1705"
+        },
+        {
+          "bytes": 3732,
+          "name": "config.json",
+          "sha256": "ca8f2f47b07919a514c0ca223dc2ea2bc7445afaa5ac76c013a3784e096426ca"
+        },
+        {
+          "bytes": 194,
+          "name": "generation_config.json",
+          "sha256": "ac76b43d8683d3b930126870fc8be73d8679308fe752fa1f381096d8354f6a55"
+        },
+        {
+          "bytes": 20217442,
+          "name": "tokenizer.json",
+          "sha256": "19e773648cb4e65de8660ea6365e10acca112d42a854923df93db4a6f333a82d"
+        },
+        {
+          "bytes": 761,
+          "name": "tokenizer_config.json",
+          "sha256": "98b1271574f41abf89427ae2dda030d94dc9478f0edc5a8bd240db213c6fd5fc"
+        }
+      ],
+      "files_verified": true,
+      "id": "zai-org/GLM-5.3-BF16",
+      "identity_sha256": "b18e4d378be7e75fd2b323f7c81cc65640f6a08e1842d3bf4e025d88a9d78bf9",
+      "maximum_token_id_exclusive": 154820,
+      "receipt": null,
+      "repository": "zai-org/GLM-5.3-BF16",
+      "revision": "304b8051cfb2b260b61ce0cbe330e02a98e73639",
+      "vocab_size": 154820
+    }
+  },
+  "runtime": {
+    "backend_identity_sha256": null,
+    "file": "runtime/capture-runtime.json",
+    "file_sha256": "e45e5aa52399cb5dd7267e5885348ea42ab5d6cbc702c8f3f7bf3aa6426faff1",
+    "lane": "streaming",
+    "lane_identity_sha256": "025ae83c1cb0e2c518baa8bd0c46965f0c17b6aaca5b1b875ca5fcea71f565d5",
+    "lane_inferred": false,
+    "runtime_reader_sha256": null,
+    "source": "native",
+    "stack_fingerprint_sha256": "e7ddf6b280474c1709836e227b55dda1247b32148313bc87fd88a2ada704f0e0"
+  },
+  "schema": "malaiwah.fidelity-dataset.v1",
+  "scope": {
+    "assignments": [
+      {
+        "bits_per_weight": 8.5,
+        "format": "gguf-k-quant",
+        "layer_range": "0-77",
+        "note": "78 GGUF tensors: layers.N.self_attn.o_proj.weight. ggml types: Q8_0 x78. MEASURED 8.5000 bits/weight over 7851737088 weights. read from unsloth/GLM-5.3-GGUF@346b3591c7f28d1a23716f97a065ecf12ec14771 UD-Q4_K_XL: every ggml type, dim and byte count from the 11 GGUF tensor tables (1809 tensors, arch glm-dsa), names mapped through gguf_surface's proven glm-dsa map; bits are 8*bytes/elements from ggml block traits, not the build name",
+        "tensor_class": "attn.o",
+        "treatment": "quantized"
+      },
+      {
+        "bits_per_weight": null,
+        "format": "mixed",
+        "layer_range": "0-77",
+        "note": "class mixes stored formats on the same layers (SCOPE-004 admits one row per class and layer_range): 261 GGUF tensors: layers.N.self_attn.indexer.k_norm.bias, layers.N.self_attn.indexer.k_norm.weight, layers.N.self_attn.indexer.weights_proj.weight, layers.N.self_attn.indexer.wk.weight, layers.N.self_attn.indexer.wq_b.weight, layers.N.self_attn.kv_a_layernorm.weight, layers.N.self_attn.q_a_layernorm.weight. ggml types: F32 x219, Q8_0 x42. MEASURED 9.0170 bits/weight over 197009664 weights. read from unsloth/GLM-5.3-GGUF@346b3591c7f28d1a23716f97a065ecf12ec14771 UD-Q4_K_XL: every ggml type, dim and byte count from the 11 GGUF tensor tables (1809 tensors, arch glm-dsa), names mapped through gguf_surface's proven glm-dsa map; bits are 8*bytes/elements from ggml block traits, not the build name",
+        "tensor_class": "attn.other",
+        "treatment": "quantized"
+      },
+      {
+        "bits_per_weight": 8.5,
+        "format": "gguf-k-quant",
+        "layer_range": "0-77",
+        "note": "390 GGUF tensors: layers.N.self_attn.kv_a_proj_with_mqa.weight, layers.N.self_attn.kv_b_proj.weight, layers.N.self_attn.q_a_proj.weight, layers.N.self_attn.q_b_proj.weight. ggml types: Q8_0 x390. MEASURED 8.5000 bits/weight over 5019795456 weights. read from unsloth/GLM-5.3-GGUF@346b3591c7f28d1a23716f97a065ecf12ec14771 UD-Q4_K_XL: every ggml type, dim and byte count from the 11 GGUF tensor tables (1809 tensors, arch glm-dsa), names mapped through gguf_surface's proven glm-dsa map; bits are 8*bytes/elements from ggml block traits, not the build name",
+        "tensor_class": "attn.qkv",
+        "treatment": "quantized"
+      },
+      {
+        "bits_per_weight": 8.5,
+        "format": "gguf-k-quant",
+        "layer_range": "all",
+        "note": "1 GGUF tensors: model.embed_tokens.weight. ggml types: Q8_0 x1. MEASURED 8.5000 bits/weight over 951582720 weights. read from unsloth/GLM-5.3-GGUF@346b3591c7f28d1a23716f97a065ecf12ec14771 UD-Q4_K_XL: every ggml type, dim and byte count from the 11 GGUF tensor tables (1809 tensors, arch glm-dsa), names mapped through gguf_surface's proven glm-dsa map; bits are 8*bytes/elements from ggml block traits, not the build name",
+        "tensor_class": "embed_tokens",
+        "treatment": "quantized"
+      },
+      {
+        "bits_per_weight": 8.5,
+        "format": "gguf-k-quant",
+        "layer_range": "all",
+        "note": "1 GGUF tensors: lm_head.weight. ggml types: Q8_0 x1. MEASURED 8.5000 bits/weight over 951582720 weights. read from unsloth/GLM-5.3-GGUF@346b3591c7f28d1a23716f97a065ecf12ec14771 UD-Q4_K_XL: every ggml type, dim and byte count from the 11 GGUF tensor tables (1809 tensors, arch glm-dsa), names mapped through gguf_surface's proven glm-dsa map; bits are 8*bytes/elements from ggml block traits, not the build name",
+        "tensor_class": "lm_head",
+        "treatment": "quantized"
+      },
+      {
+        "bits_per_weight": 8.5,
+        "format": "gguf-k-quant",
+        "layer_range": "0-2",
+        "note": "3 GGUF tensors: layers.N.mlp.down_proj.weight. ggml types: Q8_0 x3. MEASURED 8.5000 bits/weight over 226492416 weights. read from unsloth/GLM-5.3-GGUF@346b3591c7f28d1a23716f97a065ecf12ec14771 UD-Q4_K_XL: every ggml type, dim and byte count from the 11 GGUF tensor tables (1809 tensors, arch glm-dsa), names mapped through gguf_surface's proven glm-dsa map; bits are 8*bytes/elements from ggml block traits, not the build name",
+        "tensor_class": "mlp.down",
+        "treatment": "quantized"
+      },
+      {
+        "bits_per_weight": 8.5,
+        "format": "gguf-k-quant",
+        "layer_range": "0-2",
+        "note": "3 GGUF tensors: layers.N.mlp.gate_proj.weight. ggml types: Q8_0 x3. MEASURED 8.5000 bits/weight over 226492416 weights. read from unsloth/GLM-5.3-GGUF@346b3591c7f28d1a23716f97a065ecf12ec14771 UD-Q4_K_XL: every ggml type, dim and byte count from the 11 GGUF tensor tables (1809 tensors, arch glm-dsa), names mapped through gguf_surface's proven glm-dsa map; bits are 8*bytes/elements from ggml block traits, not the build name",
+        "tensor_class": "mlp.gate",
+        "treatment": "quantized"
+      },
+      {
+        "bits_per_weight": 8.5,
+        "format": "gguf-k-quant",
+        "layer_range": "0-2",
+        "note": "3 GGUF tensors: layers.N.mlp.up_proj.weight. ggml types: Q8_0 x3. MEASURED 8.5000 bits/weight over 226492416 weights. read from unsloth/GLM-5.3-GGUF@346b3591c7f28d1a23716f97a065ecf12ec14771 UD-Q4_K_XL: every ggml type, dim and byte count from the 11 GGUF tensor tables (1809 tensors, arch glm-dsa), names mapped through gguf_surface's proven glm-dsa map; bits are 8*bytes/elements from ggml block traits, not the build name",
+        "tensor_class": "mlp.up",
+        "treatment": "quantized"
+      },
+      {
+        "bits_per_weight": 4.8611,
+        "format": "gguf-k-quant",
+        "layer_range": "3-77",
+        "note": "225 GGUF tensors: layers.N.mlp.experts.E.down_proj.weight, layers.N.mlp.experts.E.gate_proj.weight, layers.N.mlp.experts.E.up_proj.weight. ggml types: Q4_K x148, Q5_K x73, Q6_K x4. MEASURED 4.8611 bits/weight over 724775731200 weights. read from unsloth/GLM-5.3-GGUF@346b3591c7f28d1a23716f97a065ecf12ec14771 UD-Q4_K_XL: every ggml type, dim and byte count from the 11 GGUF tensor tables (1809 tensors, arch glm-dsa), names mapped through gguf_surface's proven glm-dsa map; bits are 8*bytes/elements from ggml block traits, not the build name",
+        "tensor_class": "moe.experts",
+        "treatment": "quantized"
+      },
+      {
+        "bits_per_weight": 32.0,
+        "format": "fp32",
+        "layer_range": "3-77",
+        "note": "150 GGUF tensors: layers.N.mlp.gate.e_score_correction_bias, layers.N.mlp.gate.weight. ggml types: F32 x150. MEASURED 32.0000 bits/weight over 117984000 weights. read from unsloth/GLM-5.3-GGUF@346b3591c7f28d1a23716f97a065ecf12ec14771 UD-Q4_K_XL: every ggml type, dim and byte count from the 11 GGUF tensor tables (1809 tensors, arch glm-dsa), names mapped through gguf_surface's proven glm-dsa map; bits are 8*bytes/elements from ggml block traits, not the build name Stored natively by the artifact; the lane loads it at the official release's dtype (bf16 except e_score_correction_bias), a cast the layout audit proved exact for every F32 tensor the converter widened.",
+        "tensor_class": "moe.router",
+        "treatment": "native"
+      },
+      {
+        "bits_per_weight": 8.5,
+        "format": "gguf-k-quant",
+        "layer_range": "3-77",
+        "note": "225 GGUF tensors: layers.N.mlp.shared_experts.down_proj.weight, layers.N.mlp.shared_experts.gate_proj.weight, layers.N.mlp.shared_experts.up_proj.weight. ggml types: Q8_0 x225. MEASURED 8.5000 bits/weight over 2831155200 weights. read from unsloth/GLM-5.3-GGUF@346b3591c7f28d1a23716f97a065ecf12ec14771 UD-Q4_K_XL: every ggml type, dim and byte count from the 11 GGUF tensor tables (1809 tensors, arch glm-dsa), names mapped through gguf_surface's proven glm-dsa map; bits are 8*bytes/elements from ggml block traits, not the build name",
+        "tensor_class": "moe.shared_expert",
+        "treatment": "quantized"
+      },
+      {
+        "bits_per_weight": null,
+        "format": "mixed",
+        "layer_range": "78",
+        "note": "class mixes stored formats on the same layers (SCOPE-004 admits one row per class and layer_range): 27 GGUF tensors: layers.N.eh_proj.weight, layers.N.enorm.weight, layers.N.hnorm.weight, layers.N.input_layernorm.weight, layers.N.mlp.experts.E.down_proj.weight, layers.N.mlp.experts.E.gate_proj.weight, layers.N.mlp.experts.E.up_proj.weight, layers.N.mlp.gate.e_score_correction_bias. ggml types: F32 x12, Q4_K x2, Q5_K x1, Q8_0 x12. MEASURED 4.9441 bits/weight over 9952920576 weights. read from unsloth/GLM-5.3-GGUF@346b3591c7f28d1a23716f97a065ecf12ec14771 UD-Q4_K_XL: every ggml type, dim and byte count from the 11 GGUF tensor tables (1809 tensors, arch glm-dsa), names mapped through gguf_surface's proven glm-dsa map; bits are 8*bytes/elements from ggml block traits, not the build name",
+        "tensor_class": "mtp",
+        "treatment": "quantized"
+      },
+      {
+        "bits_per_weight": 32.0,
+        "format": "fp32",
+        "layer_range": "all",
+        "note": "157 GGUF tensors: layers.N.input_layernorm.weight, layers.N.post_attention_layernorm.weight, model.norm.weight. ggml types: F32 x157. MEASURED 32.0000 bits/weight over 964608 weights. read from unsloth/GLM-5.3-GGUF@346b3591c7f28d1a23716f97a065ecf12ec14771 UD-Q4_K_XL: every ggml type, dim and byte count from the 11 GGUF tensor tables (1809 tensors, arch glm-dsa), names mapped through gguf_surface's proven glm-dsa map; bits are 8*bytes/elements from ggml block traits, not the build name Stored natively by the artifact; the lane loads it at the official release's dtype (bf16 except e_score_correction_bias), a cast the layout audit proved exact for every F32 tensor the converter widened.",
+        "tensor_class": "norm",
+        "treatment": "native"
+      }
+    ],
+    "head_policy": "quantized",
+    "kv_cache_dtype": "not_applicable",
+    "policy": "mixed",
+    "scope_digest": "attn.o=quantized:gguf-k-quant@8.5|attn.other=quantized:mixed|attn.qkv=quantized:gguf-k-quant@8.5|embed_tokens=quantized:gguf-k-quant@8.5|lm_head=quantized:gguf-k-quant@8.5|mlp.down=quantized:gguf-k-quant@8.5|mlp.gate=quantized:gguf-k-quant@8.5|mlp.up=quantized:gguf-k-quant@8.5|moe.experts=quantized:gguf-k-quant@4.8611|moe.router=native:fp32@32|moe.shared_expert=quantized:gguf-k-quant@8.5|mtp=quantized:mixed|norm=native:fp32@32|head=quantized|kv=not_applicable"
+  },
+  "seal": {
+    "checksums_file": "checksums.txt",
+    "checksums_format": "sha256sum",
+    "checksums_sha256": "e7d92f04757a46c71d22019dfc5a5a164aa0e8daa554676f04dbbe1b584d69f6",
+    "covers": [
+      "every published file except checksums.txt and fidelity-dataset.json, via checksums.txt",
+      "fidelity-dataset.json itself, via the self-blanked seal",
+      "every capture tensor a second time by CONTENT, via capture.capture_content_digest"
+    ],
+    "excludes": [
+      "checksums.txt",
+      "fidelity-dataset.json"
+    ],
+    "external_anchor": null,
+    "method": "self_blanked_canonical_json_sha256",
+    "seal_field": "dataset_sha256"
+  },
+  "upstream_receipts": [],
+  "weights": {
+    "artifact_ref": null,
+    "checkpoint_identity_sha256": "2510ab447a16911f87162e8a0b6a07a86af6f4b7aea97d8b3cd17e5d0699df1e",
+    "codec": "gguf-k-quant",
+    "config_sha256": "ca8f2f47b07919a514c0ca223dc2ea2bc7445afaa5ac76c013a3784e096426ca",
+    "declared_bits": 4.0,
+    "declared_head_bits": 16,
+    "index_sha256": null,
+    "model_ref": null,
+    "model_revision": "346b3591c7f28d1a23716f97a065ecf12ec14771",
+    "quantized": true,
+    "repository": "unsloth/GLM-5.3-GGUF",
+    "revision": "346b3591c7f28d1a23716f97a065ecf12ec14771"
+  }
+}

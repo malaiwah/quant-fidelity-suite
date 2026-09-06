@@ -1,0 +1,700 @@
+{
+  "candidate": {
+    "capture_content_digest": "bd732412e97065789710ae873ea098b580dc7fd52eedd1f2b6469b887c24bdc9",
+    "dataset_id": "fidelity--glm53.malaiwah.quant.gguf-unsloth-udq4kxl",
+    "dataset_sha256": "f25e7544576ecd2ac924ffc84492a8eebc5a387217370559f7883e23dd52ce5b",
+    "form": "hidden",
+    "head": {
+      "bits": 16,
+      "quantized": false,
+      "raw_tensor_sha256": "f5aa1c39b73b098b67e9f94dbaa2eb09c66076b54eb21e19065c22730f1e2326",
+      "source": "native",
+      "tensor_content_sha256": "f5aa1c39b73b098b67e9f94dbaa2eb09c66076b54eb21e19065c22730f1e2326"
+    },
+    "label": "candidate",
+    "lane": "streaming",
+    "lane_identity_sha256": "025ae83c1cb0e2c518baa8bd0c46965f0c17b6aaca5b1b875ca5fcea71f565d5",
+    "repository": "malaiwah/glm53-fidelity-gguf-unsloth-udq4kxl-v1",
+    "revision": null,
+    "role": "quant",
+    "scope_digest": "attn.o=quantized:gguf-k-quant@8.5|attn.other=quantized:mixed|attn.qkv=quantized:gguf-k-quant@8.5|embed_tokens=quantized:gguf-k-quant@8.5|lm_head=quantized:gguf-k-quant@8.5|mlp.down=quantized:gguf-k-quant@8.5|mlp.gate=quantized:gguf-k-quant@8.5|mlp.up=quantized:gguf-k-quant@8.5|moe.experts=quantized:gguf-k-quant@4.8611|moe.router=native:fp32@32|moe.shared_expert=quantized:gguf-k-quant@8.5|mtp=quantized:mixed|norm=native:fp32@32|head=quantized|kv=not_applicable",
+    "stack_fingerprint_sha256": "e7ddf6b280474c1709836e227b55dda1247b32148313bc87fd88a2ada704f0e0",
+    "weights": {
+      "artifact_ref": null,
+      "checkpoint_identity_sha256": "2510ab447a16911f87162e8a0b6a07a86af6f4b7aea97d8b3cd17e5d0699df1e",
+      "codec": "gguf-k-quant",
+      "config_sha256": "ca8f2f47b07919a514c0ca223dc2ea2bc7445afaa5ac76c013a3784e096426ca",
+      "declared_bits": 4.0,
+      "declared_head_bits": 16,
+      "index_sha256": null,
+      "model_ref": null,
+      "model_revision": "346b3591c7f28d1a23716f97a065ecf12ec14771",
+      "quantized": true,
+      "repository": "unsloth/GLM-5.3-GGUF",
+      "revision": "346b3591c7f28d1a23716f97a065ecf12ec14771"
+    }
+  },
+  "comparability": {
+    "bias": null,
+    "class": "strict",
+    "key": "cmp--3b19974d0dc2c657",
+    "key_inputs": {
+      "accumulation_dtype": "float64",
+      "direction": "reference_to_candidate",
+      "head_policy": "native_head",
+      "metric_name": "mean_tokenwise_kld",
+      "note": "provisional; the registry recomputes with its reference record id (registry CMP-001)",
+      "panel_id": "panel--glm53.malaiwah.corpus5x5-v1",
+      "reference_id": "fidelity--glm53.malaiwah.root.bf16",
+      "stack_relation": "same_stack"
+    },
+    "same_lane": true,
+    "usable_as_floor": true
+  },
+  "comparator": {
+    "accumulation_dtype": "float64",
+    "bf16_reduced_precision_reduction": false,
+    "cublas_workspace_config": null,
+    "deterministic_algorithms": true,
+    "device": "cpu",
+    "estimator_backend": "torch:k6_kld_report._token_kld",
+    "head_applied_candidate_tensor_content_sha256": "f5aa1c39b73b098b67e9f94dbaa2eb09c66076b54eb21e19065c22730f1e2326",
+    "head_applied_reference_tensor_content_sha256": "864f488a0074d236062a4f24800940df7ba611dba76238d4f9f847d9659e11cd",
+    "head_applied_tensor_content_sha256": null,
+    "logprob_dtype": "float64",
+    "position_block": 128,
+    "replay_backend": "numpy:cpu:float32",
+    "replay_env": {
+      "blas_configuration": "OpenBLAS 0.3.34.0.0  USE64BITINT DYNAMIC_ARCH NO_AFFINITY Haswell MAX_THREADS=64",
+      "blas_name": "scipy-openblas",
+      "blas_threads": 64,
+      "blas_threads_source": "ctypes:scipy_openblas_get_num_threads64_",
+      "blas_version": "0.3.34.0.0",
+      "cpu_model": "INTEL(R) XEON(R) PLATINUM 8568Y+",
+      "library": "numpy",
+      "numpy_version": "2.5.2",
+      "replay_dtype": "float32"
+    },
+    "replay_peak_device_bytes": null,
+    "short_circuited": false,
+    "source_file_hashes_verified": true,
+    "tensor_content_digests_verified": true,
+    "tf32": false,
+    "tool": {
+      "entrypoint": "bin/fidelity-dataset compare",
+      "note": "the fp64 estimator is k6_kld_report._token_kld, imported not copied, whenever torch is importable; estimator_backend records which path ran."
+    },
+    "two_pass": true,
+    "vocab_chunk": 8192
+  },
+  "comparison_kind": "measurement",
+  "context_depth_buckets": {
+    "0000-0255": 0.0394519203131588,
+    "0256-0511": 0.030474851637174658,
+    "0512-1023": 0.02806581648080053,
+    "1024-1535": 0.024980998122198558,
+    "1536-2046": 0.02216388469389311
+  },
+  "created_utc": "2026-09-05T21:03:30Z",
+  "determinism": {
+    "cold_start_per_run": null,
+    "distinct_evidence_hash_count": 2,
+    "evidence_hashes": [
+      "9eba97dddb4ff2e2a1d1fad8fdac1a57ec22963f1f85345451fcadcfc42682b8",
+      "bd732412e97065789710ae873ea098b580dc7fd52eedd1f2b6469b887c24bdc9"
+    ],
+    "evidence_kind": "hidden_state_tensor_sha256",
+    "identical_across_runs": null,
+    "max_run_mean": 0.027546149376942008,
+    "min_run_mean": 0.027546149376942008,
+    "note": "one comparison of two sealed captures. identical_across_runs is null, not true: that claim needs two independently produced captures of the SAME weights (SC-2), which is a different receipt.",
+    "population_stddev_of_run_means": 0.0,
+    "run_count": 1,
+    "run_means": [
+      0.027546149376942008
+    ]
+  },
+  "disclosures": [
+    {
+      "affects_comparability": false,
+      "code": "native_head_replay",
+      "detail": "HEAD-1d: each side replayed through its own sealed head (reference 864f488a0074, candidate f5aa1c39b73b); head error is inside the measurement, as under HEAD-2, and nothing is substituted. The heads differ in content.",
+      "severity": "info"
+    }
+  ],
+  "estimator": {
+    "accumulation_dtype": "float64",
+    "head_policy": "native_head",
+    "hidden_dtype": "bf16",
+    "logits_dtype": "float32",
+    "softmax_note": "full vocabulary, torch.log_softmax in float64; no truncation, no top-k, no clamp. A non-finite intermediate is a hard refusal.",
+    "stack_relation": "same_stack",
+    "two_pass": true,
+    "vocab_chunk": 8192,
+    "zero_handling": null
+  },
+  "format_version": 1,
+  "gates": {
+    "coverage": {
+      "detail": "25 of 25/25 declared records shared",
+      "overridden_by": null,
+      "passed": true
+    },
+    "decode": {
+      "detail": "weights_decode reference none; candidate gguf-dequant-to-bf16",
+      "overridden_by": null,
+      "passed": true
+    },
+    "form": {
+      "detail": "hidden vs hidden",
+      "overridden_by": null,
+      "passed": true
+    },
+    "geometry": {
+      "detail": "vocab_size 154880 equal; hidden_width 6144",
+      "overridden_by": null,
+      "passed": true
+    },
+    "head": {
+      "detail": "HEAD-1d: own heads on both sides (864f488a0074 vs f5aa1c39b73b)",
+      "overridden_by": null,
+      "passed": true
+    },
+    "lane": {
+      "detail": "lane=streaming vs streaming",
+      "overridden_by": null,
+      "passed": true
+    },
+    "lossy": {
+      "detail": "lossy_codec null on both sides",
+      "overridden_by": null,
+      "passed": true
+    },
+    "panel": {
+      "detail": "suite_token_hash_sha256 equal; 25 shared records; per-record token and mask digests equal; scoring_window equal",
+      "overridden_by": null,
+      "passed": true
+    },
+    "seal": {
+      "detail": "both manifests self-seal and checksums.txt verified; every tensor_content_sha256 recomputed",
+      "overridden_by": null,
+      "passed": true
+    },
+    "stack": {
+      "detail": "lane_identity equal / stack_fingerprint equal -> same_stack",
+      "overridden_by": null,
+      "passed": true
+    }
+  },
+  "high_kld_contexts": [
+    {
+      "allocation_stratum": null,
+      "domain": "literary",
+      "index": 14,
+      "max": 1.7114588085963582,
+      "mean": 0.07981474936923726,
+      "scored_rows": 2047,
+      "window_id": "final-0014"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "literary",
+      "index": 13,
+      "max": 2.665786427552198,
+      "mean": 0.05073746711983705,
+      "scored_rows": 2047,
+      "window_id": "final-0013"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "multilingual",
+      "index": 17,
+      "max": 3.5937298001350433,
+      "mean": 0.041628516085592045,
+      "scored_rows": 2047,
+      "window_id": "final-0017"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "code",
+      "index": 4,
+      "max": 4.316003126231212,
+      "mean": 0.041500071158185936,
+      "scored_rows": 2047,
+      "window_id": "final-0004"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "encyclopedic",
+      "index": 7,
+      "max": 1.670240569000453,
+      "mean": 0.03346372985956959,
+      "scored_rows": 2047,
+      "window_id": "final-0007"
+    }
+  ],
+  "kl": {
+    "max": 5.65545830834047,
+    "mean": 0.027546149376942008,
+    "median": 0.0017643731648070047,
+    "p95": 0.11913900359009227,
+    "p99": 0.42187846807389645,
+    "p99_9": 1.3870345308652157
+  },
+  "kl_macro_stratum_mean": null,
+  "kl_micro_token_mean": 0.027546149376942008,
+  "measurement_scope": {
+    "contexts": 25,
+    "covers_full_panel": true,
+    "position_filter": "all",
+    "positions_per_context": 2047,
+    "scored_positions": 51175,
+    "subset_detail": null
+  },
+  "metric": {
+    "direction": "reference_to_candidate",
+    "direction_label": "KL(reference || candidate)",
+    "higher_is_better": false,
+    "name": "mean_tokenwise_kld",
+    "units": "nats",
+    "value": 0.027546149376942008
+  },
+  "panel": {
+    "context_length": 2048,
+    "contexts": 25,
+    "panel_id": "panel--glm53.malaiwah.corpus5x5-v1",
+    "panel_token_sha256_legacy": "d177a85308683012b4289e35770ef08e4bdc8e17adf59c5d26de3e5da9479734",
+    "scored_positions": 51175,
+    "scoring_window": {
+      "dropped_positions_total": 0,
+      "min_left_context_tokens": 1,
+      "policy": "every causal prediction position of every window is scored; nothing is dropped",
+      "score_from": 0,
+      "windowed": false
+    },
+    "suite_token_hash_sha256": "f09ee395f635225a077695ed193d61f7d1e70650cebe1b68f82b16f59d399f86",
+    "tokenizer": {
+      "files": [
+        {
+          "bytes": 4263,
+          "name": "LICENSE",
+          "sha256": "96e1622099fc9d6b70c9760f007d99e66d7497eec636b63c60fe208401e9170c"
+        },
+        {
+          "bytes": 10465,
+          "name": "chat_template.jinja",
+          "sha256": "69bb3ab52067898e2466b855407636de559568947f367945842aabcb7fcc1705"
+        },
+        {
+          "bytes": 3732,
+          "name": "config.json",
+          "sha256": "ca8f2f47b07919a514c0ca223dc2ea2bc7445afaa5ac76c013a3784e096426ca"
+        },
+        {
+          "bytes": 194,
+          "name": "generation_config.json",
+          "sha256": "ac76b43d8683d3b930126870fc8be73d8679308fe752fa1f381096d8354f6a55"
+        },
+        {
+          "bytes": 20217442,
+          "name": "tokenizer.json",
+          "sha256": "19e773648cb4e65de8660ea6365e10acca112d42a854923df93db4a6f333a82d"
+        },
+        {
+          "bytes": 761,
+          "name": "tokenizer_config.json",
+          "sha256": "98b1271574f41abf89427ae2dda030d94dc9478f0edc5a8bd240db213c6fd5fc"
+        }
+      ],
+      "files_verified": true,
+      "id": "zai-org/GLM-5.3-BF16",
+      "identity_sha256": "b18e4d378be7e75fd2b323f7c81cc65640f6a08e1842d3bf4e025d88a9d78bf9",
+      "maximum_token_id_exclusive": 154820,
+      "receipt": null,
+      "repository": "zai-org/GLM-5.3-BF16",
+      "revision": "304b8051cfb2b260b61ce0cbe330e02a98e73639",
+      "vocab_size": 154820
+    },
+    "tokenizer_candidate": {
+      "files": [
+        {
+          "bytes": 4263,
+          "name": "LICENSE",
+          "sha256": "96e1622099fc9d6b70c9760f007d99e66d7497eec636b63c60fe208401e9170c"
+        },
+        {
+          "bytes": 10465,
+          "name": "chat_template.jinja",
+          "sha256": "69bb3ab52067898e2466b855407636de559568947f367945842aabcb7fcc1705"
+        },
+        {
+          "bytes": 3732,
+          "name": "config.json",
+          "sha256": "ca8f2f47b07919a514c0ca223dc2ea2bc7445afaa5ac76c013a3784e096426ca"
+        },
+        {
+          "bytes": 194,
+          "name": "generation_config.json",
+          "sha256": "ac76b43d8683d3b930126870fc8be73d8679308fe752fa1f381096d8354f6a55"
+        },
+        {
+          "bytes": 20217442,
+          "name": "tokenizer.json",
+          "sha256": "19e773648cb4e65de8660ea6365e10acca112d42a854923df93db4a6f333a82d"
+        },
+        {
+          "bytes": 761,
+          "name": "tokenizer_config.json",
+          "sha256": "98b1271574f41abf89427ae2dda030d94dc9478f0edc5a8bd240db213c6fd5fc"
+        }
+      ],
+      "files_verified": true,
+      "id": "zai-org/GLM-5.3-BF16",
+      "identity_sha256": "b18e4d378be7e75fd2b323f7c81cc65640f6a08e1842d3bf4e025d88a9d78bf9",
+      "maximum_token_id_exclusive": 154820,
+      "receipt": null,
+      "repository": "zai-org/GLM-5.3-BF16",
+      "revision": "304b8051cfb2b260b61ce0cbe330e02a98e73639",
+      "vocab_size": 154820
+    },
+    "tokenizer_identity_equal": true,
+    "tokenizer_reference": {
+      "files": [
+        {
+          "bytes": 4263,
+          "name": "LICENSE",
+          "sha256": "96e1622099fc9d6b70c9760f007d99e66d7497eec636b63c60fe208401e9170c"
+        },
+        {
+          "bytes": 10465,
+          "name": "chat_template.jinja",
+          "sha256": "69bb3ab52067898e2466b855407636de559568947f367945842aabcb7fcc1705"
+        },
+        {
+          "bytes": 3732,
+          "name": "config.json",
+          "sha256": "ca8f2f47b07919a514c0ca223dc2ea2bc7445afaa5ac76c013a3784e096426ca"
+        },
+        {
+          "bytes": 194,
+          "name": "generation_config.json",
+          "sha256": "ac76b43d8683d3b930126870fc8be73d8679308fe752fa1f381096d8354f6a55"
+        },
+        {
+          "bytes": 20217442,
+          "name": "tokenizer.json",
+          "sha256": "19e773648cb4e65de8660ea6365e10acca112d42a854923df93db4a6f333a82d"
+        },
+        {
+          "bytes": 761,
+          "name": "tokenizer_config.json",
+          "sha256": "98b1271574f41abf89427ae2dda030d94dc9478f0edc5a8bd240db213c6fd5fc"
+        }
+      ],
+      "files_verified": true,
+      "id": "zai-org/GLM-5.3-BF16",
+      "identity_sha256": "b18e4d378be7e75fd2b323f7c81cc65640f6a08e1842d3bf4e025d88a9d78bf9",
+      "maximum_token_id_exclusive": 154820,
+      "receipt": null,
+      "repository": "zai-org/GLM-5.3-BF16",
+      "revision": "304b8051cfb2b260b61ce0cbe330e02a98e73639",
+      "vocab_size": 154820
+    }
+  },
+  "per_context": [
+    {
+      "allocation_stratum": null,
+      "domain": "code",
+      "index": 0,
+      "max": 3.350587710795629,
+      "mean": 0.016024950525216772,
+      "scored_rows": 2047,
+      "window_id": "final-0000"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "code",
+      "index": 1,
+      "max": 1.454285700777156,
+      "mean": 0.026596706591251566,
+      "scored_rows": 2047,
+      "window_id": "final-0001"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "code",
+      "index": 2,
+      "max": 1.6380652653718581,
+      "mean": 0.019691117789920953,
+      "scored_rows": 2047,
+      "window_id": "final-0002"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "code",
+      "index": 3,
+      "max": 2.4354103584587117,
+      "mean": 0.02668484179506206,
+      "scored_rows": 2047,
+      "window_id": "final-0003"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "code",
+      "index": 4,
+      "max": 4.316003126231212,
+      "mean": 0.041500071158185936,
+      "scored_rows": 2047,
+      "window_id": "final-0004"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "encyclopedic",
+      "index": 5,
+      "max": 0.9530439775599373,
+      "mean": 0.027091642826847027,
+      "scored_rows": 2047,
+      "window_id": "final-0005"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "encyclopedic",
+      "index": 6,
+      "max": 1.810460386503421,
+      "mean": 0.027452497860475777,
+      "scored_rows": 2047,
+      "window_id": "final-0006"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "encyclopedic",
+      "index": 7,
+      "max": 1.670240569000453,
+      "mean": 0.03346372985956959,
+      "scored_rows": 2047,
+      "window_id": "final-0007"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "encyclopedic",
+      "index": 8,
+      "max": 1.9937866696026356,
+      "mean": 0.03102162655802999,
+      "scored_rows": 2047,
+      "window_id": "final-0008"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "encyclopedic",
+      "index": 9,
+      "max": 0.283167284715146,
+      "mean": 0.015777337804450845,
+      "scored_rows": 2047,
+      "window_id": "final-0009"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "literary",
+      "index": 10,
+      "max": 5.65545830834047,
+      "mean": 0.008057243444656305,
+      "scored_rows": 2047,
+      "window_id": "final-0010"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "literary",
+      "index": 11,
+      "max": 2.0672243376731654,
+      "mean": 0.03161910579518398,
+      "scored_rows": 2047,
+      "window_id": "final-0011"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "literary",
+      "index": 12,
+      "max": 0.3855048327876832,
+      "mean": 0.0022879491144074107,
+      "scored_rows": 2047,
+      "window_id": "final-0012"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "literary",
+      "index": 13,
+      "max": 2.665786427552198,
+      "mean": 0.05073746711983705,
+      "scored_rows": 2047,
+      "window_id": "final-0013"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "literary",
+      "index": 14,
+      "max": 1.7114588085963582,
+      "mean": 0.07981474936923726,
+      "scored_rows": 2047,
+      "window_id": "final-0014"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "multilingual",
+      "index": 15,
+      "max": 2.3967000310792224,
+      "mean": 0.02988422740156232,
+      "scored_rows": 2047,
+      "window_id": "final-0015"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "multilingual",
+      "index": 16,
+      "max": 0.9754125705663025,
+      "mean": 0.018694508323347285,
+      "scored_rows": 2047,
+      "window_id": "final-0016"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "multilingual",
+      "index": 17,
+      "max": 3.5937298001350433,
+      "mean": 0.041628516085592045,
+      "scored_rows": 2047,
+      "window_id": "final-0017"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "multilingual",
+      "index": 18,
+      "max": 1.099043986636455,
+      "mean": 0.022293462799596157,
+      "scored_rows": 2047,
+      "window_id": "final-0018"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "multilingual",
+      "index": 19,
+      "max": 1.0126543638615297,
+      "mean": 0.03199726608800021,
+      "scored_rows": 2047,
+      "window_id": "final-0019"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "scientific",
+      "index": 20,
+      "max": 0.6876228791355071,
+      "mean": 0.01593712614602765,
+      "scored_rows": 2047,
+      "window_id": "final-0020"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "scientific",
+      "index": 21,
+      "max": 0.4202466852835804,
+      "mean": 0.017046105768300405,
+      "scored_rows": 2047,
+      "window_id": "final-0021"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "scientific",
+      "index": 22,
+      "max": 1.3250834009398467,
+      "mean": 0.022718527840775948,
+      "scored_rows": 2047,
+      "window_id": "final-0022"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "scientific",
+      "index": 23,
+      "max": 1.2792391747695926,
+      "mean": 0.020999749826653147,
+      "scored_rows": 2047,
+      "window_id": "final-0023"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "scientific",
+      "index": 24,
+      "max": 3.874810654228399,
+      "mean": 0.029633206531362397,
+      "scored_rows": 2047,
+      "window_id": "final-0024"
+    }
+  ],
+  "per_domain": {
+    "code": 0.026099537571927456,
+    "encyclopedic": 0.026961366981874645,
+    "literary": 0.0345033029686644,
+    "multilingual": 0.028899596139619604,
+    "scientific": 0.02126694322262391
+  },
+  "per_stratum": null,
+  "receipt_sha256": "d85c5edc5d2a74d897bc01847d2f635e168103b3d1c97fc296e800742347b821",
+  "reference": {
+    "capture_content_digest": "9eba97dddb4ff2e2a1d1fad8fdac1a57ec22963f1f85345451fcadcfc42682b8",
+    "dataset_id": "fidelity--glm53.malaiwah.root.bf16",
+    "dataset_sha256": "6b8d3a7bdf934f18fc819cc72d85c5385c3351fa50a8c9c2612dd9a29172a4a4",
+    "form": "hidden",
+    "head": {
+      "bits": 16,
+      "quantized": false,
+      "raw_tensor_sha256": "864f488a0074d236062a4f24800940df7ba611dba76238d4f9f847d9659e11cd",
+      "source": "native",
+      "tensor_content_sha256": "864f488a0074d236062a4f24800940df7ba611dba76238d4f9f847d9659e11cd"
+    },
+    "label": "root",
+    "lane": "streaming",
+    "lane_identity_sha256": "025ae83c1cb0e2c518baa8bd0c46965f0c17b6aaca5b1b875ca5fcea71f565d5",
+    "repository": "malaiwah/glm53-fidelity-root-v1",
+    "revision": null,
+    "role": "root",
+    "scope_digest": "attn.o=native:bf16@16|attn.qkv=native:bf16@16|embed_tokens=native:bf16@16|lm_head=native:bf16@16|mlp.down=native:bf16@16|mlp.gate=native:bf16@16|mlp.up=native:bf16@16|moe.experts=native:bf16@16|norm=native:bf16@16|head=native|kv=bf16",
+    "stack_fingerprint_sha256": "e7ddf6b280474c1709836e227b55dda1247b32148313bc87fd88a2ada704f0e0",
+    "weights": {
+      "artifact_ref": null,
+      "checkpoint_identity_sha256": "02963bc5f9012be8a597a29737adcb9204fe5a7513f66e9b1f85075449f4dda1",
+      "codec": null,
+      "config_sha256": "ca8f2f47b07919a514c0ca223dc2ea2bc7445afaa5ac76c013a3784e096426ca",
+      "declared_bits": null,
+      "declared_head_bits": 16,
+      "index_sha256": null,
+      "model_ref": null,
+      "model_revision": "304b8051cfb2b260b61ce0cbe330e02a98e73639",
+      "quantized": false,
+      "repository": "zai-org/GLM-5.3-BF16",
+      "revision": "304b8051cfb2b260b61ce0cbe330e02a98e73639"
+    }
+  },
+  "schema": "malaiwah.fidelity-comparison-receipt.v1",
+  "self_compare": null,
+  "submission": {
+    "emitted": false,
+    "path": null,
+    "receipt_sha256": null,
+    "refusal": null,
+    "submission_schema": null
+  },
+  "tokenwise": {
+    "bytes": 409528,
+    "path": "tokenwise-kld.npy",
+    "sha256": "b9d639c15025736ad199faab3f434f14dbf2aa226e4e12d816e89ad6ac90675f"
+  },
+  "top1_agreement": 0.9536883243771372,
+  "top1_discordant_contexts": [],
+  "uncertainty": {
+    "ci95_high": null,
+    "ci95_low": null,
+    "cluster_unit": null,
+    "clusters": null,
+    "method": "none",
+    "samples": null,
+    "seed": null
+  }
+}
