@@ -1,0 +1,227 @@
+# Run the hermetic partition of the selftest estate on every push.
+#
+# WHY THIS FILE EXISTS, in measured numbers rather than in principle
+# (local/CiCoverage-report.md, local/LocalCoverage-report.md, both 2026-09-06):
+#
+#   * Before it, this repository had ONE workflow and no `push:` trigger.
+#     549 commits in thirty days produced 7 runs, every one of them a manual
+#     `workflow_dispatch`. `main` has no branch protection, so nothing gated a
+#     merge, and the only test CI had ever executed was
+#     `bin/selftest_container.py`.
+#   * That one test was RED on `main` for two days for a reason nobody saw: a
+#     file listed in `bin/BUNDLE.txt` and excluded by `.dockerignore`, which
+#     is the shape that dies in the `setup` stage on a rented box after the
+#     money is spent.  It sat red because no push ran it.
+#   * 52 of the estate's selftest files are provably hermetic -- offline,
+#     stock python3, no installs, no GPU, no credential, no spend -- and 39 of
+#     them run in about 28 s combined on a 2009 Xeon.  Three defects that
+#     shipped this session are caught by rungs totalling under 10 seconds of
+#     runner time.  They shipped because nothing ran them.
+#   * Actions is free here: the repository is public, and `gh api .../timing`
+#     reports `billable.UBUNTU.total_ms = 0`.  Cost is never the argument
+#     against this; only wall clock is.
+#
+# WHY A PUSH WORKFLOW AND NOT A HOOK OR A REQUIRED CHECK.  A hook is not a
+# gate, and that is measured here rather than argued: there is no `.githooks/`,
+# no `.pre-commit-config.yaml`, no `core.hooksPath`, `.git/hooks/` holds only
+# `.sample` files, several agents work in detached worktrees they create ad
+# hoc, and `--no-verify` bypasses the whole idea.  A required status check IS
+# the right eventual shape and is blocked today: one PR has ever existed and
+# there are zero merge commits in the last 200, so requiring a check on `main`
+# would stop every agent's `git push` dead, and turning this into a PR-only
+# tree is an organisational decision nobody has authorised.  So: a `push:`
+# workflow.  It is DETECTIVE, not preventive -- that is the honest trade -- and
+# still an enormous improvement over a human finding it two days later.  The
+# `pull_request:` trigger is here so that the day a PR flow does appear, this
+# is already a candidate required check with no rewrite.
+#
+# WHAT DOES NOT GO IN THE PUSH JOBS, and why the rule is worth more than the
+# coverage it costs:
+#
+#   * Nothing networked.  `bin/SELFTEST-PARTITION.json`'s `network` tier is
+#     nightly-only, so a red push build can never mean "the Hub hiccuped".
+#   * Nothing that needs torch, numpy, safetensors or PyYAML -- including four
+#     rungs that PASS without them while asserting NOTHING (race mode T15,
+#     hf-capture A1-A22, layer-outer L1-L14, zero-floor T4: measured 0 of 18,
+#     0 of 48, 0 of 61 and 0 of 9 assertions on a bare interpreter).  Putting
+#     those here would launder four empty runs into a green tick, which is
+#     worse than not running them because it is indistinguishable from
+#     coverage.  They are in `nightly-torch`, where they are real.
+#   * No secrets, no GPU, no spend.  There is no `secrets:` block in this file
+#     and no rung in the hermetic tier reads a credential (measured: every
+#     selftest that assigns a token assigns a fake one).
+#
+# The list of rungs is NOT maintained here.  `bin/SELFTEST-PARTITION.json`
+# declares a tier for every `selftest_*` file in `bin/` and `engines/tools/`,
+# and `bin/selftest_partition.py` FAILS when a file on disk is in neither the
+# declaration nor an explicit exclusion.  A hand-written list of steps in this
+# file would start drifting the day someone adds a selftest -- silently, in the
+# direction of less coverage.
+name: selftests
+
+on:
+  # Every branch, every agent, no paths filter.  A paths filter is how the one
+  # pre-existing workflow's `pull_request` leg managed to never fire.
+  push:
+  pull_request:
+  schedule:
+    # 04:17 UTC.  Only `nightly-torch` reads this trigger.
+    - cron: '17 4 * * *'
+  workflow_dispatch:
+
+# Read the code, and nothing else.  No `secrets:` anywhere in this file.
+permissions:
+  contents: read
+
+# Deliberately NO `concurrency:` block.  Cancelling a superseded run would
+# discard the verdict for a commit that is already on `main` -- with several
+# agents pushing, "not run" would look exactly like "nothing to report", which
+# is the failure mode this workflow exists to end.  Every commit gets its own
+# verdict; the runs are free.
+
+jobs:
+  # ----------------------------------------------------------------- fast
+  # The first verdict.  Bare `ubuntu-latest`, the runner's own python3, no
+  # setup-python, no pip, and no network reached after checkout.
+  fast:
+    name: hermetic (fast)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # fetch-depth: 0 is required, not defensive.  selftest_container.py's
+      # C11q/C11r regenerate CHANGELOG.md from git history and assert every
+      # entry is one the generator still produces; on a shallow checkout that
+      # rung fails for a reason that is not a defect.  SEC-02 in
+      # selftest_shell_guards.sh and selftest_naming_sweep.py also read
+      # `git ls-files`.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # HOME stays at the runner default on purpose.  fidelity.cloudlease
+      # refuses to read a source path whose parent is group- or
+      # world-writable, so pointing HOME into /tmp makes selftest_reaper.py
+      # fail on a guard that is correct.  That guard must not be weakened to
+      # make CI pass.  Measured locally: under a 775 ancestor the rung refuses;
+      # with a 755 ancestry it is 164 PASS.
+      - name: what this runner actually has
+        run: |
+          set -euo pipefail
+          python3 -VV
+          echo "HOME=$HOME"
+          stat -c '%a %n' "$HOME" /home
+          python3 -c 'import torch' 2>&1 | tail -1 || true
+          python3 -c 'import numpy' 2>&1 | tail -1 || true
+
+      # The guard rung goes first: if the declaration and the estate disagree,
+      # every number below it is about the wrong set of files.
+      - name: the partition is declared, complete and current
+        run: python3 bin/selftest_partition.py
+
+      - name: hermetic fast tier
+        run: python3 bin/selftest_partition.py --run fast
+
+  # ----------------------------------------------------------------- full
+  # The same push, in parallel, so `fast`'s verdict is never delayed by the
+  # slow rungs.  Measured 277 s on a 2009 Xeon for 13 rungs, and a runner is
+  # 2-3x faster per core.
+  full:
+    name: hermetic (full)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: hermetic full tier
+        run: python3 bin/selftest_partition.py --run full
+
+  # ----------------------------------------------------------------- py39
+  # The stock-python3.9 floor, EXECUTED.  AGENTS.md makes "runs on stock
+  # python3.9 with no installs" a hard rule for all of bin/ and registry/, and
+  # this is the only machine in the project that can prove it: there is no
+  # python3.9, 3.11 or 3.12 on the workstation at all, so the local battery has
+  # never once exercised the floor it declares.  bin/selftest_py39_floor.py
+  # checks the property statically in the `fast` job; this job is the dynamic
+  # half.  If a rung turns out to need 3.10+, that is a real violation of the
+  # dependency rule and the answer is to fix the rung, not the pin.
+  #
+  # This is the one push job that fetches anything (the interpreter).  It
+  # happens before any rung runs, so a failure there is a setup failure and can
+  # never be mistaken for a test verdict.
+  py39-floor:
+    name: hermetic (fast) on stock python3.9
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+      - name: no installs, and prove it
+        run: |
+          set -euo pipefail
+          python3 -VV
+          python3 -c 'import sys; assert sys.version_info[:2] == (3, 9), sys.version'
+          python3 -c 'import torch' 2>&1 | tail -1 || true
+      - name: the partition is declared, complete and current
+        run: python3 bin/selftest_partition.py
+      - name: hermetic fast tier, under 3.9
+        run: python3 bin/selftest_partition.py --run fast
+
+  # -------------------------------------------------------------- nightly
+  # Everything that needs a wheel.  This is where the four rungs that assert
+  # nothing on a bare interpreter become real, and where the decode surfaces
+  # prove dequant bitwise against gguf-py / compressed-tensors / mlx on
+  # committed real tensors.
+  nightly-torch:
+    name: torch tier (nightly)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      # ~2 GB of wheels: 4-6 min cold, 1.5-3 min warm.
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: torch-tier-${{ runner.os }}-py312-cpu-v1
+      - name: the wheels this tier needs, CPU only
+        run: |
+          set -euo pipefail
+          python3 -m pip install --upgrade pip
+          python3 -m pip install --index-url https://download.pytorch.org/whl/cpu torch
+          python3 -m pip install numpy safetensors transformers pyyaml
+          python3 -c 'import torch, numpy, safetensors, transformers, yaml; print(torch.__version__, numpy.__version__)'
+      - name: the partition is declared, complete and current
+        run: python3 bin/selftest_partition.py
+      # The device rungs inside these files skip loudly on a CPU runner and
+      # name the device they wanted.  That is the correct verdict here: 0 rungs
+      # in this estate NEED a GPU, and the ones that can use one report its
+      # absence rather than passing quietly.
+      - name: torch tier
+        run: python3 bin/selftest_partition.py --run torch
+      # The stdlib annotation rung in `fast` catches an annotation naming
+      # something its module never binds.  pyright catches that class more
+      # thoroughly, plus reportPossiblyUnbound -- and it is an npm install, so
+      # it lives here, where an install is honest, and never in the offline
+      # push jobs.  The rule set lives in pyproject.toml so there is exactly
+      # one place it can be read from: a hand-built flag list here would drift
+      # from what was measured (2,095 default pyright diagnostics on this tree
+      # versus 2 under the enabled rules).
+      - name: pyright, under the repository's own narrow rule set
+        run: |
+          set -euo pipefail
+          test -f pyproject.toml || {
+            echo "::error::pyproject.toml is the one place the diagnostic rule set lives, and it is not in this checkout"
+            exit 1
+          }
+          npm install -g pyright@1.1.406
+          pyright --project pyproject.toml

@@ -9,9 +9,13 @@ set -u
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
-pass=0; fail=0
+pass=0; fail=0; skip=0
 ok() { printf '  PASS  %s\n' "$1"; pass=$((pass+1)); }
 no() { printf '  FAIL  %s\n' "$1"; [ $# -gt 1 ] && printf '        %s\n' "$2"; fail=$((fail+1)); }
+# A missing dependency is a VERDICT, and it has to be visible in the summary
+# line or it is indistinguishable from coverage. It is never absorbed into a
+# PASS, and it is never a FAIL that only means "wrong interpreter".
+sk() { printf '  SKIP  %s\n' "$1"; [ $# -gt 1 ] && printf '        %s\n' "$2"; skip=$((skip+1)); }
 
 # ---------------------------------------------------------------- SH-03
 # The prerequisite/cleanliness guards were `A && B` lists. Under `set -e` an
@@ -109,38 +113,59 @@ pace_verdict() {  # pace_verdict <contexts_reached> <threshold>
 # identical without ever escalating to five cold runs. The snippet under test is
 # EXTRACTED FROM THE SHIPPED SCRIPT, so this cannot pass on a grep for the fix.
 DIONE_PY="$TMP/tensor_digest.py"
-# SH-06's positive case writes and re-reads a real safetensors window, so it
-# needs the interpreter that HAS safetensors -- not a bare python3. Its own
-# failure text says "SKIPs as a FAIL if safetensors is unavailable", which is
-# the right verdict for a missing dependency but the wrong one for merely
-# asking the wrong interpreter (2026-09-06).
-SHPY="${FIDELITY_PYTHON:-python3}"
-"$SHPY" -c 'import safetensors' >/dev/null 2>&1 || SHPY=python3
+# SH-06's three behavioural cases drive the EXTRACTED snippet, and that snippet
+# imports safetensors on its second line -- before it globs. So without
+# safetensors the two refusal cases would exit non-zero on an ImportError and
+# be scored PASS for a reason that has nothing to do with the defect, and the
+# positive case FAILs. Its own failure text says "SKIPs as a FAIL if
+# safetensors is unavailable -- say so rather than passing", and that intent is
+# kept here: the absence is REPORTED, as a counted SKIP with its reason, never
+# absorbed into green. A FAIL that only means "wrong interpreter" is what
+# trained the reader to ignore this battery (2026-09-06, the $TPY fix, which
+# was applied on the python side and not here).
+STPY=""
+for _cand in "${FIDELITY_PYTHON:-}" "$ROOT/.venv/bin/python" \
+             /opt/homebrew/bin/python3.14 python3; do
+  [ -n "$_cand" ] || continue
+  command -v "$_cand" >/dev/null 2>&1 || [ -x "$_cand" ] || continue
+  if "$_cand" -c 'import safetensors' >/dev/null 2>&1; then STPY="$_cand"; break; fi
+done
+SHPY="${STPY:-python3}"
+ST_WHY="safetensors is not importable under FIDELITY_PYTHON, $ROOT/.venv/bin/python, /opt/homebrew/bin/python3.14 or python3"
+# Extraction and the pipefail grep are stdlib/text: they run everywhere.
 "$SHPY" "$ROOT/bin/_extract_dione_digest.py" \
         "$ROOT/engines/tools/measure_dione.sh" "$DIONE_PY" >/dev/null 2>&1 \
   && ok "SH-06 the tensor_digest snippet was extracted from measure_dione.sh" \
   || no "SH-06 the tensor_digest snippet was extracted from measure_dione.sh" \
         "extraction failed -- the two cases below would pass for the wrong reason"
 EMPTY="$TMP/dione-empty"; mkdir -p "$EMPTY/logits"
-if "$SHPY" "$DIONE_PY" "$EMPTY" >/dev/null 2>&1; then
-  no "SH-06 a digest over zero logits windows must REFUSE" "it printed a digest"
-else
-  ok "SH-06 a digest over zero logits windows refuses (sha256 of nothing is a constant)"
-fi
 MISSING="$TMP/dione-missing"; mkdir -p "$MISSING"
-if "$SHPY" "$DIONE_PY" "$MISSING" >/dev/null 2>&1; then
-  no "SH-06 a digest over a missing logits/ must REFUSE" "it printed a digest"
-else
-  ok "SH-06 a digest over a missing logits/ refuses"
-fi
-# And it must still answer for a real window, or the refusal above is just a broken tool.
 GOOD="$TMP/dione-good"; mkdir -p "$GOOD/logits"
-if "$SHPY" "$ROOT/bin/_extract_dione_digest.py" --write-window "$GOOD/logits/window-0000.safetensors" \
-   >/dev/null 2>&1 && "$SHPY" "$DIONE_PY" "$GOOD" 2>/dev/null | grep -qE '^[0-9a-f]{64} [0-9]+$'; then
-  ok "SH-06 a digest over a real window still answers, with its tensor count"
+if [ -z "$STPY" ]; then
+  sk "SH-06 a digest over zero logits windows refuses" "$ST_WHY"
+  sk "SH-06 a digest over a missing logits/ refuses" "$ST_WHY"
+  sk "SH-06 a digest over a real window still answers, with its tensor count" \
+     "$ST_WHY"
 else
-  no "SH-06 a digest over a real window still answers, with its tensor count" \
-     "(SKIPs as a FAIL if safetensors is unavailable -- say so rather than passing)"
+  # Exit 3 exactly, not merely non-zero: the refusal must be the snippet's own
+  # verdict rather than any error that happens to be fatal.
+  "$SHPY" "$DIONE_PY" "$EMPTY" >/dev/null 2>&1; rc=$?
+  [ "$rc" = 3 ] \
+    && ok "SH-06 a digest over zero logits windows refuses (sha256 of nothing is a constant)" \
+    || no "SH-06 a digest over zero logits windows must REFUSE with exit 3" "got exit $rc"
+  "$SHPY" "$DIONE_PY" "$MISSING" >/dev/null 2>&1; rc=$?
+  [ "$rc" = 3 ] \
+    && ok "SH-06 a digest over a missing logits/ refuses" \
+    || no "SH-06 a digest over a missing logits/ must REFUSE with exit 3" "got exit $rc"
+  # And it must still answer for a real window, or the refusal above is just a
+  # broken tool.
+  if "$SHPY" "$ROOT/bin/_extract_dione_digest.py" --write-window "$GOOD/logits/window-0000.safetensors" \
+     >/dev/null 2>&1 && "$SHPY" "$DIONE_PY" "$GOOD" 2>/dev/null | grep -qE '^[0-9a-f]{64} [0-9]+$'; then
+    ok "SH-06 a digest over a real window still answers, with its tensor count"
+  else
+    no "SH-06 a digest over a real window still answers, with its tensor count" \
+       "the interpreter has safetensors, so this is the snippet's failure, not the environment's"
+  fi
 fi
 if grep -q 'set -euo pipefail' "$ROOT/engines/tools/measure_dione.sh"; then
   ok "SH-06 measure_dione runs under set -euo pipefail"
@@ -295,5 +320,5 @@ else
 fi
 
 echo
-echo "selftest_shell_guards: $pass passed, $fail failed"
+echo "selftest_shell_guards: $pass passed, $fail failed, $skip skipped"
 [ "$fail" -eq 0 ]

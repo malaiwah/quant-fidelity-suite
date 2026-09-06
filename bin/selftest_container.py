@@ -31,13 +31,13 @@ disagree with the first, and the disagreements are all silent:
 Stock python3.9, no installs, no network, no GPU.
 """
 from __future__ import annotations
-
 import argparse
 import ast
 import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -53,6 +53,7 @@ import selftest_panel as PANEL_TEST                         # noqa: E402
 from fidelity import dsmanifest, stages                   # noqa: E402
 
 FAILED = []
+SKIPPED = []
 
 
 def check(label, ok, detail=""):
@@ -60,6 +61,18 @@ def check(label, ok, detail=""):
                           ("  -- " + detail) if (detail and not ok) else ""))
     if not ok:
         FAILED.append(label)
+
+
+def skip(label, why):
+    """A dependency this machine does not have is a VERDICT, not silence.
+
+    It is reported with its reason and it is counted in the summary, so a run
+    that could not ask a question is never read as a run that asked it and got
+    yes. It is equally not a FAIL: a FAIL that only means "this box has no
+    PyYAML" is what teaches a reader to ignore a battery.
+    """
+    print("  SKIP  %s  -- %s" % (label, why))
+    SKIPPED.append("%s (%s)" % (label, why))
 
 
 # --------------------------------------------------------------------------
@@ -928,7 +941,8 @@ def rung_capture_identity():
     try:
         import hf_capture                                  # noqa: E402
     except Exception as exc:                               # noqa: BLE001
-        print("  SKIP  C8 (hf_capture needs torch: %s)" % type(exc).__name__)
+        skip("C8 recording the container must not move the capture",
+             "hf_capture needs torch: %s: %s" % (type(exc).__name__, exc))
         return
 
     saved = os.environ.get("STACKPRINT_IMAGE_PIN")
@@ -1044,10 +1058,20 @@ def rung_dockerfile():
         (index + 1, line) for index, line in enumerate(lock_lines)
         if index not in consumed
         and not any(row[0] == index + 1 for row in malformed_lock_lines))
-    guard = boot.find("FIDELITY_BOOTSTRAP_INSTALL_ONLY")
+    # The GUARD these two rungs mean is the install-only EARLY EXIT, not any
+    # mention of the variable. `find()` was a fine proxy while there was only
+    # one occurrence; 7a0a637 added a legitimate second one much earlier (the
+    # TLS peer attestation skips itself at image-build time, where no
+    # credential exists and the wheels are digest-pinned), which sent C9g red
+    # and made C9f pass on the wrong occurrence. Anchor on the exit block, so
+    # both rungs assert the ordering they name.
     first_check = boot.find("selftest_tr3_offline.py")
+    guard = boot.rfind("FIDELITY_BOOTSTRAP_INSTALL_ONLY", 0, first_check) \
+        if first_check > 0 else -1
+    exit_block = boot.find("exit 0", guard) if guard > 0 else -1
     check("C9f install-only stops BEFORE the pre-flight batteries",
-          0 < guard < first_check)
+          0 < guard < exit_block < first_check,
+          "guard=%d exit=%d batteries=%d" % (guard, exit_block, first_check))
     check("C9g install-only leaves the exact hashed wheel closure intact",
           0 < boot.find("exact hashed wheel closure") < guard)
     proc = subprocess.run(["bash", "-n", str(SUITE / "bin" / "bootstrap_measure.sh")],
@@ -1547,16 +1571,35 @@ def rung_release():
     # separately on purpose: fold them together and an unparseable workflow
     # comes back as "no yaml module here" -- a SKIP where a FAIL belongs, which
     # is the fail-open shape this repository keeps paying for.
+    candidates = (sys.executable, str(SUITE / ".venv" / "bin" / "python"),
+                  "/opt/homebrew/bin/python3.14", "python3")
     interp = None
-    for candidate in (sys.executable, str(SUITE / ".venv" / "bin" / "python"),
-                      "/opt/homebrew/bin/python3.14", "python3"):
-        if subprocess.run([candidate, "-c", "import yaml"],
-                          capture_output=True).returncode == 0:
-            interp = candidate
+    for candidate in candidates:
+        # subprocess.run RAISES FileNotFoundError for a path that does not
+        # exist -- it does not return non-zero. A CI checkout has no `.venv`,
+        # so candidate 2 killed the only selftest this project runs on GitHub
+        # with an unhandled traceback, before the SKIP three lines below could
+        # ever be reached (measured 2026-09-06 on a venv-less worktree whose
+        # python3 lacks PyYAML; it survived on `ubuntu-latest` only because
+        # that image happens to ship PyYAML for its default python3 -- an
+        # undeclared dependency of this project's only CI gate, on a runner
+        # image the project does not control).
+        resolved = (candidate if os.sep in candidate
+                    else shutil.which(candidate))
+        if not resolved or not os.path.exists(resolved):
+            continue
+        try:
+            probe = subprocess.run([resolved, "-c", "import yaml"],
+                                   capture_output=True)
+        except OSError:
+            continue
+        if probe.returncode == 0:
+            interp = resolved
             break
     if interp is None:
-        print("  SKIP  C11o2 workflow YAML parse (no yaml module on any "
-              "interpreter here; the string rungs above are what ran)")
+        skip("C11o2 workflow YAML parse",
+             "PyYAML is not importable under any of %s; the C11j-C11o string "
+             "rungs above are what ran" % ", ".join(candidates))
     else:
         probe = subprocess.run(
             [interp, "-c",
@@ -1627,12 +1670,17 @@ def main() -> int:
     rung_release()
     rung_github_output()
     print("")
+    if SKIPPED:
+        print("SKIPPED %d (a dependency this machine lacks, named so the "
+              "verdict is not read as coverage):" % len(SKIPPED))
+        for name in SKIPPED:
+            print("  - %s" % name)
     if FAILED:
         print("FAILED %d:" % len(FAILED))
         for name in FAILED:
             print("  - %s" % name)
         return 1
-    print("container path: all rungs pass")
+    print("container path: all rungs pass (%d skipped)" % len(SKIPPED))
     return 0
 
 

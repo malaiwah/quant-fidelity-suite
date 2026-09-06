@@ -6,6 +6,7 @@ import io
 import urllib.error
 import json
 import inspect
+import os
 import types
 import sys
 import tempfile
@@ -37,7 +38,53 @@ def refuses(call):
     return False
 
 
+def _fixture_key_file(root: Path) -> str:
+    """A 0600 fixture key, so this offline selftest needs no credential.
+
+    ``prepare_safe_create`` loads the key BEFORE it builds the mutation, even
+    with ``dry=True``.  With no ``key_file`` the loader falls back to
+    ``$RUNPOD_KEY_FILE`` and then to ``~/.config/runpod/api_key``, so this
+    file used to exit 1 on an unhandled ``RunPodError`` anywhere that path is
+    absent -- a bare CI runner, a fresh clone -- and to pass on a developer's
+    box purely because an operator credential happened to be sitting in
+    ``$HOME``.  That is a test whose verdict is about the box, not the code,
+    and it is the same class as the ``python3``-vs-``$TPY`` defect one axis
+    over (measured 2026-09-06: any 36-character fake key made it rc=0).
+
+    The key is a fixture and is never sent anywhere: the provider is
+    constructed dry, and the value only has to survive the loader's shape
+    rules.  Injecting the PATH is the seam -- not a global environment
+    variable, and never a real key.
+    """
+    path = root / "runpod-fixture-key"
+    fd = os.open(str(path), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+        handle.write("F" * 36 + "\n")
+    return str(path)
+
+
 def main():
+    """Refuse clearly if the injected key seam ever breaks again.
+
+    A ``RunPodError`` escaping to the top of this file means the controller
+    went looking for a credential, which offline rungs must never do.  That is
+    a FAIL with a reason -- never a traceback, and never a skip.
+    """
+    with tempfile.TemporaryDirectory() as key_home:
+        try:
+            return _rungs(_fixture_key_file(Path(key_home)))
+        except RunPodError as exc:
+            print("selftest_runpod_safe: REFUSE: the RunPod controller tried "
+                  "to load a key file and could not: %s" % exc)
+            print("  remedy: this selftest injects its own 0600 fixture key "
+                  "path; it must never read an operator credential. The "
+                  "injection seam has drifted -- pass key_file= at "
+                  "construction rather than relying on $RUNPOD_KEY_FILE or "
+                  "$HOME.")
+            return 1
+
+
+def _rungs(key_file):
     with tempfile.TemporaryDirectory() as td:
         root = Path(td); proof = root / "proof.json"; artifact = root / "a.json"
         proof.write_text("{}\n", encoding="utf-8"); artifact.write_bytes(b"{}\n")
@@ -257,7 +304,7 @@ def main():
               == RUNPOD_HOST_KEY_LOG_WAIT_SECONDS + 300
           and drill_defaults.runpod_drill_terminate_seconds
               - drill_defaults.runpod_drill_workload_seconds == 120)
-    dry = RunPod(dry=True)
+    dry = RunPod(dry=True, key_file=key_file)
     dry._validated_ssh_public_key = lambda: "ssh-ed25519 AAAA"
     terminate_after = time.strftime(
         "%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() + 600))
