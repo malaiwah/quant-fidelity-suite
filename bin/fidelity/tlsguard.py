@@ -1183,6 +1183,26 @@ def attest_before_credential(provider: Any, machine_id: Any, *,
             "This proves a passive or naive interception proxy fails closed, "
             "records the peer identity the box reported, and guarantees no "
             "credential was transported before both happened."),
+        # A green provider-API attestation is the single easiest thing here to
+        # over-read, and JarvisLabs is the case where it would be worst: the
+        # vendor CLI passes StrictHostKeyChecking=no with
+        # UserKnownHostsFile=/dev/null (jarvislabs/ssh.py:22-30), so a verified
+        # read of api.jarvislabs.net says nothing about the channel the result
+        # archive returns over. Naming the attester and the scope in the
+        # document is cheaper than correcting a receipt later.
+        "does_not_attest": (
+            "This is a TLS peer attestation and nothing else. It does NOT "
+            "attest the SSH/exec transport: a provider whose client disables "
+            "host-key checking (JarvisLabs) returns the result archive and its "
+            "digest over a channel that authenticates nobody, so both values "
+            "are attacker-suppliable and their agreement proves internal "
+            "consistency rather than provenance. Transport authentication is "
+            "sshbase.SSHTransport's per-attempt known_hosts (RunPod, Vast, "
+            "Lambda) or sshbase.PinnedEndpointSSH.attest_endpoint, and its "
+            "proof carries channel_verifies_host_key separately from this "
+            "document. A verified provider API means our READ of that API was "
+            "not intercepted -- which is what host-key attribution rests on -- "
+            "not that the channel to the box is authenticated."),
     }
     if failures:
         first = failures[0]
@@ -1488,10 +1508,16 @@ def _cmd_attest(args: argparse.Namespace) -> int:
         "ca_bundle_digests": verdict["evidence"].get("ca_bundle_digests") or [],
         "ambient_trust_env": verdict["evidence"].get("ambient_trust_env") or {},
         "python_version": verdict["evidence"].get("python_version"),
+        "attester": ("the box itself (self-attested: a root-privileged host "
+                     "can forge this document)"),
         "guarantee_ends": (
             "run on the box itself: a root-privileged host can forge this. It "
             "proves a passive interception proxy fails closed and records what "
             "the peer looked like."),
+        "does_not_attest": (
+            "the SSH/exec transport, the store another client uses (certifi is "
+            "recorded separately when --certifi-python is given), or anything "
+            "about a credential -- this evidence is about the PEER"),
     }
     if args.certifi or args.certifi_python:
         facts = certifi_bundle_facts(args.certifi_python)
