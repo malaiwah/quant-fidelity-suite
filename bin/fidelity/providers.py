@@ -142,11 +142,25 @@ PROVIDER_BLOCKERS: Dict[str, Tuple[str, ...]] = {
         "no --dry-run has reached a Vast cost quote with zero refusals "
         "(item 4), and no paid Vast capture has been compared against "
         "malaiwah/fruit-fidelity-root-v1 (item 5)",
-        "host quality varies: a Nevada host's SSL proxy to huggingface.co "
-        "presented a certificate hostname mismatch and UNEXPECTED_EOF and "
-        "failed a capture at the setup stage (2026-09-05), so a Vast lane "
-        "needs a reachability probe before it does real work and a bad host "
-        "id recorded",
+        # Not a flaky host. A certificate hostname mismatch is the signature
+        # of a MITM TLS proxy, and we put an HF token on rented boxes; the
+        # run failed at setup instead of leaking only because verification
+        # was on. Treat such a host as hostile until proven otherwise:
+        # destroy, record the id, and never retry a credential-bearing
+        # operation against it.
+        "host quality varies and a bad host is HOSTILE, not broken: a Nevada "
+        "host's SSL proxy to huggingface.co presented a certificate hostname "
+        "mismatch and UNEXPECTED_EOF and failed a capture at the setup stage "
+        "(2026-09-05). A Vast lane needs peer attestation -- not merely "
+        "reachability -- before it does real work, and the host id recorded",
+        "container mode is PROHIBITED for credential-bearing runs and this "
+        "is not fixable by ordering: vastapi.py:2322-2330 builds `-e "
+        "HF_TOKEN=...` into the `PUT /asks/{id}/` body, so the credential "
+        "enters Vast's own records and the host's docker environment BEFORE "
+        "the instance exists -- there is nothing to attest yet. Vast may "
+        "measure PUBLIC artifacts with no token at all (capacity and "
+        "rehearsal); a credential-bearing Vast run waits on create() "
+        "refusing a credential-shaped payload at the adapter boundary",
         "the contract rate is not the advertised rate: a live T4 contract "
         "billed $0.16667/h against an ask listing $0.13556/h (23% high), so "
         "billing_history/reconcile_billing must read what BILLS, and that has "
