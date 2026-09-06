@@ -4692,6 +4692,44 @@ def _derive_index_census_allowlist(target: RepoMeta, identity: Dict[str, Any],
            "these in runpodsafety._ALLOWLISTS to attest it"
            % (sidecar["count"], sidecar["decoder_layers"], sidecar["architecture"],
               sidecar["artifact_sha256"][:16], names_sha[:16]))
+    # PRE-SPEND signal for the one thing this census structurally cannot see.
+    # It enumerates index keys at or past the declared decoder boundary, so an
+    # unexpected tensor ANYWHERE ELSE in the graph is invisible to it until the
+    # pod's loader reports it and the capture refuses. That cost a rental on
+    # 2026-09-06: turboderp/GLM-5.3-Flash-exl3@51058cd5 ships its vision
+    # attention twice -- a fused `attn.qkv.{weight,bias}` transformers binds,
+    # AND split `attn.{q,k,v}_proj` exl3 payloads it does not -- so 144
+    # materialized names arrived unexpected against a 3508-name census and the
+    # exact-equality contract refused, correctly, after the fetch was paid for.
+    #
+    # Routed-expert payloads under `model.layers.*` are the normal case and
+    # would drown this in noise, so only NON-decoder subtrees are reported:
+    # a quantized vision tower or embedding is unusual enough to be worth
+    # thirty seconds of a reader's attention before a create. This is a
+    # warning, not a refusal: whether the loader can bind those names is not
+    # knowable from the index, and guessing either way would be wrong.
+    try:
+        index_doc = json.loads(index_raw.decode("utf-8"))
+        weight_map = index_doc.get("weight_map") or {}
+    except (UnicodeError, ValueError, AttributeError):
+        weight_map = {}
+    payload_suffixes = (".trellis", ".suh", ".svh", ".mul1", ".mcg")
+    covered = set(names)
+    outside = sorted(
+        key for key in weight_map
+        if key not in covered
+        and key.endswith(payload_suffixes)
+        and ".layers." not in key)
+    if outside:
+        plan_data["warnings"].append(
+            "note: %d quantized payload tensor(s) sit OUTSIDE the derived "
+            "census and outside the decoder layers (e.g. %s). The census only "
+            "covers names past layer %d, so if the pod's loader cannot bind "
+            "these the capture refuses AFTER the target fetch is paid for -- "
+            "which is how turboderp/GLM-5.3-Flash-exl3@51058cd5 lost a rental. "
+            "Read them at the pin before you create."
+            % (len(outside), ", ".join(outside[:3]),
+               sidecar["decoder_layers"]))
     return {"path": DERIVED_ALLOWLIST_REMOTE,
             "artifact_sha256": sidecar["artifact_sha256"],
             "canonical_sorted_names_sha256": names_sha,

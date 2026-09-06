@@ -1,0 +1,18 @@
+{
+ "derived_from": "turboderp/GLM-5.3-Flash-exl3@51058cd551c7e570d87bd32a4adee720edce2349 model.safetensors.index.json",
+ "config_sha256": "43921c0b6dd51805a243649a647417230ef9cb9ba8e26ae06a461c3f7e08d037",
+ "index_sha256": "9509363becd75ed23fc60fd678cd4dd3de214c4fa4df177f8d13ab7a09bc4ecb",
+ "decoder_layers": 45,
+ "count": 3652,
+ "artifact_sha256": "54eb239856c508623a854bf607c1a20a0044728e6c3ac5b0669acdc179b25c33",
+ "canonical_sorted_names_sha256": "ba77d23b13698bb82bb9ff1fc681b4394bcd4b7aa5537383c2ff69164546cbfe",
+ "derived_at_utc": "2026-09-06T10:18:46Z",
+ "derived_by": "TWO provenances, deliberately separate. (1) 3508 names: the index census of model.language_model.layers.45, every key verbatim from weight_map, identical to glm53flash-turbo-2.05bpw-layer45-unexpected-keys.json. (2) 144 names: this release ships its VISION attention twice -- a fused attn.qkv.{weight,bias} transformers binds (48 keys, confirmed against a meta-device Glm5NextForConditionalGeneration skeleton which expects 48 fused and ZERO split q_proj) and a split exl3-quantized copy it never binds. Of the 144: 72 are verbatim index keys (model.visual.blocks.N.attn.{q,k,v}_proj.bias) and 72 are payload-group stems plus '.weight', the name exl3hf_surface.decode_payload_hf materializes from each {mul1,suh,svh,trellis} group; every stem was verified to carry all four parts in the index.",
+ "per_layer_unexpected_counts": {
+  "45": 3508,
+  "visual.blocks.attn(split q/k/v)": 144
+ },
+ "corroboration": "the failed 2026-09-06 capture printed 'extra=144' and 'unexpected 3652'; 3508 + 144 = 3652 exactly, and the six names it printed are the first six of this sorted list byte for byte.",
+ "relation_to_bf16_allowlist": "the non-expert names are the MTP block Glm5NextForConditionalGeneration never builds (text_config.num_hidden_layers is 45); turboderp quantizes layer 45's routed experts as exl3 mul1 payload, so the census includes those payloads plus non-expert tensors; turboderp also quantizes lm_head (head_bits=5)",
+ "artifact_disclosure": "the vision tower is effectively UNQUANTIZED in this build under the pinned transformers: the bound path is the fused bf16 qkv and the quantized split copies are never touched, so a naive bits-per-weight read of this release overstates how much of it is quantized."
+}

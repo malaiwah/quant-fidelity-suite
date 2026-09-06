@@ -35,6 +35,30 @@ _HEX40 = re.compile(r"^[0-9a-f]{40}$")
 _HEX32 = re.compile(r"^[0-9a-f]{32}$")
 _HEX64 = re.compile(r"^[0-9a-f]{64}$")
 _ALLOWLISTS = {
+    ("turboderp/GLM-5.3-Flash-exl3",
+     "51058cd551c7e570d87bd32a4adee720edce2349"): {
+        # 3652 = the 3508-name index census of model.language_model.layers.45
+        # (the MTP block) PLUS 144 vision-attention names, and the second half
+        # is why this entry exists. The release ships its vision attention
+        # TWICE: a fused `attn.qkv.{weight,bias}` transformers binds (48 keys,
+        # confirmed against a meta-device Glm5NextForConditionalGeneration
+        # skeleton, which expects 48 fused and ZERO split q_proj) and a split
+        # exl3-quantized copy it never binds. The derived census only covers
+        # names past the decoder boundary, so those 144 arrived unexpected on
+        # the pod and the exact-equality contract refused AFTER the fetch was
+        # paid for -- correctly, since that signature is also what a silently
+        # disengaged quantizer produces. Reviewed by hand for exactly that
+        # reason; the sidecar records both provenances separately.
+        #
+        # Consequence for any row measured here: the vision tower runs bf16,
+        # so a naive bits-per-weight read of a "2.05bpw" label overstates how
+        # much of this release is actually quantized. It belongs on the row.
+        "path": "engines/tools/layer-outer-evidence/"
+                "glm53flash-turbo-2.05bpw-layer45-plus-visual-unexpected-keys.json",
+        "artifact_sha256": "54eb239856c508623a854bf607c1a20a0044728e6c3ac5b0669acdc179b25c33",
+        "canonical_sorted_names_sha256": "ba77d23b13698bb82bb9ff1fc681b4394bcd4b7aa5537383c2ff69164546cbfe",
+        "count": 3652,
+    },
     ("davidsyoung/GLM-5.3-EXL3-TR3-3.25bpw",
      "6d6bd738c0c1635513e0bd0fdf0302049bd820a9"): {
         # index census of model.layers.78, the MTP block transformers never builds.
