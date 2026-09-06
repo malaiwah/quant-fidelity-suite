@@ -111,7 +111,20 @@ fi
 # P1-06. The replay comparator's KL reduction must run in float64 BEFORE the
 # vocabulary sum: the float32 reduction returned negative "KL" (~-8e-7) on
 # near-equal 50k-vocab distributions while its receipts declared fp64.
-t "fidelity reducer: fp64 known answers (P1-06)" 0 "$VPY" bin/selftest_fidelity_reducer.py
+# MKL_NUM_THREADS=1 is NOT a style choice and must not be removed. This rung
+# SIGILLs intermittently on a pre-AVX host: the fault is inside
+# `mkl_vml_kernel...` in torch/lib/libtorch_cpu.so, reached from this file's
+# own `norm()` -> `legacy_float32_reduce()`, on a Xeon X5570 (Nehalem, SSE4.2
+# and NO AVX at all). MKL's threaded VML dispatches a kernel this CPU cannot
+# execute. Measured 2026-09-06 on this box: 9 of 60 control runs died with
+# rc=132 (SIGILL, 15%), and 0 of 100 runs with MKL_NUM_THREADS=1.
+# MKL_ENABLE_INSTRUCTIONS=SSE4_2 is NOT the fix -- it measured 2/20 against a
+# contemporaneous control of 1-3/20, i.e. no different. Threading is the
+# discriminator. Scoped to this rung on purpose: a global setting would
+# change what the timing rungs measure, and nothing has established that the
+# other torch rungs need it.
+t "fidelity reducer: fp64 known answers (P1-06)" 0 \
+  env MKL_NUM_THREADS=1 "$VPY" bin/selftest_fidelity_reducer.py
 t "registry client/viewer/matcher (T1)"    0 python3 bin/selftest_registry_view.py
 # P1-07. identical_across_runs=true needs one valid digest PER claimed run, all
 # equal. The old ingest collapsed digests to a set first, so one digest plus

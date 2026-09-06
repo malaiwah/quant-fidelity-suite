@@ -1856,3 +1856,45 @@ consequence of an assertion nobody could run.
 rather than passing vacuously — the current vacuous PASS is why this went unnoticed. A rung
 asserting "section [2] either ran or was reported as skipped, never both PASS and absent"
 fails today on every CPU-only box.
+
+## MKL-01 — a torch rung SIGILLs intermittently on this pre-AVX workstation
+
+**Found 2026-09-06 by Main**, while chasing what looked like a new battery red.
+
+`bin/selftest_fidelity_reducer.py` dies with **rc=132 (SIGILL)** on roughly
+**15%** of runs on this box. The fault is not in our code: `PYTHONFAULTHANDLER=1`
+puts it inside `mkl_vml_kernel...` in
+`.venv/lib/python3.14/site-packages/torch/lib/libtorch_cpu.so`, reached from the
+suite's own `norm()` -> `legacy_float32_reduce()`. The host is a Xeon X5570
+(Nehalem: `sse4_1`, `sse4_2`, **no AVX of any kind**), and MKL's threaded VML
+dispatches a kernel this CPU cannot execute.
+
+**Measured, with contemporaneous controls rather than sequentially:**
+
+| condition | failures |
+|---|---:|
+| control | 9 / 60 |
+| control (repeat, earlier) | 1/20, 3/20 |
+| `MKL_ENABLE_INSTRUCTIONS=SSE4_2` | 2 / 20 |
+| `MKL_NUM_THREADS=1` | **0 / 60** |
+| `OMP_NUM_THREADS=1 MKL_NUM_THREADS=1` | 0 / 20 |
+
+**Threading is the discriminator, and the ISA cap is not the fix.** An early
+run showed 7/20 for `MKL_ENABLE_INSTRUCTIONS=SSE4_2` and I briefly believed the
+cap made things *worse*; a contemporaneous control showed 2/20 against 1-3/20,
+so that reading was load noise and is retracted here rather than left standing.
+
+**Fixed for the one rung that manifests it** (`bin/selftest_all.sh`, scoped
+`env MKL_NUM_THREADS=1`), with the measurement in the comment and a note that
+it must not be removed. Deliberately NOT set globally: it would change what the
+timing rungs measure, and nothing has established that any other torch rung
+needs it.
+
+**Why it is deferred rather than closed.** Any rung reaching MKL's VML on a
+pre-AVX host can take the same fault, so the general question — which of the 21
+`torch`-tier suites are exposed, and whether the container and the rented CUDA
+boxes (all post-AVX) are immune by hardware — is unanswered. **The operational
+consequence is the dangerous part: an intermittent SIGILL makes the battery
+intermittently red for a reason that has nothing to do with the code**, which
+is exactly the misattribution this session has been fighting all day. Anyone
+who sees rc=132 should check the CPU before reading the diff.
