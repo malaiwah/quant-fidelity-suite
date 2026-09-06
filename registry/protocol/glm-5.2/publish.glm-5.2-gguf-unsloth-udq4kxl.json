@@ -1,0 +1,22 @@
+{
+  "dataset_sha256": "9767c7c7e87cb7b46f9f3d80a22f532cb19f3900b4f9a879d2083dc238133052",
+  "execution_kind": "runpod-ssh",
+  "local_execution": null,
+  "private": false,
+  "publication_source": "result-archive",
+  "published_at": "2026-09-06T06:11:09Z",
+  "published_dataset_sha256": "9767c7c7e87cb7b46f9f3d80a22f532cb19f3900b4f9a879d2083dc238133052",
+  "published_qualification_file_sha256": "86d7669153acb89c9e89c0737ce5928cda4c0268cb91d1a24d6f2aa6a2790a87",
+  "qualification_file_sha256": "86d7669153acb89c9e89c0737ce5928cda4c0268cb91d1a24d6f2aa6a2790a87",
+  "qualification_receipt_sha256": "cf87183c71a446d6bed47ce07ae628172a0aa630ccb257c0e04fc834debcf891",
+  "receipt_sha256": "25c8d48cc243b31bb8ecad538f58d562bbc5ac06cacf3971e85ea4aab43a7ec2",
+  "repository": "malaiwah/glm52-fidelity-gguf-unsloth-udq4kxl-v1",
+  "result_archive_bytes": 5067893593,
+  "result_archive_sha256": "ee3fc87018ebb3d79351d0728fc0251e62ea197b2c5565d9b00a8503bef778cc",
+  "revision": "86867264932e29bf166ee3a30be908c3b2901d0c",
+  "revision_immutable": true,
+  "schema": "fidelity.publish-root-receipt.v2",
+  "verified_after_publish": true,
+  "verified_anonymously": true,
+  "verified_revision": "86867264932e29bf166ee3a30be908c3b2901d0c"
+}
