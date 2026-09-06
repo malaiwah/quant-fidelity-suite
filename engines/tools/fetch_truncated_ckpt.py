@@ -95,7 +95,7 @@ import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 # GLM-5.3's decoder-layer key.  The DEFAULT of --layer-key-regex, kept as a
 # module constant so the old behaviour has a name and a regression test.

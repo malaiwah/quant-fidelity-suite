@@ -1,0 +1,107 @@
+# DIAGNOSTICS ONLY. This file exists so an editor / language server lazily
+# starts a Python server for this tree. It is deliberately NOT a package
+# manifest and NOT a build target:
+#
+#   * there is no [project] table and no [build-system] table, so nothing can
+#     build, package, install or publish this repository from it;
+#   * it adds no dependency, no lockfile and no style gate;
+#   * `bash bin/selftest_all.sh` and `cd registry && make check` remain the
+#     only definitions of "done". Nothing here gates a commit.
+#
+# AGENTS.md says "There is no root build, package manifest, lockfile, lint,
+# format or type-check target ... Do not invent a second toolchain." That rule
+# stands and this file does not breach it: what follows enables a NARROW
+# defect check, not a type-check. See the amended note in AGENTS.md.
+#
+# WHY IT IS HERE AT ALL, from a real defect on 2026-09-06: `measure_cloud.py`
+# gained `allow_unindexed: Sequence[str] = ()` with no `Sequence` import. The
+# module carries `from __future__ import annotations`, so annotations are lazy
+# strings -- `python3 -m py_compile` passed, importing the module passed, and
+# all 86 battery rungs passed, while `typing.get_type_hints()` raised
+# NameError. Every runtime check we own is blind to that class by design.
+# Exactly one such defect existed across the 124 Python files changed that
+# day, and it took 73 seconds to find.
+#
+# The rule set below is therefore kept to rules that indicate a REAL DEFECT in
+# an untyped codebase, and everything else is off. The same tree reports 2,095
+# diagnostics under default settings -- 1,043 reportArgumentType, 312
+# reportMissingImports for optional dependencies (torch, numpy, safetensors,
+# yaml are lazily imported ON PURPOSE), 303 reportOptionalMemberAccess -- and
+# chasing those WOULD be inventing the toolchain AGENTS.md refuses. If you are
+# tempted to widen this list, the test is: does the rule fire only on code
+# that is wrong, or also on code that is merely untyped?
+
+[tool.pyright]
+# Everything off by default, then the real-defect rules turned on explicitly.
+typeCheckingMode = "off"
+
+include = ["bin", "engines", "registry"]
+exclude = [
+    "**/__pycache__",
+    ".venv",
+    "port",     # draft native exllamav3 port, not production code
+    "tools",    # the original GLM serving-lane harness, historical
+    "remote",   # the VM campaign pipeline, historical
+]
+
+# A name used but never bound. THE defect this file exists for, and the one
+# `from __future__ import annotations` hides from every runtime check.
+reportUndefinedVariable = "error"
+# A name bound on only some paths -- the shape that bites credential and
+# teardown lifecycles, where a variable must exist before the `try` that can
+# raise so a `finally` can clean up after a half-completed step.
+reportPossiblyUnbound = "error"
+# A method whose first parameter is not self/cls: always a defect, never style.
+reportSelfClsParameterName = "error"
+# MEASURED AND REJECTED, 2026-09-06: reportIndexIssue = "error" produced five
+# hits tree-wide and ALL FIVE were inference artifacts, not defects --
+# `stats.setdefault("k_histogram", {})` on a heterogeneous untyped dict
+# (layer_outer.py:1350/1354/1371/1657, where pyright infers the value type as
+# int and then objects to `histogram[...] = ...`), and a `bytes` rebound
+# through an untyped callable (selftest_runpod_drill.py:254). It fires on code
+# that is merely untyped, which is the disqualifying test named above, so it
+# stays off. ControllerParity proposed it in good faith on a sample where it
+# scored 0; the tree says otherwise.
+reportIndexIssue = "none"
+
+# Optional dependencies are lazily imported by design (AGENTS.md's dependency
+# discipline: bin/ and registry/ must run on stock python3.9 with NO installs,
+# while engines/ may import torch and friends). A missing stub or module is
+# therefore expected, not a finding.
+reportMissingImports = "none"
+reportMissingModuleSource = "none"
+reportMissingTypeStubs = "none"
+
+# --------------------------------------------------------------------------
+# Ruff, held to the SAME criterion, because its defaults are a firehose:
+# 838 warnings on measure_cloud.py alone, of which the overwhelming majority
+# are UP031 ("use format specifiers instead of percent format"), UP006/UP045
+# ("use dict instead of Dict", "use X | None") and BLE001 ("do not catch
+# blind exception"). Acting on those would (a) mass-restyle files AGENTS.md
+# says to match rather than restyle, (b) break the python3.9 floor, since
+# `X | None` at runtime is 3.10+ and bin/ must run on stock 3.9, and (c)
+# delete the broad `except BaseException` handlers that exist ON PURPOSE so
+# teardown runs on interrupt -- the one path that must never be weakened.
+#
+# So: no default set, only rules that indicate a real defect. Ruff caught the
+# `Sequence` bug independently of pyright as F821, which is why it is here.
+[tool.ruff]
+extend-exclude = ["port", "tools", "remote", ".venv"]
+target-version = "py39"
+
+[tool.ruff.lint]
+select = [
+    "E9",    # syntax / IO errors that stop the file being analysed at all
+    "F821",  # undefined name -- the defect this whole file exists for
+    "F811",  # redefinition of an unused name (a lost definition)
+    "F823",  # local variable referenced before assignment
+    "F632",  # `is` comparison against a literal: always wrong, never style
+    "F502",  # percent-format expected mapping but got sequence
+    "F506",  # percent-format mixed positional and named
+    "F522",  # .format() unused named arguments
+    "F524",  # .format() missing argument
+    "F702",  # `continue` outside a loop
+    "B006",  # mutable default argument -- shared state across calls
+]
+# Nothing here is a style gate. There is no formatter target and no `ruff
+# format` in this repository; do not add one.

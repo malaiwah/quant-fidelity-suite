@@ -143,6 +143,28 @@ There is no root build, package manifest, lockfile, lint, format or type-check
 target, and no pytest discovery — tests are executable selftests. Do not invent a
 second toolchain; match the file you are editing.
 
+**Amended 2026-09-06.** A `pyproject.toml` now exists and the sentence above
+still holds: it has no `[project]` and no `[build-system]` table, so nothing can
+build, package or install this tree from it, and it gates no commit. It carries
+only editor/LSP diagnostics config for `pyright` and `ruff`, narrowed to rules
+that fire on code that is *wrong* rather than code that is merely untyped —
+`reportUndefinedVariable`, `reportPossiblyUnbound`, `reportSelfClsParameterName`,
+and ruff's `F821`/`F811`/`F823`/`F632`/`B006`/`E9`. Read the comments in the file
+before widening it; each exclusion is a measurement, not an opinion.
+
+It exists because of a defect class every runtime check we own is blind to:
+`measure_cloud.py` gained `allow_unindexed: Sequence[str] = ()` with no
+`Sequence` import, and because the module carries `from __future__ import
+annotations`, `py_compile` passed, the import passed and all 86 battery rungs
+passed while `typing.get_type_hints()` raised `NameError`. Two such defects
+existed tree-wide; both are fixed. **`py_compile` plus a green suite does not
+validate an annotation** — run the diagnostics after touching one.
+
+Do NOT act on the rules that are off. `UP031`/`UP006`/`UP045` would mass-restyle
+files this file tells you to match, and `X | None` at runtime breaks the
+python3.9 floor below; `BLE001` would delete the broad `except BaseException`
+handlers that exist on purpose so teardown runs on interrupt.
+
 ## Dependency discipline
 
 - `bin/` controller paths and all of `registry/` must run on **stock python3.9
