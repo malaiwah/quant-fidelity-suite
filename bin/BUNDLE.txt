@@ -99,6 +99,14 @@ engines/tools/layer-outer-evidence/inferact-nvfp4-layer78-unexpected-keys.json
 engines/tools/layer-outer-evidence/gguf-unsloth-glm53-layer78-unexpected-keys.json
 engines/tools/layer-outer-evidence/glm52-gguf-unsloth-udq4kxl-layer78-unexpected-keys.json
 engines/tools/layer-outer-evidence/glm52-layer78-unexpected-keys.json
+# turboderp's 2.05bpw branch ships its vision attention TWICE (a fused
+# attn.qkv transformers binds, and a split exl3-quantized copy it never
+# binds), so its census is the layer-45 MTP block PLUS 144 vision names --
+# 3652, reviewed by hand. Registering it in runpodsafety._ALLOWLISTS without
+# listing it HERE refused the plan before spend ("authored allowlist differs
+# from frozen bundle manifest"), correctly: an allowlist that would not be
+# shipped to the pod must not be trusted by the plan (2026-09-06).
+engines/tools/layer-outer-evidence/glm53flash-turbo-2.05bpw-layer45-plus-visual-unexpected-keys.json
 engines/tools/dione-evidence/m2-layer45-unexpected-keys.json
 # The UNSEALED Dione (0xSero) selective-EXL3 surface. It serves BOTH lanes:
 # student_capture --surface dione (sealed EP8) and stream_score --source
