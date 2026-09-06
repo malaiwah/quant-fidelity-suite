@@ -591,7 +591,7 @@ def main():
               MC._main_runpod, "_load_required_hf_download_token")) == 1)
     check("live-checkout reaper commands cannot author installed health",
           function_calls(
-              MC._runpod_reaper_command, "write_reaper_health") == [])
+              MC._lease_reaper_command, "write_reaper_health") == [])
 
     # Per-run (no --campaign-ledger) path contracts.  The first shipped
     # version of this mode crashed at plan time on Path(None), compared a

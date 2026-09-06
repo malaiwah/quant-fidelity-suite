@@ -335,7 +335,10 @@ class AutonomousTimer:
                 ("bin/fidelity/cloudlease.py", ROOT / "bin/fidelity/cloudlease.py"),
                 ("bin/fidelity/campaign.py", ROOT / "bin/fidelity/campaign.py"),
                 ("bin/fidelity/common.py", ROOT / "bin/fidelity/common.py"),
+                ("bin/fidelity/providers.py", ROOT / "bin/fidelity/providers.py"),
                 ("bin/fidelity/runpodapi.py", ROOT / "bin/fidelity/runpodapi.py"),
+                ("bin/fidelity/vastapi.py", ROOT / "bin/fidelity/vastapi.py"),
+                ("bin/fidelity/lambdaapi.py", ROOT / "bin/fidelity/lambdaapi.py"),
                 ("bin/fidelity/jlapi.py", ROOT / "bin/fidelity/jlapi.py"),
                 ("bin/fidelity/sshbase.py", ROOT / "bin/fidelity/sshbase.py"))
         ]

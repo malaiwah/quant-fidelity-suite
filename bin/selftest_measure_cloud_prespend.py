@@ -212,7 +212,8 @@ def main():
                 ns = types.SimpleNamespace(**fields)
                 out = io.StringIO()
                 with contextlib.redirect_stdout(out):
-                    code = MC._runpod_reaper_command(ns, Console(), Provider())
+                    code = MC._lease_reaper_command(
+                        ns, Console(), Provider(), "runpod")
                 return code, out.getvalue()
             code, text = run(list=True)
             check("R5: --list exits 0 and blocks the ACTIVE lease with its pod id, "

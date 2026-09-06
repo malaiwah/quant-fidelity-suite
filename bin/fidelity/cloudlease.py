@@ -38,6 +38,14 @@ from .common import redact
 
 SCHEMA = "fidelity-suite/cloud-lease.v2"
 HEALTH_SCHEMA = "fidelity-suite/reaper-health.v2"
+# The absence proof a sweep seals into a lease, per provider.  v1 was RunPod
+# only and named its two views `graphql_ids` / `rest_pod_ids`; v2 is
+# provider-parameterised and names them `lifecycle_ids` / `inventory_ids`,
+# because every provider has a lifecycle read and a chargeable-inventory read
+# and only RunPod's happen to be GraphQL and REST.  v1 is still ACCEPTED when
+# reading: leases are immutable evidence and existing ones carry it.
+ABSENCE_INVENTORY_SCHEMA = "fidelity-suite/%s-absence-inventory.v2"
+LEGACY_ABSENCE_INVENTORY_SCHEMA = "fidelity-suite/runpod-absence-inventory.v1"
 # v3: control seals the runtime snapshot only; the checkout it was copied
 # from is an advisory drift probe.  A v2 manifest is refused with a reinstall
 # remedy rather than silently re-verified under the new rule.
@@ -53,7 +61,10 @@ CONTROL_CLOSURE_PATHS = frozenset({
     "bin/fidelity/cloudlease.py",
     "bin/fidelity/campaign.py",
     "bin/fidelity/common.py",
+    "bin/fidelity/providers.py",
     "bin/fidelity/runpodapi.py",
+    "bin/fidelity/vastapi.py",
+    "bin/fidelity/lambdaapi.py",
     "bin/fidelity/jlapi.py",
     "bin/fidelity/sshbase.py",
 })
@@ -80,6 +91,10 @@ _PROCESS_STARTED_EPOCH = time.time()
 _PROCESS_INVOCATION_ID = secrets.token_hex(16)
 MAX_PROVIDER_DEADLINE_OBSERVATION_LAG_SECONDS = 900
 BILLING_STABILIZATION_SECONDS = 300
+# Provider-parameterised, and for RunPod these resolve to the exact strings
+# already sealed in existing leases, so nothing on disk needs migrating.
+BILLING_STABILIZATION_SCHEMA = "fidelity-suite/%s-billing-stabilization.v1"
+BILLING_RETRIEVAL_SCHEMA = "fidelity-suite/%s-billing-retrieval.v1"
 
 PREPARED = "PREPARED"
 CREATING = "CREATING"
@@ -726,6 +741,24 @@ def _validate_request(request: Any, provider: str) -> Dict[str, Any]:
             raise InvalidLease("unpaid lease count is invalid")
     return request
 
+def _exact_retrieval_id(provider: str, value: Any) -> bool:
+    """Two billing reads must carry two exact, independent identities.
+
+    RunPod's retrieval id is a 24-hex Mongo-style id and existing leases seal
+    it in that form, so it stays pinned to that shape.  A provider whose
+    format is not KNOWN gets the weakest rule that still makes the identity
+    exact -- a non-empty unpadded token with no whitespace -- rather than a
+    guessed pattern.  Tighten this per provider once a real response has been
+    read; never loosen RunPod's to accommodate another.
+    """
+    if not isinstance(value, str) or not value or value != value.strip():
+        return False
+    if provider == "runpod":
+        return bool(re.fullmatch(r"[0-9a-f]{24}", value))
+    return len(value) <= 128 and not any(
+        char.isspace() for char in value)
+
+
 def _validate_billing(
         value: Any, provider: str, *,
         require_stabilized: bool = True) -> Optional[Dict[str, Any]]:
@@ -752,42 +785,49 @@ def _validate_billing(
             raise InvalidLease("billing total_amount is not decimal")
         if not parsed.is_finite() or parsed < 0:
             raise InvalidLease("billing total_amount is invalid")
-    if provider == "runpod" and require_stabilized:
+    if require_stabilized:
+        # Every provider, not just RunPod.  A closure read once is a closure
+        # you cannot tell from a bucket the provider had not finished
+        # publishing, and "return whatever reconcile_billing said" was the
+        # non-RunPod path -- an unreconciled cost is an unpublishable receipt,
+        # so the stability requirement is the same everywhere.  The schema
+        # string is provider-parameterised and resolves to the exact RunPod
+        # strings already sealed in existing leases.
         stabilization = _exact_keys(
             billing.get("evidence"),
             ("schema", "absence_confirmed_at",
              "minimum_stabilization_seconds", "closure_sha256",
              "first_retrieval", "second_retrieval"),
-            (), "RunPod billing stabilization")
+            (), "%s billing stabilization" % provider)
         stabilization_seconds = stabilization["minimum_stabilization_seconds"]
         if (stabilization["schema"]
-                != "fidelity-suite/runpod-billing-stabilization.v1"
+                != BILLING_STABILIZATION_SCHEMA % provider
                 or isinstance(stabilization_seconds, bool)
                 or not isinstance(stabilization_seconds, int)
                 or stabilization_seconds < BILLING_STABILIZATION_SECONDS):
-            raise InvalidLease("RunPod billing stabilization bound is invalid")
+            raise InvalidLease(
+                "%s billing stabilization bound is invalid" % provider)
         _exact_utc_string(
             stabilization["absence_confirmed_at"],
-            "RunPod billing absence time")
+            "%s billing absence time" % provider)
         retrievals = []
         for name in ("first_retrieval", "second_retrieval"):
             retrieval = _exact_keys(
                 stabilization[name],
                 ("schema", "retrieval_id", "retrieved_at_utc"), (),
-                "RunPod billing retrieval")
-            if (retrieval["schema"]
-                    != "fidelity-suite/runpod-billing-retrieval.v1"
-                    or not isinstance(retrieval["retrieval_id"], str)
-                    or not re.fullmatch(
-                        r"[0-9a-f]{24}", retrieval["retrieval_id"])):
+                "%s billing retrieval" % provider)
+            if (retrieval["schema"] != BILLING_RETRIEVAL_SCHEMA % provider
+                    or not _exact_retrieval_id(
+                        provider, retrieval["retrieval_id"])):
                 raise InvalidLease(
-                    "RunPod billing retrieval identity is invalid")
+                    "%s billing retrieval identity is invalid" % provider)
             _exact_utc_string(
                 retrieval["retrieved_at_utc"],
-                "RunPod billing retrieval time")
+                "%s billing retrieval time" % provider)
             retrievals.append(retrieval)
         if retrievals[0]["retrieval_id"] == retrievals[1]["retrieval_id"]:
-            raise InvalidLease("RunPod billing retrievals are not independent")
+            raise InvalidLease(
+                "%s billing retrievals are not independent" % provider)
         closure = json.loads(
             _canonical_bytes(dict(billing)).decode("utf-8"))
         closure.pop("evidence", None)
@@ -795,11 +835,13 @@ def _validate_billing(
             if isinstance(history, dict):
                 history.pop("retrieved_at_utc", None)
         if stabilization["closure_sha256"] != _sha256(closure):
-            raise InvalidLease("RunPod billing closure seal mismatch")
+            raise InvalidLease(
+                "%s billing closure seal mismatch" % provider)
         if (not isinstance(stabilization["closure_sha256"], str)
                 or not re.fullmatch(
                     r"[0-9a-f]{64}", stabilization["closure_sha256"])):
-            raise InvalidLease("RunPod billing closure digest is invalid")
+            raise InvalidLease(
+                "%s billing closure digest is invalid" % provider)
     if not any(key in billing for key in (
             "evidence", "total_amount", "billing_histories")):
         raise InvalidLease("billing contains no provider evidence")
@@ -1251,32 +1293,47 @@ def _validate_event_evidence(event: str, evidence: Any,
             raise InvalidLease("listed statuses differ from present ids")
         authoritative = evidence.get("authoritative_inventory")
         if authoritative is not None:
+            provider_name = document["create"]["provider"]
+            legacy = (
+                isinstance(authoritative, dict)
+                and authoritative.get("schema")
+                == LEGACY_ABSENCE_INVENTORY_SCHEMA)
+            # A lease is immutable evidence, so a v1 proof written before the
+            # sweep was provider-generic must keep validating forever; only
+            # its two view names differ.
+            view_keys = (
+                ("graphql_ids", "rest_pod_ids") if legacy
+                else ("lifecycle_ids", "inventory_ids"))
             authoritative = _exact_keys(
                 authoritative,
                 ("schema", "observed_at_utc",
-                 "provider_account_id_sha256", "graphql_ids",
-                 "rest_pod_ids", "inventory_sha256"),
-                (), "authoritative RunPod inventory")
-            if (authoritative["schema"]
-                    != "fidelity-suite/runpod-absence-inventory.v1"):
+                 "provider_account_id_sha256", view_keys[0],
+                 view_keys[1], "inventory_sha256"),
+                (), "authoritative %s inventory" % provider_name)
+            if (not legacy and authoritative["schema"]
+                    != ABSENCE_INVENTORY_SCHEMA % provider_name):
                 raise InvalidLease(
-                    "authoritative RunPod inventory schema differs")
+                    "authoritative %s inventory schema differs" % provider_name)
+            if legacy and provider_name != "runpod":
+                raise InvalidLease(
+                    "legacy RunPod absence proof on a %s lease" % provider_name)
             _exact_utc_string(
                 authoritative["observed_at_utc"],
-                "authoritative RunPod inventory time")
+                "authoritative %s inventory time" % provider_name)
             account_digest = authoritative["provider_account_id_sha256"]
             if (account_digest is not None
                     and (not isinstance(account_digest, str)
                          or not re.fullmatch(r"[0-9a-f]{64}", account_digest))):
                 raise InvalidLease(
-                    "authoritative RunPod inventory account digest is invalid")
-            graphql_ids = _sorted_ids(
-                authoritative["graphql_ids"],
-                "authoritative GraphQL ids")
-            rest_ids = _sorted_ids(
-                authoritative["rest_pod_ids"],
-                "authoritative REST pod ids")
-            union = set(graphql_ids) | set(rest_ids)
+                    "authoritative %s inventory account digest is invalid"
+                    % provider_name)
+            lifecycle_ids = _sorted_ids(
+                authoritative[view_keys[0]],
+                "authoritative lifecycle ids")
+            inventory_ids = _sorted_ids(
+                authoritative[view_keys[1]],
+                "authoritative inventory ids")
+            union = set(lifecycle_ids) | set(inventory_ids)
             if (evidence["listed_resource_count"] != len(union)
                     or present != sorted(set(targets) & union)
                     or not isinstance(authoritative["inventory_sha256"], str)
@@ -1284,7 +1341,8 @@ def _validate_event_evidence(event: str, evidence: Any,
                         r"[0-9a-f]{64}",
                         authoritative["inventory_sha256"])):
                 raise InvalidLease(
-                    "authoritative RunPod inventory proof is inconsistent")
+                    "authoritative %s inventory proof is inconsistent"
+                    % provider_name)
         if event == "ABSENCE_PROOF_REVOKED":
             digest = evidence["revoked_absence_sha256"]
             if (not isinstance(digest, str)
@@ -2776,109 +2834,141 @@ def _provider_for(providers: Mapping[str, Any], name: str) -> Any:
     return provider() if callable(provider) and not hasattr(provider, "list_instances") else provider
 
 
-def runpod_authoritative_listing(
-        provider: Any, lifecycle_resources: Iterable[Any],
+def _validated_chargeable_inventory(
+        provider_name: str, inventory: Any
+        ) -> Tuple[List[Any], List[Tuple[str, str, str]], List[Any], str]:
+    """Parse one provider's chargeable inventory into compute rows + volumes.
+
+    EXPLICIT COMPLETENESS is the whole point of the method: a partial
+    inventory cannot prove no leak, so anything short of "every family, and I
+    know it" is an OUTAGE here and never evidence that an omitted exact id is
+    absent.  `complete: false` or a named unknown family therefore raises
+    rather than downgrading the proof.
+
+    Family naming is provider-native (`pods` on RunPod, `instances`
+    elsewhere), so the contract is positional instead: `network_volumes` is
+    REQUIRED -- Lambda and JarvisLabs filesystems outlive their instances, so
+    an orphaned volume is a real chargeable leak, while Vast storage is
+    pod-scoped and a legitimately empty family is still an assertion someone
+    made -- and every other family is compute and is unioned into the listing.
+    """
+    if (not isinstance(inventory, Mapping)
+            or inventory.get("schema")
+            != "fidelity-suite/%s-chargeable-inventory.v1" % provider_name
+            or inventory.get("provider") != provider_name
+            or inventory.get("complete") is not True
+            or inventory.get("unknown_families") != []):
+        raise LeaseError(
+            "%s authoritative chargeable inventory is incomplete"
+            % provider_name)
+    families = inventory.get("families")
+    if (not isinstance(families, Mapping)
+            or "network_volumes" not in families
+            or len(families) < 2):
+        raise LeaseError(
+            "%s authoritative inventory needs a network_volumes family and at "
+            "least one compute family" % provider_name)
+    compute_resources: List[Any] = []
+    compute_rows: List[Tuple[str, str, str]] = []
+    volumes: List[Any] = []
+    for family_name in sorted(families):
+        family = families[family_name]
+        volume_family = family_name == "network_volumes"
+        if (not isinstance(family, Mapping)
+                or family.get("complete") is not True
+                or not isinstance(family.get("resources"), list)):
+            raise LeaseError(
+                "%s authoritative %s inventory is incomplete"
+                % (provider_name, family_name))
+        rows = []
+        for item in family["resources"]:
+            parsed = _resource(item)
+            if not parsed[1] or (not volume_family and not parsed[2]):
+                raise LeaseError(
+                    "%s authoritative %s inventory is malformed"
+                    % (provider_name, family_name))
+            rows.append(parsed)
+        ids = [row[0] for row in rows]
+        if len(ids) != len(set(ids)):
+            raise LeaseError(
+                "%s authoritative %s inventory has duplicate ids"
+                % (provider_name, family_name))
+        if volume_family:
+            volumes = list(family["resources"])
+            continue
+        compute_resources.extend(family["resources"])
+        compute_rows.extend(rows)
+    compute_ids = [row[0] for row in compute_rows]
+    if len(compute_ids) != len(set(compute_ids)):
+        raise LeaseError(
+            "%s authoritative compute families share an id" % provider_name)
+    observed = _exact_utc_string(
+        inventory.get("observed_at_utc"),
+        "%s authoritative inventory time" % provider_name)
+    return compute_resources, compute_rows, volumes, observed
+
+
+def authoritative_listing(
+        provider_name: str, provider: Any, lifecycle_resources: Iterable[Any],
         provider_account_id: Optional[str],
         inventory: Optional[Mapping[str, Any]] = None
-        ) -> Tuple[List[Any], Dict[str, Any]]:
-    """Validate complete REST families and conservatively union pod views."""
+        ) -> Tuple[List[Any], Dict[str, Any], List[Any]]:
+    """Union a provider's lifecycle view with its complete chargeable inventory.
+
+    Two views of the same account are unioned CONSERVATIVELY: anything either
+    view lists is live.  RunPod has two genuinely different reads (GraphQL
+    lifecycle and the REST pod family) and they have disagreed; a provider
+    whose two reads come from one source unions to the same set, which is the
+    degenerate case rather than a special one.  An identity conflict for the
+    same exact id is an outage, never a resolution.
+    """
     if (provider_account_id is not None
             and (not isinstance(provider_account_id, str)
                  or not provider_account_id
                  or provider_account_id != provider_account_id.strip())):
         raise LeaseError(
-            "RunPod authoritative inventory account identity is invalid")
+            "%s authoritative inventory account identity is invalid"
+            % provider_name)
     lifecycle = list(lifecycle_resources)
-    graphql_rows = [_resource(item) for item in lifecycle]
-    if any(not name or not status for unused_id, name, status in graphql_rows):
-        raise LeaseError("RunPod GraphQL lifecycle listing is malformed")
-    graphql_by_id = {row[0]: row for row in graphql_rows}
-    if len(graphql_by_id) != len(graphql_rows):
-        raise LeaseError("RunPod GraphQL lifecycle listing has duplicate ids")
+    lifecycle_rows = [_resource(item) for item in lifecycle]
+    if any(not name or not status for unused_id, name, status in lifecycle_rows):
+        raise LeaseError(
+            "%s lifecycle listing is malformed" % provider_name)
+    lifecycle_by_id = {row[0]: row for row in lifecycle_rows}
+    if len(lifecycle_by_id) != len(lifecycle_rows):
+        raise LeaseError(
+            "%s lifecycle listing has duplicate ids" % provider_name)
     if inventory is None:
         inventory_method = getattr(provider, "chargeable_inventory", None)
         if inventory_method is None:
             raise LeaseError(
-                "RunPod absence requires authoritative chargeable inventory")
+                "%s absence requires authoritative chargeable inventory"
+                % provider_name)
         inventory = inventory_method()
-    if (not isinstance(inventory, Mapping)
-            or inventory.get("schema")
-            != "fidelity-suite/runpod-chargeable-inventory.v1"
-            or inventory.get("provider") != "runpod"
-            or inventory.get("complete") is not True
-            or inventory.get("unknown_families") != []):
-        raise LeaseError(
-            "RunPod authoritative chargeable inventory is incomplete")
-    families = inventory.get("families")
-    if (not isinstance(families, Mapping)
-            or set(families) != {"pods", "network_volumes"}):
-        raise LeaseError("RunPod authoritative inventory families differ")
-    parsed_families: Dict[str, List[Tuple[str, str, str]]] = {}
-    for family_name in ("pods", "network_volumes"):
-        family = families[family_name]
-        if (not isinstance(family, Mapping)
-                or family.get("complete") is not True
-                or not isinstance(family.get("resources"), list)):
+    compute_resources, compute_rows, volumes, observed = (
+        _validated_chargeable_inventory(provider_name, inventory))
+    inventory_by_id = {row[0]: row for row in compute_rows}
+    for provider_id in sorted(set(lifecycle_by_id) & set(inventory_by_id)):
+        if lifecycle_by_id[provider_id] != inventory_by_id[provider_id]:
             raise LeaseError(
-                "RunPod authoritative %s inventory is incomplete"
-                % family_name)
-        rows = []
-        for item in family["resources"]:
-            parsed = _resource(item)
-            if (not parsed[1]
-                    or (family_name == "pods" and not parsed[2])):
-                raise LeaseError(
-                    "RunPod authoritative %s inventory is malformed"
-                    % family_name)
-            rows.append(parsed)
-        ids = [row[0] for row in rows]
-        if len(ids) != len(set(ids)):
-            raise LeaseError(
-                "RunPod authoritative %s inventory has duplicate ids"
-                % family_name)
-        parsed_families[family_name] = rows
-    observed = _exact_utc_string(
-        inventory.get("observed_at_utc"),
-        "RunPod authoritative inventory time")
-    rest_resources = families["pods"]["resources"]
-    rest_rows = parsed_families["pods"]
-    rest_by_id = {row[0]: row for row in rest_rows}
-    for provider_id in sorted(set(graphql_by_id) & set(rest_by_id)):
-        if graphql_by_id[provider_id] != rest_by_id[provider_id]:
-            raise LeaseError(
-                "RunPod GraphQL/REST pod identity conflicts for %s"
-                % provider_id)
+                "%s lifecycle/inventory identity conflicts for %s"
+                % (provider_name, provider_id))
     union: Dict[str, Any] = {}
-    for item, parsed in zip(lifecycle, graphql_rows):
+    for item, parsed in zip(lifecycle, lifecycle_rows):
         union[parsed[0]] = item
-    for item, parsed in zip(rest_resources, rest_rows):
+    for item, parsed in zip(compute_resources, compute_rows):
         union.setdefault(parsed[0], item)
     proof = {
-        "schema": "fidelity-suite/runpod-absence-inventory.v1",
+        "schema": ABSENCE_INVENTORY_SCHEMA % provider_name,
         "observed_at_utc": observed,
         "provider_account_id_sha256": (
             None if provider_account_id is None else hashlib.sha256(
                 provider_account_id.encode("utf-8")).hexdigest()),
-        "graphql_ids": sorted(graphql_by_id),
-        "rest_pod_ids": sorted(rest_by_id),
+        "lifecycle_ids": sorted(lifecycle_by_id),
+        "inventory_ids": sorted(inventory_by_id),
         "inventory_sha256": _sha256(inventory),
     }
-    return [union[key] for key in sorted(union)], proof
-
-
-def _authoritative_listing(
-        provider_name: str, provider: Any, lifecycle_resources: Iterable[Any],
-        provider_account_id: Optional[str]
-        ) -> Tuple[List[Any], Optional[Dict[str, Any]], List[Any]]:
-    lifecycle = list(lifecycle_resources)
-    if provider_name != "runpod":
-        return lifecycle, None, []
-    inventory = provider.chargeable_inventory()
-    listing, proof = runpod_authoritative_listing(
-        provider, lifecycle, provider_account_id, inventory=inventory)
-    return (
-        listing, proof,
-        list(inventory["families"]["network_volumes"]["resources"]))
+    return [union[key] for key in sorted(union)], proof, volumes
 
 
 
@@ -2911,7 +3001,19 @@ def finalize_campaign_after_absence(
     families = inventory.get("families")
     if (not isinstance(families, dict)
             or set(families) != {"pods", "network_volumes"}):
-        raise LeaseError("campaign cleanup inventory families differ")
+        # Campaign cleanup projects onto the ledger's resource families, and
+        # `campaign._RESOURCE_FAMILIES` is RunPod-shaped (`pods` /
+        # `network_volumes`).  A provider whose compute family is named
+        # anything else is refused HERE, naming the reason, rather than
+        # KeyError-ing below -- and it cannot arrive here anyway, because
+        # `_validate_request` admits a campaign-bound paid request only for
+        # RunPod's exact key set.  Generalising campaign accounting is a
+        # separate change from generalising the sweep.
+        raise LeaseError(
+            "campaign cleanup inventory families differ: the campaign ledger "
+            "projects onto pods/network_volumes and this inventory declares "
+            "%s" % (", ".join(sorted(families))
+                    if isinstance(families, dict) else "no families"))
     lifecycle_method = getattr(provider, "list_lifecycle_resources", None)
     if lifecycle_method is None:
         lifecycle_method = getattr(provider, "list_instances", None)
@@ -2925,8 +3027,9 @@ def finalize_campaign_after_absence(
         raise LeaseError(
             "campaign cleanup balance/account snapshot is unavailable")
     lifecycle_resources = lifecycle_method()
-    authoritative_pods, unused_absence_proof = runpod_authoritative_listing(
-        provider, lifecycle_resources, account, inventory=inventory)
+    authoritative_pods, unused_proof, unused_volumes = authoritative_listing(
+        document["create"]["provider"], provider, lifecycle_resources,
+        account, inventory=inventory)
     from .campaign import CampaignLedger
     ledger_path, attempt_key = coordinates
     ledger = CampaignLedger(
@@ -3048,49 +3151,52 @@ def _stabilized_billing(
     reconcile = getattr(provider, "reconcile_billing", None)
     if reconcile is None:
         raise LeaseError("provider exposes no billing reconciliation")
-    if document["create"]["provider"] != "runpod":
-        return reconcile(dict(document))
+    provider_name = document["create"]["provider"]
     absence = next((
         item for item in reversed(document.get("history") or [])
         if item.get("event") == "EXACT_IDS_ABSENT_FROM_COMPLETE_LISTING"
     ), None)
     if absence is None:
-        raise LeaseError("RunPod billing stabilization lacks absence evidence")
+        raise LeaseError(
+            "%s billing stabilization lacks absence evidence" % provider_name)
     try:
         absence_epoch = calendar.timegm(time.strptime(
             absence["at"], "%Y-%m-%dT%H:%M:%SZ"))
     except (KeyError, TypeError, ValueError, OverflowError):
-        raise LeaseError("RunPod absence timestamp is invalid")
+        raise LeaseError("%s absence timestamp is invalid" % provider_name)
     if instant - absence_epoch < BILLING_STABILIZATION_SECONDS:
         return None
     first = reconcile(dict(document))
     if ((first.get("evidence") or {}).get("schema")
-            == "fidelity-suite/runpod-billing-stabilization.v1"):
-        _validate_billing(first, "runpod")
+            == BILLING_STABILIZATION_SCHEMA % provider_name):
+        _validate_billing(first, provider_name)
         if first["evidence"]["absence_confirmed_at"] != absence["at"]:
             raise LeaseError(
-                "RunPod billing stabilization binds another absence event")
+                "%s billing stabilization binds another absence event"
+                % provider_name)
         return first
     second = reconcile(dict(document))
-    _validate_billing(first, "runpod", require_stabilized=False)
-    _validate_billing(second, "runpod", require_stabilized=False)
+    _validate_billing(first, provider_name, require_stabilized=False)
+    _validate_billing(second, provider_name, require_stabilized=False)
     first_retrieval = first.get("evidence")
     second_retrieval = second.get("evidence")
     required = {"schema", "retrieval_id", "retrieved_at_utc"}
+    retrieval_schema = BILLING_RETRIEVAL_SCHEMA % provider_name
     if (not isinstance(first_retrieval, dict)
             or set(first_retrieval) != required
             or not isinstance(second_retrieval, dict)
             or set(second_retrieval) != required
-            or first_retrieval.get("schema")
-            != "fidelity-suite/runpod-billing-retrieval.v1"
-            or second_retrieval.get("schema")
-            != "fidelity-suite/runpod-billing-retrieval.v1"
-            or not isinstance(first_retrieval.get("retrieval_id"), str)
-            or not isinstance(second_retrieval.get("retrieval_id"), str)
+            or first_retrieval.get("schema") != retrieval_schema
+            or second_retrieval.get("schema") != retrieval_schema
+            or not _exact_retrieval_id(
+                provider_name, first_retrieval.get("retrieval_id"))
+            or not _exact_retrieval_id(
+                provider_name, second_retrieval.get("retrieval_id"))
             or first_retrieval["retrieval_id"]
             == second_retrieval["retrieval_id"]):
         raise LeaseError(
-            "RunPod billing retrievals lack independent identities")
+            "%s billing retrievals lack independent identities"
+            % provider_name)
     _exact_utc_string(
         first_retrieval.get("retrieved_at_utc"),
         "first billing retrieval time")
@@ -3101,10 +3207,11 @@ def _stabilized_billing(
     second_closure = _billing_closure(second)
     if first_closure != second_closure:
         raise LeaseError(
-            "RunPod billing changed between stabilization retrievals")
+            "%s billing changed between stabilization retrievals"
+            % provider_name)
     stabilized = json.loads(_canonical_bytes(second).decode("utf-8"))
     stabilized["evidence"] = {
-        "schema": "fidelity-suite/runpod-billing-stabilization.v1",
+        "schema": BILLING_STABILIZATION_SCHEMA % provider_name,
         "absence_confirmed_at": absence["at"],
         "minimum_stabilization_seconds": BILLING_STABILIZATION_SECONDS,
         "closure_sha256": _sha256(second_closure),
@@ -3199,7 +3306,7 @@ def reap_once(store: LeaseStore, providers: Mapping[str, Any], *,
                 provider, [document for _, document in grouped[provider_name]])
             lifecycle_listing = list(provider.list_instances())
             listing, authoritative_inventory, authoritative_volumes = (
-                _authoritative_listing(
+                authoritative_listing(
                     provider_name, provider, lifecycle_listing,
                     provider_account_id))
             # Parse every union entry now: malformed/incomplete inventory is an
@@ -3409,7 +3516,7 @@ def reap_once(store: LeaseStore, providers: Mapping[str, Any], *,
                             provider, [document])
                         refreshed_lifecycle = list(provider.list_instances())
                         refreshed, refreshed_inventory, unused_volumes = (
-                            _authoritative_listing(
+                            authoritative_listing(
                                 provider_name, provider, refreshed_lifecycle,
                                 refreshed_account_id))
                         [_resource(item) for item in refreshed]
@@ -3650,9 +3757,13 @@ def _source_closure(entrypoint: Path) -> List[Tuple[str, Path]]:
         raise LeaseError(
             "installed reaper requires the dedicated reap_cloud_leases.py")
     fidelity = entry.parent / "fidelity"
+    # Every adapter the sweep can drive, plus the parity table that decides
+    # which of them it may drive: the installed snapshot is what the timer
+    # executes, so a provider absent from here has no autonomous backstop.
     names = (
         "__init__.py", "cloudlease.py", "campaign.py", "common.py",
-        "runpodapi.py", "jlapi.py", "sshbase.py")
+        "providers.py", "runpodapi.py", "vastapi.py", "lambdaapi.py",
+        "jlapi.py", "sshbase.py")
     return [("reap_cloud_leases.py", entry)] + [
         ("fidelity/" + name, fidelity / name) for name in names]
 

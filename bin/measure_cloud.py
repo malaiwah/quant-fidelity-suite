@@ -1084,6 +1084,19 @@ def _stage_env(td: "Teardown") -> str:
                shlex.quote("%s/pipeline" % engine)))
 
 
+def _providers():
+    """The parity table (`bin/fidelity/providers.py`), imported lazily.
+
+    ONE source of truth for which providers exist, which of the twelve
+    contract methods each has, what still blocks it, and where its paid
+    execution entrypoint lives.  Both this controller and
+    `bin/selftest_provider_portability.py` read it, so a declaration cannot
+    disagree with behaviour.
+    """
+    from fidelity import providers
+    return providers
+
+
 def _make_provider(name: str, *, dry: bool = False):
     """The provider is one object with eighteen methods; everything else in
     this file -- fit, cost band, lease, all four teardown layers, every stage
@@ -1098,6 +1111,37 @@ def _make_provider(name: str, *, dry: bool = False):
         from fidelity.lambdaapi import LambdaCloud
         return LambdaCloud(dry=dry)
     return JL(dry=dry)
+
+
+def _reaper_key_path(args, provider_name: str) -> Optional[str]:
+    """The credential FILE path for a provider, or None if it needs none.
+
+    JarvisLabs is CLI-driven and has no key file; the REST adapters resolve
+    an explicit flag, then their environment variable, then their own
+    default.  A key-file provider with nothing resolvable is a refusal, not a
+    guess: a guessed credential is how a sweep touches the wrong account.
+    """
+    explicit = (getattr(args, "runpod_key_file", None)
+                if provider_name == "runpod" else None)
+    try:
+        return _providers().key_file_path(provider_name, explicit)
+    except KeyError as exc:
+        raise Refusal(str(exc), [])
+
+
+def _credentialed_provider(args, provider_name: str):
+    """Build the adapter the way the CLI asked for it, credential included.
+
+    `_make_provider` is the plan-time constructor and reads no flag; this is
+    the one used where a real account is touched (the sweep) or spent on (a
+    measurement), and it is provider-agnostic on purpose -- a conforming
+    adapter needs no branch here.
+    """
+    adapter = _providers().adapter_class(provider_name)
+    key_path = _reaper_key_path(args, provider_name)
+    if key_path is None:
+        return adapter(dry=bool(args.dry_run))
+    return adapter(dry=bool(args.dry_run), key_file=key_path)
 
 
 def _machine_id_of(created: Optional[Dict[str, Any]]) -> Optional[Any]:
@@ -6849,8 +6893,8 @@ def _cleanup_ambiguous_runpod_create(
         provider, lease_store, lease_ref, ledger, campaign_key):
     """Bind, terminate and reconcile every exact ambiguous create candidate."""
     from fidelity.cloudlease import (
-        ABSENCE_CONFIRMED, campaign_cleanup_binding_evidence,
-        finalize_campaign_after_absence, runpod_authoritative_listing)
+        ABSENCE_CONFIRMED, authoritative_listing,
+        campaign_cleanup_binding_evidence, finalize_campaign_after_absence)
     lease = lease_store.read(lease_ref)
     ids = sorted(set(str(value)
                      for value in lease.get("provider_resource_ids") or []))
@@ -6892,8 +6936,8 @@ def _cleanup_ambiguous_runpod_create(
                 "ambiguous cleanup cannot verify the lease provider account")
         graphql_pods = provider.list_lifecycle_resources()
         inventory = provider.chargeable_inventory()
-        listing, absence_proof = runpod_authoritative_listing(
-            provider, graphql_pods, observed_account_id,
+        listing, absence_proof, unused_volumes = authoritative_listing(
+            "runpod", provider, graphql_pods, observed_account_id,
             inventory=inventory)
         lease_ref = lease_store.confirm_exact_absence(
             lease_ref, listing, authoritative_inventory=absence_proof)
@@ -7162,8 +7206,8 @@ def execute_runpod(
         CostQuote, attempt_key as campaign_attempt_key)
     from fidelity.cloudlease import (
         ABSENCE_CONFIRMED, CreateResponsePersistenceError, LeaseStore,
-        campaign_cleanup_binding_evidence, exact_resource_name,
-        finalize_campaign_after_absence, runpod_authoritative_listing,
+        authoritative_listing, campaign_cleanup_binding_evidence,
+        exact_resource_name, finalize_campaign_after_absence,
         systemd_reaper_health, utc_iso, validate_lease_liability_scope,
         validate_unresolved_lease_scope)
     from fidelity.runpodsafety import (
@@ -7639,8 +7683,8 @@ def execute_runpod(
                 "authoritative inventory cannot verify the RunPod account")
         graphql_pods = provider.list_lifecycle_resources()
         strict_inventory = provider.chargeable_inventory()
-        union_pods, absence_proof = runpod_authoritative_listing(
-            provider, graphql_pods, fresh_account_id,
+        union_pods, absence_proof, unused_volumes = authoritative_listing(
+            "runpod", provider, graphql_pods, fresh_account_id,
             inventory=strict_inventory)
         strict_volumes = list(
             strict_inventory["families"]["network_volumes"]["resources"])
@@ -10037,7 +10081,17 @@ def _reconcile_cost(jl, td, plan_data, elapsed, outdir, con) -> Dict[str, Any]:
 # ==========================================================================
 
 
-def _runpod_reaper_command(args, con: Console, provider) -> int:
+def _lease_reaper_command(args, con: Console, provider,
+                          provider_name: str) -> int:
+    """The per-provider lease sweep, driven through the provider contract.
+
+    Nothing in here names a provider: the sweep reads `status`,
+    `list_instances`, `destroy`, `chargeable_inventory` and
+    `reconcile_billing`, and `fidelity.providers.sweep_refusal` decides in
+    `main()` whether this adapter may be driven at all.  A conforming adapter
+    therefore gets a working sweep -- and an autonomous systemd backstop --
+    with no further controller change.
+    """
     from fidelity.cloudlease import (
         LeaseStore, install_systemd_user_timer, reap_once,
         systemd_reaper_health,
@@ -10046,35 +10100,33 @@ def _runpod_reaper_command(args, con: Console, provider) -> int:
     state_dir = Path(args.reaper_state_dir)
     provider_account_id = str(provider.status().get("id") or "").strip()
     if not provider_account_id:
-        con.err("RunPod status lacks exact myself.id")
+        con.err("%s status lacks an exact account identity; a sweep that "
+                "cannot name the account it is sweeping is refused"
+                % provider_name)
         return EXIT_LEAK
     if args.install and args.dry_run:
-        preview = reap_once(store, {"runpod": provider}, dry_run=True)
+        preview = reap_once(store, {provider_name: provider}, dry_run=True)
         con.kv("install", "dry-run; no health/unit/systemctl mutation")
         for failure in preview.failures:
             con.err(json.dumps(failure, sort_keys=True))
         return EXIT_OK if preview.ok else EXIT_LEAK
     if args.install:
-        from fidelity.runpodapi import DEFAULT_KEY_FILE
-        selected_key_path = (
-            args.runpod_key_file or os.environ.get("RUNPOD_KEY_FILE")
-            or DEFAULT_KEY_FILE)
-        key_path = str(Path(selected_key_path).expanduser().resolve())
+        key_path = _reaper_key_path(args, provider_name)
         install_systemd_user_timer(
             [sys.executable,
              str(Path(__file__).with_name("reap_cloud_leases.py").resolve()),
-             "--provider", "runpod", "--sweep",
+             "--provider", provider_name, "--sweep",
              "--lease-dir", str(store.root),
-             "--reaper-state-dir", str(state_dir),
-             "--runpod-key-file", key_path],
-            lease_dir=store.root, provider="runpod",
+             "--reaper-state-dir", str(state_dir)]
+            + ([] if key_path is None else ["--key-file", key_path]),
+            lease_dir=store.root, provider=provider_name,
             provider_account_id=provider_account_id,
             state_dir=state_dir)
         health = systemd_reaper_health(
-            state_dir=state_dir, lease_dir=store.root, provider="runpod",
+            state_dir=state_dir, lease_dir=store.root, provider=provider_name,
             provider_account_id=provider_account_id)
         if not health["ok"]:
-            con.err("installed RunPod reaper timer is not healthy")
+            con.err("installed %s reaper timer is not healthy" % provider_name)
             return EXIT_LEAK
         return EXIT_OK
     if args.list:
@@ -10088,11 +10140,18 @@ def _runpod_reaper_command(args, con: Console, provider) -> int:
         try:
             inventory = provider.chargeable_inventory()
             if inventory.get("complete"):
+                # Compute family naming is provider-native (`pods` on RunPod,
+                # `instances` elsewhere); `network_volumes` is the one fixed
+                # name, so everything else is compute.
                 inventory_ids = {
-                    row["id"] for row in inventory["families"]["pods"]["resources"]}
+                    str(row["id"])
+                    for family_name, family in (
+                        inventory.get("families") or {}).items()
+                    if family_name != "network_volumes"
+                    for row in (family.get("resources") or [])}
         except Exception as exc:                              # noqa: BLE001
-            con.warn("provider inventory unavailable (%s); pod presence not shown"
-                     % redact(str(exc)))
+            con.warn("provider inventory unavailable (%s); instance presence "
+                     "not shown" % redact(str(exc)))
         terminal = 0
         for ref, document in store.list(include_terminal=True):
             state = document["state"]
@@ -10131,20 +10190,21 @@ def _runpod_reaper_command(args, con: Console, provider) -> int:
                     con.kv("  those pods now", (
                         "still in inventory: %s" % ", ".join(still) if still
                         else "none exists in the account inventory"))
-                con.kv("  needs operator", "the reaper cannot settle a lease with no pod "
-                       "id (cloudlease: ambiguous-needs-operator). Verify in the "
-                       "RunPod console that no pod named %s exists; then pass "
+                con.kv("  needs operator", "the reaper cannot settle a lease with no "
+                       "instance id (cloudlease: ambiguous-needs-operator). Verify in "
+                       "the %s console that no instance named %s exists; then pass "
                        "--allow-unresolved-leases on the next run to proceed beside "
-                       "this lease" % (create.get("exact_name") or "fidcloud-*"))
+                       "this lease"
+                       % (provider_name, create.get("exact_name") or "fidcloud-*"))
         if terminal:
             con.kv("terminal", "%d lease(s) settled (--all to list them)" % terminal)
         health = systemd_reaper_health(
-            state_dir=state_dir, lease_dir=store.root, provider="runpod",
+            state_dir=state_dir, lease_dir=store.root, provider=provider_name,
             provider_account_id=provider_account_id)
         con.kv("health", "ok" if health["ok"] else "not healthy")
         return EXIT_OK if health["ok"] else EXIT_LEAK
     result = reap_once(
-        store, {"runpod": provider}, dry_run=bool(args.dry_run))
+        store, {provider_name: provider}, dry_run=bool(args.dry_run))
     # Every action row, dry-run or not: what was (or would be) destroyed,
     # what was settled, and which lease needs an operator. Silence used to
     # mean "nothing failed", which read as "nothing to do".
@@ -10438,12 +10498,18 @@ def build_parser() -> argparse.ArgumentParser:
     # provider", 2026-09-06).
     p.add_argument(
         "--provider", default=None,
-        choices=("jarvislabs", "runpod", "vast", "lambda"),
-        help="default runpod for a measurement run, the only provider paid "
-             "measurement runs on; REQUIRED explicitly for `reaper` and "
-             "`drill`, which act on a whole provider account; jarvislabs is "
-             "accepted solely for `reaper` cleanup of historical leases, vast "
-             "and lambda are refused before any provider mutation.")
+        choices=_providers().PROVIDERS,
+        help="REQUIRED on every path, with NO default: each one either spends "
+             "on a provider account (a measurement run) or acts on one "
+             "wholesale (`reaper`, `drill`). Which providers may take a paid "
+             "measurement is DERIVED, not listed here: a provider qualifies "
+             "when it implements all twelve contract methods, has a paid "
+             "execution entrypoint, and carries no declared blocker "
+             "(bin/fidelity/providers.py, docs/PROVIDER-PARITY.md). A "
+             "provider that does not qualify is refused before any provider "
+             "mutation, and the refusal names what is missing. `reaper` is "
+             "admitted more widely: refusing to reap is itself a leak, so any "
+             "adapter the sweep can drive may be swept.")
 
     t = p.add_argument_group("what to measure")
     t.add_argument(
@@ -10846,26 +10912,49 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     if args.subcommand == "reaper":
         if args.provider is None:
-            con.err("reaper requires explicit --provider runpod; "
-                    "historical JarvisLabs lease cleanup requires explicit "
-                    "--provider jarvislabs")
+            con.err("reaper requires an explicit --provider (%s): it acts on "
+                    "a whole provider ACCOUNT, and a guessed account sweeps "
+                    "someone else's instances"
+                    % ", ".join(_providers().PROVIDERS))
             return EXIT_REFUSED
-        if args.provider == "runpod":
-            from fidelity.runpodapi import RunPod
-            provider = RunPod(
-                dry=bool(args.dry_run), key_file=args.runpod_key_file)
-            return _runpod_reaper_command(args, con, provider)
-        if args.provider != "jarvislabs":
-            con.err("reaper supports RunPod and historical JarvisLabs cleanup")
+        refusal = _providers().reaper_refusal(args.provider)
+        if refusal is not None:
+            con.err(refusal.reason)
+            for line in refusal.advice:
+                con.say("        %s" % line)
             return EXIT_REFUSED
-        if args.install:
-            return reaper_install(con)
-        if args.sweep:
-            return reaper_sweep(con, dry=args.dry_run)
-        return reaper_list(con)
+        if args.provider in _providers().LEGACY_SWEEP_PROVIDERS \
+                and _providers().sweep_refusal(args.provider) is not None:
+            # The pre-lease-store JarvisLabs sweep.  It stays until the
+            # generic sweep is proven against an old lease shape: there are
+            # 137 settled and 1 operator-needing lease on that account, and
+            # having both paths briefly beats discovering the generic one
+            # mishandles them.
+            if args.install:
+                return reaper_install(con)
+            if args.sweep:
+                return reaper_sweep(con, dry=args.dry_run)
+            return reaper_list(con)
+        try:
+            provider = _credentialed_provider(args, args.provider)
+        except (Refusal, KeyError) as exc:
+            con.err("reaper cannot build the %s adapter: %s"
+                    % (args.provider, redact(str(exc))))
+            return EXIT_REFUSED
+        return _lease_reaper_command(args, con, provider, args.provider)
     if args.subcommand == "drill":
         if args.provider != "runpod":
-            con.err("drill subcommand is RunPod-only")
+            # Honest scope: the drill seals a controller-loss safety proof,
+            # and only RunPod has a producer for it.  A provider without one
+            # can still be MEASURED on -- what it cannot do is run under
+            # STRICT campaign mode, which binds that sealed proof.
+            con.err("the controller-loss drill has a sealed-proof producer "
+                    "for runpod only (bin/fidelity/runpoddrill.py); %s can be "
+                    "measured on without a drill, but not under strict "
+                    "campaign mode, which binds the proof. See %s section "
+                    "'Beyond the adapters'."
+                    % (args.provider or "<missing>",
+                       _providers().PARITY_DOC))
             return EXIT_REFUSED
         from fidelity.runpodapi import RunPod
         from fidelity.runpoddrill import run_drill
@@ -10993,16 +11082,32 @@ def main(argv: Optional[List[str]] = None) -> int:
                 con.say("        %s" % line)
             return EXIT_REFUSED
 
-    if args.provider == "runpod":
-        from fidelity.runpodapi import RunPod
-        provider = RunPod(
-            dry=bool(args.dry_run), key_file=args.runpod_key_file)
-        return _main_runpod(args, con, provider)
+    # Dispatch is DERIVED, not a hardcoded provider name: a provider may take
+    # a paid measurement iff it implements all twelve contract methods, has a
+    # paid execution entrypoint, and carries no declared blocker.  The
+    # refusal below therefore names the real reason -- which methods are
+    # missing, which blockers remain -- instead of naming RunPod.
+    if args.provider is None:
+        con.err("a measurement run requires an explicit --provider (%s): it "
+                "spends real money on a provider ACCOUNT, and a guessed "
+                "account bills the wrong person. Nothing was created. "
+                "$0.00 spent." % ", ".join(_providers().PROVIDERS))
+        return EXIT_REFUSED
+    refusal = _providers().measurement_refusal(args.provider)
+    if refusal is None:
+        # A named degradation does not block a measurement, but it is never
+        # silent: it is a guarantee this provider cannot give, said in words,
+        # before any money is spent.
+        for line in _providers().degradations(args.provider):
+            con.warn("%s degradation: %s" % (args.provider, line))
+        entry = _providers().execution_entrypoint(
+            args.provider, sys.modules[__name__])
+        return entry(args, con, _credentialed_provider(args, args.provider))
 
-    con.err(
-        "paid measurement execution requires explicit --provider runpod; "
-        "provider %s is refused before any provider mutation"
-        % (args.provider if args.provider is not None else "<missing>"))
+    con.err("%s; refused before any provider mutation. Nothing was created. "
+            "$0.00 spent." % refusal.reason)
+    for line in refusal.advice:
+        con.say("        %s" % line)
     return EXIT_REFUSED
 
 

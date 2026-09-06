@@ -46,7 +46,7 @@ from fidelity.cloudlease import (  # noqa: E402
     systemd_reaper_health,
     write_reaper_health,
     reap_once,
-    runpod_authoritative_listing,
+    authoritative_listing,
 )
 from fidelity.runpodapi import (  # noqa: E402
     DEFAULT_KEY_FILE, MIN_CREATE_SETUP_SECONDS, RunPod,
@@ -503,12 +503,217 @@ class OutageProvider:
 
 
 class EmptyProvider:
+    """A conforming non-RunPod adapter with nothing of ours alive.
+
+    It carries a chargeable inventory because EVERY provider must now: the
+    sweep proves absence from a complete inventory, and a provider that
+    cannot produce one is an outage rather than evidence of absence.  Family
+    naming is provider-native, so this one calls its compute family
+    `instances` -- the generic path must not require RunPod's `pods`.
+    """
+
+    def __init__(self, provider="healthy", volumes=None):
+        self.provider = provider
+        self.volumes = list(volumes or [])
+        self.destroyed = []
+
+    def status(self):
+        return {"id": "acct-test", "clientBalance": "10.00"}
+
     def list_instances(self):
         return []
+
+    def destroy(self, provider_id):
+        self.destroyed.append(str(provider_id))
+
+    def chargeable_inventory(self):
+        return {
+            "schema": "fidelity-suite/%s-chargeable-inventory.v1"
+                      % self.provider,
+            "provider": self.provider,
+            "observed_at_utc": time.strftime(
+                "%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "complete": True,
+            "unknown_families": [],
+            "families": {
+                "instances": {"complete": True, "resources": []},
+                "network_volumes": {
+                    "complete": True, "resources": list(self.volumes)},
+            },
+        }
 
     def reconcile_billing(self, lease):
         return {"reconciled": True, "provider": lease["create"]["provider"],
                 "evidence": "authoritative empty-create billing query"}
+
+
+class GenericProvider(EmptyProvider):
+    """A conforming adapter for ANY provider, with instances that can die.
+
+    Everything the sweep touches is provider-native: the inventory schema
+    carries the provider's own name, the compute family is called whatever
+    that provider calls it, and the billing retrieval identity is not a
+    RunPod 24-hex id.  If the sweep still settles this lease, a conforming
+    adapter gets a working sweep with no controller change -- which is the
+    condition for a paid measurement to be allowed on a provider at all.
+    """
+
+    def __init__(self, provider, instances, *, family="instances",
+                 volumes=None, complete=True):
+        EmptyProvider.__init__(self, provider=provider, volumes=volumes)
+        self.instances = list(instances)
+        self.family = family
+        self.complete = complete
+        self.billing_reads = 0
+
+    def list_instances(self):
+        return list(self.instances)
+
+    def destroy(self, provider_id):
+        self.destroyed.append(str(provider_id))
+        self.instances = [item for item in self.instances
+                          if str(item["id"]) != str(provider_id)]
+
+    def chargeable_inventory(self):
+        inventory = EmptyProvider.chargeable_inventory(self)
+        inventory["families"] = {
+            self.family: {
+                "complete": self.complete,
+                "resources": list(self.instances) if self.complete else [],
+            },
+            "network_volumes": {
+                "complete": True, "resources": list(self.volumes)},
+        }
+        inventory["complete"] = self.complete
+        inventory["unknown_families"] = [] if self.complete else [self.family]
+        return inventory
+
+    def reconcile_billing(self, lease):
+        self.billing_reads += 1
+        return {
+            "reconciled": True,
+            "provider": lease["create"]["provider"],
+            "provider_resource_ids": lease["provider_resource_ids"],
+            "total_amount": "0.42",
+            "evidence": {
+                "schema": "fidelity-suite/%s-billing-retrieval.v1"
+                          % self.provider,
+                "retrieval_id": "invoice-%d" % self.billing_reads,
+                "retrieved_at_utc": "1970-01-01T01:00:00Z",
+            },
+        }
+
+
+def generic_sweep_cases():
+    """The reaper is per-provider, driven through the contract only.
+
+    WITHOUT AN AUTONOMOUS TEARDOWN BACKSTOP NO PAID MEASUREMENT MAY RUN ON A
+    PROVIDER AT ALL: a controller death leaks a billing instance.  Before
+    this, `reap_once` skipped the authoritative inventory for every provider
+    but RunPod, so a non-RunPod lease could be declared absent from a
+    lifecycle listing alone -- and no non-RunPod sweep existed at the CLI.
+    """
+    print("\n== a conforming non-RunPod adapter gets the sweep for free ==")
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        store = LeaseStore(root / "vast", clock=lambda: 1000.0)
+        ref = begin(store, "9", provider="vast")
+        exact = store.read(ref)["create"]["exact_name"]
+        live = {"id": "vast-instance-1", "name": exact, "status": "running"}
+        provider = GenericProvider("vast", [live])
+        ref = store.record_create_success(
+            ref, {"id": "vast-instance-1", "name": exact})
+        early = reap_once(store, {"vast": provider}, now=1001.0)
+        check("a live non-RunPod instance inside its deadline is left alone",
+              early.ok and provider.destroyed == []
+              and store.read(ref)["state"] == ACTIVE, early.to_dict())
+        late = reap_once(store, {"vast": provider}, now=10 ** 6)
+        document = store.read(ref)
+        proof = ((document.get("history") or [])
+                 and [event for event in document["history"]
+                      if event["event"]
+                      == "EXACT_IDS_ABSENT_FROM_COMPLETE_LISTING"])
+        check("past its reap deadline it is destroyed, proven absent from a "
+              "complete PROVIDER-NATIVE inventory, and settled",
+              late.ok and provider.destroyed == ["vast-instance-1"]
+              and document["state"] == TERMINAL
+              and document["billing_reconciliation"]["total_amount"] == "0.42",
+              late.to_dict())
+        check("...and the absence proof is sealed under the provider's own "
+              "schema, with both views named generically",
+              bool(proof)
+              and proof[-1]["evidence"]["authoritative_inventory"]["schema"]
+              == "fidelity-suite/vast-absence-inventory.v2"
+              and set(proof[-1]["evidence"]["authoritative_inventory"])
+              >= {"lifecycle_ids", "inventory_ids"})
+
+        # An INCOMPLETE inventory is an outage, never absence.  This is the
+        # whole reason chargeable_inventory reports completeness explicitly
+        # instead of implying it.
+        partial_store = LeaseStore(root / "partial", clock=lambda: 1000.0)
+        partial = begin(partial_store, "8", provider="vast")
+        partial_name = partial_store.read(partial)["create"]["exact_name"]
+        partial = partial_store.record_create_success(
+            partial, {"id": "vast-instance-2", "name": partial_name})
+        partial_provider = GenericProvider(
+            "vast", [{"id": "vast-instance-2", "name": partial_name,
+                      "status": "running"}], complete=False)
+        partial_result = reap_once(
+            partial_store, {"vast": partial_provider}, now=10 ** 6)
+        check("an incomplete inventory cannot prove absence: the sweep fails "
+              "loudly and keeps the lease",
+              not partial_result.ok
+              and partial_store.read(partial)["state"] == ACTIVE
+              and any("incomplete" in failure["error"]
+                      for failure in partial_result.failures),
+              partial_result.to_dict())
+
+        # A provider with no inventory at all is the same: an outage.
+        blind_store = LeaseStore(root / "blind", clock=lambda: 1000.0)
+        blind = begin(blind_store, "7", provider="lambda")
+        blind_name = blind_store.read(blind)["create"]["exact_name"]
+        blind = blind_store.record_create_success(
+            blind, {"id": "lambda-1", "name": blind_name})
+
+        class NoInventory:
+            provider = "lambda"
+
+            def status(self):
+                return {"id": "acct-test"}
+
+            def list_instances(self):
+                return []
+
+        blind_result = reap_once(
+            blind_store, {"lambda": NoInventory()}, now=10 ** 6)
+        check("a provider that cannot enumerate what it charges for is an "
+              "OUTAGE, not an absence proof",
+              not blind_result.ok
+              and blind_store.read(blind)["state"] == ACTIVE
+              and any("chargeable inventory" in failure["error"]
+                      for failure in blind_result.failures),
+              blind_result.to_dict())
+
+        # The volume family is not decoration: on Lambda and JarvisLabs a
+        # filesystem outlives its instance, so an unreleased volume is a real
+        # chargeable leak and must stay visible in the proof.
+        volume_store = LeaseStore(root / "volumes", clock=lambda: 1000.0)
+        vol_ref = begin(volume_store, "6", provider="lambda")
+        vol_name = volume_store.read(vol_ref)["create"]["exact_name"]
+        vol_ref = volume_store.record_create_success(
+            vol_ref, {"id": "lambda-2", "name": vol_name})
+        vol_provider = GenericProvider(
+            "lambda",
+            [{"id": "lambda-2", "name": vol_name, "status": "active"}],
+            volumes=[{"id": "fs-1", "name": "root-capture-fs"}])
+        vol_result = reap_once(
+            volume_store, {"lambda": vol_provider}, now=10 ** 6)
+        check("a surviving filesystem does not block teardown but is counted "
+              "in the inventory the absence proof digests",
+              vol_result.ok and vol_provider.destroyed == ["lambda-2"]
+              and volume_store.read(vol_ref)["state"] == TERMINAL,
+              vol_result.to_dict())
+
 
 class StatefulProvider:
     def __init__(
@@ -603,7 +808,8 @@ def copy_reaper_source_tree(destination):
                  destination / "reap_cloud_leases.py")
     for name in (
             "__init__.py", "cloudlease.py", "campaign.py", "common.py",
-            "runpodapi.py", "jlapi.py", "sshbase.py"):
+            "providers.py", "runpodapi.py", "vastapi.py", "lambdaapi.py",
+            "jlapi.py", "sshbase.py"):
         shutil.copy2(ROOT / "bin" / "fidelity" / name, fidelity / name)
     for path in [destination / "reap_cloud_leases.py"] + list(
             fidelity.iterdir()):
@@ -800,9 +1006,9 @@ def reaper_cases():
         check("direct cleanup refuses GraphQL/REST identity disagreement",
               raises(
                   LeaseError,
-                  lambda: runpod_authoritative_listing(
-                      conflict_provider, conflict_provider.list_instances(),
-                      "acct-test",
+                  lambda: authoritative_listing(
+                      "runpod", conflict_provider,
+                      conflict_provider.list_instances(), "acct-test",
                       inventory=conflict_provider.chargeable_inventory())))
 
         acknowledged_store = LeaseStore(
@@ -822,9 +1028,9 @@ def reaper_cases():
                 {"id": "rest-only-duplicate", "name": acknowledged_name,
                  "status": "RUNNING"},
             ])
-        acknowledged_union, unused_proof = runpod_authoritative_listing(
-            acknowledged_provider, acknowledged_provider.list_instances(),
-            "acct-test",
+        acknowledged_union, unused_proof, unused_vols = authoritative_listing(
+            "runpod", acknowledged_provider,
+            acknowledged_provider.list_instances(), "acct-test",
             inventory=acknowledged_provider.chargeable_inventory())
         acknowledged_ref = acknowledged_store.bind_post_create_inventory(
             acknowledged_ref, acknowledged_union)
@@ -1128,7 +1334,7 @@ def reaper_cases():
             "--provider", "runpod", "--sweep",
             "--lease-dir", str(lease_health_dir),
             "--reaper-state-dir", str(health_dir),
-            "--runpod-key-file", str(root / "key"),
+            "--key-file", str(root / "key"),
         ]
         install_systemd_user_timer(
             source_command, lease_dir=lease_health_dir,
@@ -1213,8 +1419,11 @@ def reaper_cases():
             "bin/fidelity/cloudlease.py",
             "bin/fidelity/campaign.py",
             "bin/fidelity/common.py",
+            "bin/fidelity/providers.py",
             "bin/fidelity/jlapi.py",
+            "bin/fidelity/lambdaapi.py",
             "bin/fidelity/runpodapi.py",
+            "bin/fidelity/vastapi.py",
             "bin/fidelity/sshbase.py",
         }
         # Control seals the runtime snapshot the timer executes.  The
@@ -1228,7 +1437,8 @@ def reaper_cases():
               and "source_files" not in health["stamp"]["control"]
               and str(root) not in stamp_raw
               and {"__init__.py", "cloudlease.py", "campaign.py", "common.py",
-                   "jlapi.py", "runpodapi.py", "sshbase.py",
+                   "jlapi.py", "lambdaapi.py", "providers.py", "runpodapi.py",
+                   "sshbase.py", "vastapi.py",
                    "reap_cloud_leases.py"} == source_names == runtime_names
               and expected_public_names == public_runtime_names
               and health["source_drift"] == {
@@ -1236,7 +1446,7 @@ def reaper_cases():
         check("template service is generic and carries no key material",
               "%i" in template_service_text
               and "ExecStart" not in template_service_text
-              and "--runpod-key-file" not in template_service_text
+              and "--key-file" not in template_service_text
               and "PYTHONNOUSERSITE=1" in template_service_text
               and "UMask=0077" in template_service_text)
         check("template timer targets the instance via %%i",
@@ -1254,12 +1464,12 @@ def reaper_cases():
               and '"-I"' in dropin_text and '"-S"' in dropin_text
               and "WorkingDirectory=%s\n" % health_dir in dropin_text
               and 'WorkingDirectory="' not in dropin_text
-              and "--runpod-key-file" in dropin_text
+              and "--key-file" in dropin_text
               and str(root / "key") in dropin_text
               and control_manifest["runtime_root"]
               == str(runtime_entry.parent))
         check("template service carries no key-file path",
-              "--runpod-key-file" not in template_service_text
+              "--key-file" not in template_service_text
               and "api_key" not in template_service_text)
         check("installer starts immutable oneshot before health is trusted",
               "--user start fidelity-cloud-reaper@runpod.service"
@@ -1406,7 +1616,7 @@ def reaper_cases():
             "--provider", "runpod", "--sweep",
             "--lease-dir", str(t_lease_dir),
             "--reaper-state-dir", str(t_health_dir),
-            "--runpod-key-file", str(template_root / "key"),
+            "--key-file", str(template_root / "key"),
         ]
         install_result = install_systemd_user_timer(
             t_source_command, lease_dir=t_lease_dir,
@@ -1424,9 +1634,9 @@ def reaper_cases():
               and "%i" in t_template_tmr.read_text(encoding="utf-8")
               and "ExecStart" not in t_template_svc.read_text(
                   encoding="utf-8")
-              and "--runpod-key-file" not in t_template_svc.read_text(
+              and "--key-file" not in t_template_svc.read_text(
                   encoding="utf-8")
-              and "--runpod-key-file" in t_dropin.read_text(
+              and "--key-file" in t_dropin.read_text(
                   encoding="utf-8"))
         check("template rendering: control and health are per-provider files",
               (t_health_dir / "reaper-control-runpod.json").is_file()
@@ -2916,6 +3126,7 @@ def stage_progress_case():
 def main():
     lease_core_cases()
     reaper_cases()
+    generic_sweep_cases()
     runpod_cases()
     watchdog_case()
     stage_pgid_race_case()

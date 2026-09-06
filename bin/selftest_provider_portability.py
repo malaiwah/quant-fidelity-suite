@@ -536,13 +536,28 @@ check("ssh path has no args field", "args" not in _ssh)
 check("ssh path onstart is empty", _ssh.get("onstart") == "")
 check("ssh path env is empty dict", _ssh.get("env") == {})
 
+def _provider_action():
+    for action in mc.build_parser()._actions:
+        if "--provider" in getattr(action, "option_strings", ()):
+            return action
+    raise AssertionError("--provider is not a parser option any more")
+
+
+def _provider_choices():
+    return tuple(_provider_action().choices or ())
+
+
+def _provider_default():
+    return _provider_action().default
+
+
 # ---------------------------------------------------------------- CONFORMANCE
 # A provider you can RENT from is not a provider you can PUBLISH from. The
 # controller drives a provider through a fixed surface, and the difference
-# between the two is these twelve methods: four that prove the live resource is
-# the one requested (and, via attest_live_resource, that it is the DEVICE the
-# root was captured on), four that prove nothing of ours is still alive, and
-# four that reconcile what it cost against the provider's own clock and billing.
+# between the two is twelve methods: four that prove the live resource is the
+# one requested (and, via attest_live_resource, that it is the DEVICE the root
+# was captured on), four that prove nothing of ours is still alive, and four
+# that reconcile what it cost against the provider's own clock and billing.
 #
 # Provider is not a comparability axis -- two A100s in two clouds agree bitwise
 # (docs/ARCHITECTURE-DETERMINISM.md), and four GLM-5.3-Flash rows landed on one
@@ -550,68 +565,136 @@ check("ssh path env is empty dict", _ssh.get("env") == {})
 # science, not convenience. What blocks it is that we cannot yet prove what we
 # rented, prove it is gone, or reconcile its cost on any provider but RunPod.
 #
-# This rung is offline and contacts nothing. docs/PROVIDER-PARITY.md carries the
-# per-provider blockers and the definition of done.
-PROVIDER_CONTRACT = (
-    # is this the thing I asked for?
-    "prepare_safe_create", "submit_prepared_create",
-    "validate_safe_resource_binding", "attest_live_resource",
-    # is anything of mine still alive?
-    "list_lifecycle_resources", "get_lifecycle_resource",
-    "list_network_volumes", "chargeable_inventory",
-    # what did it cost, and whose clock says so?
-    "server_time_evidence", "ssh_host_ed25519_fingerprint",
-    "billing_history", "reconcile_billing",
-)
+# The table lives in bin/fidelity/providers.py, which the CONTROLLER also
+# reads, so a declaration cannot disagree with behaviour. It was here, beside
+# a controller that hardcoded "runpod" in three places, and the two halves
+# could drift silently.
+#
+# Parity is a PREDICATE, not a label: all twelve implemented AND a paid
+# execution entrypoint AND an empty blocker tuple. Method conformance is
+# COMPUTED from the adapter class and never declared, so an adapter reaching
+# twelve-of-twelve needs no table edit and a table cannot claim conformance it
+# does not have. What is declared is only the residue no offline test can
+# compute, and a provider is enabled by DELETING a blocker line.
+#
+# This rung is offline and contacts nothing. docs/PROVIDER-PARITY.md carries
+# the per-provider blockers and the definition of done.
+from fidelity import providers as P                          # noqa: E402
 
-
-def _adapter_classes():
-    from fidelity.runpodapi import RunPod
-    from fidelity.vastapi import Vast
-    from fidelity.lambdaapi import LambdaCloud
-    from fidelity.jlapi import JL
-    return (("runpod", RunPod), ("vast", Vast),
-            ("lambda", LambdaCloud), ("jarvislabs", JL))
-
-
-# Each provider DECLARES its level, and the rung enforces the declaration in
-# BOTH directions: a provider claiming parity must have all twelve, and one
-# claiming not-yet must really be missing at least one. That way the list
-# cannot silently lag an implementation, and implementing the twelve without
-# flipping the declaration -- which would leave the controller still refusing
-# the provider for no reason -- fails here.
-PROVIDER_PARITY = {
-    "runpod": "reference",      # the implementation the contract is read from
-    "vast": "not-yet",          # blocker: no reaper sweep, so no teardown backstop
-    "lambda": "not-yet",        # blocker: the twelve, plus the root fit arithmetic
-    "jarvislabs": "historical",  # reaper cleanup of old leases only
-}
+PROVIDER_CONTRACT = P.PROVIDER_CONTRACT
 
 print()
 print("== provider contract conformance (offline) ==")
-for _name, _cls in _adapter_classes():
-    _missing = [m for m in PROVIDER_CONTRACT if not callable(getattr(_cls, m, None))]
-    _level = PROVIDER_PARITY[_name]
-    if _level in ("reference", "parity"):
-        check("%s declares %s, so it must implement all %d contract methods%s"
-              % (_name, _level, len(PROVIDER_CONTRACT),
-                 "" if not _missing else " -- missing %d: %s"
-                 % (len(_missing), ", ".join(_missing))),
-              not _missing)
-    else:
-        check("%s declares %s and the declaration is accurate (%d of %d "
-              "contract methods still missing; see docs/PROVIDER-PARITY.md) -- "
-              "implement them and flip this declaration together"
-              % (_name, _level, len(_missing), len(PROVIDER_CONTRACT)),
-              bool(_missing))
-# RunPod is the reference: if IT fails above, the contract list has drifted
-# from the implementation and the LIST is what is wrong.
+check("the table lives in bin/fidelity/providers.py, which the controller "
+      "reads too (a declaration cannot disagree with behaviour)",
+      mc._providers() is P)
+check("the CLI's --provider choices ARE the declared providers",
+      set(_provider_choices()) == set(P.PROVIDERS))
+check("every provider the CLI accepts appears in the blocker table",
+      set(P.PROVIDER_BLOCKERS) == set(P.PROVIDERS)
+      and set(P.PROVIDER_DEGRADATIONS) == set(P.PROVIDERS))
+# RunPod is the reference: if IT is missing a contract method, the LIST has
+# drifted from the implementation and the list is what is wrong.
 check("the contract names only methods RunPod actually has (the list cannot "
       "drift from the reference implementation)",
-      not [m for m in PROVIDER_CONTRACT
-           if not callable(getattr(_adapter_classes()[0][1], m, None))])
-check("every provider the CLI accepts has a declared parity level",
-      set(PROVIDER_PARITY) == {"jarvislabs", "runpod", "vast", "lambda"})
+      not P.missing_contract_methods("runpod"))
+check("the sweep's required methods are a subset of the twelve, plus the easy "
+      "surface -- a sweep cannot require something no adapter is asked for",
+      set(P.SWEEP_CONTRACT) <= set(P.PROVIDER_CONTRACT))
+
+for _name in P.PROVIDERS:
+    _missing = P.missing_contract_methods(_name)
+    _blockers = P.blockers(_name)
+    _ready = P.measurement_ready(_name)
+    _refusal = P.measurement_refusal(_name)
+    # A blocker nobody can read is a blocker nobody will clear.
+    for _text in _blockers + P.degradations(_name):
+        check("%s declares an explanatory blocker/degradation, not a flag "
+              "(%r)" % (_name, _text[:48]),
+              isinstance(_text, str) and len(_text) >= 40 and " " in _text)
+    # BOTH DIRECTIONS. Ready means nothing is missing and nothing is
+    # declared; not ready means the refusal NAMES the reason.
+    if _ready:
+        check("%s is dispatchable, so it must have all %d contract methods, "
+              "an execution entrypoint and no blockers"
+              % (_name, len(PROVIDER_CONTRACT)),
+              not _missing and not _blockers
+              and _name in P.EXECUTION_ENTRYPOINTS
+              and _refusal is None)
+        check("...and its entrypoint resolves to a real controller function",
+              callable(P.execution_entrypoint(_name, mc)))
+    else:
+        check("%s is refused, and something really does block it (%d of %d "
+              "methods missing, %d declared blocker(s))"
+              % (_name, len(_missing), len(PROVIDER_CONTRACT), len(_blockers)),
+              bool(_missing) or bool(_blockers)
+              or _name not in P.EXECUTION_ENTRYPOINTS)
+        _text = str(_refusal)
+        check("...and the refusal names the real reason and points at the "
+              "parity doc, rather than naming a provider",
+              _refusal is not None and P.PARITY_DOC in _text
+              and all(method in _text for method in _missing)
+              and all(blocker in _text for blocker in _blockers))
+
+# A DECLARATION THAT LIES MUST GO RED. The old gate was verified to fail
+# (rc 1) when a level disagreed with the code; the equivalent property here is
+# that emptying a blocker tuple while methods are missing must make the
+# provider claim dispatchability it does not have.
+_liar = next(name for name in P.PROVIDERS
+             if P.missing_contract_methods(name))
+_saved_blockers = P.PROVIDER_BLOCKERS[_liar]
+_saved_entry = dict(P.EXECUTION_ENTRYPOINTS)
+try:
+    P.PROVIDER_BLOCKERS[_liar] = ()
+    P.EXECUTION_ENTRYPOINTS[_liar] = "_main_runpod"
+    check("a provider with no blockers but missing methods is STILL refused "
+          "(the method half is computed, so a table cannot lie about it)",
+          P.measurement_refusal(_liar) is not None
+          and not P.measurement_ready(_liar))
+finally:
+    P.PROVIDER_BLOCKERS[_liar] = _saved_blockers
+    P.EXECUTION_ENTRYPOINTS.clear()
+    P.EXECUTION_ENTRYPOINTS.update(_saved_entry)
+check("...and the table is restored after that probe",
+      P.PROVIDER_BLOCKERS[_liar] == _saved_blockers
+      and P.EXECUTION_ENTRYPOINTS == _saved_entry)
+
+print()
+print("== the controller's refusals are derived, not hardcoded ==")
+_mc_src = open(os.path.join(here, "measure_cloud.py"), encoding="utf-8").read()
+check("no refusal text hardcodes 'requires explicit --provider runpod'",
+      "requires explicit --provider runpod" not in _mc_src)
+check("the drill's refusal says what a provider without one may still do, "
+      "instead of 'RunPod-only'",
+      "drill subcommand is RunPod-only" not in _mc_src
+      and "not under strict" in _mc_src)
+check("the reaper no longer advertises RunPod + historical JarvisLabs as the "
+      "only sweeps",
+      "reaper supports RunPod and historical JarvisLabs cleanup"
+      not in _mc_src)
+check("'historical' is not a parity level any more (one axis: can this "
+      "publish a number)",
+      "historical" not in repr(P.PROVIDER_BLOCKERS))
+# --provider must keep NO default: fcb9470 removed one that made two
+# refusals unreachable.
+check("--provider still has no default (a guessed account bills the wrong "
+      "person)", _provider_default() is None)
+for _cmd in (["reaper", "--list"], ["drill"]):
+    check("`measure-cloud %s` with no --provider refuses" % " ".join(_cmd),
+          mc.main(_cmd) == mc.EXIT_REFUSED)
+check("a non-conforming provider's reaper sweep is refused, naming the "
+      "methods a sweep needs",
+      P.sweep_refusal("lambda") is not None
+      and "chargeable_inventory" in str(P.sweep_refusal("lambda")))
+check("...and RunPod's sweep is admitted",
+      P.sweep_refusal("runpod") is None
+      and P.reaper_refusal("runpod") is None)
+check("JarvisLabs keeps its legacy lease sweep while the generic one is "
+      "unproven against an old lease shape",
+      "jarvislabs" in P.LEGACY_SWEEP_PROVIDERS
+      and P.reaper_refusal("jarvislabs") is None)
+check("--role candidate still normalises to root (one code path)",
+      "args.role = \"root\"" in _mc_src)
 print()
 if FAILED:
     print("selftest_provider_portability: %d FAILED" % len(FAILED))

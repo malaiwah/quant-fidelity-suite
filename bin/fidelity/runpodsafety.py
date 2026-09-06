@@ -536,7 +536,8 @@ def validate_safety_proof(path, bundle_manifest_sha256,
                           control_manifest_sha256, provider_account_id,
                           campaign_ledger_path, *, now=None):
     """Aggregate real drill artifacts; this function never generates evidence."""
-    from .cloudlease import LeaseStore, TERMINAL, HEALTH_SCHEMA
+    from .cloudlease import (
+        CONTROL_CLOSURE_PATHS, LeaseStore, TERMINAL, HEALTH_SCHEMA)
     from .resultsink import verify_archive
 
     for label, value in (("bundle", bundle_manifest_sha256),
@@ -1083,16 +1084,13 @@ def validate_safety_proof(path, bundle_manifest_sha256,
             "deadline destroy")
     source_files = control["source_files"]
     runtime_files = control["runtime_files"]
-    allowed_control_paths = {
-        "bin/reap_cloud_leases.py",
-        "bin/fidelity/__init__.py",
-        "bin/fidelity/cloudlease.py",
-        "bin/fidelity/campaign.py",
-        "bin/fidelity/common.py",
-        "bin/fidelity/runpodapi.py",
-        "bin/fidelity/jlapi.py",
-        "bin/fidelity/sshbase.py",
-    }
+    # One source of truth: the closure the installer seals
+    # (`cloudlease.CONTROL_CLOSURE_PATHS`).  This list was a second copy, and
+    # a second copy of a closure is how a proof starts attesting a reaper that
+    # is not the one installed.  A drill proof is per-checkout anyway -- lines
+    # below require the installed source to equal the current bytes -- so a
+    # controller change already requires a fresh drill.
+    allowed_control_paths = set(CONTROL_CLOSURE_PATHS)
     for label, rows in (
             ("source", source_files), ("runtime", runtime_files)):
         if (not isinstance(rows, list) or not rows
