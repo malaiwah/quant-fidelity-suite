@@ -1,0 +1,22 @@
+{
+  "dataset_sha256": "889c5cb8087e2da8f656dddc2e5f7dcc27415c6689df15dc0da8531ce2354211",
+  "execution_kind": "runpod-ssh",
+  "local_execution": null,
+  "private": false,
+  "publication_source": "result-archive",
+  "published_at": "2026-09-05T23:39:41Z",
+  "published_dataset_sha256": "889c5cb8087e2da8f656dddc2e5f7dcc27415c6689df15dc0da8531ce2354211",
+  "published_qualification_file_sha256": "dbe9c02ea00a5f481767a555abaf7ca4ebf959d556a9547aaefdac5e995079e7",
+  "qualification_file_sha256": "dbe9c02ea00a5f481767a555abaf7ca4ebf959d556a9547aaefdac5e995079e7",
+  "qualification_receipt_sha256": "6c3b31fc305a245c3eb8d28935f31075a6d75d8d097dc51051cb23f0e41623f7",
+  "receipt_sha256": "5eb8857300f332f67310b01db88d06a4f050f49f5d29da1ad3ec7d22eda208a6",
+  "repository": "malaiwah/glm52-fidelity-exl3-tr3-3.0bpw-brandonmusic-v1",
+  "result_archive_bytes": 5073843943,
+  "result_archive_sha256": "28b35390c02e5358ce1035bf8c4298ab71cd5d95524b1af3cf199538e6e120b0",
+  "revision": "e4345aa35c1afe5f3ff23aacd7ed35c87d5b0f66",
+  "revision_immutable": true,
+  "schema": "fidelity.publish-root-receipt.v2",
+  "verified_after_publish": true,
+  "verified_anonymously": true,
+  "verified_revision": "e4345aa35c1afe5f3ff23aacd7ed35c87d5b0f66"
+}
