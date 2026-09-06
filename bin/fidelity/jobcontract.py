@@ -1078,7 +1078,7 @@ def validate_root_qualification_contract(contract: dict) -> None:
     # form the streaming loader decodes, and its target identity must say
     # exactly that (surface, codec and bits agree with the candidate block).
     if candidate is None:
-        expected_target = ("native-bf16", "bf16", 16)
+        expected_target = (("native-bf16",), "bf16", 16)
     else:
         # The surface follows the decode the candidate block declares, rather
         # than being assumed FP8: the streaming loader decodes block-scaled
@@ -1088,24 +1088,33 @@ def validate_root_qualification_contract(contract: dict) -> None:
         # this contract has never seen and refuses by name rather than
         # defaulting.
         decode = candidate.get("weights_decode") or {}
+        # One decode can be sniffed as more than one SURFACE when a publisher
+        # ships the same trellis payload under its own layout: malaiwah's TR3
+        # releases sniff as `tr3-published` (hfmeta reads their
+        # materialization-receipt.json + exl3-mcg-storage-abi.json) while a
+        # stock exllamav3 tree sniffs as `exl3hf`, and bin/engines.json lists
+        # both on the streaming lane. The decode is the same
+        # exl3-trellis-*-to-bf16 path, so both are admissible for it -- and
+        # the admissible SET is what this map carries, so the test below stays
+        # an exact membership check rather than a special case.
         surfaces = {
-            "fp8-block-dequant-to-bf16": "fp8-block",
-            "exl3-trellis-decode-to-bf16": "exl3hf",
-            "exl3-trellis-tp-compose-to-bf16": "exl3hf",
-            "nvfp4-modelopt-dequant-to-bf16": "nvfp4",
-            "gguf-dequant-to-bf16": "gguf",
+            "fp8-block-dequant-to-bf16": ("fp8-block",),
+            "exl3-trellis-decode-to-bf16": ("exl3hf", "tr3-published"),
+            "exl3-trellis-tp-compose-to-bf16": ("exl3hf", "tr3-published"),
+            "nvfp4-modelopt-dequant-to-bf16": ("nvfp4",),
+            "gguf-dequant-to-bf16": ("gguf",),
         }
-        surface = surfaces.get(str(decode.get("method")))
-        if surface is None:
+        admissible = surfaces.get(str(decode.get("method")))
+        if admissible is None:
             raise JobContractError(
                 "root qualification candidate declares decode method %r, which "
                 "maps to no known target surface (known: %s)"
                 % (decode.get("method"), ", ".join(sorted(surfaces))))
-        expected_target = (surface, candidate["codec"], candidate["declared_bits"])
+        expected_target = (admissible, candidate["codec"], candidate["declared_bits"])
     # A GGUF repo is a shelf of builds; the target names the ONE build directory
     # in `path` (the same string the decode contract's `build` carries). Every
     # other surface is a whole repository and `path` must be null.
-    gguf_build = (expected_target[0] == "gguf")
+    gguf_build = (expected_target[0] == ("gguf",))
     path_ok = (
         (isinstance(target.get("path"), str) and target["path"]
          and "/" not in target["path"].strip("/") and target["path"] not in (".", "..")
@@ -1120,7 +1129,7 @@ def validate_root_qualification_contract(contract: dict) -> None:
             or not isinstance(target.get("repo_id"), str)
             or not target["repo_id"]
             or _HEX40.fullmatch(str(target.get("revision", ""))) is None
-            or target.get("surface") != expected_target[0]
+            or target.get("surface") not in expected_target[0]
             or target.get("codec") != expected_target[1]
             or target.get("bits") != expected_target[2]
             or not path_ok):

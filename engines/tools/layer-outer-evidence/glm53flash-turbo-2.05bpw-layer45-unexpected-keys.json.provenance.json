@@ -1,0 +1,16 @@
+{
+ "architecture": "Glm5NextForConditionalGeneration",
+ "artifact_sha256": "a7cb4c54017ed1e6785f57056c78474e3704cab4b369c146e1f0e31ed1f2282f",
+ "canonical_sorted_names_sha256": "5656fb6bc90c63864213a398bfb29a9dfe7b5efc78b73344d0bfbac927ed4afb",
+ "config_sha256": "43921c0b6dd51805a243649a647417230ef9cb9ba8e26ae06a461c3f7e08d037",
+ "count": 3508,
+ "decoder_layers": 45,
+ "derived_at_utc": "2026-09-06T05:14:13Z",
+ "derived_by": "index census: every key of model.language_model.layers.45 (the block Glm5NextForConditionalGeneration never builds; num_hidden_layers is 45); engines/tools/index_census_allowlist.py",
+ "derived_from": "turboderp/GLM-5.3-Flash-exl3@51058cd551c7e570d87bd32a4adee720edce2349 model.safetensors.index.json",
+ "index_sha256": "9509363becd75ed23fc60fd678cd4dd3de214c4fa4df177f8d13ab7a09bc4ecb",
+ "per_layer_unexpected_counts": {
+  "45": 3508
+ },
+ "relation_to_bf16_allowlist": "the non-expert names are the MTP block Glm5NextForConditionalGeneration never builds (text_config.num_hidden_layers is 45); turboderp quantizes layer 45's routed experts as exl3 mul1 payload, so the census includes those payloads plus non-expert tensors; turboderp also quantizes lm_head (head_bits=5)"
+}

@@ -1,0 +1,16 @@
+{
+ "architecture": "Glm5NextForConditionalGeneration",
+ "artifact_sha256": "1fbe3c6978153b8e1d7e0c0630fe163c53e56efed4f2dfdafc88fe69f670c981",
+ "canonical_sorted_names_sha256": "37b68b125e58910a7e1e32b8cd7323e3c5affa208238d31a773f447bf608217c",
+ "config_sha256": "312fa139ec0fbcf789678660331b4ea3775f3d637041102fc5ccb3825538fdee",
+ "count": 3481,
+ "decoder_layers": 45,
+ "derived_at_utc": "2026-09-06T05:14:13Z",
+ "derived_by": "index census: every key of model.language_model.layers.45 (the block Glm5NextForConditionalGeneration never builds; num_hidden_layers is 45); engines/tools/index_census_allowlist.py",
+ "derived_from": "malaiwah/GLM-5.3-Flash-TR3-8bpw@7199f6f1a211084c240614806f046f11a52dad64 model.safetensors.index.json",
+ "index_sha256": "fcec67b437756a72edf489f9be583bf8580bb83e50a5b0a830f0489bd9b1df4b",
+ "per_layer_unexpected_counts": {
+  "45": 3481
+ },
+ "relation_to_bf16_allowlist": "the 25 non-expert names are the MTP block Glm5NextForConditionalGeneration never builds (text_config.num_hidden_layers is 45); TR3-8bpw quantizes layer 45's routed experts as exl3 trellis payload groups, so the census includes those 864 expert payloads (864 modules x {trellis,suh,svh,mcg} = 3456) plus 25 non-expert tensors; no weight_scale_inv siblings"
+}

@@ -1106,6 +1106,51 @@ def rung_candidate():
               "candidate block and fp8-block target",
               contract["candidate"]["codec"] == "fp8_e4m3"
               and contract["target"]["surface"] == "fp8-block")
+        # R60b: one decode can be sniffed as more than one SURFACE. A trellis
+        # payload published under malaiwah's own layout sniffs as
+        # `tr3-published` (hfmeta reads its materialization receipt + storage
+        # ABI) while a stock exllamav3 tree sniffs as `exl3hf`; both sit on the
+        # streaming lane in bin/engines.json and both are the same
+        # exl3-trellis-*-to-bf16 decode. The contract carries the admissible
+        # SET per method, so the membership test stays exact: a surface no
+        # method admits still refuses, and an unknown method still refuses by
+        # name (2026-09-06: a Flash re-measure prep hit this and the first fix
+        # special-cased it inline).
+        import copy as _copy
+        for method in ("exl3-trellis-decode-to-bf16", "exl3-trellis-tp-compose-to-bf16"):
+            for surface in ("exl3hf", "tr3-published"):
+                j = _copy.deepcopy(job)
+                j["capture"]["candidate"]["weights_decode"]["method"] = method
+                j["capture"]["candidate"]["codec"] = "exl3-mcg"
+                j["capture"]["candidate"]["declared_bits"] = 3.0
+                j["target"]["surface"] = surface
+                j["target"]["codec"] = "exl3-mcg"
+                j["target"]["bits"] = 3.0
+                try:
+                    JC.root_qualification_contract(j)
+                    ok = True
+                except JC.JobContractError as exc:
+                    ok = "target contract differs" not in str(exc)
+                check("R60b %s admits surface %s" % (method.split("-to-")[0], surface), ok)
+        j_bad = _copy.deepcopy(job)
+        j_bad["capture"]["candidate"]["weights_decode"]["method"] = "exl3-trellis-decode-to-bf16"
+        j_bad["capture"]["candidate"]["codec"] = "exl3-mcg"
+        j_bad["capture"]["candidate"]["declared_bits"] = 3.0
+        j_bad["target"]["surface"] = "gguf"
+        j_bad["target"]["codec"] = "exl3-mcg"
+        j_bad["target"]["bits"] = 3.0
+        def _refuses(doc):
+            try:
+                JC.root_qualification_contract(doc)
+                return False
+            except JC.JobContractError:
+                return True
+        check("R60b a surface the decode does not admit still refuses",
+              _refuses(j_bad))
+        j_unknown = _copy.deepcopy(job)
+        j_unknown["capture"]["candidate"]["weights_decode"]["method"] = "made-up-decode"
+        check("R60b an unknown decode method still refuses, naming the known ones",
+              _refuses(j_unknown))
         summary = RS.build_summary(
             root, "capture", "qualified-unpublished",
             ["setup", "fetch_target", "fetch_reference", "capture", "verify",
