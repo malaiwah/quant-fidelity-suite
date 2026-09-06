@@ -877,11 +877,14 @@ def create_rungs(scratch: str) -> None:                     # noqa: C901
             "nvidia_smi_exit_code": 0, "nvidia_smi_error": "",
             "gpus": [{"index": 0, "name": "NVIDIA A100-SXM4-40GB",
                       "vram_bytes": 42_949_672_960,
+                      "vram_used_bytes": 0,
+                      "vram_free_bytes": 42_781_900_800,
                       "driver_version": "580.65.06"}],
             "cuda": {"available": True, "usable": True, "count": 1,
                      "name": "NVIDIA A100-SXM4-40GB",
                      "vram_bytes": 42_949_672_960,
                      "interpreter": "/usr/bin/python3", "error": None},
+            "compute_apps": [],
             "filesystems": {"root": disk,
                             "run_root": dict(disk, path="/home/ubuntu")},
             "run_root_write": {"writable": True, "error": None},
@@ -959,12 +962,45 @@ def create_rungs(scratch: str) -> None:                     # noqa: C901
           and "cuda_usable" in broken_torch["failures"])
     wrong_card = Box(payload(gpus=[{
         "index": 0, "name": "NVIDIA A100-PCIE-40GB",
-        "vram_bytes": 42_949_672_960,
+        "vram_bytes": 42_949_672_960, "vram_used_bytes": 0,
+        "vram_free_bytes": 42_781_900_800,
         "driver_version": "580.65.06"}])).attest_live_resource(
             LIVE_ID, **attest_kw)
     check("a DIFFERENT A100 variant is refused: the device model is what a "
           "comparison binds, not the catalogue name",
           wrong_card["ok"] is False and "gpu_model" in wrong_card["failures"])
+    # The oversubscribed card. Total VRAM is honest and useless: host 434175
+    # rented a "24 GB" 4090 with 23,424 of 24,564 MiB held by four foreign
+    # PIDs, and every total-based check passes it.
+    squatted = Box(payload(
+        gpus=[{"index": 0, "name": "NVIDIA A100-SXM4-40GB",
+               "vram_bytes": 42_949_672_960,
+               "vram_used_bytes": 40_000_000_000,
+               "vram_free_bytes": 2_949_672_960,
+               "driver_version": "580.65.06"}],
+        compute_apps=[{"gpu_uuid": "GPU-abc", "pid": 4242,
+                       "process_name": "python",
+                       "used_memory_bytes": 40_000_000_000}]))
+    document = squatted.attest_live_resource(LIVE_ID, **attest_kw)
+    check("an OVERSUBSCRIBED card is refused even though its TOTAL VRAM is "
+          "exactly right -- free VRAM is the attestable quantity",
+          document["ok"] is False
+          and "gpu_free_vram" in document["failures"]
+          and document["checks"]["gpu_vram"] is True)
+    check("...and the foreign PID holding it is RECORDED, because who else "
+          "was on the GPU is not knowable after the fact",
+          document["observed"]["compute_apps"][0]["pid"] == 4242
+          and "no_foreign_compute_apps" in document["failures"])
+    check("the free-VRAM floor defaults to 90% of the expected card, so it "
+          "gates without a caller remembering to ask",
+          document["expected"]["free_vram_bytes_minimum"]
+          == 42_949_672_960 * 9 // 10)
+    check("...and an explicit lower floor lets a caller accept a shared card "
+          "deliberately rather than by omission",
+          squatted.attest_live_resource(
+              LIVE_ID, **dict(attest_kw,
+                              free_vram_bytes_minimum=2 * 10 ** 9)
+              )["checks"]["gpu_free_vram"] is True)
     for over, failure, why in (
             ({"run_root_write": {"writable": False, "error": "EACCES"}},
              "run_root_writable", "an unwritable run root"),
@@ -976,6 +1012,8 @@ def create_rungs(scratch: str) -> None:                     # noqa: C901
              "no GPU at all"),
             ({"gpus": [{"index": 0, "name": "NVIDIA A100-SXM4-40GB",
                         "vram_bytes": 21_474_836_480,
+                        "vram_used_bytes": 0,
+                        "vram_free_bytes": 21_000_000_000,
                         "driver_version": "580.65.06"}]},
              "gpu_vram", "half the VRAM (a MiG slice or a mislabel)")):
         document = Box(payload(**over)).attest_live_resource(

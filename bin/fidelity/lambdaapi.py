@@ -478,20 +478,45 @@ with open("/proc/meminfo", "r", encoding="ascii") as stream:
             break
 if mem_kib is None:
     raise RuntimeError("MemTotal missing")
+# FREE VRAM, not total, is the attestable quantity. Host 434175 rented a
+# "24 GB" 4090 with 23,424 of its 24,564 MiB already held by four foreign
+# PIDs (DecoderParity, 2026-09-06): "24 GB card" was true and useless. So
+# memory.used and memory.free are read alongside memory.total, and the
+# compute-apps table is captured so a caller can see WHOSE processes hold the
+# card rather than only that something does.
 smi = subprocess.run(
     ["nvidia-smi",
-     "--query-gpu=index,name,memory.total,driver_version",
+     "--query-gpu=index,name,memory.total,memory.used,memory.free,"
+     "driver_version",
      "--format=csv,noheader,nounits"],
     stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=30)
 gpus = []
 if smi.returncode == 0:
     for line in smi.stdout.splitlines():
         fields = [item.strip() for item in line.split(",")]
-        if len(fields) == 4:
+        if len(fields) == 6:
             gpus.append({
                 "index": int(fields[0]), "name": fields[1],
                 "vram_bytes": int(fields[2]) * 1024 * 1024,
-                "driver_version": fields[3],
+                "vram_used_bytes": int(fields[3]) * 1024 * 1024,
+                "vram_free_bytes": int(fields[4]) * 1024 * 1024,
+                "driver_version": fields[5],
+            })
+apps = subprocess.run(
+    ["nvidia-smi",
+     "--query-compute-apps=gpu_uuid,pid,process_name,used_memory",
+     "--format=csv,noheader,nounits"],
+    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=30)
+compute_apps = []
+if apps.returncode == 0:
+    for line in apps.stdout.splitlines():
+        fields = [item.strip() for item in line.split(",")]
+        if len(fields) == 4 and fields[1].isdigit():
+            compute_apps.append({
+                "gpu_uuid": fields[0], "pid": int(fields[1]),
+                "process_name": fields[2][:120],
+                "used_memory_bytes": int(fields[3]) * 1024 * 1024
+                if fields[3].isdigit() else None,
             })
 CUDA_PROBE = (
     "import json, torch\n"
@@ -548,7 +573,7 @@ print(json.dumps({
     "memtotal_bytes": mem_kib * 1024,
     "nvidia_smi_exit_code": smi.returncode,
     "nvidia_smi_error": smi.stderr[:300],
-    "gpus": gpus, "cuda": cuda,
+    "gpus": gpus, "cuda": cuda, "compute_apps": compute_apps,
     "filesystems": {"root": mount("/"), "run_root": mount(RUN_ROOT)},
     "run_root_write": writable(RUN_ROOT),
 }, sort_keys=True, separators=(",", ":"), allow_nan=False))
@@ -1563,6 +1588,7 @@ class LambdaCloud(SSHTransport):
             storage_gib: int, root_available_bytes_minimum: int,
             run_root_available_bytes_minimum: int,
             expected_gpu_count: int = 1,
+            free_vram_bytes_minimum: Optional[int] = None,
             expected_ssh_key_names: Any = ()) -> Dict[str, Any]:
         """Read-only SSH proof that the box is the DEVICE the root wants.
 
@@ -1580,7 +1606,7 @@ class LambdaCloud(SSHTransport):
         evidence of reachability, so nothing here is inferred from `active`:
         the facts come from the box.
 
-        Three deliberate differences from the RunPod attestation:
+        Four deliberate differences from the RunPod attestation:
 
         * **Filesystem roles are VM roles.** `/` and the RUN root, not
           container-vs-workspace, and they may legitimately be the same
@@ -1596,6 +1622,19 @@ class LambdaCloud(SSHTransport):
         * **GPU count is a parameter.** Lambda sells 1x and 8x types under
           one naming scheme; demanding exactly one would refuse a correct 8x
           box and accept a mislabelled one.
+        * **FREE VRAM is gated, not just total.** `free_vram_bytes_minimum`
+          defaults to the same 90% of the expected card, so an oversubscribed
+          GPU is refused by default rather than only when a caller remembers
+          to ask, and `compute_apps` records which foreign processes hold it.
+          Total-only checks pass a "24 GB" card with 23,424 of 24,564 MiB
+          already taken by four other tenants' PIDs.
+
+        WHAT THIS DOES NOT DO: it performs no TLS peer attestation. On a
+        rented VM the host has root, and proving the box is talking to the
+        real huggingface.co is a separate, EARLIER step (`bin/fidelity/
+        tlsguard.py`, plus the pod-side check in bootstrap) that must hold
+        before any credential is transported. That gap is stated here rather
+        than filled with a field that would read as attested.
         """
         instance_id = _provider_id(provider_id)
         model = str(expected_gpu_model or "").strip()
@@ -1680,8 +1719,8 @@ class LambdaCloud(SSHTransport):
             exact_observed = {
                 "remote_time_epoch", "remote_time_utc", "login_user", "uid",
                 "logical_cpus", "memtotal_bytes", "nvidia_smi_exit_code",
-                "nvidia_smi_error", "gpus", "cuda", "filesystems",
-                "run_root_write",
+                "nvidia_smi_error", "gpus", "cuda", "compute_apps",
+                "filesystems", "run_root_write",
             }
             if set(observed) != exact_observed:
                 failures.append("live attestation keys differ")
@@ -1707,6 +1746,7 @@ class LambdaCloud(SSHTransport):
             rows = gpus if checks["nvidia_gpu_count"] else []
             if rows and any(
                     set(row) != {"index", "name", "vram_bytes",
+                                 "vram_used_bytes", "vram_free_bytes",
                                  "driver_version"} for row in rows):
                 failures.append("nvidia-smi GPU keys differ")
             names = [row.get("name") for row in rows if isinstance(row, dict)]
@@ -1721,6 +1761,33 @@ class LambdaCloud(SSHTransport):
             checks["gpu_vram"] = bool(vrams) and all(
                 isinstance(value, int) and not isinstance(value, bool)
                 and vram_floor <= value <= vram_ceiling for value in vrams)
+            # TOTAL VRAM is what the card has; FREE VRAM is what this run can
+            # use, and only the second is attestable. A "24 GB" 4090 with
+            # 23,424 of 24,564 MiB held by four foreign PIDs passes every
+            # total-based check and cannot run anything (DecoderParity, host
+            # 434175, 2026-09-06). The floor defaults to the same 90% of the
+            # expected card, so an oversubscribed card is refused by default
+            # rather than only when a caller remembers to ask.
+            free_floor = (expected_vram_bytes * 9 // 10
+                          if free_vram_bytes_minimum is None
+                          else _positive_int(free_vram_bytes_minimum,
+                                             "free_vram_bytes_minimum"))
+            expected["free_vram_bytes_minimum"] = free_floor
+            frees = [row.get("vram_free_bytes") for row in rows
+                     if isinstance(row, dict)]
+            checks["gpu_free_vram"] = bool(frees) and all(
+                isinstance(value, int) and not isinstance(value, bool)
+                and value >= free_floor for value in frees)
+            foreign = observed.get("compute_apps")
+            if not isinstance(foreign, list) or any(
+                    not isinstance(row, dict) for row in foreign):
+                failures.append("compute-apps attestation is not a list of "
+                                "objects")
+                foreign = []
+            # A foreign process on the card is not automatically fatal -- the
+            # free-VRAM floor decides that -- but it must be RECORDED, because
+            # "who else is on this GPU" is not knowable after the fact.
+            checks["no_foreign_compute_apps"] = not foreign
             cuda = observed.get("cuda")
             if not isinstance(cuda, dict) or set(cuda) != {
                     "available", "usable", "count", "name", "vram_bytes",
