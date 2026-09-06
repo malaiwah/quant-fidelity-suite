@@ -242,7 +242,7 @@ def main():
               and "unsupported" in remote_publication_message,
               remote_publication_message)
         import inspect
-        src = inspect.getsource(MC._plan_runpod_anonymous)
+        src = inspect.getsource(MC._plan_paid_anonymous)
         check("RP6c the safe SSH controller binds intended dataset repository",
               '"dataset_repository"' in src)
 

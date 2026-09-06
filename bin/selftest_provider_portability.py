@@ -17,8 +17,11 @@ measurement, and three of them could have left a billing instance running.
 
 These are offline: no provider is contacted.
 """
+import json
 import os
 import sys
+import tempfile
+from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import measure_cloud as mc                                # noqa: E402
@@ -679,19 +682,50 @@ for _method in PROVIDER_CONTRACT[:-1]:
 _ABSENT = PROVIDER_CONTRACT[-1]
 
 _saved = (P.PROVIDERS, dict(P._ADAPTERS), dict(P.PROVIDER_BLOCKERS),
-          dict(P.PROVIDER_DEGRADATIONS), dict(P.EXECUTION_ENTRYPOINTS))
+          dict(P.PROVIDER_DEGRADATIONS), dict(P.EXECUTION_ENTRYPOINTS),
+          dict(P.PAID_EXECUTION_PROFILES),
+          dict(P.PAID_PREREQUISITE_EVIDENCE))
+
+
+def _probe_profile(**overrides):
+    """A complete, honest paid execution profile for the synthetic adapter.
+
+    Built by COPYING RunPod's row rather than by hand, so a new required
+    profile field cannot be forgotten here and silently stop the probe from
+    testing the thing it exists to test.
+    """
+    row = dict(P.PAID_EXECUTION_PROFILES["runpod"])
+    row.update(overrides)
+    return row
+
+
+def _probe_evidence():
+    return {
+        "sweep_settled_lease": "synthetic: a settled lease with an absence "
+                               "proof and a reconciled cost",
+        "teardown_proven": {
+            path: "synthetic" for path in P.TEARDOWN_PROOF_PATHS},
+    }
+
+
 try:
     P.PROVIDERS = P.PROVIDERS + ("probe",)
     # The selftest runs as __main__, so the table can point at a class
-    # defined right here without writing a throwaway module.
+    # defined right here without writing a throwaway module.  If these rungs
+    # ever move into an IMPORTED helper this stops resolving and the probe
+    # quietly tests nothing, which is worse than a red one.
     P._ADAPTERS["probe"] = ("__main__", "PartialAdapter")
     P.PROVIDER_BLOCKERS["probe"] = ()
     P.PROVIDER_DEGRADATIONS["probe"] = ()
-    P.EXECUTION_ENTRYPOINTS["probe"] = "_main_runpod"
+    # Whatever the real RunPod entrypoint is, not a literal: the point is
+    # that an entrypoint EXISTS, and this survives the next rename.
+    P.EXECUTION_ENTRYPOINTS["probe"] = P.EXECUTION_ENTRYPOINTS["runpod"]
+    P.PAID_EXECUTION_PROFILES["probe"] = _probe_profile()
+    P.PAID_PREREQUISITE_EVIDENCE["probe"] = _probe_evidence()
     _probe = P.measurement_refusal("probe")
-    check("a provider declaring NO blockers, with an entrypoint, is STILL "
-          "refused while a contract method is missing (the method half is "
-          "computed, so the table cannot lie about it)",
+    check("a provider declaring NO blockers, with an entrypoint and a "
+          "complete profile, is STILL refused while a contract method is "
+          "missing (the method half is computed, so the table cannot lie)",
           _probe is not None and not P.measurement_ready("probe")
           and _ABSENT in str(_probe))
     check("...and its sweep is refused too, naming a method a sweep drives "
@@ -701,24 +735,165 @@ try:
           and "status" in str(P.sweep_refusal("probe"))
           and P.PARITY_DOC in str(P.sweep_refusal("probe")))
     # And the other direction: complete the class and it becomes ready, so
-    # the gate is not simply refusing everything.
+    # the gate is not simply refusing everything.  THIS IS THE CENTRAL RUNG
+    # OF THE PAID-PATH WORK: a synthetic adapter that conforms reaches the
+    # shared paid path with no lifecycle edit and no per-provider branch.
     setattr(PartialAdapter, _ABSENT, lambda self, *a, **k: None)
     for _method in P.SWEEP_BASE:
+        setattr(PartialAdapter, _method, lambda self, *a, **k: None)
+    for _method in ("upload", "exec"):
         setattr(PartialAdapter, _method, lambda self, *a, **k: None)
     check("...and the SAME declaration becomes dispatchable the moment the "
           "twelfth method exists (both directions, no table edit)",
           P.measurement_ready("probe")
           and P.sweep_refusal("probe") is None)
+    check("...and a CONFORMING synthetic provider resolves the SHARED paid "
+          "lifecycle, the same function object RunPod runs (a second "
+          "provider's paid path is no new lifecycle code)",
+          P.execution_entrypoint("probe", mc)
+          is P.execution_entrypoint("runpod", mc)
+          and P.execution_entrypoint("probe", mc) is mc._main_paid)
+
+    # A non-empty blocker tuple refuses, and NAMES the blocker.
+    P.PROVIDER_BLOCKERS["probe"] = ("the synthetic blocker nobody cleared",)
+    _blocked = P.measurement_refusal("probe")
+    check("a conforming provider with a non-empty blocker tuple is refused, "
+          "quoting the blocker verbatim",
+          _blocked is not None
+          and "the synthetic blocker nobody cleared" in str(_blocked))
+    P.PROVIDER_BLOCKERS["probe"] = ()
+
+    # A missing paid execution profile refuses, and says so as its own
+    # reason rather than as twelve confusing safety-property failures.
+    del P.PAID_EXECUTION_PROFILES["probe"]
+    _no_profile = P.measurement_refusal("probe")
+    check("a conforming provider with NO paid execution profile is refused, "
+          "naming the profile rather than defaulting to RunPod's values",
+          _no_profile is not None
+          and "paid execution profile" in str(_no_profile)
+          and "no paid execution profile is declared for probe"
+          in str(_no_profile))
+    check("...and every field the shared lifecycle needs is named in that "
+          "refusal, so the remedy is readable",
+          all(field in str(_no_profile)
+              for field in P.PAID_EXECUTION_CONTRACT))
+
+    # A profile that MEETS the twelve but cannot give a provider-enforced
+    # deadline is refused as an unmet SAFETY PROPERTY -- the Lambda ruling,
+    # made mechanical.  Lambda's launch has no terminateAfter, so its
+    # deadline would be controller clock plus the on-instance watchdog, and
+    # both of those die with the controller host and the instance OS
+    # respectively.  A paid run needs one layer that survives both.
+    P.PAID_EXECUTION_PROFILES["probe"] = _probe_profile(
+        provider_enforced_deadline=None)
+    _no_deadline = P.measurement_refusal("probe")
+    check("a conforming provider with NO provider-enforced termination "
+          "deadline is refused as an unmet safety property, not admitted "
+          "with a degradation (the Lambda terminateAfter ruling, computed)",
+          _no_deadline is not None
+          and "provider-enforced-deadline" in str(_no_deadline)
+          and "provider_enforced_deadline" in str(_no_deadline))
+
+    # A profile whose credential transport is not the 0600-file-over-verified
+    # -SSH mechanism is refused: this is the Vast container-mode gate, and it
+    # fires on the MECHANISM before any provider call, ahead of the adapter's
+    # complementary payload-shape refusal.
+    P.PAID_EXECUTION_PROFILES["probe"] = _probe_profile(
+        credential_transport="provider-create-env")
+    _bad_transport = P.measurement_refusal("probe")
+    check("a provider whose declared credential transport is not the "
+          "0600-file-over-verified-SSH mechanism is refused before any "
+          "provider call (Vast container mode cannot be fixed by ordering)",
+          _bad_transport is not None
+          and "credential-transport" in str(_bad_transport)
+          and P.PAID_CREDENTIAL_TRANSPORT in str(_bad_transport))
+
+    # A host key that authenticates the MACHINE rather than the resource is
+    # refused: measured on Vast 2026-09-06, one key across two contracts on
+    # machine 150014, surviving destroy-and-create.
+    P.PAID_EXECUTION_PROFILES["probe"] = _probe_profile(
+        host_key_attribution="machine")
+    _machine_key = P.measurement_refusal("probe")
+    check("a provider whose host key is machine-attributable rather than "
+          "resource-attributable is refused (a verified channel to hardware "
+          "we have seen before is not attribution to what we rented)",
+          _machine_key is not None
+          and "host-key-before-ssh" in str(_machine_key))
+
+    # Definition of done, items 3 and 6: refused when unproven, and item 6
+    # refused when only PARTLY proven.
+    P.PAID_EXECUTION_PROFILES["probe"] = _probe_profile()
+    P.PAID_PREREQUISITE_EVIDENCE["probe"] = {}
+    _unproven = P.measurement_refusal("probe")
+    check("a fully conforming provider is STILL refused until definition-of-"
+          "done items 3 and 6 are proven (a reaper sweep that settled a "
+          "lease, and teardown on all four paths)",
+          _unproven is not None
+          and "sweep_settled_lease" in str(_unproven)
+          and "teardown_proven" in str(_unproven))
+    _partial = _probe_evidence()
+    _partial["teardown_proven"] = dict(_partial["teardown_proven"])
+    del _partial["teardown_proven"]["interrupt"]
+    P.PAID_PREREQUISITE_EVIDENCE["probe"] = _partial
+    _partial_refusal = P.measurement_refusal("probe")
+    check("...and a PARTIAL teardown record is refused naming the missing "
+          "path, rather than rounded up to proven",
+          _partial_refusal is not None
+          and "interrupt" in str(_partial_refusal))
+
+    # Item 3 is EARNED from the lease store, not only declared: a provider
+    # with no declaration but a settled absence-proven lease is admitted.
+    P.PAID_PREREQUISITE_EVIDENCE["probe"] = {
+        "teardown_proven": {
+            path: "synthetic" for path in P.TEARDOWN_PROOF_PATHS}}
+    with tempfile.TemporaryDirectory() as _store:
+        check("item 3 with no declaration and an EMPTY lease store is still "
+              "refused",
+              P.measurement_refusal("probe", _store) is not None)
+        _settled = {
+            "state": "TERMINAL",
+            "create": {"provider": "probe"},
+            "terminal_proof": {
+                "provider_absence": {
+                    "authoritative_inventory": {"schema": "synthetic"},
+                    "complete_listing": True},
+                "billing_reconciliation": {"reconciled": True}},
+        }
+        Path(_store, "settled.json").write_text(
+            json.dumps(_settled), encoding="utf-8")
+        check("...and the SAME provider is admitted once its store holds a "
+              "TERMINAL lease with an absence proof and a reconciled cost "
+              "(item 3 is earned by settling a real lease, not declared)",
+              P.measurement_refusal("probe", _store) is None)
+        _weak = dict(_settled)
+        _weak["terminal_proof"] = {
+            "provider_absence": {"complete_listing": True},
+            "billing_reconciliation": {"reconciled": True}}
+        Path(_store, "settled.json").write_text(
+            json.dumps(_weak), encoding="utf-8")
+        check("...but a TERMINAL lease with NO authoritative inventory does "
+              "not earn it (a lifecycle listing alone is not absence)",
+              P.measurement_refusal("probe", _store) is not None)
 finally:
-    (P.PROVIDERS, _adapters, _blockers, _degradations, _entries) = _saved
+    (P.PROVIDERS, _adapters, _blockers, _degradations, _entries,
+     _profiles, _evidence) = _saved
     P._ADAPTERS.clear(); P._ADAPTERS.update(_adapters)
     P.PROVIDER_BLOCKERS.clear(); P.PROVIDER_BLOCKERS.update(_blockers)
     P.PROVIDER_DEGRADATIONS.clear()
     P.PROVIDER_DEGRADATIONS.update(_degradations)
     P.EXECUTION_ENTRYPOINTS.clear(); P.EXECUTION_ENTRYPOINTS.update(_entries)
+    P.PAID_EXECUTION_PROFILES.clear()
+    P.PAID_EXECUTION_PROFILES.update(_profiles)
+    P.PAID_PREREQUISITE_EVIDENCE.clear()
+    P.PAID_PREREQUISITE_EVIDENCE.update(_evidence)
 check("...and the table is restored after that probe",
       "probe" not in P.PROVIDERS and "probe" not in P.PROVIDER_BLOCKERS
-      and set(P.EXECUTION_ENTRYPOINTS) == {"runpod"})
+      and "probe" not in P.PAID_EXECUTION_PROFILES
+      and set(P.EXECUTION_ENTRYPOINTS) == set(P.PROVIDERS))
+check("every provider the CLI accepts is registered on the SHARED paid "
+      "lifecycle, so a refusal is never 'no paid execution path' -- it is "
+      "always the provider's own unmet property",
+      all(P.EXECUTION_ENTRYPOINTS[_p] == "_main_paid" for _p in P.PROVIDERS))
 
 print()
 print("== the controller's refusals are derived, not hardcoded ==")

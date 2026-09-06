@@ -207,15 +207,20 @@ def main():
             events = []
             runpod = StubJL(events=events)
             original_stage = mc._runpod_stage
+            # The transport and the cleanup are now given the SAME secrets
+            # directory explicitly, which is the property the paid path
+            # enforces: a cleanup that derived its own path could aim at a
+            # directory the transport never used.
+            secrets_dir = "%s/.secrets" % StubTD.fs_root
             try:
                 mc._runpod_stage = lambda *_a, **_kw: events.append(
                     ("stage", "fetch_target"))
                 mc._transport_hf_token(
                     runpod, StubTD.machine_id, StubTD.fs_root,
-                    td / "runpod-success", TOKEN)
-                cleanup = mc._runpod_fetch_target_and_remove_token(
+                    td / "runpod-success", TOKEN, secrets_dir=secrets_dir)
+                cleanup = mc._paid_fetch_target_and_remove_token(
                     runpod, StubTD.machine_id, StubTD.fs_root, "/engine",
-                    1.0, "image@sha256:" + "a" * 64)
+                    1.0, "image@sha256:" + "a" * 64, secrets_dir)
                 check("S7a RunPod authenticates only fetch_target, then confirms "
                       "remote cleanup",
                       cleanup.get("confirmed") is True
@@ -233,10 +238,11 @@ def main():
                 try:
                     mc._transport_hf_token(
                         runpod, StubTD.machine_id, StubTD.fs_root,
-                        td / "runpod-failure", TOKEN)
-                    mc._runpod_fetch_target_and_remove_token(
+                        td / "runpod-failure", TOKEN,
+                        secrets_dir=secrets_dir)
+                    mc._paid_fetch_target_and_remove_token(
                         runpod, StubTD.machine_id, StubTD.fs_root, "/engine",
-                        1.0, "image@sha256:" + "a" * 64)
+                        1.0, "image@sha256:" + "a" * 64, secrets_dir)
                 except RuntimeError as exc:
                     failed = str(exc) == "fetch failed"
                 check("S7b failed RunPod fetch still removes the remote token",

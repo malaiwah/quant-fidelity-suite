@@ -413,6 +413,91 @@ _DRILL_RUNPOD_REQUEST_KEYS = {
     "provider_deadline_observation_until",
     "pre_create_safety", "prepared_create", "producer_checkout",
 }
+
+#: PER-PROVIDER PAID LEASE REQUEST POLICY.
+#:
+#: A paid lease request used to be admitted only when its key set was
+#: RunPod's EXACT set and `provider == "runpod"`, so a paid lease for any
+#: other provider could not be created even at twelve-of-twelve with every
+#: blocker cleared.  The policy is now a table: one row per provider, holding
+#: the key sets and every field rule, driven by one generic validator.
+#:
+#: Two rules the table exists to keep:
+#:   * NOTHING RUNPOD MUST SUPPLY IS LOOSENED.  RunPod's row is the previous
+#:     code, field for field -- the same exact key set, the same safe-profile
+#:     equalities, the same positive-integer, exact-string, absolute-path and
+#:     digest checks, the same sealed schema strings.
+#:   * A PROVIDER THAT CANNOT SUPPLY A REQUIRED KEY IS REFUSED, NEVER
+#:     DEFAULTED.  A provider with no row is refused by name; a row missing a
+#:     rule is a refusal about the row, not a permissive fallback.  There is
+#:     no `.get(key, default)` anywhere below, because every one of these
+#:     fields is either money or a teardown guarantee.
+#:
+#: `body_shape` is the one genuinely per-provider element: the frozen create
+#: body is a GraphQL mutation document on RunPod and would be a REST payload
+#: elsewhere, so the shape is named from an enum and checked by
+#: `_PREPARED_BODY_SHAPES`.  A shape nobody has written is refused.
+_PAID_REQUEST_SCHEMAS: Dict[str, Dict[str, Any]] = {
+    "runpod": {
+        "normal_keys": frozenset(_NORMAL_RUNPOD_REQUEST_KEYS),
+        "drill_keys": frozenset(_DRILL_RUNPOD_REQUEST_KEYS),
+        "server_time_schema": "fidelity-suite/runpod-server-time.v1",
+        "server_time_origin": "https://api.runpod.io",
+        "prepared_schema": "fidelity-suite/runpod-prepared-create.v1",
+        "prepared_body_prefix": "graphql_body",
+        "prepared_body_shape": "graphql-query",
+        "prepared_body_must_contain": "podFindAndDeployOnDemand",
+        "prepared_identity_keys": (
+            "cloud_type", "is_spot", "offer", "gpu_type_id", "gpu_count",
+            "volume_gb", "container_disk_gb", "min_vcpu", "min_ram_gb",
+            "name", "image_name", "terminate_after", "ports",
+            "volume_mount_path", "network_volume_id", "public_key_sha256"),
+        # Absent on leases written before 2026-09-04; None means unpinned.
+        "prepared_identity_optional": ("data_center_id",),
+        "prepared_identity_profile": {
+            "cloud_type": "SECURE", "is_spot": False, "offer": "on-demand",
+            "ports": "22/tcp", "volume_mount_path": "/workspace",
+            "network_volume_id": None,
+        },
+        "grounding_bundle_schema": "fidelity-suite/grounding-bundle.v1",
+        "normal_field_map": (
+            ("gpu_type_id", "gpu_type"), ("gpu_count", "num_gpus"),
+            ("volume_gb", "storage_gb"),
+            ("container_disk_gb", "container_disk_gb"),
+            ("min_vcpu", "min_vcpu_count"), ("min_ram_gb", "min_memory_gb"),
+            ("image_name", "image"),
+            ("terminate_after", "terminate_after")),
+        "normal_safe_profile": {
+            "secure_cloud": True, "offer": "on-demand", "network_volume": None},
+        "normal_positive_ints": (
+            "num_gpus", "storage_gb", "container_disk_gb",
+            "min_vcpu_count", "min_memory_gb"),
+        "normal_exact_strings": (
+            "attempt_key", "provider_account_id", "gpu_type",
+            "normalized_gpu", "remote_root", "engine_root", "image"),
+        "normal_absolute_paths": ("remote_root", "engine_root"),
+        "normal_documents": ("workload_contract", "quote"),
+        "normal_deadline_key": "terminate_after",
+        "drill_field_map": (
+            ("gpu_type_id", "gpu_type_id"), ("gpu_count", "gpu_count"),
+            ("volume_gb", "volume_gb"),
+            ("container_disk_gb", "container_disk_gb"),
+            ("min_vcpu", "min_vcpu"), ("min_ram_gb", "min_ram_gb"),
+            ("image_name", "image_name"),
+            ("terminate_after", "terminate_after")),
+        "drill_safe_profile": {
+            "secure_cloud": True, "offer": "on-demand", "spot": False,
+            "network_volume_id": None},
+        "drill_positive_ints": (
+            "gpu_count", "volume_gb", "container_disk_gb",
+            "min_vcpu", "min_ram_gb"),
+        "drill_exact_strings": (
+            "provider_account_id", "gpu_type_id", "image_name"),
+        "drill_deadline_keys": (
+            "terminate_after", "provider_deadline_observation_until"),
+    },
+}
+_PAID_REQUEST_SCHEMA_KEYS = frozenset(_PAID_REQUEST_SCHEMAS["runpod"])
 _BILLING_KEYS = {
     "reconciled", "provider", "provider_resource_ids", "billing_histories",
     "total_amount", "evidence",
@@ -505,28 +590,61 @@ def _sorted_ids(value: Any, label: str) -> List[str]:
     return normalized
 
 
-def _validate_pre_create_safety(value: Any) -> Dict[str, Any]:
+def _paid_request_schema(provider: str) -> Dict[str, Any]:
+    """The provider's paid lease request policy, or a refusal naming it.
+
+    A provider with no row cannot have a paid lease CREATED, and that is the
+    point: the alternative is a permissive fallback, and every field in the
+    row is either money or a teardown guarantee.  The refusal is raised here,
+    inside the lease store, so it also fires for any caller that reaches the
+    store without going through the controller's pre-spend gate.
+    """
+    schema = _PAID_REQUEST_SCHEMAS.get(str(provider))
+    if schema is None:
+        raise InvalidLease(
+            "no paid lease request schema is declared for %s: a paid lease "
+            "cannot be created before one exists (see "
+            "docs/PROVIDER-PARITY.md and _PAID_REQUEST_SCHEMAS)" % provider)
+    unexpected = set(schema) - _PAID_REQUEST_SCHEMA_KEYS
+    missing = _PAID_REQUEST_SCHEMA_KEYS - set(schema)
+    if unexpected or missing:
+        raise InvalidLease(
+            "%s paid request schema is incomplete: missing=%s unexpected=%s"
+            % (provider, sorted(missing), sorted(unexpected)))
+    return schema
+
+
+def _validate_pre_create_safety(
+        value: Any, schema: Mapping[str, Any], provider: str) -> Dict[str, Any]:
+    """The provider's OWN clock, bounded, before any mutation.
+
+    Generic in the provider but not lenient: the sealed schema string and the
+    endpoint origin come from that provider's row, and the numeric bounds (30
+    s of clock delta, 30 s of evidence age) are the same for everybody --
+    they are a property of how long a deadline may be stale, not of a vendor.
+    """
     evidence = _exact_keys(
         value,
         ("schema", "endpoint_origin", "date_header", "server_epoch",
          "local_received_epoch", "local_minus_server_seconds",
          "checked_at_epoch", "evidence_age_seconds",
          "max_clock_delta_seconds", "max_evidence_age_seconds"),
-        (), "RunPod pre-create server-time evidence")
-    if (evidence["schema"] != "fidelity-suite/runpod-server-time.v1"
-            or evidence["endpoint_origin"] != "https://api.runpod.io"
+        (), "%s pre-create server-time evidence" % provider)
+    if (evidence["schema"] != schema["server_time_schema"]
+            or evidence["endpoint_origin"] != schema["server_time_origin"]
             or not isinstance(evidence["date_header"], str)):
-        raise InvalidLease("RunPod pre-create server-time identity is invalid")
+        raise InvalidLease(
+            "%s pre-create server-time identity is invalid" % provider)
     for key in (
             "server_epoch", "local_received_epoch", "checked_at_epoch",
             "max_clock_delta_seconds", "max_evidence_age_seconds"):
-        _epoch(evidence[key], "RunPod server-time " + key)
+        _epoch(evidence[key], "%s server-time %s" % (provider, key))
     for key in ("local_minus_server_seconds", "evidence_age_seconds"):
         value = evidence[key]
         if (isinstance(value, bool) or not isinstance(value, (int, float))
                 or not math.isfinite(float(value))):
             raise InvalidLease(
-                "RunPod server-time %s must be finite" % key)
+                "%s server-time %s must be finite" % (provider, key))
     if (evidence["max_clock_delta_seconds"] > 30
             or evidence["max_evidence_age_seconds"] > 30
             or evidence["evidence_age_seconds"] < -1
@@ -534,7 +652,8 @@ def _validate_pre_create_safety(value: Any) -> Dict[str, Any]:
             > evidence["max_evidence_age_seconds"]
             or abs(evidence["local_minus_server_seconds"])
             > evidence["max_clock_delta_seconds"]):
-        raise InvalidLease("RunPod pre-create server-time proof is unsafe")
+        raise InvalidLease(
+            "%s pre-create server-time proof is unsafe" % provider)
     return evidence
 
 def _validate_producer_checkout(value: Any) -> Dict[str, Any]:
@@ -565,79 +684,96 @@ def _validate_producer_checkout(value: Any) -> Dict[str, Any]:
     return checkout
 
 
-def _validate_prepared_create(value: Any) -> Dict[str, Any]:
+def _prepared_graphql_query_body(body: bytes, must_contain: str) -> None:
+    """A frozen GraphQL mutation document, and nothing else."""
+    try:
+        body_doc = json.loads(body.decode("utf-8"))
+    except (UnicodeError, ValueError):
+        raise InvalidLease("prepared create body is invalid JSON")
+    if (not isinstance(body_doc, dict) or set(body_doc) != {"query"}
+            or not isinstance(body_doc["query"], str)
+            or must_contain not in body_doc["query"]):
+        raise InvalidLease("prepared create GraphQL mutation is invalid")
+
+
+#: The frozen create body's SHAPE, per provider, from a closed enum.  RunPod
+#: freezes a GraphQL mutation document; a REST provider would freeze its PUT
+#: payload and needs a checker written for it.  A shape nobody has written is
+#: refused rather than accepted unvalidated -- an unchecked frozen body is a
+#: two-phase create that proves nothing about what was submitted.
+_PREPARED_BODY_SHAPES: Dict[str, Any] = {
+    "graphql-query": _prepared_graphql_query_body,
+}
+
+
+def _validate_prepared_create(
+        value: Any, schema: Mapping[str, Any], provider: str) -> Dict[str, Any]:
+    """The frozen create request, byte-identified, before any mutation.
+
+    This is the two-phase-create safety property's evidence: the body is
+    sealed by digest and length, so a LOST create RESPONSE is reconcilable
+    against exactly what was submitted rather than against what we believe we
+    would have submitted.  The field names are provider-native (RunPod's are
+    `graphql_body_*`, and existing sealed leases carry them, so the prefix is
+    a row value rather than a rename).
+    """
+    prefix = schema["prepared_body_prefix"]
+    digest_key = "%s_sha256" % prefix
+    bytes_key = "%s_bytes" % prefix
+    base64_key = "%s_base64" % prefix
     prepared = _exact_keys(
-        value,
-        ("schema", "request_identity", "graphql_body_sha256",
-         "graphql_body_bytes", "graphql_body_base64"),
-        (), "RunPod prepared create")
-    if prepared["schema"] != "fidelity-suite/runpod-prepared-create.v1":
-        raise InvalidLease("RunPod prepared create schema is invalid")
+        value, ("schema", "request_identity", digest_key, bytes_key,
+                base64_key), (), "%s prepared create" % provider)
+    if prepared["schema"] != schema["prepared_schema"]:
+        raise InvalidLease("%s prepared create schema is invalid" % provider)
     identity = _exact_keys(
-        prepared["request_identity"],
-        ("cloud_type", "is_spot", "offer", "gpu_type_id", "gpu_count",
-         "volume_gb", "container_disk_gb", "min_vcpu", "min_ram_gb",
-         "name", "image_name", "terminate_after", "ports",
-         "volume_mount_path", "network_volume_id", "public_key_sha256"),
-        # Absent on leases written before 2026-09-04; None means unpinned.
-        ("data_center_id",), "RunPod prepared request identity")
+        prepared["request_identity"], schema["prepared_identity_keys"],
+        schema["prepared_identity_optional"],
+        "%s prepared request identity" % provider)
     data_center_id = identity.get("data_center_id")
     if data_center_id is not None and (
             not isinstance(data_center_id, str)
             or not re.fullmatch(r"[A-Z]{2,3}-[A-Z]{2,3}-[0-9]{1,2}", data_center_id)):
         raise InvalidLease(
-            "RunPod prepared request data_center_id is malformed: %r"
-            % (data_center_id,))
-    if (identity["cloud_type"] != "SECURE"
-            or identity["is_spot"] is not False
-            or identity["offer"] != "on-demand"
-            or identity["ports"] != "22/tcp"
-            or identity["volume_mount_path"] != "/workspace"
-            or identity["network_volume_id"] is not None
-            or not isinstance(identity["public_key_sha256"], str)
+            "%s prepared request data_center_id is malformed: %r"
+            % (provider, data_center_id))
+    for key, required in schema["prepared_identity_profile"].items():
+        observed = identity[key]
+        if observed != required or (
+                isinstance(required, bool) and observed is not required):
+            raise InvalidLease(
+                "%s prepared request violates safe profile" % provider)
+    if (not isinstance(identity["public_key_sha256"], str)
             or not re.fullmatch(
                 r"[0-9a-f]{64}", identity["public_key_sha256"])):
-        raise InvalidLease("RunPod prepared request violates safe profile")
+        raise InvalidLease(
+            "%s prepared request violates safe profile" % provider)
     try:
         body = base64.b64decode(
-            prepared["graphql_body_base64"].encode("ascii"), validate=True)
+            prepared[base64_key].encode("ascii"), validate=True)
     except (AttributeError, UnicodeError, ValueError, binascii.Error):
-        raise InvalidLease("RunPod prepared GraphQL body is invalid base64")
-    if (isinstance(prepared["graphql_body_bytes"], bool)
-            or not isinstance(prepared["graphql_body_bytes"], int)
-            or prepared["graphql_body_bytes"] != len(body)
-            or hashlib.sha256(body).hexdigest()
-            != prepared["graphql_body_sha256"]):
-        raise InvalidLease("RunPod prepared GraphQL body identity differs")
-    try:
-        body_doc = json.loads(body.decode("utf-8"))
-    except (UnicodeError, ValueError):
-        raise InvalidLease("RunPod prepared GraphQL body is invalid JSON")
-    if (not isinstance(body_doc, dict) or set(body_doc) != {"query"}
-            or not isinstance(body_doc["query"], str)
-            or "podFindAndDeployOnDemand" not in body_doc["query"]):
-        raise InvalidLease("RunPod prepared GraphQL mutation is invalid")
+        raise InvalidLease(
+            "%s prepared create body is invalid base64" % provider)
+    if (isinstance(prepared[bytes_key], bool)
+            or not isinstance(prepared[bytes_key], int)
+            or prepared[bytes_key] != len(body)
+            or hashlib.sha256(body).hexdigest() != prepared[digest_key]):
+        raise InvalidLease(
+            "%s prepared create body identity differs" % provider)
+    checker = _PREPARED_BODY_SHAPES.get(schema["prepared_body_shape"])
+    if checker is None:
+        raise InvalidLease(
+            "no prepared-create body checker for shape %r (%s)"
+            % (schema["prepared_body_shape"], provider))
+    checker(body, schema["prepared_body_must_contain"])
     return prepared
+
 
 def _prepared_matches_request(
         prepared: Mapping[str, Any], request: Mapping[str, Any],
-        *, drill: bool) -> None:
+        schema: Mapping[str, Any], *, drill: bool) -> None:
     identity = prepared["request_identity"]
-    fields = (
-        (("gpu_type_id", "gpu_type_id"), ("gpu_count", "gpu_count"),
-         ("volume_gb", "volume_gb"),
-         ("container_disk_gb", "container_disk_gb"),
-         ("min_vcpu", "min_vcpu"), ("min_ram_gb", "min_ram_gb"),
-         ("image_name", "image_name"),
-         ("terminate_after", "terminate_after"))
-        if drill else
-        (("gpu_type_id", "gpu_type"), ("gpu_count", "num_gpus"),
-         ("volume_gb", "storage_gb"),
-         ("container_disk_gb", "container_disk_gb"),
-         ("min_vcpu", "min_vcpu_count"),
-         ("min_ram_gb", "min_memory_gb"),
-         ("image_name", "image"),
-         ("terminate_after", "terminate_after")))
+    fields = schema["drill_field_map"] if drill else schema["normal_field_map"]
     if any(identity[identity_key] != request[request_key]
            for identity_key, request_key in fields):
         raise InvalidLease(
@@ -645,86 +781,127 @@ def _prepared_matches_request(
 
 
 
+def _exact_positive_ints(request: Mapping[str, Any],
+                         keys: Iterable[str], label: str) -> None:
+    for key in keys:
+        if (isinstance(request[key], bool)
+                or not isinstance(request[key], int) or request[key] <= 0):
+            raise InvalidLease("%s %s is not a positive integer" % (label, key))
+
+
+def _exact_nonblank_strings(request: Mapping[str, Any],
+                            keys: Iterable[str], label: str) -> None:
+    for key in keys:
+        if (not isinstance(request[key], str) or not request[key]
+                or request[key] != request[key].strip()):
+            raise InvalidLease("%s %s is not exact" % (label, key))
+
+
+def _exact_safe_profile(request: Mapping[str, Any],
+                        profile: Mapping[str, Any], label: str) -> None:
+    """Every safe-profile field, by identity for booleans and None.
+
+    `is not True` rather than `!= True` is the point: `1 == True` in Python,
+    and a lease claiming `secure_cloud: 1` must not pass a gate that means
+    "the operator chose the secure cloud".
+    """
+    for key, required in profile.items():
+        observed = request[key]
+        if required is None or isinstance(required, bool):
+            if observed is not required:
+                raise InvalidLease("%s violates exact safe profile" % label)
+        elif observed != required:
+            raise InvalidLease("%s violates exact safe profile" % label)
+
+
 def _validate_request(request: Any, provider: str) -> Dict[str, Any]:
+    """Validate a lease request against its PROVIDER'S declared policy.
+
+    The paid branches were RunPod-exact -- `set(request) !=
+    _NORMAL_RUNPOD_REQUEST_KEYS or provider != "runpod"` -- so no other
+    provider could have a paid lease created at all.  They are now driven
+    from `_PAID_REQUEST_SCHEMAS[provider]`, which for RunPod is the same
+    policy field for field.  The UNPAID branch is deliberately unchanged and
+    provider-agnostic: it is what the generic reaper sweep's regression rungs
+    build non-RunPod leases from.
+    """
     if not isinstance(request, dict):
         raise InvalidLease("lease request must be an object")
     if request.get("drill_mode") == PROVIDER_DEADLINE_DRILL_MODE:
-        if set(request) != _DRILL_RUNPOD_REQUEST_KEYS or provider != "runpod":
-            raise InvalidLease("paid drill request keys/provider differ from policy")
-        _validate_pre_create_safety(request["pre_create_safety"])
-        prepared = _validate_prepared_create(request["prepared_create"])
-        _prepared_matches_request(prepared, request, drill=True)
+        schema = _paid_request_schema(provider)
+        drill_keys = schema["drill_keys"]
+        if drill_keys is None:
+            raise InvalidLease(
+                "no controller-loss drill request policy is declared for %s: "
+                "the drill seals a safety proof and only a provider with a "
+                "proof producer has one" % provider)
+        if set(request) != set(drill_keys):
+            raise InvalidLease(
+                "paid drill request keys differ from %s policy" % provider)
+        _validate_pre_create_safety(
+            request["pre_create_safety"], schema, provider)
+        prepared = _validate_prepared_create(
+            request["prepared_create"], schema, provider)
+        _prepared_matches_request(prepared, request, schema, drill=True)
         _validate_producer_checkout(request["producer_checkout"])
-        if (request["secure_cloud"] is not True
-                or request["offer"] != "on-demand"
-                or request["spot"] is not False
-                or request["network_volume_id"] is not None):
-            raise InvalidLease("paid drill request violates exact safe profile")
-        for key in (
-                "gpu_count", "volume_gb", "container_disk_gb",
-                "min_vcpu", "min_ram_gb"):
-            if (isinstance(request[key], bool)
-                    or not isinstance(request[key], int) or request[key] <= 0):
-                raise InvalidLease("paid drill %s is not a positive integer" % key)
-        for key in ("provider_account_id", "gpu_type_id", "image_name"):
-            if (not isinstance(request[key], str) or not request[key]
-                    or request[key] != request[key].strip()):
-                raise InvalidLease("paid drill %s is not exact" % key)
-        _exact_utc_string(request["terminate_after"], "drill terminate_after")
-        _exact_utc_string(
-            request["provider_deadline_observation_until"],
-            "drill provider deadline observation")
+        _exact_safe_profile(
+            request, schema["drill_safe_profile"], "paid drill request")
+        _exact_positive_ints(
+            request, schema["drill_positive_ints"], "paid drill")
+        _exact_nonblank_strings(
+            request, schema["drill_exact_strings"], "paid drill")
+        for key in schema["drill_deadline_keys"]:
+            _exact_utc_string(request[key], "drill " + key)
         campaign = (
             request["campaign_ledger"], request["campaign_attempt_key"])
         if campaign != (None, None):
             _campaign_coordinates({"create": {"request": request}})
     elif request.get("campaign_ledger") is not None:
-        if set(request) != _NORMAL_RUNPOD_REQUEST_KEYS or provider != "runpod":
-            raise InvalidLease("paid RunPod request keys/provider differ from policy")
-        _validate_pre_create_safety(request["pre_create_safety"])
-        prepared = _validate_prepared_create(request["prepared_create"])
-        _prepared_matches_request(prepared, request, drill=False)
-        if (request["provider"] != provider
-                or request["secure_cloud"] is not True
-                or request["offer"] != "on-demand"
-                or request["network_volume"] is not None):
-            raise InvalidLease("paid RunPod request violates exact safe profile")
+        schema = _paid_request_schema(provider)
+        if set(request) != set(schema["normal_keys"]):
+            raise InvalidLease(
+                "paid request keys differ from %s policy" % provider)
+        _validate_pre_create_safety(
+            request["pre_create_safety"], schema, provider)
+        prepared = _validate_prepared_create(
+            request["prepared_create"], schema, provider)
+        _prepared_matches_request(prepared, request, schema, drill=False)
+        if request["provider"] != provider:
+            raise InvalidLease(
+                "paid request names provider %r inside a %s lease"
+                % (request["provider"], provider))
+        _exact_safe_profile(
+            request, schema["normal_safe_profile"], "paid request")
         _campaign_coordinates({"create": {"request": request}})
-        for key in (
-                "num_gpus", "storage_gb", "container_disk_gb",
-                "min_vcpu_count", "min_memory_gb"):
-            if (isinstance(request[key], bool)
-                    or not isinstance(request[key], int) or request[key] <= 0):
-                raise InvalidLease("paid RunPod %s is not a positive integer" % key)
-        for key in (
-                "attempt_key", "provider_account_id", "gpu_type",
-                "normalized_gpu", "remote_root", "engine_root", "image"):
-            if (not isinstance(request[key], str) or not request[key]
-                    or request[key] != request[key].strip()):
-                raise InvalidLease("paid RunPod %s is not exact" % key)
-        if (not os.path.isabs(request["remote_root"])
-                or not os.path.isabs(request["engine_root"])
-                or not isinstance(request["workload_contract"], dict)
-                or not isinstance(request["quote"], dict)):
-            raise InvalidLease("paid RunPod immutable workload policy is invalid")
+        _exact_positive_ints(request, schema["normal_positive_ints"], "paid")
+        _exact_nonblank_strings(request, schema["normal_exact_strings"], "paid")
+        if any(not os.path.isabs(request[key])
+               for key in schema["normal_absolute_paths"]) or any(
+                   not isinstance(request[key], dict)
+                   for key in schema["normal_documents"]):
+            raise InvalidLease(
+                "paid %s immutable workload policy is invalid" % provider)
         if (not isinstance(request["execution_contract_sha256"], str)
                 or not re.fullmatch(
                     r"[0-9a-f]{64}", request["execution_contract_sha256"])):
             raise InvalidLease(
-                "paid RunPod execution contract digest is invalid")
+                "paid %s execution contract digest is invalid" % provider)
         bundle = _exact_keys(
             request["grounding_bundle"],
             ("schema", "archive_sha256", "archive_bytes",
-             "manifest_sha256"), (), "RunPod grounding bundle")
-        if (bundle["schema"] != "fidelity-suite/grounding-bundle.v1"
+             "manifest_sha256"), (), "%s grounding bundle" % provider)
+        if (bundle["schema"] != schema["grounding_bundle_schema"]
                 or isinstance(bundle["archive_bytes"], bool)
                 or not isinstance(bundle["archive_bytes"], int)
                 or bundle["archive_bytes"] <= 0
                 or any(not isinstance(bundle[key], str)
                        or not re.fullmatch(r"[0-9a-f]{64}", bundle[key])
                        for key in ("archive_sha256", "manifest_sha256"))):
-            raise InvalidLease("paid RunPod grounding bundle is invalid")
-        _exact_utc_string(request["terminate_after"], "terminate_after")
+            raise InvalidLease(
+                "paid %s grounding bundle is invalid" % provider)
+        _exact_utc_string(
+            request[schema["normal_deadline_key"]],
+            schema["normal_deadline_key"])
     elif any(key in request for key in (
             "campaign_attempt_key", "provider_account_id", "drill_mode")):
         raise InvalidLease("partial paid request policy is forbidden")
@@ -857,7 +1034,17 @@ def _validate_identity_attestation(
          "ok", "attestation_sha256"),
         # Absent on attestations written before 2026-09-04.
         ("provider_record",), "resource identity attestation")
-    if attestation["schema"] != "fidelity-suite/runpod-live-attestation.v2":
+    # The adapter emits its own schema string (`runpodapi.py:1413` writes the
+    # RunPod one), so this is derived from the lease's provider rather than
+    # pinned to RunPod's: a Vast attestation seals
+    # `fidelity-suite/vast-live-attestation.v2`.  The VERSION stays pinned --
+    # a v1 attestation is refused, exactly as before.
+    # ...derived from the LEASE's provider, never from the payload's own
+    # `provider` field: that field is bound to the lease further down, and a
+    # check that reads its own claim proves nothing.
+    expected_schema = "fidelity-suite/%s-live-attestation.v2" % (
+        document["create"]["provider"],)
+    if attestation["schema"] != expected_schema:
         raise InvalidLease("resource identity attestation schema differs")
     if attestation.get("provider_record") is not None:
         record = _exact_keys(
@@ -1583,8 +1770,14 @@ def _provider_deadline_observation_epoch(
         return None
     if mode != PROVIDER_DEADLINE_DRILL_MODE:
         raise LeaseError("provider deadline observation requires exact drill_mode")
-    if str(provider).strip().lower() != "runpod":
-        raise LeaseError("provider deadline drill is supported only for RunPod")
+    # Not a RunPod string any more, but the same restriction: the drill seals
+    # a controller-loss safety proof, and only a provider whose paid request
+    # schema declares a drill key set has a proof producer at all.
+    if _PAID_REQUEST_SCHEMAS.get(
+            str(provider).strip().lower(), {}).get("drill_keys") is None:
+        raise LeaseError(
+            "provider deadline drill is not supported for %s: no drill "
+            "request policy is declared for it" % provider)
     if request.get("secure_cloud") is not True:
         raise LeaseError("provider deadline drill requires secure_cloud exactly true")
     if request.get("offer") != "on-demand":
@@ -1661,6 +1854,12 @@ class LeaseStore:
             yield
     @contextlib.contextmanager
     def paid_admission_lock(self) -> Iterator[None]:
+        # The filename still says runpod and MUST stay that way for now: it
+        # is ONE global paid-admission lock, not a per-provider one, and a
+        # live paid controller is holding it under this exact name.  Renaming
+        # it while a paid run is in flight would let a second paid run admit
+        # concurrently, which is the failure the lock exists to prevent.
+        # Rename it when no paid run is live, not to tidy a string.
         with self._exclusive_lock(
                 ".runpod-paid-admission.lock", "paid admission lock"):
             yield
@@ -2480,9 +2679,10 @@ def validate_lease_liability_scope(
                 item["reap_deadline_utc"])
             for item in live)
         raise LeaseError(
-            "an earlier lease may still hold a pod: %s. Wait for the reaper, "
-            "run `measure-cloud reaper --provider runpod --sweep`, or pass "
-            "--allow-unresolved-leases to proceed beside it" % detail)
+            "an earlier lease may still hold a %s resource: %s. Wait for the "
+            "reaper, run `measure-cloud reaper --provider %s --sweep`, or "
+            "pass --allow-unresolved-leases to proceed beside it"
+            % (provider, detail, provider))
     return {
         "live_liability_count": len(live),
         "live_liability_leases": live,
@@ -3005,10 +3205,13 @@ def finalize_campaign_after_absence(
         # `campaign._RESOURCE_FAMILIES` is RunPod-shaped (`pods` /
         # `network_volumes`).  A provider whose compute family is named
         # anything else is refused HERE, naming the reason, rather than
-        # KeyError-ing below -- and it cannot arrive here anyway, because
-        # `_validate_request` admits a campaign-bound paid request only for
-        # RunPod's exact key set.  Generalising campaign accounting is a
-        # separate change from generalising the sweep.
+        # KeyError-ing below.  It should not arrive here at all: a paid run
+        # is admitted only for a provider whose paid execution profile
+        # declares a `resource_family` the campaign ledger projects onto
+        # (`providers.paid_execution_profile` cross-checks it before any
+        # spend).  This is the second line of that same defence, because
+        # generalising campaign accounting is a change in campaign.py and not
+        # something the parity table may vote itself.
         raise LeaseError(
             "campaign cleanup inventory families differ: the campaign ledger "
             "projects onto pods/network_volumes and this inventory declares "

@@ -304,13 +304,17 @@ def main():
                 raise AssertionError("provider touched during K8 refusal")
 
         args = type("Args", (), {
+            # The paid plan resolves its provider's execution profile before
+            # anything else now (one lifecycle, four providers), so a paid
+            # plan with no --provider is not a thing that can exist.
+            "provider": "runpod",
             "role": "quant",
             "model": "malaiwah/GLM-5.3-Flash-TR3-8bpw",
             "revision": "7199f6f1a211084c240614806f046f11a52dad64",
             "lane": "streaming",
         })()
         try:
-            MC._plan_runpod_anonymous(
+            MC._plan_paid_anonymous(
                 args, Console(), UntouchedProvider(), {})
         except MC.Refusal as exc:
             check("K8 names its pinned missing verdict bridge",
@@ -552,9 +556,9 @@ def main():
         ]
 
     plan_proof_calls = function_calls(
-        MC._plan_runpod_anonymous, "validate_safety_proof")
+        MC._plan_paid_anonymous, "validate_safety_proof")
     execute_proof_calls = function_calls(
-        MC.execute_runpod, "validate_safety_proof")
+        MC.execute_paid, "validate_safety_proof")
     check("both paid proof callsites receive the current campaign ledger",
           len(plan_proof_calls) == len(execute_proof_calls) == 1
           and len(plan_proof_calls[0].args) == 5
@@ -564,18 +568,18 @@ def main():
           and ast.unparse(execute_proof_calls[0].args[4]) == "ledger_path")
     check("response-loss handling cannot issue a second provider POST",
           len(function_calls(
-              MC.execute_runpod, "submit_prepared_create")) == 1)
+              MC.execute_paid, "submit_prepared_create")) == 1)
     check("paid executor installs and scopes the authenticated target token",
-          len(function_calls(MC.execute_runpod, "_transport_hf_token")) == 1
+          len(function_calls(MC.execute_paid, "_transport_hf_token")) == 1
           and len(function_calls(
-              MC.execute_runpod,
-              "_runpod_fetch_target_and_remove_token")) == 1)
+              MC.execute_paid,
+              "_paid_fetch_target_and_remove_token")) == 1)
     token_install_calls = function_calls(
-        MC.execute_runpod, "_transport_hf_token")
+        MC.execute_paid, "_transport_hf_token")
     stage_sequence_calls = function_calls(
-        MC.execute_runpod, "stage_sequence")
+        MC.execute_paid, "stage_sequence")
     target_fetch_calls = function_calls(
-        MC.execute_runpod, "_runpod_fetch_target_and_remove_token")
+        MC.execute_paid, "_paid_fetch_target_and_remove_token")
     check("token is installed before setup can create .secrets and removed "
           "inside fetch_target",
           len(token_install_calls) == len(stage_sequence_calls)
@@ -584,11 +588,11 @@ def main():
               < target_fetch_calls[0].lineno)
     check("paid planning validates the download token before provider access",
           len(function_calls(
-              MC._plan_runpod_anonymous,
+              MC._plan_paid_anonymous,
               "_load_required_hf_download_token")) == 1)
     check("paid execution reloads the token immediately before mutation",
           len(function_calls(
-              MC._main_runpod, "_load_required_hf_download_token")) == 1)
+              MC._main_paid, "_load_required_hf_download_token")) == 1)
     check("live-checkout reaper commands cannot author installed health",
           function_calls(
               MC._lease_reaper_command, "write_reaper_health") == [])
@@ -613,20 +617,20 @@ def main():
         return unguarded
 
     check("Path(args.campaign_ledger) is only evaluated in explicit mode",
-          guarded_campaign_ledger_paths(MC._plan_runpod_anonymous) == []
-          and guarded_campaign_ledger_paths(MC.execute_runpod) == [])
+          guarded_campaign_ledger_paths(MC._plan_paid_anonymous) == []
+          and guarded_campaign_ledger_paths(MC.execute_paid) == [])
     plan_proofs = function_calls(
-        MC._plan_runpod_anonymous, "_source_checkout_proof")
+        MC._plan_paid_anonymous, "_source_checkout_proof")
     execute_proofs = function_calls(
-        MC.execute_runpod, "_source_checkout_proof")
+        MC.execute_paid, "_source_checkout_proof")
     check("plan and pre-POST checkout proofs use the same untracked policy",
           len(plan_proofs) == len(execute_proofs) == 1
           and ast.unparse(plan_proofs[0].keywords[0].value)
               == ast.unparse(execute_proofs[0].keywords[0].value) == "False")
     strict_scope = function_calls(
-        MC.execute_runpod, "validate_unresolved_lease_scope")
+        MC.execute_paid, "validate_unresolved_lease_scope")
     liability_scope = function_calls(
-        MC.execute_runpod, "validate_lease_liability_scope")
+        MC.execute_paid, "validate_lease_liability_scope")
     check("execute checks lease scope twice per mode, never the strict "
           "check alone under the admission lock",
           len(strict_scope) == len(liability_scope) == 2)
@@ -673,6 +677,10 @@ def main():
         campaign_root = Path(campaign_td)
         missing_path = campaign_root / "missing-campaign.json"
         campaign_args = type("CampaignArgs", (), {
+            # The campaign ledger's identity now binds the INVOKED provider
+            # instead of the literal "runpod", so a ledger opened for one
+            # provider can never be reused for another.
+            "provider": "runpod",
             "campaign_ledger": str(missing_path),
             "campaign_ceiling": "10",
             "campaign_reserve": "1",
@@ -693,6 +701,7 @@ def main():
         opened_path, opened_ledger = MC._open_existing_runpod_campaign(
             campaign_args, "account-selftest")
         swapped_args = type("SwappedCampaignArgs", (), {
+            "provider": "runpod",
             "campaign_ledger": str(missing_path),
             "campaign_ceiling": "11",
             "campaign_reserve": "1",
