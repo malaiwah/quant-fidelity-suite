@@ -56,18 +56,27 @@ MAX_LOG_RESPONSE_BYTES = 2 * 1024 * 1024
 # nothing finer exists in the official response (verified live 2026-09-06).
 VAST_DAY_SECONDS = 86400
 # Hosts a capture must be able to reach BEFORE a byte is uploaded or a dollar
-# spent. Machine 68004 (Nevada, US) proxies huggingface.co with a mismatched
-# certificate and answers UNEXPECTED_EOF_WHILE_READING; it failed the
-# 2026-09-05 Fruit rehearsal at the setup stage (docs/CLOUD-RECIPES.md around
-# line 297). On 2026-09-06 that machine was STILL the cheapest rentable Tesla
-# T4 on the marketplace, so "the cheapest offer that fits" lands straight back
-# on it unless something refuses -- hence both the id refusal and the live
-# reachability probe in `attest_live_resource`.
+# spent. Machine 68004 (Nevada, US) failed the 2026-09-05 Fruit rehearsal at
+# the setup stage with SSLEOFError/UNEXPECTED_EOF_WHILE_READING against
+# huggingface.co (docs/CLOUD-RECIPES.md around line 297), and on 2026-09-06 it
+# was STILL the cheapest rentable Tesla T4 on the marketplace -- so "the
+# cheapest offer that fits" lands straight back on it unless something
+# refuses.
+#
+# The recorded CAUSE has been corrected: MitmForensics rented that machine
+# back and measured forged UDP DNS injection on its path, with the real
+# addresses dialled from the same box verifying a BYTE-IDENTICAL leaf. So
+# there is no TLS interceptor there, and this entry must not say there is:
+# a misconfigured resolver path and a credential harvester look the same from
+# a failed handshake, and only one of them is an accusation. The refusal
+# stands on the measured failure, not on a motive.
 HUB_PROBE_HOSTS = ("huggingface.co", "cdn-lfs.hf.co")
 KNOWN_BAD_MACHINE_IDS = {
-    "68004": "machine 68004 (Nevada, US, driver 580.126.09) proxies "
-             "huggingface.co with a certificate hostname mismatch and "
-             "UNEXPECTED_EOF; it failed the 2026-09-05 capture at setup",
+    "68004": "machine 68004 (Nevada, US, driver 580.126.09) could not "
+             "complete a TLS handshake to huggingface.co and failed the "
+             "2026-09-05 capture at setup; measured cause is forged UDP DNS "
+             "injection on its path, NOT an interception proxy -- the host "
+             "operator is not accused",
 }
 # Emitted by `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub`. Vast's own
 # instance log contains sshd's "Server listening on 0.0.0.0 port 22" but NOT
@@ -1150,12 +1159,16 @@ class Vast(SSHTransport):
 
         Two Vast-specific additions, both paid for in real failures:
 
-        * **Hub reachability.** Machine 68004 proxied huggingface.co with a
-          mismatched certificate and UNEXPECTED_EOF and killed a capture at
-          the setup stage on 2026-09-05, after the box was already billing.
-          The probe verifies a TLS certificate for huggingface.co and the LFS
-          CDN from THIS host, and refuses on the id of any host already known
-          to be broken.
+        * **Hub identity, judged by `fidelity.tlsguard`.** Machine 68004
+          could not complete a TLS handshake to huggingface.co and killed a
+          capture at the setup stage on 2026-09-05, after the box was already
+          billing. tlsguard's verdict is recorded verbatim here and this
+          attestation FAILS when it refuses; the causes it distinguishes
+          matter, because 68004 turned out to be forged DNS on its path
+          rather than an interception proxy, and a refusal that asserts
+          interception accuses a host operator of something not measured.
+          The exact-id refusal for a host already known to fail is separate
+          and stands on the failure alone.
         * **A status field is a claim about the provider's INTENT, never
           evidence of reachability.** A Vast box reported `cur_state` and
           `actual_status` running for ~14 minutes while its reverse tunnel
