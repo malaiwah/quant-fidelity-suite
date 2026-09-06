@@ -146,6 +146,16 @@ t "lambda provider contract (the twelve, offline)" \
                                            0 python3 bin/selftest_lambda_contract.py
 t "jarvislabs provider contract (the twelve, offline)" \
                                            0 python3 bin/selftest_jl_parity.py
+# T21. Runs listed by what they PRODUCED. `qualified-unpublished` was a
+# first-class VALIDATED state -- resultsink keys on it in a dozen places,
+# jobcontract binds publication_mode to it, five suites assert on it -- and
+# NOTHING enumerated it, so a verified capture waited a day for a row with no
+# signal and the 2026-09-06 audit found it by hand-walking 99 directories.
+# The tool refuses (3) on the shape that cost $6.59 and the only copy of a
+# MiniMax-M3 root, warns (2) on a capture that only needs a row, and reads
+# files only. The suite proves the refusal arm fires, which no real run does.
+t "measurement inventory: nothing verified is invisible (T21)" \
+                                           0 python3 bin/selftest_measurement_inventory.py
 # The stock-python3.9 floor for bin/ and registry/, which was prose in
 # AGENTS.md and checked by nothing until 2026-09-06. This battery runs under
 # whatever interpreter the developer has (3.14 here), so a 3.10-only construct
