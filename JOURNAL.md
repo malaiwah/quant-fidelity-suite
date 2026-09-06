@@ -3865,3 +3865,20 @@ by a bash shell timeout during publish (lesson: controllers MUST run under `hub 
 never a bare shell). Balance $109.54 → $48.58 across all three targets (FP8 ~$34 incl. the
 failed attempt 1 and the idle billing, NVFP4 ~$10.55, GGUF ~$16 incl. the two 429 attempts);
 no pods live, reaper healthy.
+
+**Correction (same day, before any row was filed).** The paragraph above pairs the
+cross-generation numbers wrongly: it says "the 5.3 FP8 counterpart is 0.027546". It is not.
+`0.027546` is the **5.3 GGUF UD-Q4_K_XL** row; the 5.3 official **FP8** row is `0.022305`.
+The correct same-format pairs, each 5.3 vs 5.2 on its own generation's same-lane root, are:
+
+| format | GLM-5.3 | GLM-5.2 | 5.3 ahead by |
+|---|---:|---:|---:|
+| official FP8 | 0.022305 | 0.025369 | ~12 % |
+| unsloth GGUF UD-Q4_K_XL | 0.027546 | 0.031466 | ~12 % |
+
+So the generations separate by about the same relative margin in both formats, which the
+mispairing obscured. Nothing else in the entry changes: the three 5.2 numbers, their receipts
+and their disclosures stand as published. Note the two columns are measured against DIFFERENT
+roots (each generation's own same-lane root), so this is a comparison of two within-generation
+distances, not a single ranked group — the comparability keys differ and the registry must not
+rank the six rows together.
