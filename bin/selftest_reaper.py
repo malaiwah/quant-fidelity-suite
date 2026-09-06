@@ -668,6 +668,45 @@ def generic_sweep_cases():
                       for failure in partial_result.failures),
               partial_result.to_dict())
 
+        # REAP-1. The original finding: the sweep's destroy loop reported
+        # success when every destroy had failed, so a cron backstop could
+        # print a clean run while the billing continued. The in-run Teardown
+        # path is covered by selftest_teardown CLI-01a/c/d; NOTHING covered
+        # the sweep's own loop, which is the path that runs from a machine
+        # that may never have seen the job. This is a PRESERVATION rung -- the
+        # code is already correct, so it passes on both sides of no diff --
+        # and it is labelled as such rather than presented as a regression
+        # test that caught something.
+        class DestroyRefuses(GenericProvider):
+            """A provider whose destroy always fails, as an outage would."""
+
+            def destroy(self, provider_id):
+                raise RuntimeError(
+                    "provider API refused the destroy for %s" % provider_id)
+
+        doomed_store = LeaseStore(root / "doomed", clock=lambda: 1000.0)
+        doomed = begin(doomed_store, "9", provider="vast")
+        doomed_name = doomed_store.read(doomed)["create"]["exact_name"]
+        doomed = doomed_store.record_create_success(
+            doomed, {"id": "vast-instance-9", "name": doomed_name})
+        doomed_provider = DestroyRefuses(
+            "vast", [{"id": "vast-instance-9", "name": doomed_name,
+                      "status": "running"}])
+        doomed_result = reap_once(
+            doomed_store, {"vast": doomed_provider}, now=10 ** 6)
+        doomed_doc = doomed_store.read(doomed)
+        check("REAP-1: a destroy that FAILS is never reported as success, and "
+              "the lease is kept (preservation rung)",
+              not doomed_result.ok
+              and doomed_doc["state"] != TERMINAL
+              and bool(doomed_result.failures),
+              doomed_result.to_dict())
+        check("REAP-1: and no absence proof is sealed for a machine that was "
+              "never destroyed",
+              not [event for event in (doomed_doc.get("history") or [])
+                   if event["event"] == "EXACT_IDS_ABSENT_FROM_COMPLETE_LISTING"],
+              doomed_doc.get("history"))
+
         # A provider with no inventory at all is the same: an outage.
         blind_store = LeaseStore(root / "blind", clock=lambda: 1000.0)
         blind = begin(blind_store, "7", provider="lambda")
