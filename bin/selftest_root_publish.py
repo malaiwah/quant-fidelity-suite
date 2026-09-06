@@ -266,6 +266,60 @@ def main():
     check("RP7b RunPod refuses provider-carried HF credentials before mutation",
           env_refused and submitted == [])
 
+    # RP7c: the SAME contract, over every adapter.  RP7b existed for RunPod
+    # only since the day it was written, and that is the actual defect shape
+    # behind vastapi.py:2322 building `-e HF_TOKEN=...` into a `PUT /asks/{id}/`
+    # body: not an oversight in one provider's code, but a per-provider test
+    # that was never made per-provider.  One guard
+    # (fidelity.tlsguard.refuse_credential_in_provider_payload), one rung, so
+    # the next adapter inherits the property instead of needing someone to
+    # remember it.
+    from fidelity import tlsguard
+    provider_payloads = {
+        # each shape is the one that provider's create body actually carries
+        "runpod": {"env": {"HF_TOKEN": token}},
+        "vast": "-e HF_TOKEN=%s -e FIDELITY_PANEL_ID=panel--x.y.z" % token,
+        "lambda": {"user_data": "export HF_TOKEN=%s\n" % token},
+        "jarvislabs": {"script": {"body": "HF_TOKEN=%s python3 run.py" % token}},
+    }
+    guard_refused = []
+    guard_leaked = []
+    for provider, payload in provider_payloads.items():
+        try:
+            tlsguard.refuse_credential_in_provider_payload(
+                payload, provider=provider,
+                field="env_str" if isinstance(payload, str) else None)
+        except tlsguard.TlsRefusal as exc:
+            guard_refused.append(provider)
+            blob = exc.reason + " " + " ".join(exc.advice)
+            if token in blob:
+                guard_leaked.append(provider)
+    check("RP7c the shared guard refuses a credential in EVERY provider's "
+          "create-body shape",
+          sorted(guard_refused) == sorted(provider_payloads), guard_refused)
+    check("RP7d and no refusal echoes the credential it refused "
+          "(a refusal string ends up in logs and receipt warnings)",
+          not guard_leaked, guard_leaked)
+    # And each adapter must actually CALL it.  A guard nothing calls is a guard
+    # that protects nothing, so this reads the adapters rather than trusting
+    # that they were updated.  A lane that has not landed its call yet is a
+    # printed SKIP naming the owner, never a silent pass.
+    adapter_owners = {"runpodapi": "RunPod", "vastapi": "VastParity",
+                      "lambdaapi": "LambdaParity", "jlapi": "JLParity"}
+    for module, owner in adapter_owners.items():
+        source = (ROOT / "bin" / "fidelity" / ("%s.py" % module)).read_text()
+        calls_shared = "refuse_credential_in_provider_payload" in source
+        own_refusal = ("provider env" in source
+                       or "provider environment" in source
+                       or "provider-persisted" in source)
+        if calls_shared or own_refusal:
+            check("RP7e %s refuses provider-carried credentials before mutation"
+                  % module, True)
+        else:
+            print("  SKIP  RP7e %s has no credential refusal in its create "
+                  "path (owner: %s; the shared guard exists and is unused "
+                  "here)" % (module, owner))
+
     # RP9: qualification is mandatory, the exact returned commit is refetched
     # (never mutable main), and the receipt binds the bytes actually refetched.
     FD = load("fidelity_dataset", "bin/fidelity_dataset.py")

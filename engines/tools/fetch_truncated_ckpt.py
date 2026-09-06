@@ -162,7 +162,90 @@ class _NoCrossOriginAuth(urllib.request.HTTPRedirectHandler):
         return new
 
 
-_OPENER = urllib.request.build_opener(_NoCrossOriginAuth())
+# Standalone copy of the trust decision in bin/fidelity/tlsguard.py, for the
+# same reason as the redirect handler above: this file is scp'd to a box as ONE
+# script and cannot import the suite package.  It matters MORE here than on the
+# controller.  `build_opener()` with no context inherits python's default,
+# which reads the ambient store and honours SSL_CERT_FILE/SSL_CERT_DIR -- and
+# this script runs on RENTED hardware, where the environment is host-controlled
+# and root belongs to someone else, while carrying a bearer token (line 180).
+# Nothing in the tree strips SSL_CERT_FILE/REQUESTS_CA_BUNDLE from a stage
+# environment, so of the suite's two openers this is the one an attacker can
+# actually reconfigure.  A rented Vast host served a mismatched certificate for
+# huggingface.co on 2026-09-05; `self.base` is already the literal official
+# host, so pinning the ROOTS is what closes the pair.
+_TRUST_BUNDLE_ENV = "FIDELITY_TLS_TRUST_BUNDLE"
+_ALLOW_SYSTEM_TRUST_ENV = "FIDELITY_TLS_ALLOW_SYSTEM_TRUST"
+_BUNDLE_NAME = "tls-roots.pem"
+
+
+def _trust_bundle_path() -> Optional[str]:
+    """Our vendored roots, wherever this single file has been dropped.
+
+    Searched in order: the operator override, the uploaded bundle under
+    FIDELITY_FS_ROOT, a copy beside this script, and the repo checkout.
+    """
+    here = os.path.dirname(os.path.abspath(__file__))
+    candidates = [os.environ.get(_TRUST_BUNDLE_ENV)]
+    for root in (os.environ.get("FIDELITY_FS_ROOT"),
+                 os.environ.get("FIDELITY_SUITE_ROOT")):
+        if root:
+            candidates.append(os.path.join(root, "bin", "fidelity", _BUNDLE_NAME))
+    candidates.append(os.path.join(here, _BUNDLE_NAME))
+    candidates.append(os.path.join(here, "..", "..", "bin", "fidelity",
+                                   _BUNDLE_NAME))
+    for candidate in candidates:
+        if candidate and os.path.isfile(candidate):
+            return candidate
+    return None
+
+
+def _explicit_https_handler() -> "urllib.request.HTTPSHandler":
+    """An HTTPS handler whose trust is ours, or a refusal that names the fix."""
+    import ssl
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    context.check_hostname = True
+    context.verify_mode = ssl.CERT_REQUIRED
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
+    bundle = _trust_bundle_path()
+    if bundle is not None:
+        context.load_verify_locations(cafile=bundle)
+        log(event="tls_trust", source="vendored", bundle=bundle,
+            sha256=hashlib.sha256(open(bundle, "rb").read()).hexdigest())
+    elif os.environ.get(_ALLOW_SYSTEM_TRUST_ENV) in ("1", "true", "yes"):
+        context.load_default_certs(ssl.Purpose.SERVER_AUTH)
+        # A disclosure, not a silent fallback: on a rented box this is the
+        # store the host controls, and this script carries a token.
+        log(event="tls_trust", source="ambient-system-store",
+            disclosure="%s=1: trust for this fetch is the BOX's own store, "
+                       "which SSL_CERT_FILE/SSL_CERT_DIR can redirect"
+                       % _ALLOW_SYSTEM_TRUST_ENV,
+            ambient_trust_env=sorted(
+                name for name in ("SSL_CERT_FILE", "SSL_CERT_DIR",
+                                  "REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE",
+                                  "HTTPS_PROXY", "https_proxy")
+                if os.environ.get(name)))
+    else:
+        raise _fail(
+            "no TLS trust bundle: this fetch carries a bearer token on a "
+            "machine we do not control, so it will not fall back to that "
+            "machine's own trust store. Next: copy bin/fidelity/%s beside this "
+            "script, or set %s=/path/to.pem, or -- as a recorded disclosure -- "
+            "%s=1 to accept the box's store"
+            % (_BUNDLE_NAME, _TRUST_BUNDLE_ENV, _ALLOW_SYSTEM_TRUST_ENV))
+    return urllib.request.HTTPSHandler(context=context)
+
+
+_OPENER = None
+
+
+def _opener() -> "urllib.request.OpenerDirector":
+    """Built on first use so importing this module never needs the bundle."""
+    global _OPENER
+    if _OPENER is None:
+        _OPENER = urllib.request.build_opener(_NoCrossOriginAuth(),
+                                              _explicit_https_handler())
+    return _OPENER
 
 
 class Fetcher:
@@ -181,7 +264,7 @@ class Fetcher:
             if byte_range is not None:
                 req.add_header("Range", "bytes=%d-%d" % byte_range)
             try:
-                with _OPENER.open(req, timeout=300) as handle:
+                with _opener().open(req, timeout=300) as handle:
                     data = handle.read()
                 if byte_range is not None:
                     want = byte_range[1] - byte_range[0] + 1
