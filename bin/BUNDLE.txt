@@ -257,6 +257,14 @@ bin/fidelity/dscompare.py
 bin/fidelity/dshub.py
 bin/fidelity/k3compat.py
 bin/fidelity/cardmeta.py
+# The TLS spine, and it must be on the box: stage_measure.sh checks the peer
+# before the credential is used (`setup`, `fetch_target`), bootstrap_measure.sh
+# checks it before the first install, and the controller's pre-token
+# attestation points the box at THESE roots rather than the box's own store.
+# The .pem is DATA the module refuses to run without -- a missing bundle is a
+# refusal on a rented box, not a silent fallback to the ambient trust store.
+bin/fidelity/tlsguard.py
+bin/fidelity/tls-roots.pem
 engines/tools/hf_capture.py
 engines/tools/layer_outer.py
 # Race mode (docs/RACE-MODE.md): the priority-ordered background fetch the
