@@ -45,6 +45,10 @@ from .sshbase import SSHTransport
 
 API = "https://console.vast.ai/api/v0"
 DEFAULT_IMAGE = "pytorch/pytorch:2.8.0-cuda12.8-cudnn9-devel"
+# Where the operator keeps the key, and what docs/CLOUD-RECIPES.md documents.
+# Expanded once to an absolute path; key bytes stay in the file.
+DEFAULT_KEY_FILE = os.path.abspath(
+    os.path.expanduser("~/.config/vastai/vast_api_key"))
 MIN_CREATE_SETUP_SECONDS = 300
 MAX_LOG_RESPONSE_BYTES = 2 * 1024 * 1024
 # Vast bills per UTC DAY. `GET /charges/` is filtered by a day index
@@ -265,6 +269,7 @@ class PreparedVastCreate:
     image_name: str
     terminate_after: str
     duration_seconds: int
+    host_key_fingerprint: str
     dry_run: bool
 
     def to_dict(self) -> Dict[str, Any]:
@@ -286,6 +291,9 @@ class PreparedVastCreate:
             "image_name": self.image_name,
             "terminate_after": self.terminate_after,
             "duration_seconds": self.duration_seconds,
+            # The fingerprint the live host MUST present. Public by nature;
+            # the private half never enters this document or any log.
+            "pinned_host_key_fingerprint": self.host_key_fingerprint,
             "dry_run": self.dry_run,
         }
 
@@ -489,24 +497,46 @@ class Vast(SSHTransport):
         self.ssh_key = ssh_key or os.path.expanduser("~/.ssh/id_ed25519")
         self._ep: Dict[str, tuple] = {}
         self._server_time: Optional[Dict[str, Any]] = None
+        # contract id -> the ED25519 fingerprint pinned at create time.
+        self._pinned_host_keys: Dict[str, str] = {}
 
     # -- transport ---------------------------------------------------------
     def _load_key(self) -> str:
+        """Find the credential where the operator actually keeps it.
+
+        The old order was `key_file` -> `$VAST_KEY_FILE` -> `$VAST_API_KEY`
+        and nothing else, so a 0600 key sitting at the conventional path was
+        NOT FOUND and the refusal told the operator to export a secret into
+        their environment -- the opposite of what the 0600-file discipline is
+        for. Three sibling tasks worked around it in one afternoon, and
+        `docs/CLOUD-RECIPES.md` compounded it by passing the path unexpanded,
+        which `os.path.isfile` silently missed. Both are fixed here: the
+        conventional path is tried, and `~` is expanded.
+        """
         if self._key:
             return self._key
-        path = self._key_file or os.environ.get("VAST_KEY_FILE") or ""
-        # `~/.config/vastai/vast_api_key` is how the operator spells it and how
-        # docs/CLOUD-RECIPES.md spells it; without expanduser the path silently
-        # missed and the loader fell through to the environment.
-        path = os.path.expanduser(str(path)) if path else ""
-        if path:
+        candidates = [self._key_file, os.environ.get("VAST_KEY_FILE"),
+                      DEFAULT_KEY_FILE]
+        for candidate in candidates:
+            if not candidate:
+                continue
+            path = os.path.abspath(os.path.expanduser(str(candidate)))
+            if not os.path.exists(path):
+                # An explicitly requested path that is absent is a refusal,
+                # not a silent fall-through to a different credential.
+                if candidate is DEFAULT_KEY_FILE:
+                    continue
+                raise VastError(
+                    "Vast key file does not exist: %s" % path)
             self._key = self._read_key_file(path)
-        else:
-            self._key = os.environ.get("VAST_API_KEY", "").strip()
-            register_secret(self._key)
+            return self._key
+        self._key = os.environ.get("VAST_API_KEY", "").strip()
+        register_secret(self._key)
         if not self._key:
-            raise VastError("no Vast credential: set VAST_KEY_FILE to a 0600 "
-                            "file, or VAST_API_KEY")
+            raise VastError(
+                "no Vast credential: put the key in a 0600 file at %s, point "
+                "VAST_KEY_FILE at one, or set VAST_API_KEY"
+                % DEFAULT_KEY_FILE)
         return self._key
 
     @staticmethod
@@ -735,15 +765,33 @@ class Vast(SSHTransport):
 
     # -- instances ---------------------------------------------------------
     @staticmethod
-    def _to_instance(d: Dict[str, Any]) -> Instance:
+    def _elapsed_seconds(d: Dict[str, Any]) -> float:
+        """Seconds this contract has actually been alive.
+
+        NOT `duration`: on a live Vast contract that field is the time
+        REMAINING on the rental and counts DOWN (15 596 493 -> 15 596 229 over
+        four minutes on instance 50054271, 2026-09-06 -- a 180-day contract on
+        a box eight minutes old). Costing a run from it overstates spend by
+        three orders of magnitude.
+        """
+        try:
+            started = float(d.get("start_date") or 0)
+        except (TypeError, ValueError):
+            return 0.0
+        if not math.isfinite(started) or started <= 0:
+            return 0.0
+        return max(0.0, time.time() - started)
+
+    @classmethod
+    def _to_instance(cls, d: Dict[str, Any]) -> Instance:
+        elapsed = cls._elapsed_seconds(d)
         inst = Instance.from_json({
             "machine_id": 0,
             "status": d.get("actual_status") or d.get("cur_state") or "",
             "gpu_type": d.get("gpu_name"), "num_gpus": d.get("num_gpus") or 1,
             "region": d.get("geolocation"), "is_spot": False,
-            "cost": float(d.get("dph_total") or 0)
-            * float(d.get("duration") or 0) / 3600.0,
-            "runtime": d.get("duration"), "fs_id": None,
+            "cost": float(d.get("dph_total") or 0) * elapsed / 3600.0,
+            "runtime": elapsed, "fs_id": None,
             "storage_gb": d.get("disk_space"), "name": d.get("label"),
         })
         inst.machine_id = d.get("id")
@@ -753,9 +801,14 @@ class Vast(SSHTransport):
         # different objects: the ask you searched can be gone by the time the
         # rental lands, and an ask id is not a durable name for one machine --
         # one that advertised a B200 handed back an H100. Anything that prices
-        # a run must read what is billing, not what was listed.
+        # a run must read what is billing, not what was listed. Live proof
+        # (2026-09-06, contract 50054271): the ask listed $0.13556/h and the
+        # contract bills $0.16667/h = $0.13333 GPU + $0.03333 disk, 23% more.
         inst.raw["dph_total"] = d.get("dph_total")
         inst.raw["gpu_name"] = d.get("gpu_name")
+        inst.raw["contract_seconds_remaining"] = d.get("duration")
+        inst.raw["start_date"] = d.get("start_date")
+        inst.raw["end_date"] = d.get("end_date")
         return inst
 
     def list_instances(self) -> List[Instance]:
@@ -763,12 +816,1531 @@ class Vast(SSHTransport):
         return [self._to_instance(d) for d in got.get("instances", [])]
 
     def get(self, machine_id: Any) -> Optional[Instance]:
+        wanted = _provider_id(machine_id)
         for i in self.list_instances():
-            if str(i.machine_id) == str(machine_id):
+            if str(i.machine_id) == wanted:
                 return i
         return None
 
+    # -- lifecycle: is anything of mine still alive? -----------------------
+    def _instance_documents(self) -> List[Dict[str, Any]]:
+        """Every instance the account holds, validated for exact identity."""
+        got = self._req("GET", "/instances/") or {}
+        rows = got.get("instances")
+        if not isinstance(rows, list):
+            raise VastError("Vast instance listing lacks an instances array")
+        documents = []
+        seen = set()
+        for row in rows:
+            if not isinstance(row, dict):
+                raise VastError(
+                    "Vast instance listing contains a non-object row")
+            instance_id = _provider_id(row.get("id"), "Vast instance id")
+            if instance_id in seen:
+                raise VastError(
+                    "Vast instance listing repeats id %s" % instance_id)
+            seen.add(instance_id)
+            documents.append(row)
+        return documents
+
+    def list_lifecycle_resources(self) -> List[Dict[str, Any]]:
+        """Complete exact-id rows; every listed instance is still chargeable.
+
+        `status` is `cur_state` -- the CONTRACT's state, lowercase on this
+        provider ("running", never "RUNNING"). `actual_status` is carried
+        beside it because the two disagree in exactly the window that matters:
+        a box reports `cur_state` running with `actual_status` loading while
+        its image is still being pulled, and it is billing throughout.
+        """
+        resources = []
+        for row in self._instance_documents():
+            volumes = row.get("volume_info")
+            resources.append({
+                "id": _provider_id(row.get("id")),
+                "name": row.get("label"),
+                "status": row.get("cur_state"),
+                "listed": True,
+                "actual_status": row.get("actual_status"),
+                "intended_status": row.get("intended_status"),
+                "cost_per_hr": row.get("dph_total"),
+                "gpu_cost_per_hr": row.get("dph_base"),
+                "storage_cost_per_hr": row.get("storage_total_cost"),
+                "runtime": self._elapsed_seconds(row),
+                "gpu_count": row.get("num_gpus"),
+                "gpu_type_id": row.get("gpu_name"),
+                "gpu_display_name": row.get("gpu_name"),
+                "gpu_ram_mib": row.get("gpu_ram"),
+                # A Vast host is one person's machine: the machine and host
+                # ids are the only durable names for the silicon and the
+                # uplink, and a bad host has already cost a capture.
+                "provider_machine_id": (
+                    None if row.get("machine_id") is None
+                    else str(row.get("machine_id"))),
+                "provider_host_id": (
+                    None if row.get("host_id") is None
+                    else str(row.get("host_id"))),
+                "location": row.get("geolocation"),
+                "data_center_id": None,
+                "verification": row.get("verification"),
+                "hosting_type": row.get("hosting_type"),
+                "driver_version": row.get("driver_version"),
+                "cuda_max_good": row.get("cuda_max_good"),
+                # One pod-scoped disk, so both roles resolve to it.
+                "volume_gb": row.get("disk_space"),
+                "container_disk_gb": row.get("disk_space"),
+                "disk_gb": row.get("disk_space"),
+                "network_volume_id": (
+                    None if not volumes
+                    else json.dumps(volumes, sort_keys=True)),
+                "image_name": row.get("image_uuid"),
+                "start_date": row.get("start_date"),
+                # Vast's provider-side deadline: the contract end date. There
+                # is no `terminateAfter`; `end_date` is what the provider will
+                # act on, so it is what a deadline must be validated against.
+                "terminate_after": (
+                    None if row.get("end_date") is None
+                    else _utc_text(float(row["end_date"]))),
+                "end_date": row.get("end_date"),
+                "raw": row,
+            })
+        return resources
+
+    def get_lifecycle_resource(self, provider_id: Any) -> Optional[Dict[str, Any]]:
+        """Exact-id detail; a `label` is deliberately not accepted as an id."""
+        wanted = _provider_id(provider_id)
+        return next((row for row in self.list_lifecycle_resources()
+                     if row["id"] == wanted), None)
+
+    def list_network_volumes(self) -> List[Dict[str, Any]]:
+        """Enumerate persistent chargeable volumes through the official API.
+
+        This is a REAL enumeration, not a stub returning `[]`. `fs_create` /
+        `fs_delete` are right that the disk a rental gets dies with the
+        rental -- but Vast separately sells network VOLUMES, `GET /volumes/`
+        lists them, offers advertise `avail_vol_ask_id` / `avail_vol_dph` /
+        `avail_vol_size`, and a live instance carries `volume_info`. A volume
+        outlives the instance that mounted it and keeps charging, so assuming
+        this family is empty would make `chargeable_inventory` claim absence
+        it never checked. On 2026-09-06 this account held none, which is a
+        fact about the account and not about the API.
+        """
+        got = self._req("GET", "/volumes/") or {}
+        rows = got.get("volumes")
+        if not isinstance(rows, list):
+            raise VastError("Vast volume listing lacks a volumes array")
+        resources = []
+        seen = set()
+        for row in rows:
+            if not isinstance(row, dict):
+                raise VastError("Vast volume listing contains a non-object row")
+            volume_id = _provider_id(row.get("id"), "Vast volume id")
+            if volume_id in seen:
+                raise VastError("Vast volume listing repeats id %s" % volume_id)
+            seen.add(volume_id)
+            size = None
+            for field in ("size", "disk_space", "size_gb", "volume_size"):
+                if row.get(field) is not None:
+                    size = _finite_decimal(
+                        row[field], "Vast volume %s" % field, positive=True)
+                    break
+            if size is None:
+                # An unrecognised row shape must REFUSE, so the caller records
+                # this family as incomplete rather than counting a chargeable
+                # volume it could not size.
+                raise VastError(
+                    "Vast volume %s exposes no recognised size field (keys: "
+                    "%s); size it before treating this family as complete"
+                    % (volume_id, ",".join(sorted(row))))
+            resources.append({
+                "id": volume_id,
+                "name": row.get("label") or row.get("name"),
+                "size_gb": float(size),
+                "cost_per_hr": row.get("dph_total") or row.get("volume_dph"),
+                "provider_machine_id": (
+                    None if row.get("machine_id") is None
+                    else str(row.get("machine_id"))),
+                "raw": row,
+            })
+        return resources
+
+    def chargeable_inventory(self) -> Dict[str, Any]:
+        """Instances plus volumes, with EXPLICIT completeness per family.
+
+        A partial inventory cannot prove no leak, so each family says whether
+        it was established and names its source endpoint; a family that could
+        not be read is named in `unknown_families` and never counted as empty.
+        Both families are chargeable on Vast: an instance bills GPU plus disk
+        while it exists (and disk alone while stopped), and a network volume
+        outlives the instance that mounted it.
+        """
+        families: Dict[str, Dict[str, Any]] = {}
+        try:
+            instances = []
+            for row in self.list_lifecycle_resources():
+                instances.append({
+                    "id": row["id"],
+                    "name": row["name"],
+                    "status": row["status"],
+                    "actual_status": row["actual_status"],
+                    "cost_per_hr": (
+                        None if row["cost_per_hr"] is None else format(
+                            _finite_decimal(
+                                row["cost_per_hr"],
+                                "Vast inventory dph_total", nonnegative=True),
+                            "f")),
+                    "provider_machine_id": row["provider_machine_id"],
+                    "network_volume_id": row["network_volume_id"],
+                    "raw": row["raw"],
+                })
+            families["instances"] = {
+                "complete": True,
+                "source": "GET %s/instances/" % API,
+                "resources": instances,
+            }
+        except VastError as exc:
+            families["instances"] = {
+                "complete": False,
+                "source": "GET %s/instances/" % API,
+                "resources": [],
+                "unknown": redact(str(exc)),
+            }
+        try:
+            families["network_volumes"] = {
+                "complete": True,
+                "source": "GET %s/volumes/" % API,
+                "resources": self.list_network_volumes(),
+            }
+        except VastError as exc:
+            families["network_volumes"] = {
+                "complete": False,
+                "source": "GET %s/volumes/" % API,
+                "resources": [],
+                "unknown": redact(str(exc)),
+            }
+        unknown = sorted(name for name, family in families.items()
+                         if not family["complete"])
+        return {
+            "schema": "fidelity-suite/vast-chargeable-inventory.v1",
+            "provider": "vast",
+            "observed_at_utc": _utc_text(time.time()),
+            "complete": not unknown,
+            "unknown_families": unknown,
+            "families": families,
+        }
+
+    # -- is this the thing I asked for? ------------------------------------
+    def validate_safe_resource_binding(
+            self, provider_id: Any, *, expected_name: str,
+            gpu_type_id: str, secure_cloud: bool, gpu_count: int,
+            volume_gb: int, container_disk_gb: int, image_name: str,
+            terminate_after: str) -> Dict[str, Any]:
+        """Fail unless the live exact-id CONTRACT is the rental requested.
+
+        Same signature as RunPod's so the controller needs no special case;
+        three arguments mean something different here and the difference is
+        checked rather than papered over:
+
+        * `volume_gb` + `container_disk_gb` -- Vast rents ONE pod-scoped disk
+          chosen at rent time. The contract must hold their SUM.
+        * `secure_cloud` -- a marketplace host is not a secure datacenter and
+          exposes no attribute that could prove it were (a live contract
+          reported `hosting_type: null`, `verification: "unverified"`), so
+          `True` is refused instead of being silently accepted.
+        * `terminate_after` -- Vast has no `terminateAfter`; the contract's
+          `end_date` is the provider-side deadline. A contract ending LATER
+          than the deadline means the provider is not holding our deadline
+          at all, which is refused; ending earlier is the provider promising
+          to stop sooner and is recorded.
+        """
+        observed = self.get_lifecycle_resource(provider_id)
+        if observed is None:
+            raise VastError(
+                "created Vast contract %s is absent from the complete listing"
+                % _provider_id(provider_id))
+        expected_deadline = _exact_utc(terminate_after, "terminate_after")
+        deadline_epoch = _utc_epoch(expected_deadline, "terminate_after")
+        if not isinstance(secure_cloud, bool):
+            raise VastError("secure_cloud expectation must be an exact bool")
+        if secure_cloud:
+            raise VastError(
+                "Vast is a marketplace and cannot attest a secure-datacenter "
+                "binding: a live contract reports hosting_type null and "
+                "verification %r. Pass secure_cloud=False for vast, or use a "
+                "provider whose API states it."
+                % observed.get("verification"))
+        disk_required = int(volume_gb) + int(container_disk_gb)
+        expected = {
+            "name": str(expected_name),
+            "gpu_type_id": str(gpu_type_id),
+            "gpu_count": int(gpu_count),
+            "image_name": str(image_name),
+            "disk_gb_minimum": disk_required,
+            "secure_cloud": False,
+        }
+        problems = []
+        for key in ("name", "gpu_type_id", "image_name"):
+            actual = observed.get(key)
+            if actual != expected[key]:
+                problems.append("%s expected %r, observed %r"
+                                % (key, expected[key], actual))
+        try:
+            observed_gpus = int(observed.get("gpu_count"))
+        except (TypeError, ValueError):
+            observed_gpus = None
+        if observed_gpus != expected["gpu_count"]:
+            problems.append("gpu_count expected %r, observed %r"
+                            % (expected["gpu_count"], observed.get("gpu_count")))
+        try:
+            observed_disk = _finite_decimal(
+                observed.get("disk_gb"), "Vast contract disk_space",
+                positive=True)
+        except VastError:
+            problems.append("disk_space must be a known positive decimal")
+            observed_disk = None
+        else:
+            observed["disk_gb"] = float(observed_disk)
+            if observed_disk < disk_required:
+                problems.append(
+                    "disk_space %s GB is below the %d GB the plan needs "
+                    "(volume %d + container %d); vast disk cannot grow after "
+                    "rent time" % (format(observed_disk, "f"), disk_required,
+                                   int(volume_gb), int(container_disk_gb)))
+        try:
+            live_rate = _finite_decimal(
+                observed.get("cost_per_hr"), "Vast contract dph_total",
+                positive=True)
+        except VastError:
+            problems.append(
+                "cost_per_hr must be a known positive exact decimal")
+        else:
+            observed["cost_per_hr"] = format(live_rate, "f")
+        if observed.get("network_volume_id") not in (None, ""):
+            problems.append(
+                "no network volume may be attached, observed %r"
+                % observed.get("network_volume_id"))
+        observed_end = observed.get("end_date")
+        try:
+            observed_end_epoch = float(observed_end)
+        except (TypeError, ValueError):
+            observed_end_epoch = None
+            problems.append("contract end_date is missing or not a number")
+        if observed_end_epoch is not None and observed_end_epoch > deadline_epoch + 120:
+            problems.append(
+                "contract end_date %s is later than the requested deadline "
+                "%s, so the provider is not holding our teardown deadline"
+                % (_utc_text(observed_end_epoch), expected_deadline))
+        bad_host = KNOWN_BAD_MACHINE_IDS.get(
+            str(observed.get("provider_machine_id")))
+        if bad_host:
+            problems.append("known-bad host: %s" % bad_host)
+        if problems:
+            raise VastError("Vast post-create identity mismatch: %s"
+                            % "; ".join(problems))
+        return {
+            "provider_id": observed["id"],
+            "passed": True,
+            "expected": dict(expected, terminate_after=expected_deadline,
+                             network_volume_id=None),
+            "observed": observed,
+            "terminate_after_observable": observed_end_epoch is not None,
+            "terminate_after_observed": (
+                None if observed_end_epoch is None
+                else _utc_text(observed_end_epoch)),
+            "terminate_after_earlier_than_requested": (
+                observed_end_epoch is not None
+                and observed_end_epoch < deadline_epoch),
+        }
+
+    def attest_live_resource(
+            self, provider_id: Any, *, expected_gpu_model: str,
+            expected_vram_bytes: int, min_vcpu: int, min_ram_gb: int,
+            volume_gb: int, container_disk_gb: int,
+            workspace_available_bytes_minimum: int,
+            container_available_bytes_minimum: int) -> Dict[str, Any]:
+        """Read-only SSH proof that this box is the DEVICE the root wants.
+
+        This is the scientific gate. Provider is not a comparability axis --
+        two A100s in two clouds agreed bitwise while an H200 sat 2.973e-04
+        nats away -- so what makes a Vast capture comparable to a root
+        captured elsewhere is the GPU MODEL and the rebuilt stack. The
+        attestation therefore fails unless nvidia-smi AND torch both report
+        the expected model with VRAM inside a +/-10% band.
+
+        Two Vast-specific additions, both paid for in real failures:
+
+        * **Hub reachability.** Machine 68004 proxied huggingface.co with a
+          mismatched certificate and UNEXPECTED_EOF and killed a capture at
+          the setup stage on 2026-09-05, after the box was already billing.
+          The probe verifies a TLS certificate for huggingface.co and the LFS
+          CDN from THIS host, and refuses on the id of any host already known
+          to be broken.
+        * **A status field is a claim about the provider's INTENT, never
+          evidence of reachability.** A Vast box reported `cur_state` and
+          `actual_status` running for ~14 minutes while its reverse tunnel
+          was dead and ssh died at `kex_exchange_identification`
+          (2026-09-06, instance 50054271). Reachability is proven by this
+          round trip and never by a status field.
+        """
+        instance_id = _provider_id(provider_id)
+        model = _gpu_id(expected_gpu_model, "expected GPU model")
+        expected_numbers = {
+            "expected_vram_bytes": expected_vram_bytes,
+            "min_vcpu": min_vcpu,
+            "min_ram_gb": min_ram_gb,
+            "volume_gb": volume_gb,
+            "container_disk_gb": container_disk_gb,
+            "workspace_available_bytes_minimum":
+                workspace_available_bytes_minimum,
+            "container_available_bytes_minimum":
+                container_available_bytes_minimum,
+        }
+        for key, value in expected_numbers.items():
+            if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+                raise VastError("%s must be a positive integer" % key)
+        expected = dict(expected_numbers, gpu_model=model,
+                        hub_probe_hosts=list(HUB_PROBE_HOSTS))
+        command = (
+            "python3 -c 'import base64;"
+            "exec(base64.b64decode(\"%s\").decode(\"utf-8\"))'"
+            % base64.b64encode(
+                _LIVE_ATTEST_SCRIPT.encode("utf-8")).decode("ascii"))
+        observed = None
+        transport_error = None
+        controller_send_epoch = time.time()
+        controller_receive_epoch = controller_send_epoch
+        if self.dry:
+            transport_error = "dry mode cannot attest a live resource"
+            controller_receive_epoch = time.time()
+        else:
+            try:
+                raw = self.exec_stdout(instance_id, command, timeout=300)
+                observed = _strict_json_loads(raw)
+            except Exception as exc:                      # noqa: BLE001
+                transport_error = redact(str(exc))[:500]
+            finally:
+                controller_receive_epoch = time.time()
+        round_trip_seconds = max(
+            0.0, controller_receive_epoch - controller_send_epoch)
+        remote_epoch = (observed.get("remote_time_epoch")
+                        if isinstance(observed, dict) else None)
+        remote_utc = (observed.get("remote_time_utc")
+                      if isinstance(observed, dict) else None)
+        remote_utc_epoch = None
+        if isinstance(remote_utc, str):
+            try:
+                remote_utc_epoch = _utc_epoch(
+                    remote_utc, "remote attestation time")
+            except VastError:
+                pass
+        midpoint_epoch = controller_send_epoch + round_trip_seconds / 2.0
+        allowed_skew_seconds = 30.0 + round_trip_seconds
+        clock_skew_seconds = (
+            abs(float(remote_epoch) - midpoint_epoch)
+            if isinstance(remote_epoch, int)
+            and not isinstance(remote_epoch, bool) else None)
+        clock_ok = bool(
+            clock_skew_seconds is not None
+            and remote_utc_epoch == remote_epoch
+            and clock_skew_seconds <= allowed_skew_seconds)
+        clock = {
+            "controller_send_epoch": controller_send_epoch,
+            "controller_send_utc": _utc_text(controller_send_epoch),
+            "controller_receive_epoch": controller_receive_epoch,
+            "controller_receive_utc": _utc_text(controller_receive_epoch),
+            "round_trip_seconds": round_trip_seconds,
+            "remote_time_epoch": remote_epoch,
+            "remote_time_utc": remote_utc,
+            "clock_skew_seconds": clock_skew_seconds,
+            "allowed_skew_seconds": allowed_skew_seconds,
+            "within_bound": clock_ok,
+        }
+        failures: List[str] = []
+        checks: Dict[str, bool] = {"remote_clock": clock_ok}
+        vram_floor = expected_vram_bytes * 9 // 10
+        vram_ceiling = expected_vram_bytes * 11 // 10
+        single_filesystem = None
+        if not isinstance(observed, dict):
+            failures.append("live SSH attestation unavailable")
+        else:
+            exact_observed = {
+                "remote_time_epoch", "remote_time_utc", "logical_cpus",
+                "memtotal_bytes", "effective_memory_bytes",
+                "nvidia_smi_exit_code", "nvidia_smi_error", "gpus", "cuda",
+                "filesystems", "hub_reachability",
+            }
+            if set(observed) != exact_observed:
+                failures.append("live attestation keys differ")
+            for key in ("logical_cpus", "memtotal_bytes",
+                        "effective_memory_bytes", "nvidia_smi_exit_code"):
+                if (isinstance(observed.get(key), bool)
+                        or not isinstance(observed.get(key), int)):
+                    failures.append("%s is not an exact integer" % key)
+            checks["logical_cpu_floor"] = (
+                isinstance(observed.get("logical_cpus"), int)
+                and not isinstance(observed.get("logical_cpus"), bool)
+                and observed["logical_cpus"] >= min_vcpu)
+            checks["memory_floor"] = (
+                isinstance(observed.get("effective_memory_bytes"), int)
+                and not isinstance(observed.get("effective_memory_bytes"), bool)
+                and observed["effective_memory_bytes"] >= min_ram_gb * 10 ** 9)
+            gpus = observed.get("gpus")
+            checks["one_nvidia_gpu"] = (
+                observed.get("nvidia_smi_exit_code") == 0
+                and isinstance(gpus, list) and len(gpus) == 1)
+            gpu = gpus[0] if checks["one_nvidia_gpu"] else {}
+            if gpu and set(gpu) != {
+                    "index", "name", "vram_bytes", "driver_version"}:
+                failures.append("nvidia-smi GPU keys differ")
+            observed_name = gpu.get("name") if isinstance(gpu, dict) else None
+            observed_vram = (
+                gpu.get("vram_bytes") if isinstance(gpu, dict) else None)
+            checks["gpu_model"] = (
+                isinstance(observed_name, str)
+                and observed_name.strip().casefold() == model.casefold())
+            checks["gpu_vram"] = (
+                isinstance(observed_vram, int)
+                and not isinstance(observed_vram, bool)
+                and vram_floor <= observed_vram <= vram_ceiling)
+            cuda = observed.get("cuda")
+            if not isinstance(cuda, dict) or set(cuda) != {
+                    "usable", "count", "name", "vram_bytes", "error",
+                    "interpreter"}:
+                failures.append("CUDA attestation keys differ")
+                cuda = {}
+            checks["cuda_usable"] = (
+                cuda.get("usable") is True and cuda.get("count") == 1
+                and isinstance(cuda.get("name"), str)
+                and cuda["name"].strip().casefold() == model.casefold()
+                and isinstance(cuda.get("vram_bytes"), int)
+                and vram_floor <= cuda["vram_bytes"] <= vram_ceiling)
+            filesystems = observed.get("filesystems")
+            if not isinstance(filesystems, dict) or set(filesystems) != {
+                    "root", "workspace"}:
+                failures.append("filesystem attestation keys differ")
+                filesystems = {}
+            filesystem_keys = {
+                "path", "mount_point", "fs_type", "source", "device",
+                "total_bytes", "available_bytes", "error",
+            }
+            for role in ("root", "workspace"):
+                row = filesystems.get(role)
+                if not isinstance(row, dict) or set(row) != filesystem_keys:
+                    failures.append("%s filesystem keys differ" % role)
+            root = filesystems.get("root", {})
+            workspace = filesystems.get("workspace", {})
+            checks["workspace_present"] = (
+                isinstance(workspace, dict) and workspace.get("error") is None
+                and workspace.get("path") == "/workspace")
+            # ONE pod-scoped disk is the normal Vast shape, so when /workspace
+            # and / share a device the two byte floors are demands on the SAME
+            # free space and must be satisfied TOGETHER, not each alone.
+            single_filesystem = bool(
+                isinstance(root, dict) and isinstance(workspace, dict)
+                and root.get("device") is not None
+                and root.get("device") == workspace.get("device"))
+            disk_required_gb = int(volume_gb) + int(container_disk_gb)
+            if single_filesystem:
+                checks["disk_total_bytes"] = (
+                    isinstance(root.get("total_bytes"), int)
+                    and root["total_bytes"] >= disk_required_gb * 900_000_000)
+                checks["disk_available_bytes"] = (
+                    isinstance(root.get("available_bytes"), int)
+                    and not isinstance(root.get("available_bytes"), bool)
+                    and root["available_bytes"]
+                    >= workspace_available_bytes_minimum
+                    + container_available_bytes_minimum)
+            else:
+                checks["disk_total_bytes"] = (
+                    isinstance(root.get("total_bytes"), int)
+                    and isinstance(workspace.get("total_bytes"), int)
+                    and root["total_bytes"]
+                    >= int(container_disk_gb) * 900_000_000
+                    and workspace["total_bytes"]
+                    >= int(volume_gb) * 900_000_000)
+                checks["disk_available_bytes"] = (
+                    isinstance(root.get("available_bytes"), int)
+                    and isinstance(workspace.get("available_bytes"), int)
+                    and root["available_bytes"]
+                    >= container_available_bytes_minimum
+                    and workspace["available_bytes"]
+                    >= workspace_available_bytes_minimum)
+            hub = observed.get("hub_reachability")
+            hub_keys = {"host", "tls_ok", "cert_subject_cn", "cert_issuer_cn",
+                        "cert_not_after", "http_status", "error"}
+            if (not isinstance(hub, list) or len(hub) != len(HUB_PROBE_HOSTS)
+                    or any(not isinstance(row, dict) or set(row) != hub_keys
+                           for row in hub)
+                    or [row["host"] for row in hub] != list(HUB_PROBE_HOSTS)):
+                failures.append("hub reachability probe keys differ")
+                hub = []
+            checks["hub_tls_verified"] = bool(hub) and all(
+                row.get("tls_ok") is True and row.get("error") is None
+                for row in hub)
+            api_rows = [row for row in hub
+                        if row.get("host") == "huggingface.co"]
+            checks["hub_api_answers"] = bool(api_rows) and all(
+                row.get("http_status") == 200 for row in api_rows)
+            failures.extend(
+                name for name, passed in sorted(checks.items()) if not passed)
+        # The hub probe above is a FLOOR, not proof of Hub identity: a
+        # certificate hostname mismatch is the signature of a MITM TLS proxy,
+        # and judging one is `fidelity.tlsguard`'s job so there is exactly one
+        # implementation of that property. When the module is present its
+        # collector runs on the box and its verdict is authoritative; when it
+        # is not, the document says so in `hub_tls_verdict_source` and the
+        # attestation is explicitly NOT proof of Hub identity.
+        hub_verdict: Dict[str, Any] = {
+            "source": "inline-floor",
+            "ok": None,
+            "verdict": None,
+            "failures": [],
+            "disclosures": [
+                "fidelity.tlsguard is unavailable: this attestation proves a "
+                "verified TLS handshake and an anonymous HTTP 200 from the "
+                "box, NOT that the peer is the real Hub"],
+            "evidence": None,
+        }
+        try:
+            from . import tlsguard
+        except ImportError:
+            tlsguard = None
+        if tlsguard is not None:
+            hub_verdict = {"source": "tlsguard", "ok": False,
+                           "verdict": None, "failures": [],
+                           "disclosures": [], "evidence": None}
+            try:
+                collector = tlsguard.collector_script_text()
+                peer_evidence = None
+                if not self.dry:
+                    peer_raw = self.exec_stdout(
+                        instance_id,
+                        "python3 -c 'import base64;"
+                        "exec(base64.b64decode(\"%s\").decode(\"utf-8\"))' %s"
+                        % (base64.b64encode(
+                            collector.encode("utf-8")).decode("ascii"),
+                           HUB_PROBE_HOSTS[0]),
+                        timeout=180)
+                    peer_evidence = _strict_json_loads(peer_raw)
+                judged = tlsguard.evaluate_peer_evidence(
+                    peer_evidence,
+                    host_id=str((self.get_lifecycle_resource(instance_id)
+                                 or {}).get("provider_machine_id")),
+                    host=HUB_PROBE_HOSTS[0])
+                hub_verdict.update({
+                    "ok": bool(judged.get("ok")),
+                    "verdict": judged.get("verdict"),
+                    "failures": judged.get("failures") or [],
+                    "disclosures": judged.get("disclosures") or [],
+                    "evidence": judged.get("evidence"),
+                })
+            except Exception as exc:                      # noqa: BLE001
+                hub_verdict["failures"] = [{
+                    "code": "tlsguard_unavailable",
+                    "message": redact(str(exc))[:300],
+                    "remedy": "run the tlsguard peer attestation before any "
+                              "credential reaches this box",
+                }]
+            checks["hub_identity_attested"] = bool(hub_verdict["ok"])
+            if not checks["hub_identity_attested"]:
+                failures.append("hub_identity_attested")
+        provider_record = {
+            "provider_machine_id": None, "provider_host_id": None,
+            "location": None, "gpu_type_id": None, "gpu_ram_mib": None,
+            "driver_version": None, "cuda_max_good": None,
+            "status": None, "actual_status": None, "cost_per_hr": None,
+            "known_bad_host": None, "error": None,
+        }
+        try:
+            listed = self.get_lifecycle_resource(instance_id)
+            if listed is None:
+                raise VastError("instance %s is not listed" % instance_id)
+            for key in ("provider_machine_id", "provider_host_id", "location",
+                        "gpu_type_id", "gpu_ram_mib", "driver_version",
+                        "cuda_max_good", "status", "actual_status",
+                        "cost_per_hr"):
+                value = listed.get(key)
+                provider_record[key] = str(value) if value is not None else None
+            provider_record["known_bad_host"] = KNOWN_BAD_MACHINE_IDS.get(
+                str(listed.get("provider_machine_id")))
+            checks["host_not_known_bad"] = provider_record["known_bad_host"] is None
+            # The API's advertised VRAM and nvidia-smi's total are exactly the
+            # pair an attestation can get wrong; require them to agree.
+            advertised_mib = listed.get("gpu_ram_mib")
+            advertised = (
+                int(advertised_mib) * 1024 * 1024
+                if isinstance(advertised_mib, int)
+                and not isinstance(advertised_mib, bool) else None)
+            checks["provider_vram_agrees"] = (
+                advertised is not None
+                and vram_floor <= advertised <= vram_ceiling)
+            checks["provider_gpu_model_agrees"] = (
+                isinstance(listed.get("gpu_type_id"), str)
+                and listed["gpu_type_id"].strip().casefold() == model.casefold())
+            for name in ("host_not_known_bad", "provider_vram_agrees",
+                         "provider_gpu_model_agrees"):
+                if not checks[name]:
+                    failures.append(name)
+        except Exception as exc:  # noqa: BLE001 - recorded verbatim
+            provider_record["error"] = "%s: %s" % (type(exc).__name__, exc)
+            failures.append("provider_record_unavailable")
+        document = {
+            "schema": "fidelity-suite/vast-live-attestation.v1",
+            "provider": "vast", "provider_id": instance_id,
+            "observed_at_utc": clock["controller_receive_utc"],
+            "clock": clock,
+            "provider_record": provider_record,
+            "single_filesystem": single_filesystem,
+            "hub_tls_verdict_source": hub_verdict["source"],
+            "hub_tls_verdict": hub_verdict,
+            "expected": expected, "observed": observed,
+            "transport_error": transport_error,
+            "checks": checks, "failures": sorted(set(failures)),
+            "ok": bool(not failures and transport_error is None
+                       and checks and all(checks.values())),
+        }
+        return _attestation_seal(document)
+
+    # -- two-phase create: build and freeze before any mutation ------------
+    def _ask_offer(self, ask_id: str) -> Dict[str, Any]:
+        """The advertised identity of one exact ask, by id.
+
+        `ask_contract_id` is the filter that selects an ask by its own id
+        (`id` does not; verified live 2026-09-06). The ADVERTISED figures are
+        frozen into the request so the post-create binding check can compare
+        the contract against what was offered -- an ask that advertised a
+        B200 once handed back an H100, and every ask on this account so far
+        has under-quoted the rate by ~23% because it excludes the disk.
+        """
+        query = {"ask_contract_id": {"eq": int(ask_id)}, "type": "on-demand"}
+        got = self._req(
+            "GET", "/bundles/?q=" + urllib.parse.quote(json.dumps(query)))
+        offers = (got or {}).get("offers")
+        if not isinstance(offers, list) or len(offers) != 1:
+            raise VastError(
+                "Vast ask %s is not exactly one rentable on-demand offer any "
+                "more; re-search and prepare again -- an offer that vanishes "
+                "between search and rental is ordinary on a marketplace"
+                % ask_id)
+        offer = offers[0]
+        if not isinstance(offer, dict) or _provider_id(
+                offer.get("id"), "Vast offer id") != ask_id:
+            raise VastError("Vast ask lookup returned a different offer id")
+        return offer
+
+    def _generate_pinned_host_key(self) -> Dict[str, str]:
+        """Generate the ED25519 host key the instance will be REQUIRED to have.
+
+        Trust-on-first-use is removed rather than mitigated: the fingerprint
+        is known before the instance exists, and only a box that received our
+        TLS-authenticated rental request can hold the private half. The
+        private key travels in `env` (never in `onstart`, which the API echoes
+        back in the instance object, and never in a log: the instance log
+        endpoint hands out a PUBLIC S3 URL).
+
+        UNVERIFIED LIVE: whether Vast's `onstart` completes before the first
+        accepted SSH connection has not been measured on a live box, so a
+        pinned scan may need to wait for sshd to be re-keyed.
+        `ssh_host_ed25519_fingerprint` polls for that and refuses on timeout
+        rather than accepting whatever key answers.
+        """
+        from .sshbase import _bounded_process
+        import tempfile
+        directory = None
+        try:
+            directory = tempfile.mkdtemp(prefix="fid-vast-hostkey-")
+            os.chmod(directory, 0o700)
+            path = os.path.join(directory, "ssh_host_ed25519_key")
+            result = _bounded_process(
+                ["ssh-keygen", "-t", "ed25519", "-N", "", "-C",
+                 "fidelity-vast-pinned", "-f", path],
+                timeout=60, stdout_max_bytes=65536,
+                stderr_max_bytes=65536, label="ssh-keygen hostkey")
+            if result["returncode"] != 0:
+                raise VastError("ssh-keygen could not generate a host key")
+            with open(path, "rb") as handle:
+                private = handle.read()
+            listing = _bounded_process(
+                ["ssh-keygen", "-E", "sha256", "-lf", path + ".pub"],
+                timeout=30, stdout_max_bytes=65536,
+                stderr_max_bytes=65536, label="ssh-keygen fingerprint")
+            fields = listing["stdout"].strip().split()
+            fingerprint = fields[1] if len(fields) >= 2 else ""
+            if re.fullmatch(r"SHA256:[A-Za-z0-9+/]{43}", fingerprint) is None:
+                raise VastError(
+                    "generated ED25519 fingerprint is noncanonical")
+            encoded = base64.b64encode(private).decode("ascii")
+            register_secret(encoded)
+            return {"fingerprint": fingerprint, "private_key_b64": encoded}
+        finally:
+            if directory:
+                for name in ("ssh_host_ed25519_key",
+                             "ssh_host_ed25519_key.pub"):
+                    target = os.path.join(directory, name)
+                    if os.path.isfile(target):
+                        with open(target, "r+b") as handle:
+                            length = os.fstat(handle.fileno()).st_size
+                            handle.write(b"\0" * length)
+                            handle.flush()
+                            os.fsync(handle.fileno())
+                        os.unlink(target)
+                os.rmdir(directory)
+
+    # Written by `onstart`, which Vast runs after init on `runtype: "ssh"`.
+    # The key material arrives through the environment and is unset the
+    # moment it is on disk; sshd is re-keyed with SIGHUP so the reverse
+    # tunnel the proxy depends on is not torn down.
+    _HOST_KEY_PIN_SNIPPET = (
+        "umask 077\n"
+        "printf '%s' \"$FIDELITY_VAST_HOST_KEY_B64\" | base64 -d "
+        "> /etc/ssh/ssh_host_ed25519_key\n"
+        "chmod 600 /etc/ssh/ssh_host_ed25519_key\n"
+        "ssh-keygen -y -f /etc/ssh/ssh_host_ed25519_key "
+        "> /etc/ssh/ssh_host_ed25519_key.pub\n"
+        "unset FIDELITY_VAST_HOST_KEY_B64\n"
+        "pkill -HUP sshd || true\n")
+
+    def prepare_safe_create(self, **kw) -> PreparedVastCreate:
+        """Build and freeze the rental request before any provider mutation.
+
+        Everything that can refuse, refuses HERE, while nothing is running
+        and nothing is billing: the ask must exist as exactly one rentable
+        on-demand offer, its host must not be one already known to break the
+        Hub, the advertised GPU must be the model the plan chose, the disk
+        must hold volume+container, and a teardown deadline must be present
+        and far enough out to finish setup.
+        """
+        forbidden = ("network_volume_id", "volume_id", "network_mounts",
+                     "mounts", "volume_info")
+        used = [key for key in forbidden if kw.get(key) is not None]
+        if used:
+            raise VastError(
+                "safe Vast profile refuses network/custom volumes: %s -- a "
+                "volume outlives the rental and keeps charging"
+                % ", ".join(sorted(used)))
+        native = [key for key in ("docker_cmd", "docker_entrypoint",
+                                  "docker_args", "args")
+                  if kw.get(key) not in (None, "")]
+        if native:
+            raise VastError(
+                "safe Vast profile is SSH-driven and refuses native docker "
+                "launch: %s -- use create() for the container rehearsal path"
+                % ", ".join(sorted(native)))
+        if kw.get("env"):
+            raise VastError(
+                "safe Vast SSH profile refuses caller-supplied provider env")
+        if kw.get("spot", False) is not False or kw.get("is_bid", False):
+            raise VastError(
+                "safe Vast profile requires an on-demand rental, never a bid: "
+                "an interruptible contract cannot guarantee a capture")
+        if kw.get("offer", "on-demand") != "on-demand":
+            raise VastError(
+                "safe Vast profile requires offer exactly on-demand")
+        region = kw.get("region")
+        if region not in (None, "", "marketplace"):
+            raise VastError(
+                "Vast is a marketplace and has no region tiers to select "
+                "(got %r); leave region unset and pin the exact ask instead"
+                % region)
+
+        def _positive_int(key, default=None):
+            value = kw.get(key, default)
+            if isinstance(value, bool):
+                raise VastError("%s must be a positive integer" % key)
+            if isinstance(value, int):
+                parsed = value
+            elif isinstance(value, str) and value.isdigit():
+                parsed = int(value)
+            else:
+                raise VastError("%s must be a positive integer" % key)
+            if parsed <= 0:
+                raise VastError("%s must be a positive integer" % key)
+            return parsed
+
+        terminate_after = _terminate_after(kw)
+        if terminate_after is None:
+            raise VastError(
+                "safe Vast create requires terminate_after or "
+                "terminate_after_epoch")
+        termination_epoch = _utc_epoch(terminate_after, "terminate_after")
+        now = time.time()
+        if termination_epoch - now < MIN_CREATE_SETUP_SECONDS:
+            raise VastError(
+                "Vast terminate_after must be at least %d seconds in the "
+                "future" % MIN_CREATE_SETUP_SECONDS)
+        ask_id = _provider_id(
+            kw.get("ask_id") or kw.get("offer_id"), "Vast ask id")
+        name = str(kw.get("name") or "").strip()
+        if not name:
+            raise VastError("safe Vast create requires an exact lease name")
+        gpu = _gpu_id(kw.get("gpu_type") or kw.get("gpu"),
+                      "Vast create gpu_type")
+        volume_gb = _positive_int("storage_gb")
+        container_disk_gb = _positive_int("container_disk_gb")
+        gpu_count = _positive_int("num_gpus", 1)
+        min_vcpu = _positive_int("min_vcpu", 4)
+        min_ram_gb = _positive_int("min_ram_gb", 16)
+        disk_gb = volume_gb + container_disk_gb
+        image = str(kw.get("image") or DEFAULT_IMAGE).strip()
+        if not image:
+            raise VastError("Vast image must be nonempty")
+        offer = self._ask_offer(ask_id)
+        machine_id = (None if offer.get("machine_id") is None
+                      else str(offer["machine_id"]))
+        bad_host = KNOWN_BAD_MACHINE_IDS.get(str(machine_id))
+        if bad_host:
+            raise VastError(
+                "refusing Vast ask %s: %s. Pick another offer -- this host is "
+                "routinely the cheapest one that fits, which is exactly how a "
+                "capture landed on it before." % (ask_id, bad_host))
+        advertised_gpu = str(offer.get("gpu_name") or "")
+        if advertised_gpu.strip().casefold() != gpu.strip().casefold():
+            raise VastError(
+                "Vast ask %s advertises %r, not the %r the plan chose"
+                % (ask_id, advertised_gpu, gpu))
+        advertised_gpus = offer.get("num_gpus")
+        if advertised_gpus != gpu_count:
+            raise VastError(
+                "Vast ask %s advertises %r GPUs, not %d"
+                % (ask_id, advertised_gpus, gpu_count))
+        advertised_disk = _finite_decimal(
+            offer.get("disk_space"), "Vast offer disk_space", positive=True)
+        if advertised_disk < disk_gb:
+            raise VastError(
+                "Vast ask %s offers %s GB of disk, below the %d GB the plan "
+                "needs; vast disk is chosen at rent time and cannot grow"
+                % (ask_id, format(advertised_disk, "f"), disk_gb))
+        advertised_rate = _finite_decimal(
+            offer.get("dph_total"), "Vast offer dph_total", positive=True)
+        host_key = self._generate_pinned_host_key()
+        # Vast's REST body takes `env` as docker flag text; the key material
+        # is the only thing that travels in it and it never enters onstart.
+        env_text = "-e FIDELITY_VAST_HOST_KEY_B64=%s" % host_key[
+            "private_key_b64"]
+        body = {
+            "client_id": "me",
+            "image": image,
+            "disk": disk_gb,
+            "label": name,
+            "runtype": "ssh",
+            "onstart": self._HOST_KEY_PIN_SNIPPET,
+            "env": env_text,
+            # Vast's provider-side deadline. UNVERIFIED LIVE: that Vast
+            # honours `duration` on a rental has not been observed here, so
+            # `validate_safe_resource_binding` refuses a contract whose
+            # end_date is later than the deadline rather than assuming it.
+            "duration": int(termination_epoch - now),
+        }
+        public_key = ""
+        candidate = os.path.expanduser(self.ssh_key) + ".pub"
+        if os.path.isfile(candidate):
+            public_key = open(candidate, encoding="utf-8").read().strip()
+        if not public_key:
+            raise VastError(
+                "safe Vast create needs the controller's SSH public key at "
+                "%s: without it the rental accepts no unattended session"
+                % candidate)
+        body["extra_env"] = {"PUBLIC_KEY": public_key}
+        request_identity = {
+            "ask_id": ask_id,
+            "provider_machine_id": machine_id,
+            "provider_host_id": (None if offer.get("host_id") is None
+                                 else str(offer["host_id"])),
+            "advertised_gpu_name": advertised_gpu,
+            "advertised_gpu_ram_mib": offer.get("gpu_ram"),
+            "advertised_disk_gb": float(advertised_disk),
+            "advertised_dph_total": format(advertised_rate, "f"),
+            "advertised_geolocation": offer.get("geolocation"),
+            "advertised_cuda_max_good": offer.get("cuda_max_good"),
+            "gpu_type_id": gpu,
+            "gpu_count": gpu_count,
+            "volume_gb": volume_gb,
+            "container_disk_gb": container_disk_gb,
+            "disk_gb": disk_gb,
+            "min_vcpu": min_vcpu,
+            "min_ram_gb": min_ram_gb,
+            "name": name,
+            "image_name": image,
+            "is_spot": False,
+            "offer": "on-demand",
+            "runtype": "ssh",
+            "secure_cloud": False,
+            "terminate_after": terminate_after,
+            "duration_seconds": body["duration"],
+            "network_volume_id": None,
+            "pinned_host_key_fingerprint": host_key["fingerprint"],
+            "public_key_sha256": hashlib.sha256(
+                public_key.encode("utf-8")).hexdigest(),
+        }
+        payload = json.dumps(body).encode("utf-8")
+        request = urllib.request.Request(
+            API + "/asks/%s/" % ask_id, data=payload, method="PUT",
+            headers={"Content-Type": "application/json",
+                     "User-Agent": "quant-fidelity-suite/0.1",
+                     "Authorization": "Bearer " + self._load_key()})
+        identity_json = json.dumps(
+            request_identity, sort_keys=True, separators=(",", ":"),
+            ensure_ascii=True, allow_nan=False).encode("utf-8")
+        return PreparedVastCreate(
+            http_request=request,
+            http_opener=safe_urlopen,
+            request_body=payload,
+            request_identity_json=identity_json,
+            name=name, ask_id=ask_id, machine_id=machine_id,
+            disk_gb=disk_gb, storage_gb=volume_gb,
+            container_disk_gb=container_disk_gb, image_name=image,
+            terminate_after=terminate_after,
+            duration_seconds=body["duration"],
+            host_key_fingerprint=host_key["fingerprint"],
+            dry_run=self.dry)
+
+    def submit_prepared_create(
+            self, prepared: PreparedVastCreate) -> Dict[str, Any]:
+        """Submit the frozen request, so a LOST RESPONSE stays reconcilable.
+
+        The response carries `new_contract`, an exact integral id. A refusal
+        Vast states explicitly (`success: false` with no integral field) is
+        raised as `VastCreateRejectedError`, which means nothing was accepted
+        and no id needs hunting; anything ambiguous keeps the fail-closed
+        path, and the caller reconciles by searching the account inventory
+        for the exact lease `label`.
+        """
+        if prepared.dry_run:
+            return {
+                "dry_run": True,
+                "request": prepared.to_dict()["request_identity"],
+                "prepared_create": prepared.to_dict(),
+            }
+        gap = time.time() - Vast._last_call
+        if gap < self._MIN_INTERVAL:
+            time.sleep(self._MIN_INTERVAL - gap)
+        Vast._last_call = time.time()
+        try:
+            with prepared.http_opener(
+                    prepared.http_request, timeout=180) as response:
+                raw = response.read().decode("utf-8", "replace")
+            document = _strict_json_loads(raw) if raw.strip() else {}
+        except urllib.error.HTTPError as exc:
+            detail = redact(exc.read(300).decode("utf-8", "replace"))
+            try:
+                parsed = _strict_json_loads(detail)
+            except VastError:
+                parsed = None
+            reasons = _definitive_create_rejection_reasons(parsed)
+            if reasons:
+                raise VastCreateRejectedError(
+                    "Vast refused the rental: %s" % "; ".join(reasons),
+                    reasons)
+            raise VastError("Vast HTTP %d on the prepared create: %s"
+                            % (exc.code, detail))
+        except VastError:
+            raise
+        except Exception as exc:                          # noqa: BLE001
+            raise VastError("Vast prepared create request failed: %s"
+                            % redact(str(exc)))
+        if not isinstance(document, dict):
+            raise VastError("Vast create returned non-object JSON")
+        if document.get("success") is not True:
+            reasons = _definitive_create_rejection_reasons(document)
+            message = ("Vast refused the rental: %s"
+                       % redact(json.dumps(document)[:300]))
+            if reasons:
+                raise VastCreateRejectedError(message, reasons)
+            raise VastError(message)
+        contract = _provider_id(
+            document.get("new_contract"), "Vast create new_contract")
+        self._pinned_host_keys[contract] = prepared.host_key_fingerprint
+        return {
+            "machine_id": contract,
+            "instance_id": contract,
+            "ask_id": prepared.ask_id,
+            "name": prepared.name,
+            "request": prepared.to_dict()["request_identity"],
+            "prepared_create": prepared.to_dict(),
+            "requested_terminate_after": prepared.terminate_after,
+            "storage_gb": prepared.storage_gb,
+            "container_disk_gb": prepared.container_disk_gb,
+            "disk_gb": prepared.disk_gb,
+            "image_name": prepared.image_name,
+            "pinned_host_key_fingerprint": prepared.host_key_fingerprint,
+        }
+
+    # -- what did it cost, and whose clock says so? ------------------------
+    def _instance_log_text(self, instance_id: str, *, tail: int,
+                           timeout: float) -> str:
+        """Fetch the authenticated instance log through the official channel.
+
+        `PUT /instances/request_logs/<id>/` answers with a `result_url` the
+        host uploads to; the file appears seconds later. Note for anyone
+        adding output to a run: that URL is PUBLIC
+        (`s3.amazonaws.com/public.vast.ai/instance_logs/<sha>.log`), so a
+        secret printed by a run is world-readable to anyone holding it. The
+        REQUEST is authenticated, which is what makes the fingerprint line
+        below provider-attested rather than trust-on-first-use.
+        """
+        got = self._req("PUT", "/instances/request_logs/%s/" % instance_id,
+                        {"tail": str(int(tail))}, timeout=60)
+        url = (got or {}).get("result_url")
+        if not isinstance(url, str) or not url.startswith("https://"):
+            raise VastError(
+                "Vast log request returned no https result_url for %s"
+                % instance_id)
+        deadline = time.monotonic() + max(1.0, float(timeout))
+        last = ""
+        while True:
+            request = urllib.request.Request(
+                url, method="GET",
+                headers={"User-Agent": "quant-fidelity-suite/0.1"})
+            try:
+                with safe_urlopen(request, timeout=30) as response:
+                    text = response.read(
+                        MAX_LOG_RESPONSE_BYTES + 1).decode("utf-8", "replace")
+                if len(text) > MAX_LOG_RESPONSE_BYTES:
+                    raise VastError(
+                        "Vast instance log exceeded %d bytes"
+                        % MAX_LOG_RESPONSE_BYTES)
+                last = text
+                if "No such container" not in text:
+                    return text
+            except VastError:
+                raise
+            except Exception as exc:                      # noqa: BLE001
+                last = "%s: %s" % (type(exc).__name__, redact(str(exc))[:200])
+            if time.monotonic() >= deadline:
+                return last
+            time.sleep(_HOST_KEY_LOG_POLL_SECONDS)
+
+    def ssh_host_ed25519_fingerprint(
+            self, provider_id: Any, *, timeout: float = 900) -> Dict[str, Any]:
+        """Authenticate the host key WITHOUT trusting first contact.
+
+        Two sources, in order of strength:
+
+        1. **The key pinned at create time.** `prepare_safe_create` generates
+           the ED25519 host key and delivers it through the rental request,
+           so the expected fingerprint is known before the instance exists
+           and only a box that received our TLS-authenticated request can
+           present it. This polls `ssh-keyscan` until the live host presents
+           exactly that key, and refuses on timeout -- it never accepts
+           whatever answers.
+        2. **The provider's authenticated log channel**, as RunPod does.
+
+        LIVE FINDING (2026-09-06, instance 50054271): an unmodified Vast
+        image's log contains sshd's "Server listening on 0.0.0.0 port 22"
+        but NO `256 SHA256:... (ED25519)` line. The only ED25519 strings
+        there are the container's own known-hosts warnings about the
+        `ssh2.vast.ai` JUMP PROXY, whose key belongs to Vast and NOT to the
+        instance -- accepting one would authenticate the wrong host entirely,
+        so they are excluded by construction (the regex demands ssh-keygen's
+        `256 SHA256:<43> <comment> (ED25519)` listing form). With no pin and
+        no printed line this therefore REFUSES and names both remedies.
+        """
+        instance_id = _provider_id(provider_id)
+        try:
+            budget = float(timeout)
+        except (TypeError, ValueError, OverflowError):
+            raise VastError("Vast host-key timeout must be finite and positive")
+        if not math.isfinite(budget) or budget <= 0:
+            raise VastError("Vast host-key timeout must be finite and positive")
+        pinned = self._pinned_host_keys.get(instance_id)
+        deadline = time.monotonic() + budget
+        if pinned:
+            if self.dry:
+                raise VastError("dry-run cannot scan a live SSH host key")
+            last_error = None
+            while True:
+                try:
+                    scanned = self.scan_host_key(instance_id)
+                except JLError as exc:
+                    last_error = redact(str(exc))[:200]
+                    scanned = None
+                if scanned is not None:
+                    if scanned["fingerprint"] == pinned:
+                        return {
+                            "schema":
+                                "fidelity-suite/vast-host-key-evidence.v1",
+                            "provider": "vast",
+                            "provider_id": instance_id,
+                            "source": "pinned-at-create",
+                            "endpoint_origin": API.rsplit("/api", 1)[0],
+                            "observed_at_utc": _utc_text(time.time()),
+                            "fingerprint": scanned["fingerprint"],
+                            "pinned_fingerprint": pinned,
+                            "host": scanned["host"],
+                            "port": scanned["port"],
+                            "known_hosts_entry_sha256": hashlib.sha256(
+                                scanned["known_hosts_entry"].encode("utf-8")
+                            ).hexdigest(),
+                        }
+                    raise VastError(
+                        "Vast instance %s presents ED25519 %s, not the %s "
+                        "pinned into its rental request: the box answering is "
+                        "not the box we asked for, or its onstart never "
+                        "installed the key. Destroy it and record host %s."
+                        % (instance_id, scanned["fingerprint"], pinned,
+                           (self.get_lifecycle_resource(instance_id) or {})
+                           .get("provider_machine_id")))
+                if time.monotonic() >= deadline:
+                    raise VastError(
+                        "Vast instance %s never presented the pinned ED25519 "
+                        "host key within %gs (last keyscan error: %s). Vast's "
+                        "onstart ordering relative to the first accepted SSH "
+                        "connection is unverified, so this may be a slow "
+                        "re-key; it is never a licence to accept another key."
+                        % (instance_id, budget, last_error))
+                time.sleep(_HOST_KEY_LOG_POLL_SECONDS)
+        text = self._instance_log_text(
+            instance_id, tail=1000,
+            timeout=min(120.0, max(1.0, deadline - time.monotonic())))
+        for line in text.splitlines():
+            match = _HOST_KEY_LOG_RE.fullmatch(line.strip())
+            if match is None:
+                continue
+            canonical = line.strip()
+            return {
+                "schema": "fidelity-suite/vast-host-key-evidence.v1",
+                "provider": "vast",
+                "provider_id": instance_id,
+                "source": "authenticated-instance-log",
+                "endpoint_origin": API.rsplit("/api", 1)[0],
+                "observed_at_utc": _utc_text(time.time()),
+                "line": canonical,
+                "line_sha256": hashlib.sha256(
+                    canonical.encode("utf-8")).hexdigest(),
+                "fingerprint": match.group(1),
+                "pinned_fingerprint": None,
+            }
+        raise VastError(
+            "Vast exposes no authenticated ED25519 host-key fingerprint for "
+            "instance %s: its log carries sshd's startup but not a "
+            "`256 SHA256:... (ED25519)` listing, and the ED25519 lines it "
+            "does carry belong to the ssh2.vast.ai jump proxy, not to this "
+            "instance. Either rent through prepare_safe_create, which pins a "
+            "generated host key and needs no log, or have the image print "
+            "`ssh-keygen -E sha256 -lf /etc/ssh/ssh_host_ed25519_key.pub` at "
+            "startup -- and note that Vast's log URL is public, so print the "
+            "FINGERPRINT and nothing else." % instance_id)
+
+    def billing_history(self, instance_id: Any, *, start_time: str,
+                        end_time: str,
+                        bucket_size: str = "day") -> Dict[str, Any]:
+        """Validate Vast's official per-instance charge rows for one window.
+
+        `GET /charges/?select_filters={"day":{"gte":D,"lte":D}}` is the only
+        per-resource billing response Vast publishes, and it has three
+        properties this method is built around, all verified live 2026-09-06
+        over 39 rows:
+
+        * **The bucket is one UTC DAY.** There is no hourly form, so a
+          `bucket_size` of "hour" is refused rather than approximated.
+        * **Server-side selection by instance is silently IGNORED** -- adding
+          `source` or `instance_id` to the filter returned the identical 39
+          rows -- so the per-instance selection is done HERE on the exact
+          `source` string `instance-<id>`, never trusted to the query.
+        * **Each row's `amount` equals the sum of its gpu/disk/bwd/bwu items
+          exactly**, which is asserted, so a row cannot carry a charge its
+          breakdown does not account for.
+
+        `next_token` is refused rather than silently truncating: an
+        incomplete page cannot prove a total.
+        """
+        wanted = _provider_id(instance_id)
+        start = _exact_utc(start_time, "start_time")
+        end = _exact_utc(end_time, "end_time")
+        start_epoch = _utc_epoch(start, "start_time")
+        end_epoch = _utc_epoch(end, "end_time")
+        if end_epoch <= start_epoch:
+            raise VastError("billing end_time must follow start_time")
+        if bucket_size != "day":
+            raise VastError(
+                "Vast bills per UTC day and publishes no finer bucket; pass "
+                "bucket_size='day' (got %r)" % bucket_size)
+        first_day = _day_index(start_epoch)
+        last_day = _day_index(end_epoch)
+        query = {"day": {"gte": first_day, "lte": last_day}}
+        doc = self._req("GET", "/charges/?select_filters="
+                        + urllib.parse.quote(json.dumps(query)))
+        if not isinstance(doc, dict) or set(doc) != {
+                "success", "count", "total", "results", "next_token"}:
+            raise VastError(
+                "Vast charge response keys differ from the observed schema")
+        if doc["success"] is not True:
+            raise VastError("Vast charge response is not a success")
+        if doc.get("next_token") is not None:
+            raise VastError(
+                "Vast charge listing is paginated (next_token present), so "
+                "this window cannot be proven complete; narrow the window")
+        rows = doc["results"]
+        if not isinstance(rows, list):
+            raise VastError("Vast charge results is not a list")
+        for field in ("count", "total"):
+            value = doc[field]
+            if (isinstance(value, bool) or not isinstance(value, int)
+                    or value != len(rows)):
+                raise VastError(
+                    "Vast charge metadata %s disagrees with the rows returned"
+                    % field)
+        source = "instance-%s" % wanted
+        matched = []
+        totals: Dict[str, Decimal] = {}
+        grand = Decimal("0")
+        for row in rows:
+            if not isinstance(row, dict) or set(row) != set(_CHARGE_ROW_KEYS):
+                raise VastError(
+                    "Vast charge row keys differ from the observed schema")
+            if row.get("type") != "instance":
+                raise VastError(
+                    "Vast charge row is not an instance charge: %r"
+                    % row.get("type"))
+            if row.get("source") != source:
+                continue
+            day_start = row.get("start")
+            if (isinstance(day_start, bool)
+                    or not isinstance(day_start, int)
+                    or day_start != row.get("end")
+                    or day_start % VAST_DAY_SECONDS
+                    or not first_day * VAST_DAY_SECONDS <= day_start
+                    <= last_day * VAST_DAY_SECONDS):
+                raise VastError(
+                    "Vast charge row is not a UTC day inside the requested "
+                    "window: start=%r end=%r"
+                    % (row.get("start"), row.get("end")))
+            amount = _finite_decimal(
+                row.get("amount"), "Vast charge amount", nonnegative=True)
+            items = row.get("items")
+            if not isinstance(items, list) or not items:
+                raise VastError("Vast charge row carries no item breakdown")
+            item_sum = Decimal("0")
+            for item in items:
+                if not isinstance(item, dict) or set(item) != set(
+                        _CHARGE_ROW_KEYS):
+                    raise VastError("Vast charge item keys differ")
+                if item.get("items"):
+                    raise VastError("Vast charge item nests further items")
+                kind = item.get("type")
+                if not isinstance(kind, str) or not kind:
+                    raise VastError("Vast charge item has no type")
+                value = _finite_decimal(
+                    item.get("amount"), "Vast charge item amount",
+                    nonnegative=True)
+                item_sum += value
+                totals[kind] = totals.get(kind, Decimal("0")) + value
+            if item_sum != amount:
+                raise VastError(
+                    "Vast charge row for %s on %s totals %s but its items sum "
+                    "to %s" % (source, _utc_text(day_start),
+                               format(amount, "f"), format(item_sum, "f")))
+            grand += amount
+            matched.append(row)
+        if not matched:
+            raise VastError(
+                "Vast has no charge record for instance %s in %s..%s yet; "
+                "reconciliation remains unresolved" % (wanted, start, end))
+        return {
+            "schema": "fidelity-suite/vast-billing-evidence.v1",
+            "provider": "vast",
+            "instance_id": wanted,
+            "query": {"select_filters": query, "start_time": start,
+                      "end_time": end, "bucket_size": bucket_size,
+                      "source": source},
+            "records": matched,
+            "metadata": {
+                "account_rows_examined": len(rows),
+                "matched_row_count": len(matched),
+                "day_index_range": [first_day, last_day],
+                "selection": "client-side on the exact source string; Vast "
+                             "ignores server-side instance filters",
+                "totals": {kind: format(value, "f")
+                           for kind, value in sorted(totals.items())},
+            },
+            "total_amount": format(grand, "f"),
+            "retrieved_at_utc": _utc_text(time.time()),
+        }
+
+    def reconcile_billing(self, lease: Dict[str, Any], *,
+                          now: Optional[float] = None) -> Dict[str, Any]:
+        """Return only a post-absence, independently stable cost closure.
+
+        Vast's day row keeps moving while the day is open -- the row for the
+        current day existed and grew within minutes of a rental starting
+        (2026-09-06) -- so a closure taken before UTC midnight could seal a
+        partial bill as reconciled. The closure therefore requires the
+        instance to be proven absent, the DAY containing that absence to have
+        closed, a 300 s stabilization on top, and two independent retrievals
+        that agree byte for byte. Until then this raises and the caller
+        records billing as pending, which the reaper settles on a later
+        sweep. Same shape as RunPod's hour rule with a ~24 h window: a
+        scheduling fact, not a defect.
+
+        No local arithmetic is ever substituted: an hourly residual the
+        provider has not yet priced stays unpriced, because a computed cost
+        that looks settled is worse than an honest gap.
+        """
+        ids = sorted({_provider_id(value, "lease provider_resource_id")
+                      for value in lease.get("provider_resource_ids") or []
+                      if str(value).strip()})
+        if not ids:
+            raise VastError(
+                "Vast billing reconciliation needs at least one exact "
+                "instance id")
+        create = lease.get("create") or {}
+        start = _exact_utc(create.get("pre_create_observed_at"),
+                           "lease pre_create_observed_at")
+        absence_events = [item for item in lease.get("history") or []
+                          if item.get("to") == "ABSENCE_CONFIRMED"]
+        if not absence_events:
+            raise VastError("lease has no provider-absence event")
+        end = _exact_utc(absence_events[-1].get("at"), "lease absence time")
+        absence_epoch = _utc_epoch(end, "lease absence time")
+        stabilization_seconds = 300
+        instant = time.time() if now is None else float(now)
+        if instant - absence_epoch < stabilization_seconds:
+            raise VastError(
+                "Vast billing remains inside the 300-second post-absence "
+                "stabilization window")
+        absence_day_end = (
+            absence_epoch // VAST_DAY_SECONDS + 1) * VAST_DAY_SECONDS
+        if instant < absence_day_end + stabilization_seconds:
+            raise VastError(
+                "the Vast UTC day containing the absence (%s) has not closed "
+                "and stabilized yet; its charge row is still moving, so a "
+                "closure now would seal a partial bill as reconciled. The "
+                "reaper settles it on a sweep after %s"
+                % (_utc_text(absence_day_end - VAST_DAY_SECONDS)[:10],
+                   _utc_text(absence_day_end + stabilization_seconds)))
+
+        def retrieve() -> Dict[str, Any]:
+            histories = []
+            total = Decimal("0")
+            for instance_id in ids:
+                history = self.billing_history(
+                    instance_id, start_time=start, end_time=end)
+                total += _finite_decimal(
+                    history["total_amount"],
+                    "Vast billing total for %s" % instance_id,
+                    nonnegative=True)
+                histories.append(history)
+            return {
+                "reconciled": True,
+                "provider": "vast",
+                "provider_resource_ids": ids,
+                "billing_histories": histories,
+                "total_amount": format(total, "f"),
+                "evidence": {
+                    "schema": "fidelity-suite/vast-billing-retrieval.v1",
+                    "retrieval_id": secrets.token_hex(12),
+                    "retrieved_at_utc": _utc_text(time.time()),
+                },
+            }
+
+        def closure(evidence: Dict[str, Any]) -> Dict[str, Any]:
+            result = json.loads(json.dumps(
+                evidence, sort_keys=True, separators=(",", ":"),
+                ensure_ascii=True, allow_nan=False))
+            result.pop("evidence", None)
+            for history in result["billing_histories"]:
+                history.pop("retrieved_at_utc", None)
+            return result
+
+        first = retrieve()
+        second = retrieve()
+        first_closure = closure(first)
+        second_closure = closure(second)
+        if first_closure != second_closure:
+            raise VastError(
+                "Vast billing changed between independent retrievals")
+        result = dict(second)
+        result["evidence"] = {
+            "schema": "fidelity-suite/vast-billing-stabilization.v1",
+            "absence_confirmed_at": end,
+            "absence_day_closed_at": _utc_text(absence_day_end),
+            "minimum_stabilization_seconds": stabilization_seconds,
+            "closure_sha256": hashlib.sha256(json.dumps(
+                second_closure, sort_keys=True, separators=(",", ":"),
+                ensure_ascii=True, allow_nan=False).encode("utf-8")).hexdigest(),
+            "first_retrieval": first["evidence"],
+            "second_retrieval": second["evidence"],
+        }
+        return result
+
+    # A credential in a create body is exposed BEFORE the box exists, so no
+    # ordering fix can protect it: it lands in Vast's own records and in the
+    # host's `docker run` environment with no host key, no attestation and no
+    # TLS check yet possible -- there is nothing to attest, because there is
+    # no instance. `docs/CLOUD-RECIPES.md` advice to prefer env over argv was
+    # protecting against a different leak (argv in a host process list) and
+    # is superseded for credentials: provider-persisted is worse than
+    # process-visible on a box we authenticated. So container mode may
+    # measure PUBLIC artifacts and nothing else, and the adapter is the last
+    # place that can tell, which is why it refuses here.
+    _CREDENTIAL_NAME_TOKENS = (
+        "token", "key", "secret", "password", "passwd", "credential",
+        "auth", "sink")
+
+    def _refuse_credential_payload(self, *, env: Any, onstart: Any,
+                                   docker_cmd: Any) -> None:
+        """Refuse any credential-shaped material bound for the create body."""
+        try:
+            from .tlsguard import (                       # noqa: F401
+                refuse_credential_in_provider_payload as guard)
+        except ImportError:
+            guard = None
+        payload = {"provider": "vast", "env": env, "onstart": onstart,
+                   "argv": docker_cmd}
+        if guard is not None:
+            try:
+                guard(payload)
+                return
+            except TypeError:
+                # The shared guard exists with another signature; fall through
+                # to the local fail-closed check rather than skipping it.
+                pass
+        offenders = []
+        for key, value in (env or {}).items():
+            name = str(key)
+            text = str(value)
+            lowered = name.lower()
+            if any(token in lowered for token in
+                   self._CREDENTIAL_NAME_TOKENS):
+                offenders.append("env %s (name is credential-shaped)" % name)
+            elif redact(text) != text:
+                offenders.append("env %s (value matches a known token shape)"
+                                 % name)
+            elif text.startswith(("http://", "https://")) and len(
+                    urllib.parse.urlsplit(text).path.strip("/")) > 0:
+                # A result-sink URL IS a credential: whoever holds it can read
+                # the run's results.
+                offenders.append(
+                    "env %s (a URL with a path is a bearer capability)" % name)
+        for label, blob in (("onstart", onstart),
+                            ("docker_cmd", " ".join(
+                                str(item) for item in docker_cmd or ()))):
+            text = str(blob or "")
+            if text and redact(text) != text:
+                offenders.append("%s carries a known token shape" % label)
+        if offenders:
+            raise VastError(
+                "refusing to put credential-shaped material in a Vast create "
+                "body: %s. A create payload is provider-persisted and reaches "
+                "the host BEFORE any host key, attestation or TLS check "
+                "exists, so no ordering makes it safe. Vast container mode "
+                "may measure PUBLIC artifacts with no credential at all; a "
+                "token-bearing run must use the SSH+bundle path, which "
+                "transports the token as a 0600 file after the host key is "
+                "authenticated." % "; ".join(sorted(offenders)))
+
     def create(self, **kw) -> Dict[str, Any]:
+        """Marketplace rental, container-native or SSH.
+
+        This is the rehearsal/public-artifact path. A CREDENTIAL-BEARING run
+        must go through `prepare_safe_create` + `submit_prepared_create` and
+        the SSH+bundle transport: a create body is provider-persisted, so a
+        token in it is exposed before any attestation is even possible, and
+        `_refuse_credential_payload` fails closed here rather than dutifully
+        transmitting it.
+        """
+        self._refuse_credential_payload(
+            env=kw.get("env"), onstart=kw.get("onstart"),
+            docker_cmd=kw.get("docker_cmd"))
         if self.dry:
             return {"dry_run": True, **kw}
         ask = kw.get("ask_id") or kw.get("offer_id")
