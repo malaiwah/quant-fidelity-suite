@@ -1,0 +1,121 @@
+{
+  "activation_quantization": null,
+  "assignments": [
+    {
+      "bits_per_weight": 16,
+      "format": "bf16",
+      "layer_range": "all",
+      "note": "1 tensors: model.language_model.embed_tokens.weight. read from the release's OWN config.json quantization_config (quant_method=exl3_selective_tp4, format=glm53-selective-exl3-tp4-v1, trellis_k=3, bits_per_weight=3, mcg=true, retained_dtype=source_precision, quantized_scope=model.language_model.layers.3..44.mlp.experts.0..287.{gate_proj,up_proj,down_proj}.weight), and confirmed by a name census of its 583,090-entry index: 580,608 routed payload tensors (42 layers x 288 experts x 3 projections x 4 TP ranks x 4 objects) and exactly the official 1,618 non-routed names, no strays either way (k6/tools/dione_surface.py census_weight_map).",
+      "tensor_class": "embed_tokens",
+      "treatment": "native"
+    },
+    {
+      "bits_per_weight": 16,
+      "format": "bf16",
+      "layer_range": "all",
+      "note": "NOT quantized: the quantized scope is the routed experts only. read from the release's OWN config.json quantization_config (quant_method=exl3_selective_tp4, format=glm53-selective-exl3-tp4-v1, trellis_k=3, bits_per_weight=3, mcg=true, retained_dtype=source_precision, quantized_scope=model.language_model.layers.3..44.mlp.experts.0..287.{gate_proj,up_proj,down_proj}.weight), and confirmed by a name census of its 583,090-entry index: 580,608 routed payload tensors (42 layers x 288 experts x 3 projections x 4 TP ranks x 4 objects) and exactly the official 1,618 non-routed names, no strays either way (k6/tools/dione_surface.py census_weight_map).",
+      "tensor_class": "attn.qkv",
+      "treatment": "native"
+    },
+    {
+      "bits_per_weight": 16,
+      "format": "bf16",
+      "layer_range": "all",
+      "note": "NOT quantized: routed-experts-only scope. read from the release's OWN config.json quantization_config (quant_method=exl3_selective_tp4, format=glm53-selective-exl3-tp4-v1, trellis_k=3, bits_per_weight=3, mcg=true, retained_dtype=source_precision, quantized_scope=model.language_model.layers.3..44.mlp.experts.0..287.{gate_proj,up_proj,down_proj}.weight), and confirmed by a name census of its 583,090-entry index: 580,608 routed payload tensors (42 layers x 288 experts x 3 projections x 4 TP ranks x 4 objects) and exactly the official 1,618 non-routed names, no strays either way (k6/tools/dione_surface.py census_weight_map).",
+      "tensor_class": "attn.o",
+      "treatment": "native"
+    },
+    {
+      "bits_per_weight": null,
+      "format": "mixed",
+      "layer_range": "all",
+      "note": "indexers, mHC and the attention norms ship as the official tensors at their source dtypes (A_log, dt_bias and e_score_correction_bias are fp32 there and fp32 here). read from the release's OWN config.json quantization_config (quant_method=exl3_selective_tp4, format=glm53-selective-exl3-tp4-v1, trellis_k=3, bits_per_weight=3, mcg=true, retained_dtype=source_precision, quantized_scope=model.language_model.layers.3..44.mlp.experts.0..287.{gate_proj,up_proj,down_proj}.weight), and confirmed by a name census of its 583,090-entry index: 580,608 routed payload tensors (42 layers x 288 experts x 3 projections x 4 TP ranks x 4 objects) and exactly the official 1,618 non-routed names, no strays either way (k6/tools/dione_surface.py census_weight_map).",
+      "tensor_class": "attn.other",
+      "treatment": "native"
+    },
+    {
+      "bits_per_weight": 16,
+      "format": "bf16",
+      "layer_range": "0-2",
+      "note": "only the three DENSE layers have an mlp.*; NOT quantized. read from the release's OWN config.json quantization_config (quant_method=exl3_selective_tp4, format=glm53-selective-exl3-tp4-v1, trellis_k=3, bits_per_weight=3, mcg=true, retained_dtype=source_precision, quantized_scope=model.language_model.layers.3..44.mlp.experts.0..287.{gate_proj,up_proj,down_proj}.weight), and confirmed by a name census of its 583,090-entry index: 580,608 routed payload tensors (42 layers x 288 experts x 3 projections x 4 TP ranks x 4 objects) and exactly the official 1,618 non-routed names, no strays either way (k6/tools/dione_surface.py census_weight_map).",
+      "tensor_class": "mlp.gate",
+      "treatment": "native"
+    },
+    {
+      "bits_per_weight": 16,
+      "format": "bf16",
+      "layer_range": "0-2",
+      "note": "NOT quantized. read from the release's OWN config.json quantization_config (quant_method=exl3_selective_tp4, format=glm53-selective-exl3-tp4-v1, trellis_k=3, bits_per_weight=3, mcg=true, retained_dtype=source_precision, quantized_scope=model.language_model.layers.3..44.mlp.experts.0..287.{gate_proj,up_proj,down_proj}.weight), and confirmed by a name census of its 583,090-entry index: 580,608 routed payload tensors (42 layers x 288 experts x 3 projections x 4 TP ranks x 4 objects) and exactly the official 1,618 non-routed names, no strays either way (k6/tools/dione_surface.py census_weight_map).",
+      "tensor_class": "mlp.up",
+      "treatment": "native"
+    },
+    {
+      "bits_per_weight": 16,
+      "format": "bf16",
+      "layer_range": "0-2",
+      "note": "NOT quantized. read from the release's OWN config.json quantization_config (quant_method=exl3_selective_tp4, format=glm53-selective-exl3-tp4-v1, trellis_k=3, bits_per_weight=3, mcg=true, retained_dtype=source_precision, quantized_scope=model.language_model.layers.3..44.mlp.experts.0..287.{gate_proj,up_proj,down_proj}.weight), and confirmed by a name census of its 583,090-entry index: 580,608 routed payload tensors (42 layers x 288 experts x 3 projections x 4 TP ranks x 4 objects) and exactly the official 1,618 non-routed names, no strays either way (k6/tools/dione_surface.py census_weight_map).",
+      "tensor_class": "mlp.down",
+      "treatment": "native"
+    },
+    {
+      "bits_per_weight": 32,
+      "format": "fp32",
+      "layer_range": "3-44",
+      "note": "the routing gate and e_score_correction_bias are retained natively. read from the release's OWN config.json quantization_config (quant_method=exl3_selective_tp4, format=glm53-selective-exl3-tp4-v1, trellis_k=3, bits_per_weight=3, mcg=true, retained_dtype=source_precision, quantized_scope=model.language_model.layers.3..44.mlp.experts.0..287.{gate_proj,up_proj,down_proj}.weight), and confirmed by a name census of its 583,090-entry index: 580,608 routed payload tensors (42 layers x 288 experts x 3 projections x 4 TP ranks x 4 objects) and exactly the official 1,618 non-routed names, no strays either way (k6/tools/dione_surface.py census_weight_map).",
+      "tensor_class": "moe.router",
+      "treatment": "native"
+    },
+    {
+      "bits_per_weight": 3,
+      "format": "bf16",
+      "layer_range": "all",
+      "note": "the shared expert is not routed and is NOT quantized. read from the release's OWN config.json quantization_config (quant_method=exl3_selective_tp4, format=glm53-selective-exl3-tp4-v1, trellis_k=3, bits_per_weight=3, mcg=true, retained_dtype=source_precision, quantized_scope=model.language_model.layers.3..44.mlp.experts.0..287.{gate_proj,up_proj,down_proj}.weight), and confirmed by a name census of its 583,090-entry index: 580,608 routed payload tensors (42 layers x 288 experts x 3 projections x 4 TP ranks x 4 objects) and exactly the official 1,618 non-routed names, no strays either way (k6/tools/dione_surface.py census_weight_map).",
+      "tensor_class": "moe.shared_expert",
+      "treatment": "native"
+    },
+    {
+      "bits_per_weight": 3,
+      "format": "exl3-mcg",
+      "layer_range": "3-44",
+      "note": "36,288 modules = 42 layers x 288 experts x 3 projections, each stored as 4 TP-rank slices (<module>.rank{R}.{trellis,suh,svh,mcg}) at K3. The ONLY quantized class. read from the release's OWN config.json quantization_config (quant_method=exl3_selective_tp4, format=glm53-selective-exl3-tp4-v1, trellis_k=3, bits_per_weight=3, mcg=true, retained_dtype=source_precision, quantized_scope=model.language_model.layers.3..44.mlp.experts.0..287.{gate_proj,up_proj,down_proj}.weight), and confirmed by a name census of its 583,090-entry index: 580,608 routed payload tensors (42 layers x 288 experts x 3 projections x 4 TP ranks x 4 objects) and exactly the official 1,618 non-routed names, no strays either way (k6/tools/dione_surface.py census_weight_map).",
+      "tensor_class": "moe.experts",
+      "treatment": "quantized"
+    },
+    {
+      "bits_per_weight": 16,
+      "format": "bf16",
+      "layer_range": "45",
+      "note": "layer 45's routed experts are RETAINED at source precision in this family (they are QUANTIZED in the TR3 releases -- the two are not interchangeable). Present in the artifact, outside the measured function: standard-logits scoring never executes the MTP layer. read from the release's OWN config.json quantization_config (quant_method=exl3_selective_tp4, format=glm53-selective-exl3-tp4-v1, trellis_k=3, bits_per_weight=3, mcg=true, retained_dtype=source_precision, quantized_scope=model.language_model.layers.3..44.mlp.experts.0..287.{gate_proj,up_proj,down_proj}.weight), and confirmed by a name census of its 583,090-entry index: 580,608 routed payload tensors (42 layers x 288 experts x 3 projections x 4 TP ranks x 4 objects) and exactly the official 1,618 non-routed names, no strays either way (k6/tools/dione_surface.py census_weight_map).",
+      "tensor_class": "mtp",
+      "treatment": "native"
+    },
+    {
+      "bits_per_weight": 16,
+      "format": "bf16",
+      "layer_range": "all",
+      "note": "read from the release's OWN config.json quantization_config (quant_method=exl3_selective_tp4, format=glm53-selective-exl3-tp4-v1, trellis_k=3, bits_per_weight=3, mcg=true, retained_dtype=source_precision, quantized_scope=model.language_model.layers.3..44.mlp.experts.0..287.{gate_proj,up_proj,down_proj}.weight), and confirmed by a name census of its 583,090-entry index: 580,608 routed payload tensors (42 layers x 288 experts x 3 projections x 4 TP ranks x 4 objects) and exactly the official 1,618 non-routed names, no strays either way (k6/tools/dione_surface.py census_weight_map).",
+      "tensor_class": "norm",
+      "treatment": "native"
+    },
+    {
+      "bits_per_weight": 16,
+      "format": "bf16",
+      "layer_range": "all",
+      "note": "the head is RETAINED at source precision -- unlike stock exllamav3, which quantizes it (head_bits 6-8). read from the release's OWN config.json quantization_config (quant_method=exl3_selective_tp4, format=glm53-selective-exl3-tp4-v1, trellis_k=3, bits_per_weight=3, mcg=true, retained_dtype=source_precision, quantized_scope=model.language_model.layers.3..44.mlp.experts.0..287.{gate_proj,up_proj,down_proj}.weight), and confirmed by a name census of its 583,090-entry index: 580,608 routed payload tensors (42 layers x 288 experts x 3 projections x 4 TP ranks x 4 objects) and exactly the official 1,618 non-routed names, no strays either way (k6/tools/dione_surface.py census_weight_map).",
+      "tensor_class": "lm_head",
+      "treatment": "native"
+    },
+    {
+      "bits_per_weight": 16,
+      "format": "bf16",
+      "layer_range": "all",
+      "note": "the vision tower is retained natively and is never executed by text-only scoring. read from the release's OWN config.json quantization_config (quant_method=exl3_selective_tp4, format=glm53-selective-exl3-tp4-v1, trellis_k=3, bits_per_weight=3, mcg=true, retained_dtype=source_precision, quantized_scope=model.language_model.layers.3..44.mlp.experts.0..287.{gate_proj,up_proj,down_proj}.weight), and confirmed by a name census of its 583,090-entry index: 580,608 routed payload tensors (42 layers x 288 experts x 3 projections x 4 TP ranks x 4 objects) and exactly the official 1,618 non-routed names, no strays either way (k6/tools/dione_surface.py census_weight_map).",
+      "tensor_class": "other",
+      "treatment": "native"
+    }
+  ],
+  "head_policy": "native",
+  "kv_cache_dtype": "bf16",
+  "mtp_included": true,
+  "policy": "uniform"
+}

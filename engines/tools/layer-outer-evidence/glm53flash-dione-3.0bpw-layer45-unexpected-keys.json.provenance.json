@@ -1,0 +1,16 @@
+{
+ "architecture": "Glm5NextForConditionalGeneration",
+ "artifact_sha256": "4b54dfc6d9dff881ca04e4cac41126b467a16900d805c64ee281ce975f11a68f",
+ "canonical_sorted_names_sha256": "acc1e9f10c0f903c735a7fcf5fd267fc879bce65623f0b850f80016da5e903b7",
+ "config_sha256": "0f97529bf936f823b84dc77ac0e09190e9439094e29dc8895547df8e17e4a24e",
+ "count": 889,
+ "decoder_layers": 45,
+ "derived_at_utc": "2026-09-06T05:14:13Z",
+ "derived_by": "index census: every key of model.language_model.layers.45 (the block Glm5NextForConditionalGeneration never builds; num_hidden_layers is 45); engines/tools/index_census_allowlist.py",
+ "derived_from": "0xSero/GLM-5.3-Flash-EXL3-3.0bpw@8b099bf276507a17faea920deff3f62d5597fb52 model.safetensors.index.json",
+ "index_sha256": "0fd35de9b0d5fc9428a45d3b311dc757ea891e4cec7788050b75089593ad3215",
+ "per_layer_unexpected_counts": {
+  "45": 889
+ },
+ "relation_to_bf16_allowlist": "layer 45 is the MTP block Glm5NextForConditionalGeneration never builds (text_config.num_hidden_layers is 45); Dione retains layer 45's experts at source precision (retained_dtype=source_precision), so all 889 names are native tensors -- 25 non-expert + 864 expert weights, no payload objects"
+}

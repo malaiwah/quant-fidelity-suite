@@ -1,0 +1,16 @@
+{
+ "architecture": "Glm5NextForConditionalGeneration",
+ "artifact_sha256": "1fbe3c6978153b8e1d7e0c0630fe163c53e56efed4f2dfdafc88fe69f670c981",
+ "canonical_sorted_names_sha256": "37b68b125e58910a7e1e32b8cd7323e3c5affa208238d31a773f447bf608217c",
+ "config_sha256": "163bd0888684f7eaf963ad67cdff3fbdca0749796c0aa5a6e7035816e503ecfc",
+ "count": 3481,
+ "decoder_layers": 45,
+ "derived_at_utc": "2026-09-06T05:14:12Z",
+ "derived_by": "index census: every key of model.language_model.layers.45 (the block Glm5NextForConditionalGeneration never builds; num_hidden_layers is 45); engines/tools/index_census_allowlist.py",
+ "derived_from": "vcruz305/GLM-5.3-Flash-EXL3-K2@ca0bcdae265f7df1e346c57a2b53b8b8f632ee0b model.safetensors.index.json",
+ "index_sha256": "e9dd7cb2f6358843de334baa40ff537b4914721dbaa9c7dab42a386562afce19",
+ "per_layer_unexpected_counts": {
+  "45": 3481
+ },
+ "relation_to_bf16_allowlist": "the 25 non-expert names are the MTP block Glm5NextForConditionalGeneration never builds (text_config.num_hidden_layers is 45); vcruz305 quantizes layer 45's routed experts as exl3-mcg payload (same as layers 3-44), so the census includes those 864 expert payloads plus 25 non-expert tensors; no weight_scale_inv siblings"
+}
