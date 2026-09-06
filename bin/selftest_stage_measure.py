@@ -1999,6 +1999,26 @@ exit 0
               cr_done.is_file(),
               "cr_done=%s out=%s" % (cr_done.exists(), out[-300:]))
 
+    # R3e: a sibling stage MUST leave its exit record. Two `trap ... EXIT`
+    # installations in one shell keep only the last, so the lock-release trap
+    # silently replaced the record handler and no sibling ever wrote one --
+    # qualify_root's wait then spun to its cap on a paid pod with the metric
+    # already sealed (2026-09-06, two lanes, ~$3 each). Both cleanups now run
+    # from ONE handler, and only the lock's owner releases it (rung L1).
+    with tempfile.TemporaryDirectory() as td3:
+        td3 = Path(td3)
+        sb3 = Sandbox(td3 / "sibrec", overlap_job, finalize_job_doc=False)
+        (sb3.fs / "panel-binding.json").write_bytes(ovl_binding_bytes)
+        proc3, _ = sb3.run("fetch_panel", bash,
+                           STAGE_MEASURE_SIBLING="1")
+        rec = sb3.fs / "runtime" / "sibling-fetch_panel.exit"
+        check("R3e a stage launched as a sibling writes its exit record, even "
+              "though the lock-release trap is installed after it",
+              rec.is_file() and rec.read_text().strip() == str(proc3.returncode),
+              "rc=%d rec=%s content=%r" % (
+                  proc3.returncode, rec.exists(),
+                  rec.read_text() if rec.exists() else None))
+
     # R3c/R3d: the sibling is STILL RUNNING when qualify_root starts. A
     # 5-minute numpy replay routinely outlives verify_repeat + compare_root;
     # qualify_root must wait for it, then promote (exit 0) or refuse
@@ -2048,7 +2068,7 @@ exit 0
                     if sib_rc == 0 else "")
                  + "printf '%%s\\n' %d > %s/sibling-compare_reference.exit; exit %d"
                  % (sib_rc, runtime2, sib_rc)])
-            (runtime2 / "sibling-compare_reference.pid").write_text("%d\n" % sib.pid)
+            (runtime2 / "sibling-compare_reference.launcher-pid").write_text("%d\n" % sib.pid)
             t0 = time.monotonic()
             proc2, _ = sb2.run("qualify_root", bash, provision_target=False)
             waited = time.monotonic() - t0

@@ -28,14 +28,30 @@ SCRIPT_PATH="$(readlink -f -- "$0")"
 FS="$(readlink -f -- "$(dirname "$SCRIPT_PATH")/..")"
 # A sibling launched by launch_sibling records its exit status durably so a
 # LATER stage process (qualify_root, for compare_reference) can judge it.
-if [ "${STAGE_MEASURE_SIBLING:-}" = "1" ]; then
-  _sibling_exit_record() {
-    local rc=$?
-    mkdir -p "$FS/runtime" 2>/dev/null
-    printf '%s\n' "$rc" >"$FS/runtime/sibling-$STAGE.exit" 2>/dev/null || true
-  }
-  trap _sibling_exit_record EXIT
-fi
+# ONE EXIT trap: bash keeps only the most recent one, and the lock-release
+# trap installed further down used to REPLACE this record, so no sibling ever
+# wrote its exit file and qualify_root's wait spun to its cap -- observed live
+# on a paid pod with the metric already sealed on disk (2026-09-06, ~$3.30 of
+# H200 burnt in `sleep 1`). Both cleanups now run from one handler, installed
+# once here and never overwritten.
+_sibling_exit_record() {
+  local rc="$1"
+  [ "${STAGE_MEASURE_SIBLING:-}" = "1" ] || return 0
+  mkdir -p "$FS/runtime" 2>/dev/null
+  printf '%s\n' "$rc" >"$FS/runtime/sibling-$STAGE.exit" 2>/dev/null || true
+}
+_stage_exit_cleanup() {
+  local rc=$?
+  _sibling_exit_record "$rc"
+  # ONLY the process that acquired the lock may release it. This handler is
+  # installed before the lock race (it has to be: a sibling must record its
+  # exit even if it never reaches the lock), so a LOSER of the race would
+  # otherwise delete the winner's lock -- caught by selftest_stage_measure's
+  # L1 rung ("a lock held by a LIVE process refuses, nothing runs").
+  [ "${LOCK_OWNED:-}" = "1" ] && [ -n "${LOCK:-}" ] && rm -rf "$LOCK"
+  return 0
+}
+trap _stage_exit_cleanup EXIT
 
 # Self-record the stage process group so the cloud wrapper cannot race the
 # leader's exit.  Under setsid (the cloud wrapper) $$ is its own process-group
@@ -272,6 +288,10 @@ write_lock_owner() {
     echo "host=$(hostname 2>/dev/null || echo '?')"
     echo "started=$(date -u +%FT%TZ)"
   } > "$LOCK/owner"
+  # This process created $LOCK, so its EXIT handler may release it. Set here
+  # (not at the call sites) so both the fresh-mkdir path and the stale-lock
+  # takeover mark ownership exactly once.
+  LOCK_OWNED=1
 }
 if mkdir "$LOCK" 2>/dev/null; then
   write_lock_owner
@@ -286,7 +306,8 @@ else
   mkdir "$LOCK" 2>/dev/null || { echo "stage_measure: lost the lock race for $STAGE" >&2; exit 8; }
   write_lock_owner
 fi
-trap 'rm -rf "$LOCK"' EXIT
+# (the EXIT trap installed at the top releases $LOCK and records a sibling's
+# exit status; a second `trap ... EXIT` here would replace it)
 
 # Point Hugging Face clients at the controller-written token file without ever
 # materializing its bytes in this shell or a process environment.
@@ -419,11 +440,14 @@ launch_sibling() {
       bash "$FS/bin/stage_measure.sh" "$sibling_stage" \
       >>"$LOGS/stage-$sibling_stage.log" 2>&1 </dev/null &
   SIBLING_PIDS="$SIBLING_PIDS $!"
-  # A later stage PROCESS (qualify_root is not this shell) must be able to
-  # wait for this sibling: record its pid durably. The exit status is
-  # written by the sibling itself into stage-<name>.exit on completion.
+  # `$!` is setsid's pid, not the sibling shell's: setsid exits immediately
+  # when its caller is already a group leader, so this pid is stale by
+  # design. The durable handshake is the sibling's own EXIT record
+  # (runtime/sibling-<stage>.exit); the pid is recorded only as evidence of
+  # WHICH launch produced it, never waited on.
   mkdir -p "$FS/runtime"
-  printf '%s\n' "$!" >"$FS/runtime/sibling-$sibling_stage.pid"
+  printf '%s\n' "$!" >"$FS/runtime/sibling-$sibling_stage.launcher-pid"
+  rm -f "$FS/runtime/sibling-$sibling_stage.exit"
 }
 wait_sibling() {
   local sibling_stage="$1" pid rc
@@ -1715,7 +1739,7 @@ qualify_root)
   # and refusing a run because its comparison is merely unfinished would
   # fail healthy runs. The wait is bounded by the watchdog's workload
   # deadline (the sibling's own group is recorded and killed at the deadline).
-  if [ -f "$FS/runtime/sibling-compare_reference.pid" ]; then
+  if [ -f "$FS/runtime/sibling-compare_reference.launcher-pid" ]; then
     # Wait on the sibling's DURABLE exit record (written by its EXIT trap),
     # not on pid liveness: a pid answers `kill -0` while it is a zombie and
     # can be reused after it is reaped, and the sibling's parent (the
