@@ -344,5 +344,47 @@ ssl.SSLEOFError: [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation o
 
 The framed result (tar.gz: job.json + result-summary.json) was retrieved from
 ntfy via `https://ntfy.sh/<topic>/json?poll=1` and the attachment URL. The
-transport pipeline works; the blocking issue is the Vast Nevada host's broken
-SSL proxy to huggingface.co. Spend ~$0.08; all instances destroyed.
+transport pipeline works. Spend ~$0.08; all instances destroyed.
+
+**Correction, 2026-09-06 (additive; the original diagnosis above was wrong
+about the CAUSE, not about the verdict).** This section used to blame "the Vast
+Nevada host's broken SSL proxy to huggingface.co". That was inferred from the
+`UNEXPECTED_EOF`, never measured, and it is **not what is happening on machine
+68004**. Re-rented and measured: dialling the real `huggingface.co` addresses
+from inside that box, with SNI and full stdlib verification, SUCCEEDS —
+TLSv1.3, leaf sha256 `0eca454b46a3617cd2e8c234dcb9e9e215c71c3e161424cae505c876250c38f1`,
+byte-identical to a workstation control, issuer `CN=Amazon RSA 2048 M01`; the
+container's CA bundle is byte-identical to the pinned image's; there is no
+proxy env and no proxy process. **There is no TLS interceptor on that host.**
+
+The real mechanism is on-path **forged UDP DNS injection**: a single A query
+for `huggingface.co` to 1.1.1.1 returns three replies, two third-party
+blackholes (Microsoft, HostRoyale) arriving ahead of the real CloudFront set,
+so the box dials a stranger and the handshake dies. `www.google.com`,
+wikipedia and twitter.com are poisoned the same way; `pypi.org`,
+`github.com`, `api.runpod.io`, `console.vast.ai` and the Xet/CloudFront hosts
+are clean; TCP:53 to 1.1.1.1 is RST for exactly the poisoned names; 8.8.8.8
+and 9.9.9.9 answer correctly. Only the path to 1.1.1.1 is affected.
+
+The verdict on the host is unchanged — a network-path integrity failure
+disqualifies a box as thoroughly as interception would, and no credential
+should go near it — but the host operator's TLS is untouched, and saying
+otherwise is an accusation the evidence never supported. `fidelity.tlsguard`
+encodes the distinction: `TLS-RESOLUTION-SUSPECT` when a
+controller-verified ADDRESS dials clean while the RESOLVED one does not
+(explicitly "do not report the host operator"), versus
+`TLS-PEER-UNVERIFIED`, which names all three candidate causes — forged DNS, an
+interception proxy, or a misconfigured transparent Hub cache — and the
+measurement that separates them: dial a known-good address with SNI and
+compare leaf digests. Interception fails both dials; forged DNS fails only the
+resolved one.
+
+Two further things in the recipe above are now PROHIBITED, for reasons
+unrelated to that host. `env={'HF_TOKEN': ...}` in a `create()` body is
+provider-persisted before the instance exists, so no attestation and no
+ordering can protect it; and `FIDELITY_RESULT_SINK=https://ntfy.sh/<topic>` is
+a **bearer capability** — whoever holds that URL can read the run's output.
+Both are refused at the adapter now
+(`tlsguard.refuse_credential_in_provider_payload`). A credential reaches a box
+only as a 0600 file over an authenticated channel, after
+`tlsguard.attest_before_credential` has attested the peer.
