@@ -11,6 +11,7 @@ command line and never written to a receipt.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -566,7 +567,6 @@ def _sidecar_declared_bits(doc, key, file, sha256):
     exact (float, not rounded) so two independent readers agree to full
     float repr; the histogram keys are strings so the block is canonical
     JSON regardless of insertion order."""
-    import hashlib  # noqa: F401  -- stdlib, lazily like _exl3_names_sha256
     entries = []
     histogram = {}
     for entry in doc.values():

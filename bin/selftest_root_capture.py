@@ -311,6 +311,49 @@ for label, cfg in (
 
 check("a config with NO dtype anywhere is still 'unknown' (not guessed)",
       sniff_plain({"model_type": "llama"}).surface == "unknown")
+
+
+# A TR3 tail that NAMES a per-expert bitrate sidecar: sniff_surface fetches
+# it through a nested loader and hashes the bytes. That loader raised
+# NameError('hashlib') for every such artifact -- hfmeta had no module-level
+# import and the lazy one sat in a different function's scope -- which
+# refused all four GLM-5.2 TR3 candidates at plan time (2026-09-06, $0 but
+# a hard stop). This rung drives the real code path with NO network.
+def sniff_with_sidecar(config, files):
+    meta = HM.RepoMeta(
+        repo_id="x/y", repo_type="model", revision="a" * 40,
+        requested_revision="main", last_modified=None,
+        files=[("config.json", 1846), ("tier_bitmap.json", 512),
+               ("model-00001-of-00001.safetensors", 1 << 20),
+               ("model.safetensors.index.json", 4096)])
+    real_json, real_file = HM.fetch_json, HM.fetch_file
+    HM.fetch_json = lambda *a, **k: config
+    HM.fetch_file = lambda repo, name, **k: files[name]
+    try:
+        return HM.sniff_surface(meta)
+    finally:
+        HM.fetch_json, HM.fetch_file = real_json, real_file
+
+
+import json as _json                                          # noqa: E402
+_sidecar = _json.dumps({"3": {"k": [3] * 6 + [4] * 2},
+                        "4": {"k": [3] * 6 + [4] * 2}}).encode("utf-8")
+_tail_cfg = {
+    "model_type": "glm_moe_dsa", "dtype": "bfloat16",
+    "quantization_config": {"quant_method": "modelopt"},
+    "hybrid_tr3_tail": {"format": "exl3-trellis", "codebook": "mcg", "tp": 2,
+                        "bits": "mixed", "expert_bpw_mean": 3.25,
+                        "bits_per_expert": "tier_bitmap.json:k",
+                        "k_values": [3, 4], "experts_per_layer": 8,
+                        "moe_layers": [3, 5]},
+}
+_got = sniff_with_sidecar(_tail_cfg, {"tier_bitmap.json": _sidecar})
+_src = (_got.evidence or {}).get("declared_bits_source") or {}
+check("a TR3 tail naming a bitrate sidecar is sniffed offline: the nested loader "
+      "hashes the bytes and the numeric declaration wins the bits value",
+      _got.bits == 3.25 and _src.get("sidecar") == "tier_bitmap.json"
+      and _src.get("entries") == 16 and _src.get("histogram") == {"3": 12, "4": 4}
+      and _src.get("sha256") == __import__("hashlib").sha256(_sidecar).hexdigest())
 check("a quantized config is not promoted to native-bf16 by its dtype",
       sniff_plain({"model_type": "llama", "dtype": "bfloat16",
                    "quantization_config": {"quant_method": "fp8"}}
