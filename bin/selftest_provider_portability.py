@@ -473,7 +473,7 @@ check("preflight REFUSES a no-cuda machine",
       '"no cuda"' in src_mc and "no working CUDA device" in src_mc)
 
 print("\n== Vast container mode: argv as a list, and NO credential at create ==")
-from fidelity.vastapi import Vast, VastError                       # noqa: E402
+from fidelity.vastapi import Vast                                  # noqa: E402
 
 _captured = []
 
@@ -532,23 +532,20 @@ check("container mode env carries a NON-credential variable, in env rather "
       "-e %s=%s" % (_ENV_NAME, _ENV_VALUE) in _body.get("env", "")
       and _ENV_VALUE not in _body.get("onstart", ""))
 
-# The replacement for "env carries the HF token": the adapter REFUSES, because
-# the adapter is the last place that can tell. Fail closed at the boundary.
-for _label, _env in (("a token", {"HF_TOKEN": _SECRET}),
-                     ("a result sink, which is a bearer capability",
-                      {"FIDELITY_RESULT_SINK": _SINK})):
-    try:
-        _v.create(
-            ask_id=42, storage=80,
-            image="ghcr.io/malaiwah/quant-fidelity-measure:main",
-            docker_cmd=["capture"], env=_env, name="vast-credential-test")
-        _refusal = None
-    except VastError as exc:
-        _refusal = str(exc)
-    check("a create body carrying %s is REFUSED, naming that the payload is "
-          "provider-persisted" % _label,
-          _refusal is not None and "provider-persisted" in _refusal
-          and _SECRET not in _refusal and _SINK not in _refusal)
+# The two rungs that used to sit here -- a Vast create body carrying a token,
+# and one carrying a bearer-capability sink, each REFUSED naming that the
+# payload is provider-persisted -- are SUBSUMED and deliberately deleted, not
+# merely moved. `bin/selftest_root_publish.py` RP7c/RP7d now assert the shared
+# guard over EVERY provider's create-body shape and that no refusal echoes the
+# credential, and RP7e/RP7f read each adapter and assert it refuses before
+# transmitting. Verified all four PASS (runpodapi, vastapi, lambdaapi, jlapi)
+# before removing these, so there is no window in which neither exists.
+#
+# One rung, four providers, is the point: the original defect was not an
+# oversight in Vast's code but a per-provider test that was never made
+# per-provider, so the next adapter inherits the guard instead of needing
+# someone to remember it. What stays here is the SHAPING coverage above,
+# which is this file's concern and no part of the credential contract.
 
 # The critical assertion: no secret appears in onstart text.
 # A provider may echo the command back; environment variables it does not.
