@@ -76,15 +76,39 @@ Blockers beyond the twelve:
   historical JarvisLabs are the only supported sweeps. Without an autonomous
   teardown backstop a controller death leaks a billing instance, so no paid
   measurement may run there. **This is the blocking item.**
-- **Storage is pod-scoped.** `fs_delete` returns "no separable filesystem on
-  vast: the volume went with the pod at destroy". A JarvisLabs filesystem
-  outlives its instance, which is what makes a preempted spot box cheap to
-  resume; Vast has no equivalent, so `--storage-layout` semantics differ and
-  `list_network_volumes` is trivially empty rather than unimplemented.
-- **Host quality varies.** A Nevada host's SSL proxy to huggingface.co
-  presented a certificate hostname mismatch and `UNEXPECTED_EOF`, failing a
-  capture at the setup stage (2026-09-05). Any Vast lane needs a reachability
-  probe before it does real work, and a bad host id recorded.
+- **Instance storage is pod-scoped, but a chargeable volume family EXISTS.**
+  `fs_delete` returns "no separable filesystem on vast: the volume went with
+  the pod at destroy", and that is true of the instance's own disk. An earlier
+  draft here concluded `list_network_volumes` was "trivially empty"; that was
+  **wrong as a statement about the API** and true only of this account.
+  Corrected 2026-09-06 from live read-only probing: `GET /volumes/` is a real
+  endpoint (returns `{"volumes": []}` on our account today) and offers
+  advertise `avail_vol_ask_id` / `avail_vol_dph` / `avail_vol_size`. So real
+  enumeration is required, with completeness reported explicitly — an empty
+  list asserted from a family we never queried is a **false absence proof**.
+  Note the contrast: a JarvisLabs or Lambda filesystem outlives its instance,
+  which is what makes a preempted spot box cheap to resume, so Vast's
+  `--storage-layout` semantics genuinely differ; that is not licence to copy
+  Vast's empty shape onto the other two.
+- **Per-instance billing exists, at ONE-DAY granularity.**
+  `GET /charges/?select_filters={"day":{...}}` returns per-instance rows
+  (`source "instance-<id>"`, with gpu/disk/bwd/bwu items summing to the parent
+  exactly — verified over 39 rows). Two consequences: server-side filtering by
+  instance is **silently ignored**, so selection is client-side on an exact
+  `source` string; and the day row containing an absence keeps updating until
+  UTC midnight. So a Vast lease seals `settled: false` and closes on a
+  next-day sweep — the same shape as RunPod's later sweep, with a ~24h window
+  instead of ~1h. That is a scheduling fact, not a defect.
+- **Host quality varies, and a status field is not reachability.** A Nevada
+  host's SSL proxy to huggingface.co presented a certificate hostname mismatch
+  and `UNEXPECTED_EOF`, failing a capture at the setup stage (2026-09-05). A
+  second box reported `actual_status=running` for ~14 minutes while its
+  reverse tunnel was dead (`remote port forwarding failed for listen port
+  14270` — a collision on the `ssh2.vast.ai` PROXY, with a healthy host).
+  **`actual_status` is a claim about the provider's intent, never evidence
+  that the box can be reached.** Any Vast lane needs a live reachability probe
+  — Hub included — before it does real work, and a bad host id recorded. A
+  create that cannot be reached is not evidence against the machine.
 
 ### Lambda (`bin/fidelity/lambdaapi.py`, 15 public methods)
 - Instances are **VMs, not containers**: the measurement image cannot be used
@@ -130,6 +154,41 @@ Provider-specific facts:
 - **137 historical leases have already been settled** on this account, so
   `reconcile_billing` must cope with the old lease shapes it will meet in the
   store, not only with ones minted by the current code.
+
+**Ruling, 2026-09-06, after live probing of `jl 0.2.17` (read-only, no
+instance created).** Three of the twelve refuse on JarvisLabs because the
+provider does not expose the input, and none of the three blocks measurement:
+
+- **`billing_history` refuses.** There is no billing subcommand and no
+  time-windowed query anywhere. The only per-resource figure is `cost` on the
+  instance row — a running USD total readable **only while the instance is
+  listed**. So a JL lease is unreconcilable-after-destroy *by design*.
+  This document previously said "an unreconcilable cost is an unpublishable
+  receipt". That is **narrowed**: it conflated two things. The registry
+  publishes no cost field, and reconciliation protects the OPERATOR, not the
+  number. A JL lease therefore seals `settled: false` with a pre-destroy
+  `cost_snapshot` and an explicit `unreconcilable_by_provider: true`. The
+  hourly-billed residual between the snapshot and destroy stays **unpriced**:
+  no local arithmetic may be added to it, because a computed cost that looks
+  settled is worse than an honest gap.
+- **`server_time_evidence` refuses.** No read-only subcommand returns an
+  absolute provider timestamp (probed: status, list, get, gpus, resources,
+  cpus, templates, filesystem list, ssh-key list, scripts list, deploy list,
+  run list — the last is explicitly "locally tracked"). So a teardown deadline
+  cannot be encoded against their clock. Survivable **only** because the
+  on-instance watchdog is the real backstop and runs on the box's own clock:
+  the guarantee degrades from "provider-attested deadline" to "instance clock
+  plus ours", and it must be disclosed in exactly those words. Never pass our
+  clock off as theirs.
+- **`ssh_host_ed25519_fingerprint` refuses.** `jl` publishes no instance boot
+  log (`jl run logs` is a managed run's stdout, `jl deploy logs` is
+  serverless), so a host key cannot be authenticated out of band. **Whether
+  this is a hard blocker is OPEN and depends on one fact:** if `jl exec` /
+  `jl upload` shell out to `ssh`, first contact is unauthenticated and the HF
+  token would transit a host we cannot verify — that is a hard blocker under
+  the secrets rule and no JL measurement runs until it is solved. If the CLI
+  transports over an authenticated channel of its own, the method is **N/A
+  rather than missing** and must say so.
 
 ## Beyond the adapters
 
