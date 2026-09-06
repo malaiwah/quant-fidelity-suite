@@ -253,22 +253,51 @@ def main(argv):
                   any("XC-7" in e and "does not resolve" in e for e in axis["errors"]),
                   json.dumps(axis["errors"][:1])[:110])
 
-            fidelity = json.loads(json.dumps(minimal_fidelity))
-            fidelity["registry"] = {
-                "artifact_id": art_id,
-                "snapshot": {"data_sha256": {"measurements": "0" * 64}}}
-            fidelity["scope_digest"] = real_scope
-            front["x_fidelity"] = fidelity
-            axis = cardmeta._our_axis(card_text(front), registry)
-            stale_err = any("XC-7" in e and "STALE" in e for e in axis["errors"])
-            fidelity["registry"]["snapshot"]["archival"] = True
-            front["x_fidelity"] = fidelity
-            axis2 = cardmeta._our_axis(card_text(front), registry)
-            archival_ok = (not any("STALE" in e for e in axis2["errors"])
-                           and any("STALE" in w for w in axis2["warnings"]))
-            check("K8e a stale registry snapshot is an error, archival downgrades to a "
-                  "warning (XC-7)", stale_err and archival_ok,
-                  "stale_err=%s archival_warn=%s" % (stale_err, archival_ok))
+            # K8e/K8f: XC-7 staleness is about the card's CITED CLAIMS, not
+            # about whole-file digests. Comparing the snapshot's file digests
+            # alone meant ten unrelated rows (a new GLM-5.2 family, 2026-09-06)
+            # marked both committed GLM-5.3-Flash cards stale, and the next
+            # filed row re-broke them minutes after they were regenerated --
+            # while the drift that actually matters (a cited row corrected
+            # under the card, P1-02) is indistinguishable from that noise.
+            cited = next((mid for mid, row in sorted(registry["measurements"].items())
+                          if row.get("status") == "published"
+                          and row.get("artifact_ref")), None)
+            if cited:
+                blk = cardmeta.build_x_fidelity(
+                    registry, role="quant", measurement_ids=[cited],
+                    artifact_id=registry["measurements"][cited]["artifact_ref"])
+                blk["registry"]["snapshot"] = {
+                    "data_sha256": {"measurements": "0" * 64}}
+                front["x_fidelity"] = blk
+                axis = cardmeta._our_axis(card_text(front), registry)
+                intact = (not any("XC-7" in e for e in axis["errors"])
+                          and any("XC-7" in w and "no claim" in w
+                                  for w in axis["warnings"]))
+                check("K8f a snapshot older than the clone whose CITED rows are all "
+                      "unchanged warns and names the files -- it is not an error "
+                      "(XC-7)", intact,
+                      json.dumps(axis["errors"][:1] + axis["warnings"][:1])[:150])
+
+                drifted = json.loads(json.dumps(blk))
+                was = drifted["measurements"][0]["value"]
+                drifted["measurements"][0]["value"] = (
+                    (was + 1.0) if isinstance(was, (int, float)) else 1.0)
+                front["x_fidelity"] = drifted
+                axis2 = cardmeta._our_axis(card_text(front), registry)
+                drift_err = any("XC-7" in e and "no longer say" in e
+                                for e in axis2["errors"])
+                drifted["registry"]["snapshot"]["archival"] = True
+                front["x_fidelity"] = drifted
+                axis3 = cardmeta._our_axis(card_text(front), registry)
+                archival_ok = (not any("XC-7" in e for e in axis3["errors"])
+                               and any("XC-7" in w for w in axis3["warnings"]))
+                check("K8e a cited row that no longer says what the card says is an "
+                      "error naming the field, archival downgrades it to a warning "
+                      "(XC-7)", drift_err and archival_ok,
+                      "drift_err=%s archival_warn=%s %s" % (
+                          drift_err, archival_ok,
+                          json.dumps(axis2["errors"][:1])[:110]))
 
     # -- K9: a measurement id the registry does not have ---------------------
     expect_refusal("K9  a model-index result for an unknown measurement is refused (XC-3)",

@@ -600,6 +600,29 @@ an **error** — a stale card can carry claims the registry has since corrected 
 unless the card marks itself `x_fidelity.registry.snapshot.archival: true`, in
 which case it is warned. Cases K8c/K8d/K8e.
 
+**XC-7 refinement — staleness is measured on the card's CITED ROWS**
+(added 2026-09-06; additive, the wire format is unchanged). The rule above
+asked whether any `registry/data/*.jsonl` digest had moved, which is coarser
+than the claim it defends: those digests change when **any** row is filed
+anywhere. Ten unrelated rows (a new GLM-5.2 family) marked both committed
+GLM-5.3-Flash cards stale on 2026-09-06; they were regenerated, and the next
+filed row re-broke them minutes later. A guard that cannot be satisfied while
+a campaign is running is a guard that gets routed around — and the drift it
+exists to catch (P1-02, a cited row corrected *under* the card) was
+indistinguishable from that noise.
+
+So the **error** is now the precise question: the card's `measurements` blocks
+are rebuilt from the live registry through the same builder that wrote them,
+and any cited row that no longer says what the card says — or that has
+disappeared — is an error naming the field, card value and registry value.
+`archival: true` still downgrades it to a warning. A snapshot that is merely
+**older** than the clone, with every cited row unchanged, is a **warning** that
+names the changed files: the reader is still entitled to know the card was cut
+earlier, but no claim on it is affected. Only fields the card actually asserts
+are compared, so a builder that gains a new field does not retroactively
+invalidate published cards. Cases K8e (drift is an error, archival warns) and
+K8f (older snapshot, claims intact, warns and is not an error).
+
 **A registry snapshot travels with the annotation.**
 `x_fidelity.registry.snapshot.data_sha256` records the digest of each
 `registry/data/*.jsonl` file the card was generated from. A registry clone is a

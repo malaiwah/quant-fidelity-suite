@@ -786,6 +786,53 @@ def _walk_scalars(node: Any, path: str = "") -> List[Tuple[str, Any]]:
     return out
 
 
+def _cited_claim_drift(fidelity: Dict[str, Any], reg_block: Dict[str, Any],
+                       role: str, registry: Dict[str, Any]) -> List[str]:
+    """Which of the card's CITED claims the live registry no longer supports.
+
+    The card's `measurements` blocks are rebuilt through `build_x_fidelity`,
+    the same production builder that wrote them, so this asks exactly what a
+    regeneration would change -- not whether some unrelated row was filed. An
+    empty list means regenerating this card would move nothing but its
+    snapshot digests.
+    """
+    ids = list(reg_block.get("measurement_ids") or [])
+    if not ids:
+        return []
+    try:
+        fresh = build_x_fidelity(
+            registry, role=role, measurement_ids=ids,
+            artifact_id=reg_block.get("artifact_id"))["measurements"]
+    except CardError as exc:
+        # A cited row no longer resolves at all: the strongest possible drift.
+        return ["a row this card cites is gone from the registry (%s)" % exc]
+    except (KeyError, TypeError) as exc:
+        return ["a row this card cites can no longer be rebuilt (%s: %s)"
+                % (type(exc).__name__, exc)]
+    have = fidelity.get("measurements")
+    if not isinstance(have, list):
+        return ["the card carries no measurements block to compare"]
+    if len(have) != len(fresh):
+        return ["the card cites %d measurement block(s), the registry now "
+                "yields %d" % (len(have), len(fresh))]
+    drift = []
+    for card_block, live_block in zip(have, fresh):
+        if not isinstance(card_block, dict):
+            drift.append("a measurement block is not a mapping")
+            continue
+        mid = card_block.get("id") or live_block.get("id")
+        for key, live_value in sorted(live_block.items()):
+            # Only fields the card actually asserts are compared: a field the
+            # card omits is not a claim, and the builder gaining a new one must
+            # not retroactively invalidate every published card.
+            if key not in card_block:
+                continue
+            if card_block[key] != live_value:
+                drift.append("%s.%s: card %r, registry %r"
+                             % (mid, key, card_block[key], live_value))
+    return drift
+
+
 def _our_axis(text: str, registry: Dict[str, Any]) -> Dict[str, Any]:
     """Role-conditional required fields plus XC-1..XC-5."""
     errors: List[str] = []
@@ -984,20 +1031,46 @@ def _our_axis(text: str, registry: Dict[str, Any]) -> Dict[str, Any]:
                         "scope than the authoritative artifact record; regenerate the card "
                         "from the current registry"
                         % (fidelity.get("scope_digest"), want))
+        # A card's snapshot records WHICH registry state produced its numbers.
+        # Comparing that snapshot's whole-file digests is how staleness was
+        # detected, but those digests move when ANY row is filed anywhere: on
+        # 2026-09-06 ten unrelated rows (a new GLM-5.2 family) marked both
+        # committed GLM-5.3-Flash cards stale, they were regenerated, and the
+        # very next filed row marked them stale again minutes later. A guard
+        # that cannot be satisfied while a campaign is running is a guard that
+        # gets routed around, and its evidence was coarser than its claim.
+        #
+        # So the ERROR is now the precise question -- do the rows this card
+        # CITES still say what the card says? -- rebuilt through the same
+        # production builder that wrote them. The original incident this guard
+        # exists for still fails closed: on 2026-08-29 the registry artifact
+        # was corrected to routed-experts-only and the cards kept the
+        # pre-correction scope (checked above) and their pre-correction
+        # measurement blocks (checked here). An older snapshot whose cited
+        # claims are all intact is a WARNING that names the files, because the
+        # reader is still entitled to know the card was cut earlier.
         snapshot = (reg_block.get("snapshot") or {})
         declared = snapshot.get("data_sha256") or {}
         live = ((registry.get("_snapshot") or {}).get("data_sha256")) or {}
         stale = sorted(k for k in declared if live.get(k) and declared[k] != live[k])
         if stale:
-            msg = ("XC-7: the card's registry snapshot is STALE (%s changed since it was "
-                   "generated). A stale card can carry claims the registry has since "
-                   "corrected; regenerate it, or mark it archival "
-                   "(x_fidelity.registry.snapshot.archival: true) if the old state is "
-                   "deliberate" % ", ".join(stale))
-            if snapshot.get("archival") is True:
-                warnings.append(msg + " [archival: warned, not failed]")
+            drifted = _cited_claim_drift(fidelity, reg_block, role, registry)
+            if drifted:
+                msg = ("XC-7: the registry rows this card CITES no longer say what the "
+                       "card says (%s). A stale card can carry claims the registry has "
+                       "since corrected; regenerate it from the current registry, or "
+                       "mark it archival (x_fidelity.registry.snapshot.archival: true) "
+                       "if the old state is deliberate" % "; ".join(drifted[:4]))
+                if snapshot.get("archival") is True:
+                    warnings.append(msg + " [archival: warned, not failed]")
+                else:
+                    errors.append(msg)
             else:
-                errors.append(msg)
+                warnings.append(
+                    "XC-7: the card's registry snapshot is older than this clone (%s "
+                    "changed since it was generated), but every row the card cites is "
+                    "unchanged -- no claim on this card is affected"
+                    % ", ".join(stale))
     return {"axis": "ours", "ran": True, "ok": not errors,
             "errors": errors, "warnings": warnings}
 
