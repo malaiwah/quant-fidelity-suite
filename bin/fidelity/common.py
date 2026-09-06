@@ -230,14 +230,34 @@ _SAFE_OPENER = None
 
 
 def safe_urlopen(request, *, timeout=60.0):
-    """`urlopen` through the auth-stripping redirect handler. Always use this
-    (never bare `urllib.request.urlopen`) for a request that may carry
-    `Authorization`."""
+    """`urlopen` through the auth-stripping redirect handler AND an explicit,
+    non-ambient TLS context.  Always use this (never bare
+    `urllib.request.urlopen`) for a request that may carry `Authorization`.
+
+    Two properties, both load-bearing:
+
+      * the cross-origin redirect handler strips `Authorization` when a 302
+        leaves the original origin (a Hub `/resolve/` URL redirects to a CDN);
+      * the opener is built with `fidelity.tlsguard.explicit_ssl_context()`,
+        so verification uses the root bundle THIS REPO SHIPS rather than the
+        ambient store.  `build_opener()` with no context inherits Python's
+        default, which calls `load_default_certs` and therefore honours
+        `SSL_CERT_FILE`/`SSL_CERT_DIR` -- on a box where somebody else is root
+        that turns "the certificate verified" into "the store the host
+        controls said yes".  A rented Vast host presented a mismatched
+        certificate for huggingface.co on 2026-09-05; this is why an ambient
+        variable can no longer widen our trust, only be disclosed.
+
+    tlsguard is imported lazily for the same reason urllib is: importing
+    `common` must not drag the TLS stack into a process that never speaks HTTP.
+    """
     global _SAFE_OPENER
     if _SAFE_OPENER is None:
         import urllib.request
+        from fidelity.tlsguard import explicit_ssl_context
         _SAFE_OPENER = urllib.request.build_opener(
-            make_no_cross_origin_auth_handler()())
+            make_no_cross_origin_auth_handler()(),
+            urllib.request.HTTPSHandler(context=explicit_ssl_context()))
     return _SAFE_OPENER.open(request, timeout=timeout)
 
 

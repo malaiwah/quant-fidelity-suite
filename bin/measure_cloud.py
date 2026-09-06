@@ -47,7 +47,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation, ROUND_CEILING
 from pathlib import Path, PurePosixPath
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 SUITE_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -3551,16 +3551,23 @@ CONTROL_PLANE_PATHS = (
 # the pod, and the safe path never restarts or adopts one, so the run root
 # belongs on the container disk. A nominal volume is still created so the
 # live attestation's /workspace probe keeps its meaning.
-RUNPOD_STORAGE_LAYOUTS = {
-    "container-disk": {"run_base": "/root", "nominal_volume_gb": 10},
-    "pod-volume": {"run_base": "/workspace", "nominal_volume_gb": None},
-}
+# ...which is why the run-base table is a per-provider PROFILE field
+# (`providers.PAID_EXECUTION_PROFILES[...]["storage_layouts"]`) and no longer
+# a RunPod constant here: a VM provider like Lambda has no container disk at
+# all, and picking `/root` for it would put the run root on the boot volume.
+# The parser needs choices before any provider is known, so it offers the
+# union and the plan then REFUSES a layout this provider does not declare.
+def paid_storage_layout_choices():
+    """Every --storage-layout any provider declares (parser-time union)."""
+    layouts = set()
+    for row in _providers().PAID_EXECUTION_PROFILES.values():
+        layouts.update(row["storage_layouts"])
+    return sorted(layouts)
 
 
-def _runpod_run_roots(layout: str, job_id_full: str, attempt: str):
-    base = RUNPOD_STORAGE_LAYOUTS[layout]["run_base"]
-    return ("%s/fidelity/%s/%s" % (base, job_id_full, attempt),
-            "%s/fidelity-engine/%s/%s" % (base, job_id_full, attempt))
+def _paid_run_roots(run_base: str, job_id_full: str, attempt: str):
+    return ("%s/fidelity/%s/%s" % (run_base, job_id_full, attempt),
+            "%s/fidelity-engine/%s/%s" % (run_base, job_id_full, attempt))
 
 
 def _canonical_bytes(document: Any) -> bytes:
@@ -4373,11 +4380,12 @@ def _open_existing_runpod_campaign(args, provider_account_id: str):
         raise Refusal(
             "--campaign-ledger names a file that does not exist; strict "
             "campaign mode opens an existing ledger. Create one with "
-            "`measure-cloud drill --provider runpod --campaign-ledger ...` "
-            "or omit --campaign-ledger for a per-run ledger", [])
+            "`measure-cloud drill --provider %s --campaign-ledger ...` "
+            "or omit --campaign-ledger for a per-run ledger"
+            % args.provider, [])
     try:
         ledger = CampaignLedger(
-            campaign_path, "runpod", provider_account_id)
+            campaign_path, args.provider, provider_account_id)
         snapshot = ledger.snapshot()
     except (CampaignLedgerError, OSError, ValueError) as exc:
         raise Refusal(
@@ -4387,7 +4395,7 @@ def _open_existing_runpod_campaign(args, provider_account_id: str):
         Decimal(str(args.campaign_ceiling)),
         Decimal(str(args.campaign_reserve)),
         Decimal(str(args.campaign_reaper_margin)),
-        2, "USD", "runpod", provider_account_id)
+        2, "USD", args.provider, provider_account_id)
     actual = (
         Decimal(snapshot["hard_ceiling_usd"]),
         Decimal(snapshot["reserve_floor_usd"]),
@@ -4448,7 +4456,7 @@ def _create_auto_campaign_ledger(args, provider_account_id: str,
             campaign_path, limits["hard_ceiling_usd"],
             limits["reserve_floor_usd"], limits["cleanup_reaper_margin_usd"],
             max_concurrent_attempts=limits["max_concurrent_attempts"],
-            provider="runpod", provider_account_id=provider_account_id,
+            provider=args.provider, provider_account_id=provider_account_id,
             foreign_resources_policy=limits["foreign_resources_policy"])
     except (CampaignLedgerError, OSError, ValueError) as exc:
         raise Refusal(
@@ -5039,7 +5047,7 @@ def _refuse_gguf_tokenizer_mismatch(con: Console, target, binding: Dict[str, Any
               digests["tokenizer.json"][:16]))
 
 
-def _plan_runpod_anonymous(
+def _plan_paid_anonymous(
         args, con: Console, provider,
         anonymous_access: Dict[str, Any]) -> Dict[str, Any]:
     """Build the complete finalized job and every paid gate before admission."""
@@ -5053,8 +5061,15 @@ def _plan_runpod_anonymous(
         validate_unexpected_tensor_allowlist, validate_width_two_root_archive,
     )
 
+    # The provider's identity and its declared paid execution profile, bound
+    # ONCE and read from here on.  Nothing below names a provider: the plan
+    # was RunPod-literal in a dozen places, which is why a conforming
+    # adapter had nowhere to run.
+    provider_name = args.provider
+    paid_profile = _providers().paid_execution_profile(provider_name)
+    balance_source = paid_profile["balance_source"]
     plan_data: Dict[str, Any] = {
-        "provider": "runpod", "created": False, "gates": {},
+        "provider": provider_name, "created": False, "gates": {},
         "would_refuse": [], "safe_runpod": True, "warnings": [],
         "_deferred_refusals": [],
     }
@@ -5094,7 +5109,7 @@ def _plan_runpod_anonymous(
                 "paid quant measurement."))
         if registry_gate.get("status") == "already-measured":
             return {
-                "provider": "runpod", "created": False, "no_spend": True,
+                "provider": provider_name, "created": False, "no_spend": True,
                 "status": "already-measured",
                 "target": {
                     "repo_id": target.repo_id,
@@ -5160,7 +5175,7 @@ def _plan_runpod_anonymous(
         raise Refusal("RunPod status lacks exact myself.id", [])
     health = systemd_reaper_health(
         state_dir=Path(args.reaper_state_dir),
-        lease_dir=Path(args.lease_dir), provider="runpod",
+        lease_dir=Path(args.lease_dir), provider=provider_name,
         provider_account_id=initial_account_id)
     if not health.get("ok"):
         raise Refusal(
@@ -5746,7 +5761,7 @@ def _plan_runpod_anonymous(
         key=lambda item: (_offer_exact_rate(item), item.gpu_type))[0]
     exact_offer_rate = _offer_exact_rate(offer)
     chosen = {
-        "provider": "runpod", "provider_gpu_id": provider_gpu_id,
+        "provider": provider_name, "provider_gpu_id": provider_gpu_id,
         "provider_gpu_display": provider_gpu_id,
         # resultsink._validate_runpod_attestation binds the attestation's
         # gpu_model to environment.gpu; without this key the archive build
@@ -5853,15 +5868,26 @@ def _plan_runpod_anonymous(
     archive_container_bytes = result_archive_contract[
         "result_archive_max_transfer_bytes"]
     layout = args.storage_layout
+    layouts = paid_profile["storage_layouts"]
+    if layout not in layouts:
+        # --storage-layout offers the union across providers, so a layout
+        # this provider does not declare is refused HERE, before any spend,
+        # rather than silently resolving to somebody else's run base.
+        raise Refusal(
+            "%s declares no --storage-layout %r; it offers %s"
+            % (provider_name, layout, ", ".join(sorted(layouts))),
+            ["the run base decides where the checkpoint is streamed through, "
+             "and a wrong one is a slow expensive run or a full boot volume"])
     plan_data["storage_layout"] = layout
+    plan_data["storage_run_base"] = layouts[layout]["run_base"]
     run_bytes = int(
         Decimal(str(storage_need.total_bytes)).to_integral_value(
             rounding=ROUND_CEILING))
     if layout == "container-disk":
         # Weights, captures and the archive staging all live on the
-        # container disk; the volume is nominal (see RUNPOD_STORAGE_LAYOUTS).
-        plan_data["storage_gb"] = RUNPOD_STORAGE_LAYOUTS[layout][
-            "nominal_volume_gb"]
+        # container disk; the volume is nominal (see the provider's
+        # `storage_layouts` profile row).
+        plan_data["storage_gb"] = layouts[layout]["nominal_volume_gb"]
         plan_data["container_disk_gb"] = max(
             20, C.round_up_storage_gb(
                 run_bytes + archive_container_bytes + 67108864))
@@ -6120,7 +6146,7 @@ def _plan_runpod_anonymous(
         "produced_by": produced_by_block(
             SUITE_ROOT, "bin/measure_cloud.py",
             dependencies={
-                "lane": args.lane, "provider": "runpod",
+                "lane": args.lane, "provider": provider_name,
                 "profile": profile_doc["profile_id"]}),
         "execution_attempt": {
             "kind": "runpod-ssh",
@@ -6176,7 +6202,7 @@ def _plan_runpod_anonymous(
                     "provider inventory lacks exact id/name/status", [])
             provider_resources.append(resource)
     preview_common = {
-        "provider": "runpod",
+        "provider": provider_name,
         "provider_account_id": provider_account_id,
         "balance_available_usd": plan_status.get("clientBalance"),
         "balance_observed_at": preview_now,
@@ -6199,7 +6225,7 @@ def _plan_runpod_anonymous(
         try:
             unresolved_scope = validate_unresolved_lease_scope(
                 lease_store_plan, health,
-                provider="runpod", provider_account_id=provider_account_id,
+                provider=provider_name, provider_account_id=provider_account_id,
                 campaign_ledger_path=Path(campaign_path))
         except Exception as exc:
             raise Refusal(
@@ -6223,7 +6249,7 @@ def _plan_runpod_anonymous(
         campaign_path = _auto_campaign_ledger_path(args, job["job_id_full"])
         try:
             liability_scope = validate_lease_liability_scope(
-                lease_store_plan, provider="runpod",
+                lease_store_plan, provider=provider_name,
                 provider_account_id=provider_account_id,
                 allow_live=bool(getattr(args, "allow_unresolved_leases", False)))
         except LeaseError as exc:
@@ -6332,7 +6358,7 @@ def _plan_runpod_anonymous(
            "run root under %s" % (
                plan_data["storage_layout"], plan_data["container_disk_gb"],
                plan_data["storage_gb"],
-               RUNPOD_STORAGE_LAYOUTS[plan_data["storage_layout"]]["run_base"]))
+               plan_data["storage_run_base"]))
     con.kv("workload bound", "%s s (%s); retrieval/delete reserve %s s (%s)"
            % (quote.workload_deadline_seconds,
               plan_data.get("max_runtime_source", "--max-runtime"),
@@ -6353,10 +6379,10 @@ def _plan_runpod_anonymous(
     return plan_data
 
 
-def plan_runpod(args, con: Console, provider) -> Dict[str, Any]:
+def plan_paid(args, con: Console, provider) -> Dict[str, Any]:
     """Plan using only the same anonymous official-Hub access the pod has."""
     with _anonymous_hf_environment() as anonymous_access:
-        return _plan_runpod_anonymous(
+        return _plan_paid_anonymous(
             args, con, provider, anonymous_access)
 
 
@@ -6441,15 +6467,16 @@ def _bind_lease_cleanup_to_campaign(
         raise Refusal("campaign and lease exact provider ID sets differ", [])
 
 
-def _runpod_secrets_dir(fs_root: str) -> str:
-    """Where the RunPod path keeps the HF token on the pod.
+def _paid_secrets_dir(template: str, fs_root: str) -> str:
+    """Where the paid path keeps the HF token on the box, per provider.
 
-    NOT under fs_root: /workspace is the pod volume, and it accepted
-    `chmod 600` while reporting 0666 (Fruit smoke, 2026-09-03). The
-    container's own disk honours modes, so the 0700/0600 contract lives
-    there, keyed by the attempt so two attempts can never share a path.
+    NOT under fs_root: RunPod's /workspace is the pod volume, and it accepted
+    `chmod 600` while reporting 0666 (Fruit smoke, 2026-09-03). A disk that
+    honours modes is a provider fact, so the directory comes from the
+    profile's `secrets_dir` template; the attempt-keyed suffix is generic, so
+    two attempts can never share a path.
     """
-    return "/root/.fidelity-secrets/%s" % hashlib.sha256(
+    return template % hashlib.sha256(
         fs_root.encode("utf-8")).hexdigest()[:24]
 
 
@@ -6936,8 +6963,12 @@ def _cleanup_ambiguous_runpod_create(
                 "ambiguous cleanup cannot verify the lease provider account")
         graphql_pods = provider.list_lifecycle_resources()
         inventory = provider.chargeable_inventory()
+        # The provider comes from the LEASE, not from a literal: this helper
+        # is reached from the create-response-loss paths, where the only
+        # trustworthy identity is the one durably sealed in the lease.
         listing, absence_proof, unused_volumes = authoritative_listing(
-            "runpod", provider, graphql_pods, observed_account_id,
+            lease_store.read(lease_ref)["create"]["provider"],
+            provider, graphql_pods, observed_account_id,
             inventory=inventory)
         lease_ref = lease_store.confirm_exact_absence(
             lease_ref, listing, authoritative_inventory=absence_proof)
@@ -7034,7 +7065,7 @@ def _runpod_stage_command(fs_root, engine_root, stage, image_digest,
 
 def _runpod_stage(
         provider, pod_id, fs_root, engine_root, stage, deadline,
-        image_reference, progress=None, expected_bytes=None):
+        image_reference, secrets_dir, progress=None, expected_bytes=None):
     image_match = re.fullmatch(
         r".+@(sha256:[0-9a-f]{64})", str(image_reference))
     if image_match is None:
@@ -7042,7 +7073,7 @@ def _runpod_stage(
     image_digest = image_match.group(1)
     command = _runpod_stage_command(
         fs_root, engine_root, stage, image_digest, str(image_reference),
-        _runpod_secrets_dir(fs_root))
+        secrets_dir)
     run = provider.run_job(pod_id, command)
     run_id = (run or {}).get("run_id") or (run or {}).get("id")
     if not run_id:
@@ -7198,7 +7229,129 @@ def _runpod_stage_failure_evidence(provider, pod_id, fs_root, stage, run_id,
         parts.append("--- %s ---\n%s" % (label, text or "(empty)"))
     return redact("\n".join(parts))
 
-def execute_runpod(
+
+def _attest_gpu_availability(provider, provider_id, *, expected_vram_bytes,
+                             evidence_prefix, outdir: Path,
+                             driver_reserve_bytes: int = 2 * 1024 ** 3):
+    """Prove the card we rented is not already SOMEONE ELSE'S.
+
+    `attest_live_resource` compares the expected VRAM against the card's
+    TOTAL, and an oversubscribed card passes that: Vast contract 50056791
+    (host 434175, machine 146304) was advertised, rented and billed as an
+    "RTX 4090 24GB" while four foreign PIDs held 23,424 of 24,564 MiB, one
+    physical card shared across tenants. exllamav3 then died with CUDA OOM
+    at module 8 of 15 -- after the money was spent and the whole stack was
+    installed. "24 GB card" was true and useless: FREE VRAM is the
+    attestable quantity, not total.
+
+    Two independent signals, both recorded even when both pass:
+
+    * a FOREIGN COMPUTE APP on the card.  Nothing of ours has touched the
+      GPU at this point -- this runs before upload, before bootstrap -- so
+      any compute app is another tenant's, and this is what distinguishes an
+      oversubscribed card from a large driver reservation.
+    * FREE below the advertised VRAM, allowing `driver_reserve_bytes` for
+      the driver's own reservation.  Measured: a healthy A100-40GB reserved
+      518 MiB (40,442 free of 40,960) and the bad 4090 had 637 MiB free of
+      24,564, so 2 GiB separates them by a factor of thirty.
+
+    Provider-generic: it drives `exec_stdout`, which every adapter has, and
+    it is cheap enough to run before the stack install, which is exactly
+    where the loss happened.
+    """
+    query = (
+        "nvidia-smi --query-gpu=name,memory.total,memory.used,memory.free,"
+        "compute_cap,driver_version --format=csv,noheader,nounits; "
+        "echo ---; "
+        "nvidia-smi --query-compute-apps=pid,used_memory "
+        "--format=csv,noheader,nounits")
+    evidence = {
+        "schema": "fidelity-suite/%s-gpu-availability.v1" % evidence_prefix,
+        "expected_vram_bytes": int(expected_vram_bytes),
+        "driver_reserve_allowance_bytes": int(driver_reserve_bytes),
+        "observed_at_utc": _exact_utc_now(),
+    }
+    try:
+        raw = provider.exec_stdout(provider_id, "set -eu; " + query)
+    except Exception as exc:                                # noqa: BLE001
+        # Fail closed. A GPU box we just rented for a CUDA capture that
+        # cannot answer `nvidia-smi` is not a box to spend a capture on, and
+        # inferring availability is exactly what this exists to stop.
+        raise RuntimeError(
+            "GPU availability could not be attested on %s: %s. Free VRAM is "
+            "the attestable quantity and this box did not report it; "
+            "refusing before upload" % (provider_id, redact(str(exc))))
+    head, _sep, tail = str(raw).partition("---")
+    gpu_rows = [line.strip() for line in head.splitlines() if line.strip()]
+    app_rows = [line.strip() for line in tail.splitlines() if line.strip()]
+    cards = []
+    for row in gpu_rows:
+        fields = [field.strip() for field in row.split(",")]
+        if len(fields) != 6:
+            raise RuntimeError(
+                "GPU availability row is unparseable (%r); refusing before "
+                "upload rather than guessing free VRAM" % (row,))
+        try:
+            cards.append({
+                "name": fields[0],
+                "memory_total_bytes": int(fields[1]) * 1024 ** 2,
+                "memory_used_bytes": int(fields[2]) * 1024 ** 2,
+                "memory_free_bytes": int(fields[3]) * 1024 ** 2,
+                "compute_capability": fields[4],
+                "driver_version": fields[5],
+            })
+        except ValueError:
+            raise RuntimeError(
+                "GPU availability row carries non-integer MiB (%r)" % (row,))
+    foreign = []
+    for row in app_rows:
+        fields = [field.strip() for field in row.split(",")]
+        if len(fields) != 2:
+            raise RuntimeError(
+                "GPU compute-app row is unparseable (%r)" % (row,))
+        foreign.append({"pid": fields[0], "used_memory_bytes": fields[1]})
+    evidence["gpus"] = cards
+    evidence["foreign_compute_apps"] = foreign
+    path = outdir / ("%s-gpu-availability.json" % evidence_prefix)
+    with path.open("xb") as stream:
+        stream.write(
+            json.dumps(evidence, indent=2, sort_keys=True,
+                       ensure_ascii=False, allow_nan=False).encode("utf-8")
+            + b"\n")
+        stream.flush()
+        os.fsync(stream.fileno())
+    evidence["path"] = str(path)
+    if not cards:
+        raise RuntimeError(
+            "GPU availability attestation found no GPU at all on %s "
+            "(evidence: %s)" % (provider_id, path))
+    if foreign:
+        raise RuntimeError(
+            "the rented card is already running %d FOREIGN compute app(s) "
+            "(%s): this is one physical GPU shared with another tenant, and "
+            "a capture on it dies with CUDA OOM after the stack is paid for. "
+            "Refusing before upload; record the host id. (evidence: %s)"
+            % (len(foreign),
+               ", ".join("pid %s holding %s bytes"
+                         % (row["pid"], row["used_memory_bytes"])
+                         for row in foreign), path))
+    starved = [
+        card for card in cards
+        if card["memory_free_bytes"] + int(driver_reserve_bytes)
+        < int(expected_vram_bytes)]
+    if starved:
+        raise RuntimeError(
+            "the rented card advertises %d bytes of VRAM but only %s are "
+            "FREE (allowance %d bytes for the driver's own reservation): "
+            "total is the number that passes and free is the number that "
+            "runs. Refusing before upload. (evidence: %s)"
+            % (int(expected_vram_bytes),
+               ", ".join(str(card["memory_free_bytes"]) for card in starved),
+               int(driver_reserve_bytes), path))
+    return evidence
+
+
+def execute_paid(
         args, con: Console, provider, plan_data,
         download_token: str) -> Dict[str, Any]:
     """One reserved attempt, one POST, one SSH pod and one archive download."""
@@ -7220,6 +7373,22 @@ def execute_runpod(
             or any(character.isspace() for character in download_token)):
         raise Refusal("exact Hugging Face download token is unavailable", [])
     register_secret(download_token)
+
+    # Provider identity and profile, bound once.  `_evidence_schema` and
+    # `evidence_prefix` are what used to be `fidelity-suite/runpod-*` and
+    # `runpod-*.json` literals: the schema stem and the receipt basename are
+    # provider-native, and the ADAPTER already emits the matching attestation
+    # schema (`runpodapi.py:1413`), so deriving both from one profile field
+    # keeps the two halves from drifting.
+    provider_name = args.provider
+    paid_profile = _providers().paid_execution_profile(provider_name)
+    label = paid_profile["label"]
+    evidence_prefix = paid_profile["evidence_prefix"]
+    balance_source = paid_profile["balance_source"]
+    safe_create = paid_profile["safe_create_profile"]
+
+    def _evidence_schema(stem: str) -> str:
+        return "fidelity-suite/%s-%s" % (evidence_prefix, stem)
 
 
     outdir = Path(args.out).resolve()
@@ -7304,7 +7473,7 @@ def execute_runpod(
             "RunPod provider account changed after planning; freeze", [])
     fresh_health = systemd_reaper_health(
         state_dir=Path(args.reaper_state_dir),
-        lease_dir=Path(args.lease_dir), provider="runpod",
+        lease_dir=Path(args.lease_dir), provider=provider_name,
         provider_account_id=current_account_id)
     if not fresh_health.get("ok"):
         raise Refusal(
@@ -7314,7 +7483,7 @@ def execute_runpod(
         try:
             validate_unresolved_lease_scope(
                 LeaseStore(Path(args.lease_dir)), fresh_health,
-                provider="runpod", provider_account_id=current_account_id,
+                provider=provider_name, provider_account_id=current_account_id,
                 campaign_ledger_path=Path(ledger_path))
         except Exception as exc:
             raise Refusal(
@@ -7324,7 +7493,7 @@ def execute_runpod(
         from fidelity.cloudlease import LeaseError
         try:
             validate_lease_liability_scope(
-                LeaseStore(Path(args.lease_dir)), provider="runpod",
+                LeaseStore(Path(args.lease_dir)), provider=provider_name,
                 provider_account_id=current_account_id,
                 allow_live=bool(getattr(args, "allow_unresolved_leases", False)))
         except LeaseError as exc:
@@ -7419,12 +7588,13 @@ def execute_runpod(
         ledger, "record_provider_snapshot",
         balance_available_usd=balance, balance_observed_at=observed,
         balance_valid_until=valid,
-        balance_source="RunPod myself.clientBalance",
+        balance_source=balance_source,
         inventory_observed_at=inventory["observed_at_utc"],
         inventory_valid_until=valid, inventory_complete=True,
         provider_resources=current_provider_resources,
         inventory_source=inventory["schema"],
-        provider="runpod", provider_account_id=current_account_id)
+        provider=provider_name,
+        provider_account_id=current_account_id)
     if not recorded.applied:
         raise Refusal("campaign snapshot was not recorded", [])
     canonical_inventory = ledger.snapshot()["inventory"]
@@ -7444,8 +7614,8 @@ def execute_runpod(
     if campaign_mode == "explicit":
         attempt = secrets.token_hex(12)
     storage_layout = plan_data["storage_layout"]
-    fs_root, engine_root = _runpod_run_roots(
-        storage_layout, plan_data["job_id_full"], attempt)
+    fs_root, engine_root = _paid_run_roots(
+        plan_data["storage_run_base"], plan_data["job_id_full"], attempt)
     container_disk_gb = plan_data["container_disk_gb"]
     quote_epoch = datetime.strptime(
         quote.quoted_at, "%Y-%m-%dT%H:%M:%SZ").replace(
@@ -7508,7 +7678,7 @@ def execute_runpod(
         "attempt_key": attempt,
         "campaign_attempt_key": campaign_key,
         "campaign_ledger": Path(ledger_path).name,
-        "provider": "runpod",
+        "provider": provider_name,
         "provider_account_id": current_account_id,
         "gpu_type": plan_data["chosen"]["provider_gpu_id"],
         "normalized_gpu": plan_data["chosen"]["gpu_type"],
@@ -7563,12 +7733,12 @@ def execute_runpod(
                 if campaign_mode == "explicit":
                     validate_unresolved_lease_scope(
                         lease_store, fresh_health,
-                        provider="runpod",
+                        provider=provider_name,
                         provider_account_id=current_account_id,
                         campaign_ledger_path=Path(ledger_path))
                 else:
                     validate_lease_liability_scope(
-                        lease_store, provider="runpod",
+                        lease_store, provider=provider_name,
                         provider_account_id=current_account_id,
                         allow_live=bool(getattr(
                             args, "allow_unresolved_leases", False)))
@@ -7580,7 +7750,7 @@ def execute_runpod(
             # PREPARED and the campaign reservation become visible together
             # while every paid controller sharing this lease root is excluded.
             lease_ref = lease_store.begin_create(
-                job_hash=plan_data["job_id_full"], provider="runpod",
+                job_hash=plan_data["job_id_full"], provider=provider_name,
                 request=request, pre_create_resources=pre_resources,
                 pre_create_network_volumes=pre_network_volumes,
                 create_deadline_epoch=time.time() + 300,
@@ -7646,6 +7816,12 @@ def execute_runpod(
 
     pod_id = None
     token_cleanup_required = False
+    # Bound BEFORE the try, with the others, for the same reason they are:
+    # the cleanup block reads it, and an exception before the transport must
+    # not turn a teardown into a NameError.  It is computed from the profile
+    # here rather than defaulted inside `_cleanup_remote_secret`, so the
+    # cleanup can never aim at a directory the transport did not use.
+    secrets_dir = _paid_secrets_dir(paid_profile["secrets_dir"], fs_root)
     watchdog_armed = False
     secret_cleanup = {"confirmed": True, "not_applicable": True}
     run_error = None
@@ -7684,7 +7860,7 @@ def execute_runpod(
         graphql_pods = provider.list_lifecycle_resources()
         strict_inventory = provider.chargeable_inventory()
         union_pods, absence_proof, unused_volumes = authoritative_listing(
-            "runpod", provider, graphql_pods, fresh_account_id,
+            provider_name, provider, graphql_pods, fresh_account_id,
             inventory=strict_inventory)
         strict_volumes = list(
             strict_inventory["families"]["network_volumes"]["resources"])
@@ -7715,11 +7891,11 @@ def execute_runpod(
             "%Y-%m-%dT%H:%M:%SZ")
         recorded = _ledger_transition(
             ledger, "record_provider_snapshot",
-            provider="runpod", provider_account_id=current_account_id,
+            provider=provider_name, provider_account_id=current_account_id,
             balance_available_usd=fresh_status["clientBalance"],
             balance_observed_at=now.strftime("%Y-%m-%dT%H:%M:%SZ"),
             balance_valid_until=inventory_valid_until,
-            balance_source="RunPod myself.clientBalance",
+            balance_source=balance_source,
             inventory_observed_at=strict_inventory["observed_at_utc"],
             inventory_valid_until=inventory_valid_until,
             inventory_complete=True,
@@ -8196,7 +8372,8 @@ def execute_runpod(
                 network_volumes=post_identity_volumes,
                 authorized_sibling_pod_ids=authorized_sibling_ids)
         post_create_convergence_evidence = {
-            "schema": "fidelity-suite/runpod-post-create-convergence-evidence.v1",
+            "schema": _evidence_schema(
+                "post-create-convergence-evidence.v1"),
             "contract": convergence_contract,
             "started_at": datetime.fromtimestamp(
                 convergence_started, timezone.utc).strftime(
@@ -8212,7 +8389,8 @@ def execute_runpod(
         }
         post_create_convergence_evidence["evidence_sha256"] = hashlib.sha256(
             _canonical_bytes(post_create_convergence_evidence)).hexdigest()
-        convergence_path = outdir / "runpod-post-create-convergence.json"
+        convergence_path = outdir / (
+            "%s-post-create-convergence.json" % evidence_prefix)
         with convergence_path.open("xb") as stream:
             stream.write(
                 json.dumps(
@@ -8234,16 +8412,16 @@ def execute_runpod(
         post_balance = post_create_status.get("clientBalance")
         post_balance_observed = snapshot_observed
         post_balance_valid = snapshot_valid
-        post_balance_source = "RunPod myself.clientBalance"
+        post_balance_source = balance_source
         if post_balance is None:
             post_balance = balance
             post_balance_observed = observed
             post_balance_valid = valid
             post_balance_source = (
-                "RunPod myself.clientBalance sealed pre-create fallback")
+                "%s sealed pre-create fallback" % balance_source)
         post_snapshot = _ledger_transition(
             ledger, "record_provider_snapshot",
-            provider="runpod", provider_account_id=current_account_id,
+            provider=provider_name, provider_account_id=current_account_id,
             balance_available_usd=post_balance,
             balance_observed_at=post_balance_observed,
             balance_valid_until=post_balance_valid,
@@ -8254,7 +8432,7 @@ def execute_runpod(
                 convergence_ready and post_create_inventory.get("complete")),
             provider_resources=post_create_resources,
             inventory_source=
-                "fidelity-suite/runpod-post-create-identity+chargeable.v1")
+                _evidence_schema("post-create-identity+chargeable.v1"))
         if not post_snapshot.applied:
             raise RuntimeError(
                 "post-create campaign inventory snapshot was not recorded")
@@ -8293,7 +8471,8 @@ def execute_runpod(
         binding = provider.validate_safe_resource_binding(
             pod_id, expected_name=lease["create"]["exact_name"],
             gpu_type_id=plan_data["chosen"]["provider_gpu_id"],
-            secure_cloud=True, gpu_count=1,
+            secure_cloud=safe_create["secure_cloud"],
+            gpu_count=safe_create["gpu_count"],
             volume_gb=plan_data["storage_gb"],
             container_disk_gb=container_disk_gb,
             image_name=request["image"], terminate_after=terminate_after)
@@ -8313,6 +8492,19 @@ def execute_runpod(
                 "container_available_bytes_minimum"])
         lease_ref = lease_store.record_identity_attestation(
             lease_ref, live_attestation)
+        # FREE VRAM, not total: the identity attestation above compares the
+        # expected VRAM against the card's TOTAL, and an oversubscribed card
+        # passes that. Runs here -- after the host key is authenticated, so
+        # the channel is trustworthy, and BEFORE any upload or stack install,
+        # so a shared card costs a probe rather than a paid capture.
+        gpu_availability = _attest_gpu_availability(
+            provider, pod_id,
+            expected_vram_bytes=plan_data["chosen"]["vram_bytes"],
+            evidence_prefix=evidence_prefix, outdir=outdir)
+        con.ok("GPU availability attested",
+               "%s free of %s bytes, no foreign compute apps"
+               % (gpu_availability["gpus"][0]["memory_free_bytes"],
+                  gpu_availability["gpus"][0]["memory_total_bytes"]))
         filesystems = (
             (live_attestation.get("observed") or {}).get("filesystems") or {})
         workspace_available = (
@@ -8325,7 +8517,8 @@ def execute_runpod(
         # Written BEFORE the floor check: a refused attestation is the only
         # evidence of WHY a paid pod was refused (an ssh-image rehearsal on
         # 2026-09-04 lost it and the reason with it).
-        attestation_path = outdir / "runpod-live-attestation.json"
+        attestation_path = outdir / (
+            "%s-live-attestation.json" % evidence_prefix)
         with attestation_path.open("xb") as stream:
             stream.write(
                 json.dumps(
@@ -8400,10 +8593,12 @@ def execute_runpod(
         provider.upload(pod_id, str(job_path), "%s/job.json" % fs_root)
         provider.upload(
             pod_id, str(attestation_path),
-            "%s/receipts/runpod-live-attestation.json" % fs_root)
+            "%s/receipts/%s-live-attestation.json"
+            % (fs_root, evidence_prefix))
         provider.upload(
             pod_id, str(host_key_evidence["path"]),
-            "%s/receipts/runpod-ssh-host-key-proof.json" % fs_root)
+            "%s/receipts/%s-ssh-host-key-proof.json"
+            % (fs_root, evidence_prefix))
         if args.role == "root":
             provider.upload(pod_id, plan_data["_panel_archive_local"],
                             "%s/inputs/panel.tar" % fs_root)
@@ -8430,7 +8625,8 @@ def execute_runpod(
                     fs=shlex.quote(fs_root)), timeout=900)
         provider.upload(
             pod_id, str(convergence_path),
-            "%s/receipts/runpod-post-create-convergence.json" % fs_root)
+            "%s/receipts/%s-post-create-convergence.json"
+            % (fs_root, evidence_prefix))
         if frozen_resume is not None:
             _import_resume_capture(
                 provider, pod_id, fs_root, plan_data, job, frozen_resume,
@@ -8473,11 +8669,14 @@ def execute_runpod(
                 fs=shlex.quote(fs_root), deadline=int(workload_epoch),
                 heartbeat=int(args.heartbeat_timeout)))
         watchdog_armed = True
+        # `token_cleanup_required` is set BEFORE the transport, deliberately:
+        # a half-completed transport must be cleaned by the `finally`, not
+        # skipped because the flag was never reached.
         token_cleanup_required = True
         try:
             _transport_hf_token(
                 provider, pod_id, fs_root, outdir, download_token,
-                secrets_dir=_runpod_secrets_dir(fs_root))
+                secrets_dir=secrets_dir)
         finally:
             download_token = ""
         con.ok(
@@ -8490,20 +8689,29 @@ def execute_runpod(
                 candidate=(job.get("capture") or {}).get("candidate") is not None):
             failed_stage = stage
             if stage == "fetch_target":
-                secret_cleanup = _runpod_fetch_target_and_remove_token(
+                secret_cleanup = _paid_fetch_target_and_remove_token(
                     provider, pod_id, fs_root, engine_root,
                     workload_epoch, job["environment"]["image"],
+                    secrets_dir,
                     progress=con.say,
                     expected_bytes=(job.get("target") or {}).get("model_bytes"))
                 token_cleanup_required = False
+                # NOT "confirmed": the postcondition `[ ! -e dir ]` is
+                # evaluated BY THE BOX, so the checker and the checked are the
+                # same party and a hostile host returns success while keeping
+                # the file. Running the check is still right; claiming it as
+                # proof is not. Rotation is the control; this is defence in
+                # depth behind it.
                 con.ok(
-                    "HF download token removed",
-                    "authenticated target fetch complete; remote erasure confirmed")
+                    "HF download token removal reported",
+                    "authenticated target fetch complete; remote erasure "
+                    "SELF-ATTESTED BY THE INSTANCE (not independently "
+                    "verifiable)")
             else:
                 con.say("stage %s started" % stage)
                 _runpod_stage(
                     provider, pod_id, fs_root, engine_root, stage,
-                    workload_epoch, job["environment"]["image"],
+                    workload_epoch, job["environment"]["image"], secrets_dir,
                     progress=con.say)
             stages_done.append(stage)
             if stage == "setup":
@@ -8568,12 +8776,12 @@ def execute_runpod(
                 run_error = record_operational_error(exc)
             if token_cleanup_required:
                 secret_cleanup = _cleanup_remote_secret(
-                    provider, pod_id, fs_root,
-                    secrets_dir=_runpod_secrets_dir(fs_root))
+                    provider, pod_id, fs_root, secrets_dir=secrets_dir)
                 if not secret_cleanup.get("confirmed"):
                     run_error = record_operational_error(RuntimeError(
-                        "remote token erasure is unconfirmed; revoke the "
-                        "RunPod-scoped Hugging Face read token immediately"))
+                        "remote token erasure was not even self-attested; "
+                        "revoke the download-scoped Hugging Face read token "
+                        "immediately"))
             try:
                 if host_key_evidence is None:
                     # The pod never authenticated (host key never surfaced
@@ -8785,7 +8993,7 @@ def execute_runpod(
                                         "%Y-%m-%dT%H:%M:%SZ")
                                 classified = _ledger_transition(
                                     ledger, "record_provider_snapshot",
-                                    provider="runpod",
+                                    provider=provider_name,
                                     provider_account_id=current_account_id,
                                     balance_available_usd=absence_status[
                                         "clientBalance"],
@@ -8919,14 +9127,16 @@ def execute_runpod(
                             "verified archive carries a different finalized job.json")
                     archived_attestation_bytes = (
                         extracted / "receipts"
-                        / "runpod-live-attestation.json").read_bytes()
+                        / ("%s-live-attestation.json"
+                           % evidence_prefix)).read_bytes()
                     local_attestation_bytes = attestation_path.read_bytes()
                     if archived_attestation_bytes != local_attestation_bytes:
                         raise RuntimeError(
                             "archived live attestation differs from exact local bytes")
                     archived_host_key_bytes = (
                         extracted / "receipts"
-                        / "runpod-ssh-host-key-proof.json").read_bytes()
+                        / ("%s-ssh-host-key-proof.json"
+                           % evidence_prefix)).read_bytes()
                     local_host_key_bytes = host_key_evidence["path"].read_bytes()
                     if archived_host_key_bytes != local_host_key_bytes:
                         raise RuntimeError(
@@ -9072,12 +9282,12 @@ def execute_runpod(
     elif not operational_success:
         combined_status = "operational-failure"
     terminal_receipt = {
-        "schema": "fidelity-suite/runpod-terminal-receipt.v1",
+        "schema": _evidence_schema("terminal-receipt.v1"),
         "job_id_full": job["job_id_full"],
         "execution_contract_sha256":
             job["execution_attempt"]["execution_contract_sha256"],
         "attempt_id": attempt,
-        "provider": "runpod",
+        "provider": provider_name,
         "provider_account_id": current_account_id,
         "provider_resource_id": pod_id,
         "provider_trust": {
@@ -9434,24 +9644,31 @@ def _transport_hf_token(
         shred_secret_file(str(local))
 
 
-def _runpod_fetch_target_and_remove_token(
+def _paid_fetch_target_and_remove_token(
         provider, pod_id, fs_root: str, engine_root: str, deadline: float,
-        image_reference: str, progress=None, expected_bytes=None) -> Dict[str, Any]:
-    """Run the authenticated target fetch and always remove its remote token."""
+        image_reference: str, secrets_dir: str, progress=None,
+        expected_bytes=None) -> Dict[str, Any]:
+    """Run the authenticated target fetch and always remove its remote token.
+
+    `secrets_dir` is passed IN rather than derived here: where a provider
+    keeps an owner-only file is a profile fact (RunPod's pod volume accepted
+    `chmod 600` while reporting 0666), and a helper that guessed it would
+    guess for every future provider too.
+    """
     stage_error = None
     try:
         _runpod_stage(
             provider, pod_id, fs_root, engine_root, "fetch_target",
-            deadline, image_reference, progress=progress,
+            deadline, image_reference, secrets_dir, progress=progress,
             expected_bytes=expected_bytes)
     except BaseException as exc:
         stage_error = exc
     cleanup = _cleanup_remote_secret(
-        provider, pod_id, fs_root, secrets_dir=_runpod_secrets_dir(fs_root))
+        provider, pod_id, fs_root, secrets_dir=secrets_dir)
     if not cleanup.get("confirmed"):
         failure = RuntimeError(
             "remote token erasure after target fetch is unconfirmed; revoke "
-            "the RunPod-scoped Hugging Face read token immediately")
+            "the download-scoped Hugging Face read token immediately")
         if stage_error is not None:
             raise failure from stage_error
         raise failure
@@ -9460,109 +9677,17 @@ def _runpod_fetch_target_and_remove_token(
     return cleanup
 
 
-def _bootstrap_and_run(args, con, jl, td, plan_data, outdir) -> None:
-    bundle = SUITE_ROOT / "bin" / "BUNDLE.txt"
-    files = [ln.strip() for ln in bundle.read_text(encoding="utf-8").splitlines()
-             if ln.strip() and not ln.startswith("#")]
-    # A root capture's panel is chosen per run, so it cannot be a static
-    # BUNDLE.txt entry -- but it is small (tens of tokens files plus one mask)
-    # and it must arrive by the same digest-diff path as everything else, or a
-    # resumed box would silently keep an older panel.
-    panel_dir = getattr(args, "panel_dir", None)
-    if panel_dir:
-        pd = Path(panel_dir).resolve()
-        if not (pd / "panel.json").is_file():
-            raise Refusal("--panel-dir %s has no panel.json" % pd,
-                          ["A panel directory is panel.json + arrays/.",
-                           "Build one with engines/tools/build_token_panel.py."])
-        try:
-            pd.relative_to(SUITE_ROOT)
-        except ValueError:
-            raise Refusal(
-                "--panel-dir must live inside the suite checkout (%s)" % SUITE_ROOT,
-                ["The bundle uploader addresses files by their path RELATIVE to "
-                 "the suite root, so a panel outside it has no remote path.",
-                 "Commit the panel under engines/panels/ and pass that path.",
-                 "Nothing was created. $0.00 spent."])
-        files += sorted(str(f.relative_to(SUITE_ROOT))
-                        for f in pd.rglob("*") if f.is_file())
-    present = [rel for rel in files if (SUITE_ROOT / rel).is_file()]
-    for rel in files:
-        if rel not in present:
-            con.warn("bundle entry not present locally, skipped: %s" % rel)
-
-    # Upload only what actually differs.  Each `jl upload` is one API round
-    # trip of ~10-15 s, so re-sending 49 unchanged files costs ~10 minutes of a
-    # billing instance -- paid again on every adoption of a box that already
-    # has them.  One `sha256sum` over the remote paths answers the question in
-    # a single call; a box with no bundle yet simply returns nothing and
-    # everything uploads, which is the same behaviour as before.
-    remote_digests: Dict[str, str] = {}
-    if present:
-        try:
-            listing = jl.exec_stdout(
-                td.machine_id,
-                "sha256sum %s 2>/dev/null || true"
-                % " ".join("%s/%s" % (td.fs_root, rel) for rel in present),
-                timeout=300, check=False)
-            for line in listing.splitlines():
-                parts = line.split(None, 1)
-                if len(parts) == 2 and len(parts[0]) == 64:
-                    remote_digests[parts[1].strip()] = parts[0]
-        except JLError:
-            remote_digests = {}
-
-    stale = [rel for rel in present
-             if remote_digests.get("%s/%s" % (td.fs_root, rel))
-             != sha256_file(str(SUITE_ROOT / rel))]
-    con.step("uploading bundle (%d of %d files; %d already current)"
-             % (len(stale), len(present), len(present) - len(stale)))
-    made: set = set()
-    for rel in stale:
-        src = SUITE_ROOT / rel
-        remote_dir = "%s/%s" % (td.fs_root, os.path.dirname(rel))
-        if remote_dir not in made:
-            jl.exec(td.machine_id, "mkdir -p %s" % remote_dir, timeout=120)
-            made.add(remote_dir)
-        jl.upload(td.machine_id, str(src), "%s/%s" % (td.fs_root, rel))
-
-    # job.json is the contract every stage reads. Without it the stages have no
-    # repo id, no revision and no panel include globs, and `fetch_target` exits
-    # 2 on an empty repo_id -- after the instance is already billing.
-    job_path = outdir / "job.json"
-    write_json(str(job_path), _job_document(args, plan_data))
-    jl.upload(td.machine_id, str(job_path), "%s/job.json" % td.fs_root)
-    con.ok("job.json uploaded", "%d bytes" % job_path.stat().st_size)
-
-    token = hf_token()
-    if token:
-        _transport_hf_token(
-            jl, td.machine_id, td.fs_root, outdir, token)
-        con.ok("HF token transported", "0600 in a 0700 dir at both ends, "
-               "renamed into place, never argv, shredded at teardown")
-
-    jl.exec(td.machine_id, "mkdir -p %s/logs %s/receipts/done" % (td.fs_root, td.fs_root))
-    con.step("arming on-instance watchdog")
-    jl.exec(td.machine_id,
-            "nohup bash %s/bin/watchdog.sh %d %d %s >%s/logs/watchdog.log 2>&1 &"
-            % (td.fs_root, int(plan_data["deadline_epoch"]),
-               int(args.heartbeat_timeout), td.fs_root, td.fs_root))
-
-    # The sequence itself lives in fidelity/stages.py, because the container
-    # entrypoint drives the SAME stages and two copies of this list is two
-    # chances to drift -- a drift that does not crash, it just skips
-    # `materialize` and measures a tree nothing decoded.
-    stages = stage_sequence(getattr(args, "role", "quant"),
-                            race=bool(getattr(args, "race", False)),
-                            surface=(plan_data.get("target") or {}).get("surface"),
-                            publish_root=bool(getattr(args, "publish_root_to",
-                                                      None)),
-                            candidate=bool(getattr(args, "candidate_scope", None)))
-    for stage in stages:
-        _run_stage(args, con, jl, td, plan_data, stage)
-        if stage == "setup":
-            _preflight_bench(args, con, jl, td, plan_data)
-
+# `_bootstrap_and_run` used to live here: the legacy generic SSH/JL bootstrap
+# that uploaded the bundle, transported a token and armed the watchdog.  It
+# had no call site (the safe path builds its own frozen bundle and transports
+# an explicitly scoped download token), and it transported `hfmeta.hf_token()`
+# -- the controller's AMBIENT credential, which may be write-scoped -- into
+# `$FS/.secrets` with no host-key gate of its own and no per-attempt
+# mode-honouring directory.  A four-provider `_main_paid` must not acquire
+# that call site, and dead code that ships the wrong credential is worse than
+# no code, so it is deleted rather than guarded (TlsCredentialAudit,
+# 2026-09-06).  `fidelity/stages.py` already owns the stage sequence it used
+# to inline.
 
 
 def _preflight_bench(
@@ -10330,14 +10455,38 @@ def _emit_plan_json(args, con: Console, public_plan: Dict[str, Any]) -> None:
                % len(body))
 
 
-def _main_runpod(args, con: Console, provider) -> int:
+def _main_paid(args, con: Console, provider) -> int:
+    """The paid lifecycle, for ANY provider that has earned admission.
+
+    This was `_main_runpod`, reachable only for `--provider runpod`, so a
+    provider could reach twelve-of-twelve with an empty blocker tuple and
+    still have nowhere to execute.  Nothing here names a provider: the label
+    and every provider-specific value come from the twelve contract methods
+    and from `providers.PAID_EXECUTION_PROFILES`, and admission itself was
+    decided by `providers.measurement_refusal` before this function was
+    resolved.  A second provider's paid path is an adapter plus a profile
+    row, not an edit to this function.
+
+    The exception classification below is the safety-critical part and it is
+    deliberately unchanged: EXIT_LEAK only when a POST intent was durably
+    fsynced, EXIT_REFUSED otherwise, because "no POST intent was ever
+    recorded" means nothing was created and nothing can be leaking.  That
+    predicate is provider-independent by construction -- `record_post_intent`
+    is a lease-store transition, not a provider call -- which is exactly why
+    it is safe to share.
+    """
+    name = args.provider
+    profile = _providers().paid_execution_profile(name)
+    label = profile["label"]
+    family = profile["resource_family"].rstrip("s")
+    reaper_hint = ("measure-cloud reaper --provider %s --list" % name)
     if args.subcommand == "adopt":
-        con.err("safe RunPod mode refuses adoption/recovery")
+        con.err("safe %s mode refuses adoption/recovery" % label)
         return EXIT_REFUSED
     phase = "plan"
     plan_data = None
     try:
-        plan_data = plan_runpod(args, con, provider)
+        plan_data = plan_paid(args, con, provider)
         public_plan = {key: value for key, value in plan_data.items()
                        if not key.startswith("_")}
         if plan_data.get("no_spend") or args.dry_run:
@@ -10355,8 +10504,9 @@ def _main_runpod(args, con: Console, provider) -> int:
                 if plan_data.get("campaign_mode") == "explicit"
                 else "--max-cost is the whole budget")
             answer = input(
-                "Create one secure on-demand RunPod (calculated maximum "
+                "Create one secure on-demand %s %s (calculated maximum "
                 "$%s; hard cap $%s; %s)? [y/N] " % (
+                    label, family,
                     prompt_quote.calculated_maximum_usd(),
                     prompt_quote.hard_cap_usd, budget))
             if answer.strip().lower() not in ("y", "yes"):
@@ -10372,13 +10522,13 @@ def _main_runpod(args, con: Console, provider) -> int:
             previous[signum] = signal.signal(signum, _interrupt)
         phase = "execute"
         try:
-            result = execute_runpod(
+            result = execute_paid(
                 args, con, provider, plan_data, download_token)
         finally:
             download_token = ""
             for signum, handler in previous.items():
                 signal.signal(signum, handler)
-        con.ok("RunPod result archive verified",
+        con.ok("%s result archive verified" % label,
                json.dumps(result, sort_keys=True))
         return EXIT_OK
     except Refusal as exc:
@@ -10388,13 +10538,13 @@ def _main_runpod(args, con: Console, provider) -> int:
         return EXIT_REFUSED
     except RunFailed as exc:
         if exc.liability_may_remain:
-            con.err("RunPod execution failed and a pod may remain: %s"
-                    % redact(str(exc)))
+            con.err("%s execution failed and a %s may remain: %s"
+                    % (label, family, redact(str(exc))))
             con.err("        the installed reaper destroys it at its reap "
-                    "deadline; check now with: measure-cloud reaper "
-                    "--provider runpod --list")
+                    "deadline; check now with: %s" % reaper_hint)
             return EXIT_LEAK
-        con.err("RunPod run failed (pod proven gone): %s" % redact(str(exc)))
+        con.err("%s run failed (%s proven gone): %s"
+                % (label, family, redact(str(exc))))
         return EXIT_FAILED
     except BaseException as exc:
         post_intent = (
@@ -10407,9 +10557,9 @@ def _main_runpod(args, con: Console, provider) -> int:
             # its reason, not a leak.
             con.err("REFUSE: %s" % redact(str(exc)))
             return EXIT_REFUSED
-        con.err("RunPod execution failed: %s" % redact(str(exc)))
-        con.err("        teardown could not be confirmed; check with: "
-                "measure-cloud reaper --provider runpod --list")
+        con.err("%s execution failed: %s" % (label, redact(str(exc))))
+        con.err("        teardown could not be confirmed; check with: %s"
+                % reaper_hint)
         return EXIT_LEAK
 
 
@@ -10621,7 +10771,7 @@ def build_parser() -> argparse.ArgumentParser:
              "image's ssh target, ghcr.io/malaiwah/quant-fidelity-measure:ssh, "
              "boots with the stack baked and the bootstrap seeds from it.")
     rt.add_argument(
-        "--storage-layout", choices=sorted(RUNPOD_STORAGE_LAYOUTS),
+        "--storage-layout", choices=paid_storage_layout_choices(),
         default="container-disk",
         help="where the run root lives on the pod: container-disk (the "
              "host's local NVMe; default, ~10x faster weight streaming) or "
@@ -11051,26 +11201,24 @@ def main(argv: Optional[List[str]] = None) -> int:
                      "publish now, pass --preview-of <final id> so the preliminary "
                      "result gets its own identity")
         if args.panel_dir:
-            # Checked HERE, before the plan and before any spend. The uploader
-            # addresses bundle files by their path RELATIVE to the suite root,
-            # so a panel outside it has no remote path -- and discovering that
-            # inside _bootstrap_and_run means finding out after the instance is
-            # already running.
+            # Checked HERE, before the plan and before any spend: a panel
+            # directory with no panel.json is a refusal, not a discovery made
+            # once the instance is billing.
+            #
+            # The suite-relative restriction that used to sit behind
+            # `if args.provider != "runpod"` is GONE with the legacy uploader
+            # it protected (`_bootstrap_and_run`, deleted): the shared paid
+            # path freezes the panel into a sealed bundle by digest and does
+            # not address it by a suite-relative remote path. Keeping the
+            # branch would have refused a perfectly good panel on every
+            # provider except RunPod, which is exactly the per-provider
+            # special case this work exists to remove.
             pd = Path(args.panel_dir).resolve()
             if not (pd / "panel.json").is_file():
                 con.err("--panel-dir %s has no panel.json (a panel directory "
                         "is panel.json + arrays/; build one with "
                         "engines/tools/build_token_panel.py)" % pd)
                 return EXIT_REFUSED
-            if args.provider != "runpod":
-                try:
-                    pd.relative_to(SUITE_ROOT)
-                except ValueError:
-                    con.err(
-                        "--panel-dir must live inside the suite checkout (%s): "
-                        "the legacy uploader addresses suite-relative files"
-                        % SUITE_ROOT)
-                    return EXIT_REFUSED
     elif not args.model or not args.panel:
         con.err("--model and --panel are required")
         return EXIT_REFUSED
@@ -11095,18 +11243,22 @@ def main(argv: Optional[List[str]] = None) -> int:
                 con.say("        %s" % line)
             return EXIT_REFUSED
 
-    # Dispatch is DERIVED, not a hardcoded provider name: a provider may take
-    # a paid measurement iff it implements all twelve contract methods, has a
-    # paid execution entrypoint, and carries no declared blocker.  The
-    # refusal below therefore names the real reason -- which methods are
-    # missing, which blockers remain -- instead of naming RunPod.
+    # Dispatch is DERIVED, not a hardcoded provider name.  A provider may
+    # take a paid measurement iff it implements all twelve contract methods,
+    # declares a complete paid execution profile, meets every enumerated
+    # safety property, has proven definition-of-done items 3 and 6, and
+    # carries no declared blocker.  The refusal names the real reason -- and
+    # the lease store is passed in because item 3 (a settled lease with an
+    # absence proof) is EARNED from the store this run would itself write to,
+    # not declared.
     if args.provider is None:
         con.err("a measurement run requires an explicit --provider (%s): it "
                 "spends real money on a provider ACCOUNT, and a guessed "
                 "account bills the wrong person. Nothing was created. "
                 "$0.00 spent." % ", ".join(_providers().PROVIDERS))
         return EXIT_REFUSED
-    refusal = _providers().measurement_refusal(args.provider)
+    refusal = _providers().measurement_refusal(
+        args.provider, getattr(args, "lease_dir", None))
     if refusal is None:
         # A named degradation does not block a measurement, but it is never
         # silent: it is a guarantee this provider cannot give, said in words,
