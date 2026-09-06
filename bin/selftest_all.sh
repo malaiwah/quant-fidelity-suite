@@ -174,6 +174,48 @@ t "python3.9 floor: bin/ and registry/ (T19)" \
 # tier sat out. Text-only over this file; no shell executed.
 t "the battery harness's own invariants (T20)" \
                                            0 python3 bin/selftest_battery_harness.py
+# T22. Thirteen suites that existed, passed, and were run by NOTHING -- the
+# battery's 73 rungs covered 55 of 71 selftest files on disk (LocalCoverage;
+# enumerated and timed by CiGate at 4c5201d). All thirteen are hermetic:
+# measured green under a bare network-blocked python3 with no .venv, no
+# torch, no numpy, nothing created. Total 8.0 s on this 2009 Xeon, so the
+# reason they were absent is not cost.
+#
+# The first one is the point of the exercise. selftest_scope_provenance.py is
+# the GUARD for failure #16 -- its rung [3] already refuses "a scope authored
+# from a different repository or revision" -- and it was an orphan. So the
+# answer to "what would have caught #16" was: a test we had already written
+# and then did not run.
+t "scope provenance: a foreign-authored scope is refused (T22a)" \
+                                           0 python3 engines/tools/selftest_scope_provenance.py
+t "pre-spend gating (T22b)"                0 python3 bin/selftest_measure_cloud_prespend.py
+t "campaign admission (T22c)"              0 python3 bin/selftest_campaign_admission.py
+t "candidate measurement plan (T22d)"      0 python3 bin/selftest_measure_cloud_candidate.py
+t "registry front gate (T22e)"             0 python3 bin/selftest_measure_front_gate.py
+t "hf capture allowlist (T22f)"            0 python3 bin/selftest_hf_capture_allowlist.py
+t "index census allowlist (T22g)"          0 python3 engines/tools/selftest_index_census_allowlist.py
+t "stage panel paths (T22h)"               0 python3 bin/selftest_stage_panel_paths.py
+t "fidelity post (T22i)"                   0 python3 bin/selftest_fidelity_post.py
+t "runpod safety (T22j)"                   0 python3 bin/selftest_runpodsafety.py
+# Imported by selftest_container.py, so it already ran INDIRECTLY -- which is
+# exactly the shape that hides a failure behind another suite's summary.
+t "panel construction (T22k)"              0 python3 bin/selftest_panel.py
+# An orphan since 7a0a637, and the file that caught an OpenSSL-format defect
+# on the runner. The TLS spine having no battery rung was the largest gap.
+t "tls guard: explicit trust, no ambient store (T22l)" \
+                                           0 python3 bin/selftest_tlsguard.py
+# Catches an uncategorised selftest locally instead of only on push.
+t "selftest partition: every suite has a tier (T22m)" \
+                                           0 python3 bin/selftest_partition.py
+#
+# Deliberately NOT registered here, with the reason, so absence is a decision
+# rather than an oversight: engines/tools/selftest_engine_profiles.py (frozen
+# on the model_bytes pin question); engines/tools/selftest_{k8_offline,
+# launch_plan,offline}.py (need quant_pipeline -- tier `pipeline`, reachable
+# through the ${QP_PIPELINE_ROOT:+...} idiom used above); and
+# engines/tools/selftest_{kld_report,trellis_decode}_offline.py (need
+# numpy/torch and live in the nightly job -- trellis_decode is where the
+# bitwise exllamav3 parity evidence lives).
 # T17. The container transport. Porting to three clouds produced five defects and
 # not one was about the measurement; an image deletes that category, but only if
 # it drives the SAME stages from the SAME contract. These rungs are the anti-drift
