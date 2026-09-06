@@ -3601,7 +3601,8 @@ def _control_manifest() -> Dict[str, Any]:
     return _strict_file_manifest(CONTROL_PLANE_PATHS)
 
 
-def _model_file_identity(target: RepoMeta) -> Dict[str, Any]:
+def _model_file_identity(target: RepoMeta,
+                         allow_unindexed: Sequence[str] = ()) -> Dict[str, Any]:
     if re.fullmatch(r"[0-9a-f]{40}", target.revision) is None:
         raise Refusal("RunPod target revision is not an exact 40-hex pin", [])
     try:
@@ -3634,9 +3635,47 @@ def _model_file_identity(target: RepoMeta) -> Dict[str, Any]:
     repository_shards = sorted(
         path for path, _size in target.files
         if path.endswith(".safetensors"))
-    if repository_shards != shard_names:
+    # An INDEXED shard the repository does not carry is caught above. The other
+    # direction -- a .safetensors the weight_map never references -- used to
+    # refuse unconditionally, and rightly by default: an unindexed payload is
+    # what a stale or truncated index looks like, and a loader that globs
+    # *.safetensors would score weights the published index does not describe.
+    #
+    # But it is also what a legitimately separate MTP/draft block looks like.
+    # turboderp/GLM-5.3-Flash-exl3's 4.05bpw branch ships mtp.safetensors
+    # (3.8 GB) beside 19 indexed shards, which blocked that re-measurement
+    # entirely, while the 2.05bpw branch keeps its MTP tensors inside the index
+    # and passes (2026-09-06).
+    #
+    # So an extra shard is admissible only when the operator NAMES it: the
+    # allowlist must match the extra set exactly -- no unnamed extra, and no
+    # stale entry naming a file that is indexed or absent -- and the admission
+    # carries a BLOCKING disclosure at the call site. A blanket "tolerate
+    # unindexed safetensors" would not distinguish this artifact's draft block
+    # from an index that lost a shard.
+    extra = [name for name in repository_shards if name not in set(shard_names)]
+    allowed = sorted(set(allow_unindexed or ()))
+    unknown = [name for name in allowed if name not in set(extra)]
+    if unknown:
         raise Refusal(
-            "repository safetensors census differs from indexed shards", [])
+            "unindexed-shard allowlist names %s, which %s not an unindexed "
+            "safetensors in this repository at this revision"
+            % (", ".join(unknown),
+               "is" if len(unknown) == 1 else "are"),
+            ["drop the stale entry, or re-read the repository's file list at "
+             "the pin -- an allowlist that does not match the artifact proves "
+             "nothing about it"])
+    unnamed = [name for name in extra if name not in set(allowed)]
+    if unnamed:
+        raise Refusal(
+            "repository safetensors census differs from indexed shards: %s "
+            "%s present but never referenced by the weight_map"
+            % (", ".join(unnamed), "is" if len(unnamed) == 1 else "are"),
+            ["if this is a separate MTP/draft block the measurement does not "
+             "load, admit it by name with --allow-unindexed-shard <path> "
+             "(repeatable); it becomes a blocking disclosure on the row",
+             "if the index is meant to describe it, the index is stale and the "
+             "artifact should be re-published, not measured"])
     shards = [{"path": name, "bytes": sizes[name]} for name in shard_names]
     repository_files = []
     for path, size in sorted(target.files):
@@ -3679,6 +3718,14 @@ def _model_file_identity(target: RepoMeta) -> Dict[str, Any]:
         "hidden_size": hidden_size,
         "shard_manifest_sha256": hashlib.sha256(
             _canonical_bytes(shards)).hexdigest(),
+        # The admitted-but-unindexed payload, recorded so the row can say what
+        # it declined to load. `model_bytes` above counts INDEXED shards only,
+        # which is what the measurement reads; these bytes are fetched (they
+        # are in `download_manifest`) but never scored. No sha256 is claimed:
+        # a file digest is a container digest and never an identity (O-6), and
+        # the pinned repo+revision+path already names the bytes exactly.
+        "unindexed_shards": [
+            {"path": name, "bytes": sizes[name]} for name in extra],
     }
 
 
@@ -5064,7 +5111,39 @@ def _plan_runpod_anonymous(
         identity = _gguf_model_file_identity(target, surface, plan_data["_gguf_loaded"],
                                              official_raw, official_ref)
     else:
-        identity = _model_file_identity(target)
+        identity = _model_file_identity(
+            target, getattr(args, "allow_unindexed_shard", None) or ())
+        # An unindexed payload was admitted by name. It is fetched but never
+        # scored, and the row must say so: the same census signature is what a
+        # stale or truncated index looks like, and the only thing separating
+        # the two is that an operator named this file at this pin. Blocking,
+        # for the same reason a broad unexpected-tensor acceptance is refused
+        # outright.
+        for row in identity.get("unindexed_shards") or []:
+            plan_data.setdefault("disclosures", []).append({
+                "code": "unindexed_shard_admitted",
+                "severity": "blocking",
+                "affects_comparability": False,
+                "asserts_provenance": True,
+                "detail": (
+                    "%s (%d bytes) is present at this pinned revision but is "
+                    "never referenced by model.safetensors.index.json, and was "
+                    "admitted by name with --allow-unindexed-shard. The "
+                    "measurement loads INDEXED shards only, so these bytes are "
+                    "fetched and never scored. This census signature is also "
+                    "what a stale or truncated index looks like; what "
+                    "distinguishes them here is only that the file was named "
+                    "in advance." % (row["path"], row["bytes"])),
+                "sources": [{
+                    "kind": "hf_file",
+                    "uri": "%s/%s/resolve/%s/%s"
+                           % (HF_ENDPOINT, target.repo_id, target.revision,
+                              row["path"]),
+                    "note": "the unindexed file itself, at the pin. No sha256 "
+                            "is claimed: a file digest is a container digest "
+                            "and never an identity (O-6).",
+                }],
+            })
     license_contract = (
         _root_dataset_license_contract(target)
         if args.role == "root" else None)
@@ -10392,6 +10471,16 @@ def build_parser() -> argparse.ArgumentParser:
              "carries beyond what its architecture declares. Resolved "
              "automatically when one is authored for the target; only needed "
              "for a new model that turns out to need one.")
+    rt.add_argument(
+        "--allow-unindexed-shard", action="append", default=None,
+        metavar="PATH",
+        help="admit a .safetensors this revision carries that its "
+             "model.safetensors.index.json never references -- a separate "
+             "MTP/draft block, e.g. turboderp's 4.05bpw mtp.safetensors. "
+             "Repeatable, and the named set must match the unindexed set "
+             "EXACTLY: an unnamed extra still refuses, and so does a stale "
+             "entry. Admission is a BLOCKING disclosure, because an unindexed "
+             "payload is also what a stale or truncated index looks like.")
     rt.add_argument(
         "--resume-capture", default=None,
         help="root only: a sealed dataset directory captured earlier with "

@@ -285,6 +285,73 @@ def main():
     finally:
         MC.fetch_file = original_fetch
 
+    # R7: an unindexed .safetensors is admissible only when NAMED. The census
+    # equality check refused every such repository outright, which blocked
+    # turboderp/GLM-5.3-Flash-exl3's 4.05bpw branch entirely -- it ships
+    # mtp.safetensors (3.8 GB) beside 19 indexed shards, while its 2.05bpw
+    # branch keeps MTP inside the index and passed (2026-09-06). A blanket
+    # tolerance would not distinguish that draft block from an index that lost
+    # a shard, so the operator must name the file and the row carries a
+    # blocking disclosure.
+    census_index = json.dumps({"weight_map": {
+        "model.layers.0.mlp.down_proj.weight": "model-00001.safetensors"}}).encode()
+    census_config = json.dumps({"architectures": ["GlmMoeDsaForCausalLM"],
+                                "num_hidden_layers": 1,
+                                "vocab_size": 1024, "hidden_size": 8}).encode()
+    census_files = {"config.json": census_config,
+                    "model.safetensors.index.json": census_index}
+    original_fetch = MC.fetch_file
+    MC.fetch_file = lambda repo, name, revision=None, **kw: census_files[name]
+
+    def census_target(paths):
+        return MC.RepoMeta(
+            repo_id="x/y", repo_type="model", revision="a" * 40,
+            requested_revision="main", last_modified=None, files=paths)
+
+    clean = [("config.json", 10), ("model.safetensors.index.json", 20),
+             ("model-00001.safetensors", 4096)]
+    extra = clean + [("mtp.safetensors", 3801)]
+    try:
+        ok = MC._model_file_identity(census_target(clean))
+        check("R7: a repository whose safetensors are all indexed still passes, "
+              "with no unindexed record",
+              ok.get("unindexed_shards") == [] and ok.get("model_bytes") == 4096,
+              repr(ok.get("unindexed_shards")))
+
+        unnamed = refusal_of(lambda: MC._model_file_identity(census_target(extra)))
+        check("R7: an unindexed safetensors still refuses when it is not named, "
+              "and the refusal names the file",
+              unnamed is not None and "mtp.safetensors" in unnamed.reason
+              and "never referenced by the weight_map" in unnamed.reason,
+              unnamed.reason[:90] if unnamed else "no refusal")
+
+        named = MC._model_file_identity(census_target(extra), ("mtp.safetensors",))
+        check("R7: naming it admits the repository, records path and bytes, and "
+              "keeps model_bytes to the INDEXED shards only",
+              named.get("unindexed_shards") == [{"path": "mtp.safetensors",
+                                                 "bytes": 3801}]
+              and named.get("model_bytes") == 4096,
+              repr(named.get("unindexed_shards")))
+
+        stale = refusal_of(lambda: MC._model_file_identity(
+            census_target(extra), ("mtp.safetensors", "draft.safetensors")))
+        check("R7: a stale allowlist entry naming a file the repository does not "
+              "carry as unindexed refuses -- an allowlist that does not match "
+              "the artifact proves nothing about it",
+              stale is not None and "draft.safetensors" in stale.reason,
+              stale.reason[:90] if stale else "no refusal")
+
+        indexed_named = refusal_of(lambda: MC._model_file_identity(
+            census_target(extra),
+            ("mtp.safetensors", "model-00001.safetensors")))
+        check("R7: naming an INDEXED shard refuses too -- the flag admits only "
+              "payload the weight_map never references",
+              indexed_named is not None
+              and "model-00001.safetensors" in indexed_named.reason,
+              indexed_named.reason[:90] if indexed_named else "no refusal")
+    finally:
+        MC.fetch_file = original_fetch
+
     print()
     if failures:
         print("selftest_measure_cloud_prespend: %d FAILED" % len(failures))
