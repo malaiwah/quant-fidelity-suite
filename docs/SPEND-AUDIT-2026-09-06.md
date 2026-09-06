@@ -69,10 +69,56 @@ absence-proof result shows is enforced hard. **Teardown did its job perfectly an
 took the measurement with it, because nothing in the ordering required the upload
 first. Not a broken component; a correct component in the wrong sequence.**
 
-The hole is closed: `--publish-root-to` uploads before teardown can run, and
-teardown now refuses to destroy a verified-but-unpublished root. The residual
-exposure is named precisely — the `qualified-unpublished` status token exists on
-two runs and **nothing downstream joins on it**.
+**Amended 2026-09-06, after publication of this audit.** Two corrections, both
+from a lane verifying a claim it had inherited rather than measured.
+
+**The loss is priced: $6.59, and the number was in the tree the whole time.**
+`bin/selftest_root_publish.py:6-9` records it — *"the controller destroyed a
+sealed, twice-validated MiniMax-M3 root dataset at teardown — $6.59 of GPU time
+and the only copy of the evidence — because nothing published or preserved a
+root (REVIEW-DEFERRED ROOT-1, fee collected 2026-08-31)"* — and the same figure
+appears in the operator-facing hold warning at `measure_cloud.py:347`. This
+audit's first pass reported the loss as unpriceable, which was correct **about
+the lease store** and wrong about the tree: the loss predates the lease store
+entirely. The caveat stands that $6.59 is the authors' contemporaneous figure
+and not a billing document, consistent with `providers.py:511-518` forbidding a
+computed settlement.
+
+**The generalisation is worth more than the number: for a loss that predates the
+ledger, the regression test written to prevent recurrence is a better cost
+source than the ledger**, because somebody had to write down why it was worth
+preventing. It also corroborates the JarvisLabs attribution from an independent
+direction — the hold path this loss created prints `jl destroy %s --yes`
+(`measure_cloud.py:353`) and `selftest_root_publish.py:13-15` labels those rungs
+the LEGACY teardown hold.
+
+**And the residual exposure was a missing REPORT, not a missing check** — which
+corrects how this document originally phrased it. Every consumer of the
+`qualified-unpublished` token was measured rather than inherited:
+`bin/fidelity/resultsink.py` keys on it in about a dozen places, including two
+symmetric refusals that such a result may **not** carry a publication receipt
+(633-635, 2560-2563); `jobcontract.py:518-519` binds `publication_mode` to it;
+`container_entry.py:1348-1350` refuses local root publication with it; five
+selftests assert on it. **`registry/` contains zero occurrences.** So it is a
+first-class *validated* state and an invisible *operational* one: everything
+that could reject a malformed archive does, and nothing enumerated runs by that
+status. Saying "nothing downstream joins on it" understated the validation and
+overstated the risk.
+
+**That gap is now closed.** `bin/measurement-inventory` (+ T21) lists every run
+by what it produced, reading files only — no provider, no Hub, no registry, no
+spend, no writes. It **refuses with 3** on a verified, publishable, unpublished
+run (the shape that cost the $6.59) and **warns with 2** on a capture that only
+needs a row, because a tool that scores those identically calls a bookkeeping
+gap and an evidence loss the same thing and they are opposite. On this estate:
+82 run directories, 20 published, 60 with no sealed capture, and exactly the two
+the hand-walk found. Its suite proves the refusal arm fires, which no real run
+currently does.
+
+The hole in the ORDERING was already closed: `--publish-root-to` uploads before
+teardown can run, and teardown now refuses to destroy a verified-but-unpublished
+root. **The guarantee nobody ordered is the guarantee nobody has** — and the
+reporting half of that is what took a day to notice.
 
 ## Recoverable today, with no spend
 
