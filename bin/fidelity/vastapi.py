@@ -1378,8 +1378,22 @@ class Vast(SSHTransport):
                 for row in hub)
             api_rows = [row for row in hub
                         if row.get("host") == "huggingface.co"]
+            # Reachability and IDENTITY are separate properties. Identity is
+            # the verified certificate above; this only asks whether the peer
+            # spoke HTTP at all. It must not demand 200: live on a healthy
+            # Vast T4 (2026-09-06) `HEAD /api/models/gpt2` answered **307**,
+            # so an equality check on 200 refused a perfectly good box. A 429
+            # or 5xx is an OUTAGE rather than a bad host, and it is still not
+            # evidence the box can fetch, so it fails this floor without
+            # implying the host is hostile.
+            def answered(row):
+                status = row.get("http_status")
+                return (isinstance(status, int)
+                        and not isinstance(status, bool)
+                        and 200 <= status < 500 and status != 429)
+
             checks["hub_api_answers"] = bool(api_rows) and all(
-                row.get("http_status") == 200 for row in api_rows)
+                answered(row) for row in api_rows)
             failures.extend(
                 name for name, passed in sorted(checks.items()) if not passed)
         # The hub probe above is a FLOOR, not proof of Hub identity: a

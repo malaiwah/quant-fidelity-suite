@@ -448,8 +448,54 @@ proxy = attest(payload(hub_reachability=[
      "cert_issuer_cn": "Amazon RSA 2048 M01",
      "cert_not_after": "Feb  9 23:59:59 2027 GMT",
      "http_status": None, "error": None}]))
-check("a Hub that answers a non-200 status fails the gate",
+check("a Hub the box cannot fetch from (5xx) fails the gate",
       proxy["ok"] is False and "hub_api_answers" in proxy["failures"])
+# Live on a healthy Vast T4, 2026-09-06: HEAD /api/models/gpt2 answered 307.
+# An equality check on 200 refused that box, so this rung is the regression.
+redirected = attest(payload(hub_reachability=[
+    {"host": "huggingface.co", "tls_ok": True,
+     "cert_subject_cn": "huggingface.co",
+     "cert_issuer_cn": "Amazon RSA 2048 M01",
+     "cert_not_after": "Feb 27 23:59:59 2027 GMT", "http_status": 307,
+     "error": None},
+    {"host": "cdn-lfs.hf.co", "tls_ok": True, "cert_subject_cn": "hf.co",
+     "cert_issuer_cn": "Amazon RSA 2048 M01",
+     "cert_not_after": "Feb  9 23:59:59 2027 GMT",
+     "http_status": None, "error": None}]))
+check("the Hub's real 307 redirect is an ANSWER, not a failure: identity is "
+      "the verified certificate, reachability is only that it spoke HTTP",
+      redirected["ok"] is True
+      and redirected["checks"]["hub_api_answers"] is True)
+throttled = attest(payload(hub_reachability=[
+    {"host": "huggingface.co", "tls_ok": True,
+     "cert_subject_cn": "huggingface.co",
+     "cert_issuer_cn": "Amazon RSA 2048 M01",
+     "cert_not_after": "Feb 27 23:59:59 2027 GMT", "http_status": 429,
+     "error": None},
+    {"host": "cdn-lfs.hf.co", "tls_ok": True, "cert_subject_cn": "hf.co",
+     "cert_issuer_cn": "Amazon RSA 2048 M01",
+     "cert_not_after": "Feb  9 23:59:59 2027 GMT",
+     "http_status": None, "error": None}]))
+check("a 429 fails the reachability floor while the certificate still "
+      "verifies, so the host is not implied to be hostile",
+      throttled["ok"] is False
+      and "hub_api_answers" in throttled["failures"]
+      and throttled["checks"]["hub_tls_verified"] is True)
+# Live shape on machine 150014: / is a 128 GB overlay and /workspace is a
+# SEPARATE xfs on the host's own 1.6 TB disk, so the pod-scoped-single-disk
+# assumption is not universal and both branches must work.
+two_fs = attest(payload(filesystems={
+    "root": {"path": "/", "mount_point": "/", "fs_type": "overlay",
+             "source": "overlay", "device": 42,
+             "total_bytes": 128_849_018_880,
+             "available_bytes": 128_021_987_328, "error": None},
+    "workspace": {"path": "/workspace", "mount_point": "/workspace",
+                  "fs_type": "xfs", "source": "/dev/sdb", "device": 2064,
+                  "total_bytes": 1_599_539_908_608,
+                  "available_bytes": 1_507_561_123_840, "error": None}}))
+check("a Vast box whose /workspace is a SEPARATE host filesystem attests, "
+      "with each byte floor applied to its own mount",
+      two_fs["ok"] is True and two_fs["single_filesystem"] is False)
 dead = StubVast(responses=instances(), exec_payload=None
                 ).attest_live_resource(50055626, **ATTEST)
 check("a box the provider calls running but SSH cannot reach fails the gate "
