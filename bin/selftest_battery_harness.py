@@ -141,6 +141,58 @@ def directive_comments(lines: List[str]) -> List[str]:
     return out
 
 
+# The skip formats this estate really emits, captured from the rungs
+# themselves by LocalCoverage on 2026-09-06. The first version of the
+# harness's inner-skip grep matched three of these and missed exactly the
+# accelerator and quant_pipeline tier. Pinning them here means a future
+# narrowing of SKIP_RE fails this suite instead of silently under-counting.
+MEASURED_SKIP_LINES = (
+    "  skip zeros-npy identity -- numpy not installed for this interpreter",
+    "  SKIP  I10 real kimi-k3 manifests (set FIDELITY_K3_FIXTURE)",
+    "  SKIP  3 SKIPPED live mlx equality (mlx not importable: macOS-only rung)",
+    "[skip] tr3 decode == exl3hf decode (bitwise) - quant_pipeline absent",
+    "[skip] decoder parity vs exllamav3 reconstruct - receipt absent",
+    "PASS 1b accelerator decode parity: SKIPPED (no CUDA and no MPS on this host)",
+    "PASS  3 dequant known-answers ...; MPS absent: device rung SKIPPED",
+)
+# A summary line is NOT an internal skip. Without the `0 skipped` exclusion
+# every green rung reports a phantom one; a NONZERO count is real and counts.
+NOT_SKIP_LINES = (
+    "11 passed, 0 failed, 0 skipped",
+    "PASS (8 passed, 0 failed, 0 skipped)",
+    "selftest_fit: all passed",
+)
+COUNTS_AS_SKIP = ("140 passed, 0 failed, 6 skipped",)
+ZERO_SKIPPED = re.compile(r"\b0 skipped\b", re.I)
+
+
+def skip_pattern(text: str) -> Optional[str]:
+    """The SKIP_RE the battery actually uses, as a python regex."""
+    m = re.search(r"^SKIP_RE='([^']+)'", text, re.M)
+    if m is None:
+        return None
+    # POSIX ERE -> python: the only class the battery uses is [[:space:]].
+    return m.group(1).replace("[[:space:]]", r"\s")
+
+
+def skip_misses(text: str) -> List[str]:
+    pat = skip_pattern(text)
+    if pat is None:
+        return ["the battery defines no SKIP_RE to test"]
+    rx = re.compile(pat, re.I)
+    out = []
+    for line in MEASURED_SKIP_LINES:
+        if not rx.search(line):
+            out.append("MISSED a real skip: %s" % line.strip()[:66])
+    for line in NOT_SKIP_LINES:
+        if rx.search(line) and not ZERO_SKIPPED.search(line):
+            out.append("FALSE POSITIVE on a summary line: %s" % line[:66])
+    for line in COUNTS_AS_SKIP:
+        if not (rx.search(line) and not ZERO_SKIPPED.search(line)):
+            out.append("failed to count a NONZERO skip summary: %s" % line[:66])
+    return out
+
+
 def audit(text: str) -> Tuple[List[str], List[str], List[str], bool, bool]:
     lines = text.splitlines()
     return (interpreter_mismatches(lines),
@@ -174,6 +226,12 @@ def main(argv: Optional[List[str]] = None) -> int:
           per_rung_logs)
     check("the summary counts skips that happened INSIDE passing rungs",
           counts_skips)
+    misses = skip_misses(text)
+    for m in misses:
+        print("   %s" % m)
+    check("SKIP_RE catches every skip format measured in this estate, and no "
+          "summary line (%d formats pinned)" % len(MEASURED_SKIP_LINES),
+          not misses, "%d problem(s)" % len(misses))
 
     # A gate nobody has seen fail is a gate nobody has tested. Each check must
     # go red on its own synthetic input.

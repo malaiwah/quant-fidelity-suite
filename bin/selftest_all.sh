@@ -31,6 +31,11 @@ pass=0; fail=0; skip=0; inner_skip=0
 # tier (quant_pipeline/QP_PIPELINE_ROOT) the output never mentioned existed.
 LOG_DIR="$TMP/rungs"; mkdir -p "$LOG_DIR"
 rung_n=0
+# The skip formats this estate emits, measured rather than assumed. Keep the
+# `0 skipped` exclusion in every consumer: a summary line reading "0 skipped"
+# is not an internal skip, and a nonzero one is.
+SKIP_RE='(^[[:space:]]*(SKIP|SKIPPED)\b)|(\bSKIP(PED)?:)|(\[skip\])|(\bSKIPPED\b)'
+
 t() {  # t <name> <expected_rc> <cmd...>
   local name="$1" exp="$2"; shift 2
   rung_n=$((rung_n+1))
@@ -42,12 +47,25 @@ t() {  # t <name> <expected_rc> <cmd...>
     # An outer PASS is not evidence that the rung ran. Surface what it
     # skipped INSIDE itself, counted separately so the summary cannot claim
     # "0 skipped" while a dependency tier sat out.
+    #
+    # The pattern is MEASURED against the formats this estate really emits
+    # (LocalCoverage, 2026-09-06). Four exist because nothing ever required
+    # one: leading `SKIP`, a trailing `SKIPPED:` colon, the bracketed
+    # `[skip]` form used by the quant_pipeline tier, and a mid-line SKIPPED
+    # in gguf/nvfp4 where the colon comes BEFORE the token. The first
+    # version of this caught 3 of 8 real lines and missed exactly the
+    # accelerator and quant_pipeline tier -- the one §3.2 was built on.
+    #
+    # The `0 skipped` exclusion is load-bearing: without it every green rung
+    # whose summary reads "11 passed, 0 failed, 0 skipped" reports a phantom
+    # internal skip. A NONZERO inner count is a real skip and must count.
     local inner
-    inner="$(grep -icE '^[[:space:]]*(SKIP|SKIPPED)\b|\bSKIP(PED)?:' "$log" 2>/dev/null || true)"
+    inner="$(grep -iE "$SKIP_RE" "$log" 2>/dev/null \
+      | grep -civE '\b0 skipped\b' || true)"
     if [ "${inner:-0}" -gt 0 ]; then
       inner_skip=$((inner_skip+inner))
       printf '        %s internal skip(s):\n' "$inner"
-      grep -iE '^[[:space:]]*(SKIP|SKIPPED)\b|\bSKIP(PED)?:' "$log" \
+      grep -iE "$SKIP_RE" "$log" 2>/dev/null | grep -ivE '\b0 skipped\b' \
         | sed 's/^[[:space:]]*/          /' | head -6
     fi
   else
