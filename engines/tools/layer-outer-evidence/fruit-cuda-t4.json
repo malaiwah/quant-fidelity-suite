@@ -1,0 +1,475 @@
+{
+  "_comment": "Tesla T4 (Turing, sm_75) evidence for the layer-outer capture and the hidden->logit replay. Sibling of fruit-cuda-l4.json: SAME model, SAME panel, SAME torch/transformers/CUDA, only the card differs. Produced by T4Verdict on a rented Vast instance; every figure is read back from a sealed manifest, a --memory-report or a comparison receipt.",
+  "schema": "malaiwah.t4-turing-capability-evidence.v1",
+  "box": {
+    "provider": "vast",
+    "instance_id": "50055626",
+    "machine_id": 150014,
+    "host_id": 579267,
+    "geolocation": "Pennsylvania, US",
+    "gpu": "Tesla T4",
+    "compute_cap": "7.5",
+    "memory_total": "15360 MiB",
+    "driver_version": "595.71.05",
+    "gpu_uuid": "GPU-e006a3ee-6e3a-9943-b89d-b5b0b37e29fa",
+    "mig_mode": "[N/A]",
+    "image": "ghcr.io/malaiwah/quant-fidelity-measure:main",
+    "image_amd64_manifest": "sha256:b587227adb3dc56ca2f6fcbd6ecabb143fed04d3d7fabd2d76cbf9bf92bb8006",
+    "contract_usd_per_hour": 0.16666666666666666,
+    "ask_usd_per_hour": 0.13555555555555554,
+    "ask_id": 50006709
+  },
+  "q1_pinned_stack_on_turing": {
+    "question": "bin/bootstrap_measure.sh pins torch cu130 (CUDA 13.0). CUDA 13 dropped older architectures. Are sm_75 kernels in the wheel?",
+    "answer": "YES -- sm_75 is a real cubin in the pinned wheel",
+    "torch_version": "2.11.0+cu130",
+    "torch_version_cuda": "13.0",
+    "torch_cuda_get_arch_list": [
+      "sm_75",
+      "sm_80",
+      "sm_86",
+      "sm_90",
+      "sm_100",
+      "sm_120"
+    ],
+    "torch_cuda_get_device_capability": [
+      7,
+      5
+    ],
+    "device_sm": "sm_75",
+    "sm_75_cubin_present": true,
+    "compute_75_ptx_present": false,
+    "ptx_entries_in_wheel": [],
+    "ptx_note": "get_arch_list carries no compute_* entry at all, so sm_75 is NOT being reached by PTX JIT from a lower virtual arch -- it is a compiled cubin shipped in the wheel.",
+    "torch_compiled_cuda_version": 13000,
+    "cudnn_version": 91900,
+    "matmul_fp32": "shape=(512, 512) dtype=torch.float32 finite=True sum=-6614.645241",
+    "matmul_fp16": "shape=(512, 512) dtype=torch.float16 finite=True sum=-6617.672294",
+    "matmul_fp64": "shape=(512, 512) dtype=torch.float64 finite=True sum=11646.521779",
+    "fp64_log_softmax_kld_on_device": "ok mean=0.993691766345",
+    "fp64_note": "fp64 matters because kld_report accumulates in fp64; MPS cannot do fp64 at all. Turing can.",
+    "flash_attn": "ModuleNotFoundError: No module named 'flash_attn' -- NOT installed in the image, because bootstrap_measure.sh step 4 builds exllamav3 + flash-attn ONLY IF the pipeline import loads exllamav3, and the hidden-form capture path does not. So the measurement path never needed it, and its absence is not a Turing limitation.",
+    "flash_attn_caveat": "bootstrap_measure.sh pins flash-attn 2.8.3, whose kernels require sm_80+, and builds exllamav3 with TORCH_CUDA_ARCH_LIST=\"9.0;10.0\" (Hopper/Blackwell only). Any lane that DOES import exllamav3 is therefore unreachable on a T4 by construction -- not probed here, since nothing in this path builds it."
+  },
+  "q2_bfloat16": {
+    "question": "Turing has no bf16 tensor cores and every reference in the tree is native BF16. Does torch.bfloat16 matmul raise, emulate, or silently upcast?",
+    "answer": "IT RUNS, EMULATED, WITH fp32 ACCUMULATION -- and torch says so itself",
+    "torch_cuda_is_bf16_supported": true,
+    "torch_cuda_is_bf16_supported_including_emulation_False": false,
+    "interpretation": "the two flags disagreeing IS the answer: torch reports bf16 usable but NOT natively supported, i.e. emulated. No exception, no silent wrong answer.",
+    "matmul_bf16": "shape=(512, 512) dtype=torch.bfloat16 finite=True sum=-6595.235354",
+    "bf16_elementwise_add_mul_exp": "436.0",
+    "allow_bf16_reduced_precision_reduction": true,
+    "accumulation_discriminator": {
+      "construction": "1x512 @ 512x1 where a[0]=1.0 and a[1:]=2^-9, so 1+eps is not representable in bf16: under bf16 accumulation every partial add is swallowed and the result is exactly 1.0; under fp32 accumulation the sum survives.",
+      "K": 512,
+      "eps": 0.001953125,
+      "exact_fp64": 1.998046875,
+      "if_accumulated_in_bf16": 1.0,
+      "measured_on_device": 2.0,
+      "verdict": "2.0, not 1.0 -- so the GEMM accumulates in fp32 and rounds the OUTPUT to bf16 (2.0 is the nearest bf16 to 1.998046875). Accumulation is NOT bf16."
+    },
+    "bf16_vs_fp32_then_cast_1024_cubed": {
+      "bitwise_identical": false,
+      "elements": 1048576,
+      "elements_differing": 207,
+      "max_abs_diff": 0.5,
+      "mean_abs_diff": 4.053092197864316e-06,
+      "max_abs_err_bf16_vs_fp64": 0.4922395497560501,
+      "max_abs_err_fp32cast_vs_fp64": 0.4922395497560501,
+      "fp64_result_absmax": 147.92146369814873,
+      "verdict": "NOT bitwise equal to fp32-then-cast: 207 of 1,048,576 outputs (0.0197%) differ, all by one bf16 ULP at that magnitude. Both paths carry the SAME max error against fp64 (0.4922395497560501), so neither is more accurate -- the emulated path simply accumulates in a different ORDER than an explicit fp32 GEMM."
+    },
+    "sdpa_bf16": "ok shape=(1, 4, 128, 64) finite=True",
+    "sdpa_fp16": "ok shape=(1, 4, 128, 64)",
+    "transformers_bf16_causal_lm_forward": "ok logits=(1, 16, 512) hidden=(1, 16, 128) finite=True",
+    "transformers_version": "5.16.1"
+  },
+  "q3_device_delta": {
+    "question": "does the T4 reproduce the published root's capture_content_digest, and if not, what is its device term?",
+    "answer": "DOES NOT REPRODUCE. Device term = 0.004455249876406919 nats",
+    "published_root": {
+      "repository": "malaiwah/fruit-fidelity-root-v1",
+      "capture_content_digest": "b417acc22b8aa7f3294b8e62c4b619bc5051aef9fd8a073602572a30af6b3e1c",
+      "device_name": "NVIDIA L4"
+    },
+    "t4_capture_content_digest": "efd7c6ff2e6555b8c1384e8a9616406e5d260c06dd5074faec4d52baf4541a75",
+    "captures": {
+      "t4-cold-1": {
+        "capture_content_digest": "efd7c6ff2e6555b8c1384e8a9616406e5d260c06dd5074faec4d52baf4541a75",
+        "total_size_bytes": 67080336,
+        "total_scored_rows": 32752,
+        "hidden_width": 1024,
+        "vocab_size": 154880,
+        "dtype": "BF16",
+        "semantic_point": "after_final_rmsnorm_before_lm_head",
+        "run_name": "t4-cold-1",
+        "context_length": 2048,
+        "scored_rows_per_context": 2047
+      },
+      "t4-cold-2": {
+        "capture_content_digest": "efd7c6ff2e6555b8c1384e8a9616406e5d260c06dd5074faec4d52baf4541a75",
+        "total_size_bytes": 67080336,
+        "total_scored_rows": 32752,
+        "hidden_width": 1024,
+        "vocab_size": 154880,
+        "dtype": "BF16",
+        "semantic_point": "after_final_rmsnorm_before_lm_head",
+        "run_name": "t4-cold-2",
+        "context_length": 2048,
+        "scored_rows_per_context": 2047
+      },
+      "t4-tok-cold-1": {
+        "capture_content_digest": "efd7c6ff2e6555b8c1384e8a9616406e5d260c06dd5074faec4d52baf4541a75",
+        "total_size_bytes": 67080400,
+        "total_scored_rows": 32752,
+        "hidden_width": 1024,
+        "vocab_size": 154880,
+        "dtype": "BF16",
+        "semantic_point": "after_final_rmsnorm_before_lm_head",
+        "run_name": "t4-tok-cold-1",
+        "context_length": 2048,
+        "scored_rows_per_context": 2047
+      },
+      "t4-tok-cold-2": {
+        "capture_content_digest": "efd7c6ff2e6555b8c1384e8a9616406e5d260c06dd5074faec4d52baf4541a75",
+        "total_size_bytes": 67080400,
+        "total_scored_rows": 32752,
+        "hidden_width": 1024,
+        "vocab_size": 154880,
+        "dtype": "BF16",
+        "semantic_point": "after_final_rmsnorm_before_lm_head",
+        "run_name": "t4-tok-cold-2",
+        "context_length": 2048,
+        "scored_rows_per_context": 2047
+      }
+    },
+    "t4_self_determinism": {
+      "cold_runs": 4,
+      "distinct_capture_content_digests": 1,
+      "verdict": "all four independent cold captures sealed the IDENTICAL capture_content_digest, so the T4 is bitwise self-deterministic: Turing is its own determinism class, reproducible on itself.",
+      "container_vs_content": "total_size_bytes differs between the two pairs (67080336 vs 67080400) purely from safetensors header padding for a longer --tokenizer-id string, while the content digest is identical -- a live instance of AGENTS.md's hash-content-not-containers rule."
+    },
+    "stack_fingerprint_diff_published_L4_vs_T4": {
+      "device_name": {
+        "published_L4": "NVIDIA L4",
+        "tesla_T4": "Tesla T4"
+      }
+    },
+    "isolation_note": "device_name is the ONLY differing stack-fingerprint field; torch 2.11.0+cu130, cuda_runtime 13.0, transformers 5.16.1, transformers-eager, 'model default' attention and 'default torch matmul precision; no TF32 override applied' are identical, and checkpoint_identity_sha256 is byte-identical. lane_identity_sha256 differs only BECAUSE device_name is one of its inputs.",
+    "lane_identity_sha256": {
+      "published_L4": "152b841a3bd312830e4e02c2acbb4e30e45304c96748bb80d31d7e7ff5748c8f",
+      "tesla_T4": "05feb18a07c274f2fcc3055dca3f9bd0709aab51de7d3a5fe35c2f43eb0efd18"
+    },
+    "checkpoint_identity_sha256": {
+      "published_L4": "8b5df5743cf2535f7d4ca477ea82d53be4ba98c2329db67739b4b68a3d4031e7",
+      "tesla_T4": "8b5df5743cf2535f7d4ca477ea82d53be4ba98c2329db67739b4b68a3d4031e7",
+      "equal": true
+    },
+    "comparison_numpy_replay": {
+      "mean_tokenwise_kld_nats": 0.004455249876406919,
+      "metric_direction": "KL(reference || candidate)",
+      "top1_agreement": 0.9674218368343918,
+      "comparison_kind": "run_to_run_floor",
+      "replay_backend": "numpy:cpu:float32",
+      "estimator_backend": "torch:k6_kld_report._token_kld",
+      "logprob_dtype": "float64",
+      "position_block": 128,
+      "vocab_chunk": null,
+      "comparability": {
+        "bias": {
+          "detail": "the two captures were produced by different stacks; BIAS-001 requires this block, and a residual of the 1e-2 class is expected from a different kernel, GPU class or torch build alone. usable_as_floor is stamped false for the same reason BIAS-006 stamps it false across lanes: an unknown-direction residual of that size is not a zero-point.",
+          "direction": "unknown",
+          "estimated_magnitude": null,
+          "floor_measurement_ref": null,
+          "kind": "cross_stack_capture_replay"
+        },
+        "class": "advisory",
+        "key": null,
+        "key_inputs": null,
+        "same_lane": true,
+        "usable_as_floor": false
+      },
+      "gates": {
+        "coverage": "16 of 16/16 declared records shared",
+        "form": "hidden vs hidden",
+        "geometry": "vocab_size 154880 equal; hidden_width 1024",
+        "head": "HEAD-1a: identical head content digest on both sides",
+        "lane": "lane=local-cuda-budget vs local-cuda-budget",
+        "lossy": "lossy_codec null on both sides",
+        "panel": "suite_token_hash_sha256 equal; 16 shared records; per-record token and mask digests equal; scoring_window equal",
+        "seal": "both manifests self-seal and checksums.txt verified; every tensor_content_sha256 recomputed",
+        "stack": "lane_identity differ / stack_fingerprint differ -> cross_stack"
+      },
+      "disclosures": [
+        {
+          "affects_comparability": false,
+          "code": "shared_reference_head",
+          "detail": "HEAD-1a: both captures declare the same lm_head tensor content digest (8d0f7d6e35c4); one head applied to both sides is a shared APPLICATION of identical WEIGHTS.",
+          "severity": "info"
+        },
+        {
+          "affects_comparability": true,
+          "code": "cross_stack_capture",
+          "detail": "the two captures were produced by different stacks (lane_identity differs, stack_fingerprint differs); the number carries a cross-stack residual of the 1e-2 class in an unknown direction.",
+          "severity": "caveat"
+        }
+      ],
+      "self_compare": {
+        "asserted_exact_zero": false,
+        "capture_content_digest_equal": false,
+        "expected_tokenwise_bytes": 262144,
+        "expected_tokenwise_sha256": "cda5d3550f0d0c2345d8532fe71c93c1ebb0a4cbe3c9601c7627ca76c129b510",
+        "force_compute_agreed": null,
+        "head_digest_equal": true,
+        "weights_identity_equal": true
+      },
+      "determinism_run_means": [
+        0.004455249876406919
+      ],
+      "evidence_hashes": [
+        "b417acc22b8aa7f3294b8e62c4b619bc5051aef9fd8a073602572a30af6b3e1c",
+        "efd7c6ff2e6555b8c1384e8a9616406e5d260c06dd5074faec4d52baf4541a75"
+      ],
+      "tokenwise_sha256": "cda5d3550f0d0c2345d8532fe71c93c1ebb0a4cbe3c9601c7627ca76c129b510",
+      "receipt_sha256": "795335f53cc13d459c875566f5c7edaad0152547883b35bbfae1cfeb1f3b4529"
+    },
+    "comparison_cuda_replay": {
+      "mean_tokenwise_kld_nats": 0.004455249492262817,
+      "metric_direction": "KL(reference || candidate)",
+      "top1_agreement": 0.9674218368343918,
+      "comparison_kind": "run_to_run_floor",
+      "replay_backend": "torch:cuda:float32",
+      "estimator_backend": "torch:k6_kld_report._token_kld",
+      "logprob_dtype": "float64",
+      "position_block": 128,
+      "vocab_chunk": null,
+      "comparability": {
+        "bias": {
+          "detail": "the two captures were produced by different stacks; BIAS-001 requires this block, and a residual of the 1e-2 class is expected from a different kernel, GPU class or torch build alone. usable_as_floor is stamped false for the same reason BIAS-006 stamps it false across lanes: an unknown-direction residual of that size is not a zero-point.",
+          "direction": "unknown",
+          "estimated_magnitude": null,
+          "floor_measurement_ref": null,
+          "kind": "cross_stack_capture_replay"
+        },
+        "class": "advisory",
+        "key": null,
+        "key_inputs": null,
+        "same_lane": true,
+        "usable_as_floor": false
+      },
+      "gates": {
+        "coverage": "16 of 16/16 declared records shared",
+        "form": "hidden vs hidden",
+        "geometry": "vocab_size 154880 equal; hidden_width 1024",
+        "head": "HEAD-1a: identical head content digest on both sides",
+        "lane": "lane=local-cuda-budget vs local-cuda-budget",
+        "lossy": "lossy_codec null on both sides",
+        "panel": "suite_token_hash_sha256 equal; 16 shared records; per-record token and mask digests equal; scoring_window equal",
+        "seal": "both manifests self-seal and checksums.txt verified; every tensor_content_sha256 recomputed",
+        "stack": "lane_identity differ / stack_fingerprint differ -> cross_stack"
+      },
+      "disclosures": [
+        {
+          "affects_comparability": false,
+          "code": "shared_reference_head",
+          "detail": "HEAD-1a: both captures declare the same lm_head tensor content digest (8d0f7d6e35c4); one head applied to both sides is a shared APPLICATION of identical WEIGHTS.",
+          "severity": "info"
+        },
+        {
+          "affects_comparability": true,
+          "code": "cross_stack_capture",
+          "detail": "the two captures were produced by different stacks (lane_identity differs, stack_fingerprint differs); the number carries a cross-stack residual of the 1e-2 class in an unknown direction.",
+          "severity": "caveat"
+        }
+      ],
+      "self_compare": {
+        "asserted_exact_zero": false,
+        "capture_content_digest_equal": false,
+        "expected_tokenwise_bytes": 262144,
+        "expected_tokenwise_sha256": "b6512eb996eb41ee45b6dc917c6be77a490da36d788e2671f971f430171d8b21",
+        "force_compute_agreed": null,
+        "head_digest_equal": true,
+        "weights_identity_equal": true
+      },
+      "determinism_run_means": [
+        0.004455249492262817
+      ],
+      "evidence_hashes": [
+        "b417acc22b8aa7f3294b8e62c4b619bc5051aef9fd8a073602572a30af6b3e1c",
+        "efd7c6ff2e6555b8c1384e8a9616406e5d260c06dd5074faec4d52baf4541a75"
+      ],
+      "tokenwise_sha256": "b6512eb996eb41ee45b6dc917c6be77a490da36d788e2671f971f430171d8b21",
+      "receipt_sha256": "a621e84c1c8a88d1c3fb0fadf9cbf08ba7bb44b0e366d0ab54b31d323fb3114c"
+    },
+    "scale_context": {
+      "t4_vs_l4_root_nats": 0.004455249876406919,
+      "a100_vs_h200_published_nats": 0.0002973,
+      "ratio_vs_a100_h200_term": 14.986,
+      "adjacent_bitwidth_effect_nats": 0.00133,
+      "ratio_vs_adjacent_bitwidth": 3.35,
+      "streaming_lane_floor_nats": 0.011506,
+      "fraction_of_streaming_lane_floor": 0.3872,
+      "top1_flip_fraction": 0.03257816316560824
+    },
+    "residual_confounds_not_removable_on_this_box": [
+      "hf_capture.py drift: the published root records k6/tools/hf_capture.py sha256 34e3f7649445b9e40e5167885974af4809918318ff6ace380b9e481e4a57ee83; this run used the image's eac6e7dc29e297997f659c60d3fa24d4908474579c06b07de257e90fff6e4331. Bounded by: all four T4 runs bitwise identical, geometry / records / scored rows / semantic_point all equal, and the head content digest equal. The experiment that CLOSES it is one L4 capture with this same image -- if it reproduces b417acc2 the whole delta is the device.",
+      "python 3.10.20 (published) vs 3.12.3 (here). Not a lane_identity input; the numerics live in torch/cuBLAS."
+    ]
+  },
+  "q4_replay_comparison_term": {
+    "question": "CAPTURE-SCALING-PLAN 3.2 measured --replay-device cuda at 1754.71s -> 173.27s (10.13x) with a 7.13 GB peak on the Qwen3.8 panel. Verify peak and speedup on this box.",
+    "fruit_panel": {
+      "panel": "panel--fruit.malaiwah.heldout-v1",
+      "geometry": "vocab 154880, hidden 1024, 16 windows, 32752 scored positions",
+      "fp32_head_gb": 0.634,
+      "numpy_wall_seconds": 120.57,
+      "cuda_wall_seconds": 24.26,
+      "speedup": 4.97,
+      "numpy_vram_peak_mib": 0,
+      "cuda_vram_peak_mib": 2215,
+      "vram_measurement": "nvidia-smi memory.used sampled at 5 Hz, minus the idle baseline taken immediately before launch (baseline 0 MiB)",
+      "numpy_gpu_idle_confirms_doc": "the numpy replay peaked at 0 MiB of device memory over 601 samples, independently confirming 3.2's 'nvidia-smi reports 0% utilisation for the entire numpy comparison'",
+      "ab_discipline": "one process each, same box, back to back, only the replay flag different -- the protocol 3.2 insists on ('Quote 10.13x, not 20.9x')"
+    },
+    "replay_backend_floor_reproduced": {
+      "numpy_kld": 0.004455249876406919,
+      "cuda_kld": 0.004455249492262817,
+      "abs_delta_nats": 3.8414410195e-10,
+      "relative_delta": 8.62e-08,
+      "top1_agreement_numpy": 0.9674218368343918,
+      "top1_agreement_cuda": 0.9674218368343918,
+      "top1_flips_between_backends": 0,
+      "note": "independent reproduction of 3.3's replay-backend floor SHAPE on a different panel and a different card: the two backends agree to the 9th significant figure and not one argmax flipped. 3.3 measured 5.237e-12 nats on the Qwen3.8 panel; this is 3.84e-10 nats on Fruit. Same conclusion, different magnitude -- do not conflate the two figures."
+    },
+    "qwen38_panel": {
+      "_comment": "the REAL panel 3.2's 7.13 GB figure was measured on. Filled in by the run; null means it did not complete on this box.",
+      "panel_geometry": "vocab 248320, hidden 5120, 512 records, 1048064 scored positions",
+      "fp32_head_gb": 5.086,
+      "reference_dataset": "malaiwah/qwen38-27b-fidelity-root-v1",
+      "captured_on": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "cuda_vram_peak_mib_on_t4": 7277,
+      "cuda_vram_peak_gib_on_t4": 7.1064,
+      "card_total_mib": 15360,
+      "fraction_of_card": 0.4738,
+      "published_peak_gb": 7.13,
+      "published_peak_gib": 6.64,
+      "peak_agreement_note": "published 6.64 GiB = 6800 MiB; measured 7277 MiB. The gap is the MEASUREMENT BOUNDARY, not a disagreement: nvidia-smi memory.used includes the CUDA context and allocator slack, a torch max_memory_* figure does not. The measured figure is the conservative one and is what a fit gate should use.",
+      "numpy_vram_peak_mib_on_t4": 0,
+      "cuda_run": {
+        "wall_seconds": 2265,
+        "rc": 0
+      },
+      "numpy_run": null,
+      "cuda_result": {
+        "mean_tokenwise_kld_nats": 0.0,
+        "metric_direction": "KL(reference || candidate)",
+        "top1_agreement": 1.0,
+        "comparison_kind": "reproduction_confirmation",
+        "replay_backend": "torch:cuda:float32",
+        "estimator_backend": "torch:k6_kld_report._token_kld",
+        "logprob_dtype": "float64",
+        "position_block": 128,
+        "vocab_chunk": null,
+        "comparability": {
+          "bias": null,
+          "class": "strict",
+          "key": null,
+          "key_inputs": null,
+          "same_lane": true,
+          "usable_as_floor": true
+        },
+        "gates": {
+          "coverage": "512 of 512/512 declared records shared",
+          "form": "hidden vs hidden",
+          "geometry": "vocab_size 248320 equal; hidden_width 5120",
+          "head": "HEAD-1a: identical head content digest on both sides",
+          "lane": "lane=local-cuda-budget vs local-cuda-budget",
+          "lossy": "lossy_codec null on both sides",
+          "panel": "suite_token_hash_sha256 equal; 512 shared records; per-record token and mask digests equal; scoring_window equal",
+          "seal": "both manifests self-seal and checksums.txt verified; every tensor_content_sha256 recomputed",
+          "stack": "lane_identity equal / stack_fingerprint equal -> same_stack"
+        },
+        "disclosures": [
+          {
+            "affects_comparability": false,
+            "code": "shared_reference_head",
+            "detail": "HEAD-1a: both captures declare the same lm_head tensor content digest (d922b751f014); one head applied to both sides is a shared APPLICATION of identical WEIGHTS.",
+            "severity": "info"
+          }
+        ],
+        "self_compare": {
+          "asserted_exact_zero": true,
+          "capture_content_digest_equal": true,
+          "expected_tokenwise_bytes": 8384640,
+          "expected_tokenwise_sha256": "8be5dccaf885d7dadca697c4d54cff60d1c8c8333b57761c31d882c9f9ec9e5d",
+          "force_compute_agreed": true,
+          "head_digest_equal": true,
+          "weights_identity_equal": true
+        },
+        "determinism_run_means": [
+          0.0
+        ],
+        "evidence_hashes": [
+          "2376837de2e42561a196a3f33e25ab6e79471bed0f97c5949605656ca97504c3"
+        ],
+        "tokenwise_sha256": "8be5dccaf885d7dadca697c4d54cff60d1c8c8333b57761c31d882c9f9ec9e5d",
+        "receipt_sha256": "7b497db48cffe4f779328e6c3cf4eb3a8c58051649ce361d1c436d2e14460ab4"
+      },
+      "numpy_result": null,
+      "verdict": "a Tesla T4 carried a STRICT-class reproduction confirmation over the full 512-context / 1,048,064-position Qwen3.8 panel with --replay-device cuda: exactly 0.0 nats, top-1 agreement 1.0, comparability class=strict, usable_as_floor=True. So the comparison half of this pipeline runs correctly and completely on a 16 GB Turing card, at 47% of its memory."
+    },
+    "do_not_claim": "the 1754.71s / 173.27s / 10.13x / 7.13 GB figures are docs/CAPTURE-SCALING-PLAN.md's measurement on an RTX PRO 6000, NOT measured here. The Fruit figures above are this box's own."
+  },
+  "incidental_findings": {
+    "selftest_decode_parity_section_2_fails_on_cuda": {
+      "verbatim": [
+        "devices: cpu, cuda",
+        "[2] BITWISE DEVICE PARITY",
+        "  matrix: 256 x 256 = 65,536 elements",
+        "  FAIL bits=4 decode cuda == cpu, BITWISE  -- max_abs_diff=9.537e-06 ndiff=55889/65536",
+        "  ok   bits=4 unpack is stable under repeat",
+        "  FAIL bits=6 decode cuda == cpu, BITWISE  -- max_abs_diff=6.676e-06 ndiff=55907/65536",
+        "  ok   bits=6 unpack is stable under repeat",
+        "selftest_decode_parity: 7 passed, 2 failed"
+      ],
+      "contrast": "on the SAME card in the SAME session, selftest_gguf_offline.py rung 1b PASSES: eight GGUF types decoded on cuda are torch.equal to the cpu reference on real UD-Q4_K_XL bytes (262144 elements), {\"ok\": true, \"checks\": 17}. So cuda != cpu is NOT a general Turing property; it is specific to the trellis decode path.",
+      "open": "whether an sm_80+ card also fails this rung is NOT established here. TF32 cannot be the cause on sm_75 (TF32 is Ampere+)."
+    },
+    "decode_timing_on_t4": {
+      "cpu_bits4_ms_per_matrix": 5.0,
+      "cuda_bits4_ms_per_matrix": 1.8,
+      "cpu_bits6_ms_per_matrix": 4.8,
+      "cuda_bits6_ms_per_matrix": 1.5,
+      "full_routed_pass_cpu_bits4_min": 3.0,
+      "full_routed_pass_cuda_bits4_min": 1.1
+    },
+    "layer_outer_peak_t4_vs_l4": {
+      "_comment": "direct sibling comparison against fruit-cuda-l4.json, same model and schedule. The resident weight bytes are IDENTICAL to the byte, so the schedule is identical and the delta is kernel workspace.",
+      "peak_resident_weight_bytes_l4": 1470778624,
+      "peak_resident_weight_bytes_t4": 1470778624,
+      "peak_cuda_allocated_bytes_l4": 2166542336,
+      "peak_cuda_allocated_bytes_t4": 2668887040,
+      "peak_cuda_allocated_overhead_t4_vs_l4": 502344704,
+      "peak_cuda_allocated_ratio": 1.2319,
+      "peak_cuda_reserved_bytes_l4": 3711959040,
+      "peak_cuda_reserved_bytes_t4": 4250927104,
+      "note": "the T4 needs ~479 MiB (23%) MORE device memory for the same schedule on the same model. A fit gate calibrated on Ada/Ampere headroom is optimistic on Turing by about that much. The L4 figures are a 2-window run and the T4 a 16-window run, so this compares peaks of runs of different length -- under layer-outer the peak is set by the largest layer plus workspace, not by window count, but the comparison is not perfectly matched and should not be quoted more precisely than 'about 20-25% more'."
+    },
+    "fit_gate_passed": {
+      "modelled_peak_gb": 7.28,
+      "device_needs_gb": 8.09,
+      "device_has_gb": 16.11,
+      "verdict": "ok  fits: Tesla T4 has 16.11 GB, 8.09 GB required",
+      "measured_actual_peak_gb": 2.669,
+      "note": "the fit model is CONSERVATIVE by 2.7x on this target (8.09 GB modelled need vs 2.669 GB measured peak allocated), which is the safe direction."
+    },
+    "vram_reported_three_ways": {
+      "vast_api_gpu_ram_mib": 15360,
+      "nvidia_smi_memory_total": "15360 MiB",
+      "torch_total_memory": "14912MB",
+      "note": "a 448 MiB spread on a healthy card; an attestation demanding torch's total_memory equal the provider's gpu_ram would refuse every healthy T4."
+    }
+  },
+  "measured_utc": "2026-09-06T13:13:46Z"
+}

@@ -1673,3 +1673,157 @@ moves the hash while re-invoking the same request no longer does.
 **Test:** two `_plan_runpod` dry-runs of one publishing request, with the clock
 advanced between them, must produce the identical `job_id_full`; and changing
 `--publish-root-to` must still move it. The first fails today.
+
+## PANEL-D6, third instance — the caller-side fix makes a new capture *un*comparable
+## to the published Fruit root, which is the comparison the fix exists to enable
+
+**Found 2026-09-06 by T4Verdict**, measuring a Tesla T4's device term against
+`malaiwah/fruit-fidelity-root-v1`. This is an additive correction to the PANEL-D6 entry
+above, not a new defect: same anchor (`engines/tools/hf_capture.py`,
+`tokenizer_id = args.tokenizer_id or args.weights_repository or args.model`), and the
+engine-side half that entry leaves open is exactly what would have prevented it.
+
+The entry says of the landed caller-side half: *"It cannot make anything compare worse —
+today's cloud captures record a path that already compares unequal to every other capture."*
+**That is true of path-valued ids and false of the published Fruit root.** That root does not
+record a path; it records a clean tokenizer id, `glm-5.2-siq-fruit`, taken from its panel
+receipt's `tokenizer.id`. So passing `--weights-repository` — which `bin/stage_measure.sh`
+now always does, and which is correct for the four other fields it feeds — moves the value
+from one that MATCHED the published root to one that does not:
+
+```
+REFUSED [panel_mismatch]: gate panel: the two captures declare different tokenizers
+(PANEL-D6); the token id digest cannot see this because it hashes integers.
+Differing field(s): id 'glm-5.2-siq-fruit' vs 'malaiwah/GLM-5.2-SIQ-Fruit-bf16';
+                    repository 'glm-5.2-siq-fruit' vs 'malaiwah/GLM-5.2-SIQ-Fruit-bf16'
+  remedy: none by design (PANEL-D3): a comparison is only meaningful between two captures
+  of the SAME panel, so there is no override flag.
+```
+
+Both captures are of the same checkpoint at the same revision over the same panel: the
+`panel` gate's own token and mask digests are equal per record, `suite_token_hash_sha256`
+is equal, and `checkpoint_identity_sha256` is
+`8b5df5743cf2535f7d4ca477ea82d53be4ba98c2329db67739b4b68a3d4031e7` on both sides. Only the
+declared tokenizer STRING differs. The remedy the refusal offers — "recapture the candidate
+on the reference's panel" — is not the fix, because the panel was already identical; the
+working answer is `--tokenizer-id glm-5.2-siq-fruit`, i.e. manually restoring the pre-fix
+value, which nothing tells the operator to do.
+
+**Consequence, and why it is worth recording:** the Fruit root is this project's cheapest
+end-to-end fixture and the target of the container acceptance test, the RunPod SSH
+reproduction and any future cross-device check. Today, comparing a fresh capture against it
+requires a flag whose value can only be discovered by reading the published dataset's panel
+receipt. Every one of those comparisons is one undocumented flag away from a refusal that
+looks like a panel mismatch and is not.
+
+**Suggested shape:** the engine-side half already described above — treat a legacy id as
+*unknown* rather than as a mismatch — plus one addition it does not cover: when the
+reference's panel receipt declares a `tokenizer.id`, prefer THAT over
+`--weights-repository`, since a capture bound to a panel is bound to that panel's tokenizer
+declaration. Failing that, the refusal should name `--tokenizer-id <reference's value>` as
+the remedy, because it can read the reference's value at the moment it refuses.
+
+**Test:** capture the Fruit fixture with `--weights-repository malaiwah/GLM-5.2-SIQ-Fruit-bf16`
+and no `--tokenizer-id`, then `compare` it against `malaiwah/fruit-fidelity-root-v1`. It is
+refused today.
+
+## DESC-01 — `load_panel_descriptor` raises `KeyError` where it should refuse
+
+**Found 2026-09-06 by T4Verdict.** Anchor: `bin/fidelity/hfmeta.py:1439`,
+`load_panel_descriptor`. Not fixed here because `bin/fidelity/hfmeta.py` belongs to the
+live RunPod measurement lanes.
+
+Passing `--panel-descriptor` a file that is JSON but not a descriptor — the obvious mistake,
+since a panel directory contains a file literally called `panel.json` — crashes with a
+traceback instead of refusing:
+
+```
+$ bin/measure-local --artifact malaiwah/GLM-5.2-SIQ-Fruit-bf16 --panel <id> \
+    --panel-descriptor .../panel/panel.json --lane local-cuda-budget --estimate-only
+...
+PANEL
+Traceback (most recent call last):
+  File "/workspace/repo/bin/measure_local.py", line 1276, in <module>
+    raise SystemExit(main())
+  File "/workspace/repo/bin/measure_local.py", line 1003, in main
+    result = plan(args, con)
+  File "/workspace/repo/bin/measure_local.py", line 453, in plan
+    descriptor = load_panel_descriptor(args.panel_descriptor or args.panel)
+  File "/workspace/repo/bin/fidelity/hfmeta.py", line 1439, in load_panel_descriptor
+    repo_id = str(raw["repo_id"])
+              ~~~^^^^^^^^^^^^^^^
+KeyError: 'repo_id'
+```
+
+The function is otherwise careful: two lines below, a `repo_id` that IS present but
+malformed gets `HFError("panel descriptor repo_id %r is not an owner/name pair")`, and a
+non-descriptor *string* gets the good refusal that names the required keys ("the runner will
+not guess a panel's shape, because a wrong guess silently measures a different thing").
+Only the missing-key path is unguarded — and `panel_ref`, `contexts`,
+`positions_per_context` and `scored_positions` are indexed the same way, so there are five
+of them. AGENTS.md: "An expected invalid state is a refusal, not a guess."
+
+**Suggested shape:** validate the key set first and raise the existing `HFError` naming the
+missing keys — the same sentence the string path already prints, which is the message the
+operator needs in both cases.
+
+**Test:** `load_panel_descriptor` on a JSON file lacking `repo_id` must raise `HFError`, not
+`KeyError`. It raises `KeyError` today.
+
+## DECODE-PARITY-01 — `selftest_decode_parity.py` section [2] asserts a bitwise
+## cpu==cuda equality that FAILS on every CUDA device, and is vacuous on the boxes that run it
+
+**Found 2026-09-06.** T4 measurement by T4Verdict; the Ampere control was run by
+DecoderParity on a separate rental. Anchor: `bin/selftest_decode_parity.py`, section
+`[2] BITWISE DEVICE PARITY`. Nothing is fixed here: the test is the thing under review, and
+which side is wrong is a numerics decision for whoever owns the trellis decode.
+
+On a CPU-only box the section self-reports vacuous ("no accelerator on this machine; parity
+is vacuous, skipping") and the battery prints PASS. On the first two CUDA devices ever to run
+it, it fails — with **the same `max_abs_diff` on both**:
+
+```
+Tesla T4, sm_75, torch 2.11.0+cu130, driver 595.71.05
+  FAIL bits=4 decode cuda == cpu, BITWISE  -- max_abs_diff=9.537e-06 ndiff=55889/65536
+  FAIL bits=6 decode cuda == cpu, BITWISE  -- max_abs_diff=6.676e-06 ndiff=55907/65536
+
+A100-PCIE-40GB, sm_80, torch 2.11.0+cu128, driver 595.71.05
+  FAIL bits=4 decode cuda == cpu, BITWISE  -- max_abs_diff=9.537e-06 ndiff=55953/65536
+  FAIL bits=6 decode cuda == cpu, BITWISE  -- max_abs_diff=6.676e-06 ndiff=55966/65536
+```
+
+85% of the 65,536 elements differ on both cards, so this is not an edge case. Four
+observations that together say the assertion is wrong rather than the hardware:
+
+1. **Identical `max_abs_diff` across two architectures and two CUDA versions**, with only
+   the affected element set shifting slightly (55,889 vs 55,953). That is the signature of a
+   reduction-ORDER difference, not of a missing arch capability.
+2. **TF32 is excluded from both directions.** TF32 is Ampere+, so it cannot explain sm_75 at
+   all; and on the A100 `torch.backends.cuda.matmul.allow_tf32` was `False` (torch 2.11
+   default) and it still failed.
+3. **`unpack is stable under repeat` PASSES** on both cards for both bit widths, so the
+   on-device path is deterministic run-to-run. Determinism-on-device and equality-with-cpu
+   are different properties and only the second fails.
+4. **A bitwise cpu==cuda decode assertion CAN hold in this tree**, so the bar is not
+   impossible: on the same T4 in the same session,
+   `engines/tools/selftest_gguf_offline.py` rung 1b passes — "IQ3_S, IQ3_XXS, IQ4_XS, Q3_K,
+   Q4_K, Q5_K, Q6_K, Q8_0 decoded on cuda are `torch.equal` to the cpu reference on real
+   UD-Q4_K_XL bytes (262144 elements)", `{"ok": true, "checks": 17}`. One decode path is
+   bitwise-portable to the accelerator and the trellis path is not.
+
+This is the coverage class rather than a hardware finding: the rung has apparently never
+executed against a CUDA device, because it self-skips on every box that runs the battery, and
+it PASSES while doing so.
+
+**Suggested shape:** decide which property is actually wanted and assert that one. If the
+trellis decode is only required to agree with CPU to within decode precision, compare with a
+tolerance derived from the bit width and keep the exact-equality assertion for the
+`stable under repeat` rungs, which do hold. If bitwise portability IS the requirement, then
+the decode needs a pinned reduction order and this is a decode defect, not a test defect —
+but that is a much larger change and it should be an explicit decision, not the accidental
+consequence of an assertion nobody could run.
+
+**Test:** whatever the chosen property is, the rung must FAIL on a box with no accelerator
+rather than passing vacuously — the current vacuous PASS is why this went unnoticed. A rung
+asserting "section [2] either ran or was reported as skipped, never both PASS and absent"
+fails today on every CPU-only box.
