@@ -250,9 +250,13 @@ def _read_remote_exact(
         except urllib.error.HTTPError as exc:
             delay = _retry_delay(exc, attempt, spent)
             if delay is None:
-                raise HubError(
+                # Carry the status so the caller's remedy can match it: a 429
+                # needs "wait", not "pass --token-file".
+                err = HubError(
                     "HTTP %s while streaming immutable public evidence"
                     % exc.code)
+                err.status = exc.code
+                raise err
             _SLEEP(delay)
             spent += delay
         except urllib.error.URLError as exc:

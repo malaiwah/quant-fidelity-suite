@@ -257,6 +257,35 @@ def main():
         HM.safe_urlopen = original_open
 
     print()
+    print("== the REMEDY has to match the status ==")
+    import importlib
+    FD = importlib.import_module("fidelity_dataset")
+    advice = FD._hub_error_advice(429)
+    check("a 429 remedy says WAIT and says there is no token to add -- it used "
+          "to print --token-file advice for the status that cost two pods",
+          "rate limit" in advice and "--token-file" not in advice
+          and "anonymous" in advice, advice[:110])
+    advice = FD._hub_error_advice(403)
+    check("a 403 remedy still offers --token-file, and names the anonymous "
+          "case as a finding about public readability",
+          "--token-file" in advice and "publicly readable" in advice,
+          advice[:110])
+    check("a 404 remedy still points at `adapt`",
+          "adapt" in FD._hub_error_advice(404))
+    advice = FD._hub_error_advice(None)
+    check("a status-less hub failure keeps the full three-way advice rather "
+          "than guessing one",
+          "adapt" in advice and "--token-file" in advice
+          and "rate limit" in advice, advice[:110])
+    streamed = DS.HubError("HTTP 429 while streaming immutable public evidence")
+    streamed.status = 429
+    check("the STREAMING refusal carries its status, so a member fetch that "
+          "429s past the retry budget gets the wait remedy and not the "
+          "credential one",
+          FD._hub_error_advice(getattr(streamed, "status", None))
+          == FD._hub_error_advice(429))
+
+    print()
     if FAILURES:
         print("selftest_hub_retry: %d FAILED" % len(FAILURES))
         return 1

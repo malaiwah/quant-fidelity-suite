@@ -2517,6 +2517,36 @@ def build_parser():
     return parser
 
 
+def _hub_error_advice(status):
+    """The remedy for a hub failure, matched to its STATUS.
+
+    One line about 404s and `--token-file` used to be printed for every
+    failure, including the HTTP 429 that killed two paid pods on 2026-09-06 --
+    pointing the operator at a credential when the answer was "wait", on a
+    path that is anonymous by design and has no token to add.
+    """
+    if status == 429:
+        return ("HTTP 429 is a rate limit, not an authorization failure: the "
+                "reference read is anonymous BY DESIGN (that is what proves "
+                "the published root is publicly readable), so there is no "
+                "token to add. This fetch already retries with Retry-After "
+                "honoured, so reaching this refusal means the limit outlasted "
+                "the retry budget. Wait, and do not run several anonymous root "
+                "fetches at once -- they share one per-IP budget.")
+    if status in (401, 403):
+        return ("a 401/403 means the token is missing or lacks access: pass "
+                "--token-file. On an anonymous read it is instead a finding: "
+                "the object is not publicly readable.")
+    if status == 404:
+        return ("a 404 on fidelity-dataset.json means the repo is not a "
+                "fidelity dataset -- translate it with `adapt` first.")
+    return ("a 404 on fidelity-dataset.json means the repo is not a fidelity "
+            "dataset -- translate it with `adapt` first. A 401/403 means the "
+            "token is missing or lacks access: pass --token-file. A 429 is a "
+            "rate limit: wait, and do not run several anonymous fetches at "
+            "once.")
+
+
 def main(argv=None):
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -2536,9 +2566,7 @@ def main(argv=None):
         if not isinstance(exc, dshub.HubError):
             raise
         return refuse("hub_error", str(exc),
-                      "a 404 on fidelity-dataset.json means the repo is not a fidelity "
-                      "dataset -- translate it with `adapt` first. A 401/403 means the "
-                      "token is missing or lacks access: pass --token-file.")
+                      _hub_error_advice(getattr(exc, "status", None)))
 
 
 if __name__ == "__main__":
