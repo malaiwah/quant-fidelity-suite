@@ -854,3 +854,108 @@ class SSHTransport:
         return self.exec_stdout(
             machine_id, "tail -n %d %s/%s/output.log 2>/dev/null || true"
             % (int(tail), self.RUNS, run_id), timeout=120)
+
+
+class PinnedEndpointSSH(SSHTransport):
+    """A VERIFYING ssh/scp transport for a provider whose CLI authenticates
+    no host at all.
+
+    WHY THIS EXISTS.  `jarvislabs/ssh.py:22-30` (the vendor package, read from
+    the installed source rather than its docs) passes both
+    `StrictHostKeyChecking=no` AND `UserKnownHostsFile=/dev/null`, and
+    `cli/instance.py` drives exec/upload/download through those options.  So
+    `jl` authenticates no host, ever, and forgets nothing between calls: not
+    trust-on-first-use, no trust at all.  Two consequences, and the second is
+    the one that decides the ruling: a credential moved over that channel
+    transits a machine we never authenticated, AND the result archive plus its
+    on-pod sha256 both arrive over it -- so `verify_transfer` compares two
+    attacker-suppliable values and proves internal consistency rather than
+    provenance.  A measurement retrieved over an unauthenticated channel is
+    not attributable to the machine we rented.
+
+    `SSHTransport` already contains the verifying half: `_ssh_opts` sets
+    `StrictHostKeyChecking=yes` with a per-attempt `UserKnownHostsFile`, and
+    `_known_hosts_file()` RAISES unless `verify_host_key` has already written
+    that file, so no ssh or scp process can spawn before authentication.  What
+    JarvisLabs lacked was a way to USE it: `JL` is not an `SSHTransport`
+    subclass, which is exactly why it escaped the discipline the other three
+    inherit.  This class is that way in -- an endpoint given explicitly, no
+    provider API and no vendor CLI involved.
+
+    THE PIN IS THE CALLER'S, THE VERIFICATION IS THIS CLASS'S.  Pass
+    `expected_fingerprint` from a channel independent of the box:
+
+      * pin-by-construction (strongest): an ED25519 key the CONTROLLER
+        generated before the instance existed, installed through the provider's
+        own launch mechanism (`--script-id`, `user_data`, `onstart`), with the
+        expected fingerprint frozen into the request identity.  The private key
+        never appears in argv.
+      * a provider-API log line read over TLS before first contact (RunPod's
+        pattern): trust-on-first-use anchored in the provider API's TLS
+        identity -- which is why `fidelity.tlsguard` treats provider API hosts
+        as attestation targets.
+
+    Both are recorded, not assumed: `attest_endpoint` returns
+    `pin_source` alongside `channel_verifies_host_key`, so a proof says what
+    it can prove.  A pinned fingerprint that the transport ignores buys
+    nothing, and a proof that implies otherwise is worse than no proof.
+    """
+
+    def __init__(self, host: str, port: Any = 22, *, user: str = "root",
+                 ssh_key: str = "", dry: bool = False) -> None:
+        if not host:
+            raise JLError("a verifying SSH transport needs an endpoint host")
+        self._host = str(host)
+        self._port = int(port)
+        self.ssh_user = user or "root"
+        self.ssh_key = ssh_key or ""
+        self.dry = bool(dry)
+
+    def _endpoint(self, machine_id: Any = None, *,
+                  wait: float = 900) -> tuple:
+        # A provider says "running" well before sshd accepts; wait for the
+        # endpoint to answer rather than failing the first command.
+        if not self.dry:
+            self._await_ssh(self._host, self._port, wait=wait)
+        return (self._host, self._port)
+
+    def attest_endpoint(self, expected_fingerprint: str, *, known_hosts: Any,
+                        pin_source: str = "construction",
+                        machine_id: Any = None) -> Dict[str, Any]:
+        """Authenticate the endpoint, then permit ssh -- in that order.
+
+        Until this returns, every `exec`/`upload`/`download` on this object
+        refuses: `_ssh_opts()` calls `_known_hosts_file()`, which raises while
+        no owner-0600 per-attempt file exists.  That is the property that
+        makes "nothing secret crosses first contact" structural rather than
+        conventional.
+        """
+        if pin_source not in ("construction", "provider-log"):
+            raise JLError(
+                "pin_source must name where the expected fingerprint came "
+                "from: 'construction' (a key we generated before the instance "
+                "existed) or 'provider-log' (read from the provider API over "
+                "TLS before first contact)")
+        self.set_known_hosts(known_hosts)
+        proof = self.verify_host_key(machine_id, expected_fingerprint)
+        proof.update({
+            "schema": "fidelity.ssh-host-key-proof/3",
+            "endpoint_host": self._host,
+            "endpoint_port": self._port,
+            "pin_source": pin_source,
+            "expected_fingerprint": str(expected_fingerprint).strip(),
+            "channel_verifies_host_key": True,
+            "transport": "fidelity.sshbase.PinnedEndpointSSH",
+            "attests": (
+                "every ssh/scp on this transport is pinned to this key: "
+                "StrictHostKeyChecking=yes against an owner-0600 per-attempt "
+                "known_hosts, and _known_hosts_file() raises before any "
+                "process spawns if it is absent"),
+            "does_not_attest": (
+                "the key is the machine's, not the instance's, unless "
+                "pin_source is 'construction': a host that persists or bakes "
+                "its key is indistinguishable from our own box on a re-rental, "
+                "so attribution degrades from 'the instance we created' to "
+                "'some instance on hardware we have seen before'"),
+        })
+        return proof
