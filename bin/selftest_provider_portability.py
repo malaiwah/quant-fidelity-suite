@@ -637,27 +637,62 @@ for _name in P.PROVIDERS:
               and all(blocker in _text for blocker in _blockers))
 
 # A DECLARATION THAT LIES MUST GO RED. The old gate was verified to fail
-# (rc 1) when a level disagreed with the code; the equivalent property here is
-# that emptying a blocker tuple while methods are missing must make the
-# provider claim dispatchability it does not have.
-_liar = next(name for name in P.PROVIDERS
-             if P.missing_contract_methods(name))
-_saved_blockers = P.PROVIDER_BLOCKERS[_liar]
-_saved_entry = dict(P.EXECUTION_ENTRYPOINTS)
+# (rc 1) when a declared level disagreed with the code. The equivalent
+# property here is stronger, because the method half is computed: a table
+# that declares NO blockers, names an execution entrypoint, and is still
+# missing a contract method must remain refused. The liar is SYNTHETIC on
+# purpose -- all four real adapters now carry the twelve, and a probe that
+# depended on one of them being incomplete would evaporate exactly when the
+# ports landed.
+class PartialAdapter:
+    """Eleven of the twelve. The absent one is the entire point."""
+
+
+for _method in PROVIDER_CONTRACT[:-1]:
+    setattr(PartialAdapter, _method, lambda self, *a, **k: None)
+_ABSENT = PROVIDER_CONTRACT[-1]
+
+_saved = (P.PROVIDERS, dict(P._ADAPTERS), dict(P.PROVIDER_BLOCKERS),
+          dict(P.PROVIDER_DEGRADATIONS), dict(P.EXECUTION_ENTRYPOINTS))
 try:
-    P.PROVIDER_BLOCKERS[_liar] = ()
-    P.EXECUTION_ENTRYPOINTS[_liar] = "_main_runpod"
-    check("a provider with no blockers but missing methods is STILL refused "
-          "(the method half is computed, so a table cannot lie about it)",
-          P.measurement_refusal(_liar) is not None
-          and not P.measurement_ready(_liar))
+    P.PROVIDERS = P.PROVIDERS + ("probe",)
+    # The selftest runs as __main__, so the table can point at a class
+    # defined right here without writing a throwaway module.
+    P._ADAPTERS["probe"] = ("__main__", "PartialAdapter")
+    P.PROVIDER_BLOCKERS["probe"] = ()
+    P.PROVIDER_DEGRADATIONS["probe"] = ()
+    P.EXECUTION_ENTRYPOINTS["probe"] = "_main_runpod"
+    _probe = P.measurement_refusal("probe")
+    check("a provider declaring NO blockers, with an entrypoint, is STILL "
+          "refused while a contract method is missing (the method half is "
+          "computed, so the table cannot lie about it)",
+          _probe is not None and not P.measurement_ready("probe")
+          and _ABSENT in str(_probe))
+    check("...and its sweep is refused too, naming a method a sweep drives "
+          "and pointing at the parity doc",
+          P.sweep_refusal("probe") is not None
+          and P.reaper_refusal("probe") is not None
+          and "status" in str(P.sweep_refusal("probe"))
+          and P.PARITY_DOC in str(P.sweep_refusal("probe")))
+    # And the other direction: complete the class and it becomes ready, so
+    # the gate is not simply refusing everything.
+    setattr(PartialAdapter, _ABSENT, lambda self, *a, **k: None)
+    for _method in P.SWEEP_BASE:
+        setattr(PartialAdapter, _method, lambda self, *a, **k: None)
+    check("...and the SAME declaration becomes dispatchable the moment the "
+          "twelfth method exists (both directions, no table edit)",
+          P.measurement_ready("probe")
+          and P.sweep_refusal("probe") is None)
 finally:
-    P.PROVIDER_BLOCKERS[_liar] = _saved_blockers
-    P.EXECUTION_ENTRYPOINTS.clear()
-    P.EXECUTION_ENTRYPOINTS.update(_saved_entry)
+    (P.PROVIDERS, _adapters, _blockers, _degradations, _entries) = _saved
+    P._ADAPTERS.clear(); P._ADAPTERS.update(_adapters)
+    P.PROVIDER_BLOCKERS.clear(); P.PROVIDER_BLOCKERS.update(_blockers)
+    P.PROVIDER_DEGRADATIONS.clear()
+    P.PROVIDER_DEGRADATIONS.update(_degradations)
+    P.EXECUTION_ENTRYPOINTS.clear(); P.EXECUTION_ENTRYPOINTS.update(_entries)
 check("...and the table is restored after that probe",
-      P.PROVIDER_BLOCKERS[_liar] == _saved_blockers
-      and P.EXECUTION_ENTRYPOINTS == _saved_entry)
+      "probe" not in P.PROVIDERS and "probe" not in P.PROVIDER_BLOCKERS
+      and set(P.EXECUTION_ENTRYPOINTS) == {"runpod"})
 
 print()
 print("== the controller's refusals are derived, not hardcoded ==")
@@ -682,10 +717,16 @@ check("--provider still has no default (a guessed account bills the wrong "
 for _cmd in (["reaper", "--list"], ["drill"]):
     check("`measure-cloud %s` with no --provider refuses" % " ".join(_cmd),
           mc.main(_cmd) == mc.EXIT_REFUSED)
-check("a non-conforming provider's reaper sweep is refused, naming the "
-      "methods a sweep needs",
-      P.sweep_refusal("lambda") is not None
-      and "chargeable_inventory" in str(P.sweep_refusal("lambda")))
+# Sweep admission is deliberately WIDER than measurement admission: refusing
+# to reap is itself a leak, so an adapter the sweep can drive may be swept
+# even while the provider is unfit to measure on. All four now can be
+# (the synthetic probe above covers the refusal direction).
+check("every adapter the CLI accepts can now be driven through the sweep, so "
+      "no provider is left without an autonomous teardown backstop",
+      not [name for name in P.PROVIDERS if P.sweep_refusal(name) is not None])
+check("...and sweep admission does not imply measurement admission",
+      P.sweep_refusal("vast") is None
+      and P.measurement_refusal("vast") is not None)
 check("...and RunPod's sweep is admitted",
       P.sweep_refusal("runpod") is None
       and P.reaper_refusal("runpod") is None)

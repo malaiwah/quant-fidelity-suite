@@ -10098,7 +10098,16 @@ def _lease_reaper_command(args, con: Console, provider,
     )
     store = LeaseStore(Path(args.lease_dir))
     state_dir = Path(args.reaper_state_dir)
-    provider_account_id = str(provider.status().get("id") or "").strip()
+    try:
+        provider_account_id = str(provider.status().get("id") or "").strip()
+    except Exception as exc:                                  # noqa: BLE001
+        # An absent or unreadable credential is an expected invalid state, so
+        # it is a refusal carrying the adapter's own remedy -- never a
+        # traceback, and never a sweep that proceeds without knowing whose
+        # account it is about to act on.
+        con.err("%s cannot prove which account this sweep would act on: %s"
+                % (provider_name, redact(str(exc))))
+        return EXIT_REFUSED
     if not provider_account_id:
         con.err("%s status lacks an exact account identity; a sweep that "
                 "cannot name the account it is sweeping is refused"
@@ -10923,13 +10932,17 @@ def main(argv: Optional[List[str]] = None) -> int:
             for line in refusal.advice:
                 con.say("        %s" % line)
             return EXIT_REFUSED
-        if args.provider in _providers().LEGACY_SWEEP_PROVIDERS \
-                and _providers().sweep_refusal(args.provider) is not None:
-            # The pre-lease-store JarvisLabs sweep.  It stays until the
-            # generic sweep is proven against an old lease shape: there are
-            # 137 settled and 1 operator-needing lease on that account, and
-            # having both paths briefly beats discovering the generic one
-            # mishandles them.
+        if args.provider in _providers().LEGACY_SWEEP_PROVIDERS:
+            # The pre-lease-store JarvisLabs sweep OWNS this provider until
+            # the generic sweep is proven against an old lease shape: there
+            # are 137 settled and 1 operator-needing lease on that account,
+            # and having both paths briefly beats discovering the generic one
+            # mishandles them.  It is deliberately NOT chosen by whether the
+            # adapter conforms -- JarvisLabs now carries the sweep methods and
+            # would otherwise silently switch paths under those old leases.
+            # Retiring this branch means removing the provider from
+            # LEGACY_SWEEP_PROVIDERS, after a generic sweep has been shown to
+            # settle one of them.
             if args.install:
                 return reaper_install(con)
             if args.sweep:

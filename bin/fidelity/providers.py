@@ -174,6 +174,31 @@ PROVIDER_BLOCKERS: Dict[str, Tuple[str, ...]] = {
         "Lambda image",
     ),
     "jarvislabs": (
+        # The vendor CLI authenticates NO host, ever, and forgets nothing
+        # between calls: probed from the installed package, not from docs.
+        # Named at file:line so a future reader can re-check the claim.
+        "`jl` verifies no host key: jarvislabs/ssh.py:22-30 sets "
+        "StrictHostKeyChecking=no AND UserKnownHostsFile=/dev/null, and "
+        "cli/instance.py drives exec/upload/download/ssh through "
+        "subprocess.call on those options. Two consequences, and the SECOND "
+        "decides this: an HF token transits a host we never authenticate; "
+        "and the result archive AND its on-pod sha256 both return over that "
+        "same channel, so verify_transfer compares attacker-suppliable "
+        "against attacker-suppliable and proves internal consistency rather "
+        "than provenance. A MEASUREMENT RETRIEVED OVER AN UNAUTHENTICATED "
+        "CHANNEL IS NOT ATTRIBUTABLE TO THE MACHINE WE RENTED -- a scientific "
+        "integrity property, not only a security one",
+        "host-key pinning by construction (fresh ED25519 per create via `jl "
+        "scripts add` + --script-id, expected fingerprint and script digest "
+        "frozen into the request identity) does not clear the line above on "
+        "its own: a pin is worthless while the transport ignores keys, so a "
+        "verifying ssh invocation of OUR OWN is the missing half. Until it "
+        "exists, JarvisLabs may measure PUBLIC artifacts with no credential "
+        "on the box -- useful for capacity and rehearsal -- but such a run is "
+        "NOT publishable, for the attribution reason above",
+        "`jl` status exposes no account identity, which the generic lease "
+        "sweep requires in order to name the account it is acting on; the "
+        "legacy JL sweep therefore still owns this provider",
         "137 settled and 1 operator-needing legacy lease predate the lease "
         "store; the legacy JL sweep still owns them and the generic sweep is "
         "unproven against an old lease shape (item 3)",
