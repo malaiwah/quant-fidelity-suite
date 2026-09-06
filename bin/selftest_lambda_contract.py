@@ -260,20 +260,21 @@ def transport_rungs() -> None:
     # The jarvislabs CLI sets StrictHostKeyChecking=no AND
     # UserKnownHostsFile=/dev/null (jarvislabs/ssh.py:22-30), so it
     # authenticates no host on any invocation -- and a pin the transport
-    # ignores buys nothing. Lambda rides sshbase, so assert the opposite here
-    # rather than assuming it: no ssh/scp can spawn until a per-attempt
-    # known_hosts has been written by verify_host_key().
-    ssh_source = (Path(__file__).resolve().parent / "fidelity" / "sshbase.py") \
-        .read_text(encoding="utf-8")
-    check("the shared SSH transport sets StrictHostKeyChecking=yes",
-          '"StrictHostKeyChecking=yes"' in ssh_source)
-    check("...and never UserKnownHostsFile=/dev/null (the jarvislabs pattern)",
-          "UserKnownHostsFile=/dev/null" not in ssh_source)
+    # ignores buys nothing. Lambda rides sshbase, so assert the opposite.
+    #
+    # This inspects the OPTION LIST the transport actually builds, not the
+    # file's text. A grep for "UserKnownHostsFile=/dev/null" went red the
+    # moment sshbase grew prose EXPLAINING the jarvislabs anti-pattern -- the
+    # same trap the pgrep rung in selftest_provider_portability.py already
+    # records: the file documents at length why the bad thing is bad, and
+    # that prose is the point. A rung that cannot tell a warning from the
+    # thing it warns about is the rung under review.
+    probe = LambdaCloud(ssh_key="/nonexistent")
     # The refusal comes from the shared transport, so it is the base
     # `JLError` family rather than LambdaError -- caught explicitly rather
     # than widened, because which layer refuses is part of the claim.
     try:
-        LambdaCloud(ssh_key="/nonexistent")._known_hosts_file()
+        probe._known_hosts_file()
         transport_refusal = ""
     except JLError as exc:
         transport_refusal = str(exc)
@@ -281,6 +282,25 @@ def transport_rungs() -> None:
           "the transport refuses to build ssh options at all",
           "has not been authenticated" in transport_refusal,
           transport_refusal[:70])
+    with tempfile.TemporaryDirectory(prefix="lambda-hosts-") as hosts:
+        authenticated = os.path.join(hosts, "known_hosts")
+        with open(authenticated, "w", encoding="utf-8") as handle:
+            handle.write("198.51.100.2 ssh-ed25519 AAAA\n")
+        # The transport requires the per-attempt file to be an owner-only
+        # regular file, and refuses it otherwise -- assert by satisfying it.
+        os.chmod(authenticated, 0o600)
+        probe.set_known_hosts(authenticated)
+        options = probe._ssh_opts()
+    check("once authenticated, the options pin strict checking",
+          "StrictHostKeyChecking=yes" in options)
+    check("...at the per-attempt known_hosts this run wrote, never /dev/null",
+          "UserKnownHostsFile=%s" % authenticated in options
+          and not any("/dev/null" in item and "UserKnownHosts" in item
+                      for item in options))
+    check("...with the global known_hosts neutralised and host keys pinned "
+          "to ed25519, so a downgrade cannot be negotiated",
+          "GlobalKnownHostsFile=/dev/null" in options
+          and "HostKeyAlgorithms=ssh-ed25519" in options)
 
 
 def clock_rungs() -> None:
