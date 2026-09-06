@@ -1744,6 +1744,261 @@ def main():
     check("a sealed-with-caveats capture is logged, not hidden",
           "sealed WITH CAVEATS" in block, block[-400:])
 
+    # ---------------------------------------------------------------
+    # StageOverlap: concurrent stage pairs + acceptance ordering
+    # ---------------------------------------------------------------
+    print("\n== StageOverlap: concurrent fetch pairs and acceptance ordering ==")
+
+    # A stub that records timestamps so the rung can prove two stubs ran
+    # concurrently (their time intervals overlap) rather than serially.
+    # The stub writes "<label> START <epoch_ms>" on entry and "<label> END
+    # <epoch_ms>" on exit to a timing file the rung reads back.
+    # A timing HF stub that also tolerates anonymous model downloads
+    # (fetch_reference downloads reference MODEL files with HF_TOKEN_PATH
+    # unset -- the base stub exits 90 on that, but anonymous is correct here).
+    TIMING_STUB_HF = r"""#!/usr/bin/env bash
+if [ -n "${HF_TOKEN:-}${HUGGING_FACE_HUB_TOKEN:-}${HUGGINGFACE_HUB_TOKEN:-}" ]; then
+  printf 'HF_TOKEN_ENV_LEAK\n' >> "$STAGE_ARGV_LOG"
+  exit 89
+fi
+# Anonymous (HF_HUB_DISABLE_IMPLICIT_TOKEN=1 and no HF_TOKEN_PATH) is allowed
+# for both dataset and model downloads.
+if [ "${HF_HUB_DISABLE_IMPLICIT_TOKEN:-}" = 1 ] && [ -z "${HF_TOKEN_PATH:-}" ]; then
+  : # anonymous -- OK
+elif [ "${HF_TOKEN_PATH:-}" != "$FIDELITY_FS_ROOT/.secrets/hf_token" ]; then
+  printf 'HF_TOKEN_PATH_WRONG\t%s\n' "${HF_TOKEN_PATH:-UNSET}" >> "$STAGE_ARGV_LOG"
+  exit 90
+fi
+python3 -c "import time; print('TIMING\t' + 'hf-' + '$1' + '-' + str($$) + '\tSTART\t' + str(int(time.time()*1000)))" >> "$FIDELITY_FS_ROOT/receipts/stage-timing.log"
+sleep 1.0
+python3 -c "import time; print('TIMING\t' + 'hf-' + '$1' + '-' + str($$) + '\tEND\t' + str(int(time.time()*1000)))" >> "$FIDELITY_FS_ROOT/receipts/stage-timing.log"
+printf 'HF' >> "$STAGE_ARGV_LOG"
+for a in "$@"; do printf '\t%s' "$a" >> "$STAGE_ARGV_LOG"; done
+printf '\n' >> "$STAGE_ARGV_LOG"
+exit 0
+"""
+
+    # A job_root variant that carries a candidate reference so fetch_target
+    # launches the fetch_reference sibling.
+    overlap_job = job_root()
+    overlap_job["capture"]["candidate"] = {
+        "scope": {"path": "candidate/scope.json",
+                  "sha256": hashlib.sha256(b'{"x":1}').hexdigest(),
+                  "scope_digest": "lm_head=quantized:exl3-mcg@4.0"},
+        "codec": "exl3-mcg", "declared_bits": 4.0,
+        "weights_decode": {"method": "native",
+                           "quantization_config": {"container": "safetensors"}},
+        "reference": {"repository": "malaiwah/root-v1",
+                      "revision": REV_B,
+                      "dataset_sha256": "1" * 64,
+                      "capture_content_digest": "2" * 64,
+                      "dataset_id": "fidelity--root",
+                      "panel_id": "panel--x.y.z",
+                      "suite_token_hash_sha256": "3" * 64}}
+    overlap_job["capture"]["own_heads"] = False
+    # The panel's resolved_binding must carry panel.id for the candidate
+    # reference panel_id check (jobcontract.validate_execution_job).
+    ovl_binding = dict(PANEL_BINDING, panel={"id": "panel--x.y.z"})
+    ovl_binding_bytes = canonical(ovl_binding)
+    overlap_job["panel"] = dict(overlap_job["panel"],
+                                resolved_binding=ovl_binding,
+                                binding_file_sha256=hashlib.sha256(ovl_binding_bytes).hexdigest())
+    overlap_job.pop("job_id", None)
+    overlap_job.pop("job_id_full", None)
+    overlap_job = jobcontract.finalize_job(overlap_job)
+
+    # (R1) fetch_target launches fetch_reference concurrently and both stubs
+    #     overlap in wall-clock time; fetch_reference.done is written.
+    with tempfile.TemporaryDirectory() as td:
+        td = Path(td)
+        sb = Sandbox(td / "ovl", overlap_job, finalize_job_doc=False)
+        (sb.fs / "panel-binding.json").write_bytes(ovl_binding_bytes)
+        # Replace the hf stub with a timing-recording variant so both the
+        # target fetch (hf download <target>) and the reference fetch
+        # (hf download <reference-model>) write start/end timestamps.
+        timing_hf = sb.engine / "venv" / "bin" / "hf"
+        timing_hf.write_text(TIMING_STUB_HF, encoding="utf-8")
+        timing_hf.chmod(0o755)
+        # The fidelity_dataset.py stub needs to create the reference-verify
+        # receipt and the reference tree so fetch_reference's verify + symlink
+        # succeed.  Use a real --out mkdir stub (the default STUB_PY already
+        # does that), but also write a minimal fidelity-dataset.json so the
+        # PYREF python check passes.
+        # We need $FS/reference to exist and $FS/reference/fidelity-dataset.json
+        # with the right seal.  The STUB_PY already mkdir's --out dirs; the
+        # fidelity_dataset.py verify call gets --cache and --json, and the
+        # PYREF block reads the manifest from the cache.  We pre-create the
+        # reference tree so fetch_reference's verify stub finds it.
+        ref_cache = sb.fs / "reference-cache"
+        ref_root_rel = Path("malaiwah__root-v1") / REV_B
+        ref_tree = ref_cache / ref_root_rel
+        ref_tree.mkdir(parents=True)
+        ref_manifest = {
+            "schema": "malaiwah.fidelity-dataset.v1",
+            "format_version": 1,
+            "dataset_sha256": "1" * 64,
+            "capture": {"capture_content_digest": "2" * 64},
+            "dataset": {"role": "root"},
+            "weights": {"repository": "w/repo", "model_revision": REV_B},
+        }
+        (ref_tree / "fidelity-dataset.json").write_text(
+            json.dumps(ref_manifest), encoding="utf-8")
+        proc, calls = sb.run("fetch_target", bash)
+        out = proc.stdout + proc.stderr
+        timing_log = sb.fs / "receipts" / "stage-timing.log"
+        ref_done = sb.marker("fetch_reference")
+        tgt_done = sb.marker("fetch_target")
+
+        # Assert both markers exist (the composite waited for the sibling)
+        check("R1a fetch_target.done written after concurrent sibling",
+              tgt_done.is_file(), "rc=%d out=%s" % (proc.returncode, out[-400:]))
+        check("R1b fetch_reference.done written by the sibling",
+              ref_done.is_file(),
+              "ref_done=%s out=%s" % (ref_done.exists(), out[-400:]))
+
+        # Assert overlap: parse the timing log and check that fetch_target's
+        # hf stub and fetch_reference's hf stub ran concurrently.
+        if timing_log.is_file():
+            lines = timing_log.read_text(encoding="utf-8").splitlines()
+            intervals = {}
+            for line in lines:
+                parts = line.split("	")
+                if len(parts) == 4 and parts[0] == "TIMING":
+                    label, kind, ms = parts[1], parts[2], int(parts[3])
+                    key = label
+                    if kind == "START":
+                        intervals.setdefault(key, [ms, None])[0] = ms
+                    elif kind == "END":
+                        if key in intervals:
+                            intervals[key][1] = ms
+            # Find the target download (hf download has the target repo as $1
+            # after the literal "download") and the reference-model download
+            # (hf download with the reference repo).  The hf stub records
+            # "hf-download" as the label.  We look for any two distinct
+            # "hf-download" intervals that overlap.
+            dl_intervals = [(k, v) for k, v in intervals.items()
+                            if k.startswith("hf-download") and v[1] is not None]
+            overlap_found = False
+            if len(dl_intervals) >= 2:
+                for i in range(len(dl_intervals)):
+                    for j in range(i + 1, len(dl_intervals)):
+                        a, b = dl_intervals[i][1], dl_intervals[j][1]
+                        # overlap = a.start < b.end and b.start < a.end
+                        if a[0] < b[1] and b[0] < a[1]:
+                            overlap_found = True
+            check("R1c fetch_target and fetch_reference stubs overlap in time",
+                  overlap_found,
+                  "intervals=%s lines=%s" % (dl_intervals,
+                                             [l for l in lines if "TIMING" in l]))
+        else:
+            check("R1c fetch_target and fetch_reference stubs overlap in time",
+                  False, "no timing log at %s" % timing_log)
+
+        # Assert the reference fetch was anonymous (no token leak)
+        token_leak = any("HF_TOKEN_ENV_LEAK" in str(c) for c in calls)
+        check("R1d concurrent fetch_reference inherits no HF token",
+              not token_leak, "calls=%s" % [c for c in calls if "LEAK" in str(c)])
+
+    # (R2) compare_reference writes to a pending dir and its .done marker is
+    #     ABSENT when qualify_root has not succeeded.  The comparison receipt
+    #     is computed but not accepted.
+    with tempfile.TemporaryDirectory() as td:
+        td = Path(td)
+        sb = Sandbox(td / "cr", overlap_job, finalize_job_doc=False)
+        (sb.fs / "panel-binding.json").write_bytes(ovl_binding_bytes)
+        # Provision the prerequisite markers: fetch_reference, capture, verify,
+        # capture_repeat, verify_repeat, compare_root, but NOT qualify_root.
+        for st in ("fetch_target", "fetch_reference", "capture",
+                   "verify", "capture_repeat", "verify_repeat",
+                   "compare_root"):
+            sb.write_bound_marker(st)
+        # Provision the reference and dataset trees so compare_reference's
+        # checks pass.
+        ref_link = sb.fs / "reference"
+        ref_tree = sb.fs / "reference-cache" / "malaiwah__root-v1" / REV_B
+        ref_tree.mkdir(parents=True)
+        (ref_tree / "fidelity-dataset.json").write_text(
+            json.dumps({"schema": "malaiwah.fidelity-dataset.v1",
+                        "dataset_sha256": "1" * 64,
+                        "capture": {"capture_content_digest": "2" * 64},
+                        "dataset": {"role": "root"},
+                        "weights": {"repository": "w/repo",
+                                    "model_revision": REV_B}}),
+            encoding="utf-8")
+        ref_link.symlink_to(ref_tree)
+        dataset_dir = sb.fs / "dataset"
+        dataset_dir.mkdir(parents=True)
+        (dataset_dir / "fidelity-dataset.json").write_text(
+            json.dumps({"dataset_sha256": "d" * 64}), encoding="utf-8")
+        # Run compare_reference standalone (no qualify_root.done)
+        proc, calls = sb.run("compare_reference", bash, provision_target=False)
+        out = proc.stdout + proc.stderr
+        pending = sb.fs / "receipts" / "reference-comparison.pending"
+        accepted = sb.fs / "receipts" / "reference-comparison"
+        cr_done = sb.marker("compare_reference")
+        check("R2a compare_reference writes to a pending dir (not accepted)",
+              pending.is_dir() and not accepted.is_dir(),
+              "rc=%d pending=%s accepted=%s out=%s"
+              % (proc.returncode, pending.exists(), accepted.exists(),
+                 out[-400:]))
+        check("R2b compare_reference.done is ABSENT when qualify_root refuses",
+              not cr_done.is_file(),
+              "cr_done=%s out=%s" % (cr_done.exists(), out[-300:]))
+
+    # (R3) when qualify_root runs and the pending comparison exists with a
+    #     receipt, qualify_root promotes it and writes compare_reference.done.
+    with tempfile.TemporaryDirectory() as td:
+        td = Path(td)
+        sb = Sandbox(td / "qr", overlap_job, finalize_job_doc=False)
+        (sb.fs / "panel-binding.json").write_bytes(ovl_binding_bytes)
+        for st in ("fetch_target", "fetch_reference", "capture",
+                   "verify", "capture_repeat", "verify_repeat",
+                   "compare_root"):
+            sb.write_bound_marker(st)
+        ref_tree = sb.fs / "reference-cache" / "malaiwah__root-v1" / REV_B
+        ref_tree.mkdir(parents=True)
+        (ref_tree / "fidelity-dataset.json").write_text(
+            json.dumps({"schema": "malaiwah.fidelity-dataset.v1",
+                        "dataset_sha256": "1" * 64,
+                        "capture": {"capture_content_digest": "2" * 64},
+                        "dataset": {"role": "root"},
+                        "weights": {"repository": "w/repo",
+                                    "model_revision": REV_B}}),
+            encoding="utf-8")
+        (sb.fs / "reference").symlink_to(ref_tree)
+        dataset_dir = sb.fs / "dataset"
+        dataset_dir.mkdir(parents=True)
+        (dataset_dir / "fidelity-dataset.json").write_text(
+            json.dumps({"dataset_sha256": "d" * 64}), encoding="utf-8")
+        # Pre-create the pending comparison with a receipt so qualify_root
+        # can promote it.
+        pending = sb.fs / "receipts" / "reference-comparison.pending"
+        pending.mkdir(parents=True)
+        (pending / "comparison-receipt.json").write_text(
+            json.dumps({"schema": "test", "value": 0.0}), encoding="utf-8")
+        # Also provision the root-comparison receipt for qualify_root.
+        rc_dir = sb.fs / "receipts" / "root-comparison"
+        rc_dir.mkdir(parents=True)
+        (rc_dir / "comparison-receipt.json").write_text(
+            json.dumps({"schema": "test"}), encoding="utf-8")
+        # Provision verify receipts.
+        for name in ("dataset-verify.json", "dataset-repeat-verify.json"):
+            (sb.fs / "receipts" / name).write_text(
+                json.dumps({"schema": "test"}), encoding="utf-8")
+        proc, calls = sb.run("qualify_root", bash, provision_target=False)
+        out = proc.stdout + proc.stderr
+        accepted = sb.fs / "receipts" / "reference-comparison"
+        cr_done = sb.marker("compare_reference")
+        check("R3a qualify_root promotes the pending comparison",
+              accepted.is_dir() and not (sb.fs / "receipts" /
+                  "reference-comparison.pending").is_dir(),
+              "rc=%d accepted=%s out=%s"
+              % (proc.returncode, accepted.exists(), out[-400:]))
+        check("R3b compare_reference.done written after qualification",
+              cr_done.is_file(),
+              "cr_done=%s out=%s" % (cr_done.exists(), out[-300:]))
+
+
     print()
     if FAILED:
         print("selftest_stage_measure: %d FAILED" % len(FAILED))
