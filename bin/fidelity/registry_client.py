@@ -28,7 +28,9 @@ import hashlib
 import json
 import os
 import re
+import sys
 import tempfile
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -105,11 +107,63 @@ class RegistrySnapshot:
 # --------------------------------------------------------------------------
 
 
+# The registry front gate is the thing that asks "is this already measured?"
+# BEFORE any work or spend, so a transient network blip here does not fail
+# closed -- it drops to the local clone with a disclosure. That is the right
+# default for a read of a PUBLIC dataset (failing closed would block every
+# run on an HF hiccup), but a single attempt made the fallback far more likely
+# than it needed to be: `dshub` and `hfmeta` both retry 429/5xx with
+# Retry-After honoured, and this client is the one HTTP path the 2026-09-06
+# retry work did not reach (one urlopen attempt against hfmeta's five).
+#
+# Unauthenticated by design, so there is no credential exposure to weigh here
+# -- only whether we consulted the authoritative mirror or a possibly stale
+# copy of it before spending money.
+_RETRY_STATUSES = frozenset({429, 500, 502, 503, 504})
+_RETRY_ATTEMPTS = 4
+_RETRY_MAX_DELAY = 20.0
+_SLEEP = time.sleep
+
+
 def _http_get(url: str, timeout: float = 30.0) -> bytes:
-    """Unauthenticated GET.  The dataset is public; no token, ever."""
+    """Unauthenticated GET.  The dataset is public; no token, ever.
+
+    Retries a transient status with `Retry-After` honoured (integer-seconds
+    form only -- a skewed clock must not turn a two-second wait into an hour).
+    The wait is announced on stderr: a silently absorbed retry is
+    indistinguishable from a clean fetch, which would hide the mirror being
+    unreachable behind a slower startup.
+    """
     req = urllib.request.Request(url, headers={"User-Agent": "fidelity-suite/0.1"})
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        return resp.read()
+    attempt = 0
+    while True:
+        attempt += 1
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                return resp.read()
+        except urllib.error.HTTPError as exc:
+            if (exc.code not in _RETRY_STATUSES
+                    or attempt >= _RETRY_ATTEMPTS):
+                raise
+            delay = None
+            headers = getattr(exc, "headers", None)
+            if headers is not None:
+                raw = headers.get("Retry-After")
+                if raw is not None:
+                    try:
+                        seconds = float(str(raw).strip())
+                    except (TypeError, ValueError):
+                        seconds = None
+                    if seconds is not None and seconds == seconds and seconds >= 0:
+                        delay = min(seconds, _RETRY_MAX_DELAY)
+            if delay is None:
+                delay = min(_RETRY_MAX_DELAY, 2.0 ** attempt)
+            sys.stderr.write(
+                "registry: HTTP %s from the public mirror -- transient, "
+                "waiting %.1fs (attempt %d of %d)\n"
+                % (exc.code, delay, attempt, _RETRY_ATTEMPTS))
+            sys.stderr.flush()
+            _SLEEP(delay)
 
 
 def _parse_jsonl(text: str, name: str) -> Dict[str, dict]:

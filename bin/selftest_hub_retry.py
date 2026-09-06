@@ -318,6 +318,41 @@ def main():
     check("a real absorbed retry leaves a trace, so a clean-looking pass can "
           "be distinguished from one that waited",
           "HTTP 429" in buf.getvalue(), buf.getvalue().strip()[:110])
+
+    print()
+    print("== the registry FRONT GATE retries too ==")
+    # This is the client that asks "is this already measured?" before any work
+    # or spend. It does not fail closed on a network blip -- it drops to the
+    # local clone with a disclosure, which is right for a read of a public
+    # dataset -- but a SINGLE attempt made that fallback far likelier than it
+    # needed to be, and it was the one HTTP path the 2026-09-06 retry work did
+    # not reach: one urlopen attempt against hfmeta's five. A stale local copy
+    # consulted instead of the authoritative mirror is how a run re-measures
+    # something already published.
+    from fidelity import registry_client as RC
+    for code, retried in ((429, True), (503, True), (404, False), (403, False)):
+        transport, _ = opener_that(RC, [http_error(code, 1), b"payload"])
+        recorder = Recorder()
+        orig_open, orig_sleep = urllib.request.urlopen, RC._SLEEP
+        urllib.request.urlopen = transport
+        RC._SLEEP = recorder
+        try:
+            got = RC._http_get("https://huggingface.co/api/datasets/x")
+            outcome = "returned"
+        except urllib.error.HTTPError:
+            got, outcome = None, "raised"
+        finally:
+            urllib.request.urlopen, RC._SLEEP = orig_open, orig_sleep
+        if retried:
+            check("registry front gate retries HTTP %d and then succeeds" % code,
+                  outcome == "returned" and got == b"payload"
+                  and recorder.waits == [1.0],
+                  "%s waits=%r" % (outcome, recorder.waits))
+        else:
+            check("registry front gate does NOT retry HTTP %d -- an answer "
+                  "about the request, not a wait" % code,
+                  outcome == "raised" and recorder.waits == [],
+                  "%s waits=%r" % (outcome, recorder.waits))
     print()
     if FAILURES:
         print("selftest_hub_retry: %d FAILED" % len(FAILURES))
