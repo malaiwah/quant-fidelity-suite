@@ -196,6 +196,12 @@
       "seconds_xeon_x5570": 0.22,
       "assertions_measured": 17
     },
+    "bin/selftest_measurement_inventory.py": {
+      "assertions_measured": 15,
+      "job": "fast",
+      "seconds_xeon_x5570": 0.51,
+      "tier": "hermetic"
+    },
     "bin/selftest_naming_sweep.py": {
       "tier": "hermetic",
       "job": "fast",
