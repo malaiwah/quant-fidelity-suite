@@ -58,6 +58,27 @@ it but because the property lived in four statements no test could reach.
 Extracting them was the fix; the assertion was the easy part.
 
 
+## Closed 2026-09-07, fourth pass — capability we had already paid to build
+
+**Status index in `REVIEW-DEFERRED.md`: 22 closed, 11 open.**
+
+| item | state found | what was actually needed |
+|---|---|---|
+| **CC-08** | GGUF and NVFP4 already resolved; **MLX did not**, so a release with a bitwise-verified reader (`mlx_surface.py`, against mlx.core) was refused as *"no recognised surface marker"* — a verdict that sends the operator hunting a missing file when the true answer is "recognised, and no lane declares it yet". | MLX resolves on MLX's **own config shape** — a top-level `quantization` dict with `group_size` and `bits`, which is what `mlx_surface.py` derives per-tensor rates against — not a filename. Checked against all five committed nvfp4 evidence configs: no collision, all four modelopt releases still resolve to `nvfp4`. The block had to move **after** the `quantization_config` block, because an MLX release carries one too and `_apply_quant_config` reset the codec to unknown; measured, not guessed, by a rung that asserted `mlx-affine` and got `unknown`. |
+| **CLI-16** | The `KeyError` half went with DESC-01. The arithmetic half was open: `scored_positions` was read verbatim, so `25 x 2047 = 999999` planned happily. | An **upper bound, not an equality** — a shard or subset panel legitimately scores FEWER positions and must not be refused, while scoring MORE than the grid holds is arithmetically impossible. Severity kept low as the entry assessed it: `scored_positions` feeds no cost term and `seal_receipt` already refuses with SCOPE-007, so this is defence in depth where the value *enters* the tree. |
+| **SH-05** | Already fixed. | Verified and marked: armed with `nohup setsid` — the 65-minute H200 lesson from `945255b`, which this entry correctly said had reached the *stage* launch and not the watchdog — and `verify-watchdog` runs before `watchdog_armed` is set. |
+
+**Two things this pass declined to do, both recorded rather than silently
+skipped.** The NVFP4/RedHat line in CC-08's repro is *imprecise, not
+unfixed*: that config declares `format: mixed-precision` with a 4-bit
+`tensor_group` group **and** an 8-bit `block` group, so resolving it to
+`nvfp4` would claim a uniform rate for a mixed checkpoint — exactly what
+AGENTS.md forbids. `unknown` is the correct verdict there. And the half of
+CC-08 that actually unlocks the capability — **declaring `mlx`/`nvfp4` on a
+lane in `bin/engines.json`** — asserts that the lane's authored entrypoint
+really accepts the surface, which needs `--probe-engines` evidence rather
+than a guess. That is the operator's call and the next concrete step.
+
 ## Checked and deliberately NOT changed
 
 - **`bin/engines.json` `minutes_per_window: 20.0`** for the sealed EP8 lane is
