@@ -426,6 +426,61 @@ PY
   else
     no "NUM-16 every lane mapping decode_cache also maps decode_cache_dir"
   fi
+  # CC-08. A lane may only declare a surface its entrypoint can actually be
+  # told to read, and every declared surface needs a profile map or the run
+  # refuses later with "no profile for surface X". Both sides are scraped from
+  # the ENGINE's own argparse by AST -- no import, no torch -- so this cannot
+  # drift into agreeing with a doc instead of with the code.
+  if python3 - "$ROOT" <<'PY'
+import ast, json, sys
+root = sys.argv[1]
+tree = ast.parse(open(root + "/engines/tools/stream_score.py",
+                      encoding="utf-8").read())
+choices = {}
+for node in ast.walk(tree):
+    if not isinstance(node, ast.Call):
+        continue
+    flag = None
+    for arg in node.args:
+        if isinstance(arg, ast.Constant) and isinstance(arg.value, str) \
+                and arg.value.startswith("--"):
+            flag = arg.value
+    if flag not in ("--source", "--profile"):
+        continue
+    for kw in node.keywords:
+        if kw.arg == "choices":
+            try:
+                choices[flag] = set(ast.literal_eval(kw.value))
+            except Exception:
+                pass
+if "--source" not in choices or "--profile" not in choices:
+    sys.stderr.write("could not scrape --source/--profile choices\n")
+    raise SystemExit(1)
+d = json.load(open(root + "/bin/engines.json"))
+lane = d["lanes"]["streaming"]
+pmap = lane.get("profile_map_by_surface") or {}
+bad = []
+for surf in lane["surfaces"]:
+    # 'packed' and 'tr3-published' are lane-side names for engine sources
+    # spelled differently (payload-store, tr3); only assert the ones whose
+    # lane name IS the engine's source token.
+    if surf in choices["--source"] and surf not in pmap:
+        bad.append("%s: declared with no profile map" % surf)
+for surf, table in pmap.items():
+    for prof in table.values():
+        if prof not in choices["--profile"]:
+            bad.append("%s -> profile %r the engine does not accept"
+                       % (surf, prof))
+if bad:
+    sys.stderr.write("engines.json vs the engine's argparse: %s\n" % bad)
+    raise SystemExit(1)
+raise SystemExit(0)
+PY
+  then
+    ok "CC-08 every declared surface has a profile map, and every mapped profile is one the engine accepts"
+  else
+    no "CC-08 every declared surface has a profile map, and every mapped profile is one the engine accepts"
+  fi
   # SH-22 (second half). `sha256sum ... > RECEIPT.sha256 || true` left an EMPTY
   # digest file when the hash failed, and an empty digest file is worse than a
   # missing one because it looks like evidence.

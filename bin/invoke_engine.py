@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import json
 import subprocess
 import sys
 from typing import Dict, List
@@ -133,6 +134,29 @@ def _invocation_values(job: dict, lane: str, engine) -> dict:
     if lane != job["lane"]:
         raise JobContractError(
             "--lane %r differs from job lane %r" % (lane, job["lane"]))
+
+    # NUM-16, decided 2026-09-07: the AUTHORED PROFILE is the authority for
+    # the knobs a lane advertises but no composer fills from a job. Before
+    # this, such a key was silently IGNORED -- the worst of the three possible
+    # behaviours, because the operator believes the value took effect and the
+    # receipt cannot show that it did not. Refuse instead, and name the flag.
+    #
+    # The list lives in bin/engines.json beside the lanes it constrains, not
+    # here, so the authored contract and its enforcement cannot drift apart.
+    # It is deliberately narrow: no job.json in this tree's run directories
+    # carries any of these keys, so this is inert for every existing job.
+    with open(str(HERE / "engines.json"), encoding="utf-8") as _engines:
+        owned = set(json.load(_engines).get("profile_authoritative_flags") or ())
+    steered = sorted(owned & set(job.get("runtime") or {}))
+    if steered:
+        raise JobContractError(
+            "job.runtime names %s, which the authored profile owns on the "
+            "paid path (engines.json profile_authoritative_flags). A job "
+            "cannot steer them: before 2026-09-07 they were silently "
+            "ignored, which is worse than a refusal because the receipt "
+            "cannot show the value had no effect. Remove them from the job, "
+            "or change the profile."
+            % ", ".join(steered))
 
     profile = job["profile"]
     profile_fields = {"profile_id", "lane", "source", "surface", "bits"}

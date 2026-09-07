@@ -672,6 +672,30 @@ entrypoint really accepts it, which per AGENTS.md needs
 `bin/measure-local --probe-engines` evidence — a flag confirmation, not a
 guess. That is the operator's call and the next concrete step.
 
+**FULLY RESOLVED 2026-09-07 — operator decision: probe first, then declare.**
+`mlx` and `nvfp4` are now declared on the `streaming` lane, and every part of
+that was probe-confirmed rather than authored: `stream_score.py --help` lists
+both in **`--source` AND `--profile`**, and the engine enforces the
+source-to-profile pairing itself, so `mlx -> mlx` and `nvfp4 -> nvfp4` are the
+engine's rule. Both use the wildcard `"*"` profile map for the same reason
+`gguf` does — the rate is not a bits table. `nvfp4` is fixed at
+`NVFP4_STUDENT_LABEL` `nvfp4-e2m1-gs16`; MLX derives its label PER ARTIFACT
+via `mlx_surface.student_label()`, because an MLX release overrides bits and
+group_size per tensor.
+
+Safe on identity, and this is why the option was takeable: the lane **name**
+is what enters a comparability key, and adding surfaces to an existing lane
+does not change its name, so no published row shifts.
+
+A new rung scrapes `--source` and `--profile` choices from the engine's own
+argparse **by AST** — no import, no torch — and asserts every declared surface
+has a profile map and every mapped profile is one the engine accepts. Verified
+able to refuse by injecting a bogus profile.
+
+**Stated plainly, because it is the honest caveat:** the readers are
+bitwise-verified but neither surface has been measured end to end on this
+lane. The first run of each is new ground.
+
 ## NUM-16 — engines.json advertises knobs no runner fills
 
 **Files:** `bin/engines.json` (`lanes.bf16-floor.flag_map`), `bin/invoke_engine.py:103-111`
@@ -744,6 +768,27 @@ carry them is a lane-contract decision — the alternative reading is that the
 authored profile is the authority and a job must not override it — and it
 wants the operator's call, not a unilateral widening of what a job can steer
 on a paid run.
+
+**FULLY RESOLVED 2026-09-07 — operator decision: the authored profile is the
+authority.** `bin/engines.json` now carries `profile_authoritative_flags`
+naming the eleven keys a lane advertises that a job document may NOT steer on
+the paid path, and `invoke_engine` **REFUSES** a job whose `runtime` names one.
+
+The reason to refuse rather than delete the advertising: before this, such a
+key was **silently ignored** — the worst of the three possible behaviours,
+because the operator believes the value took effect and the receipt cannot
+show that it did not.
+
+Deliberately narrow, and checked: no `job.json` in this tree's run directories
+carries any of the eleven, so the refusal is inert for every existing job and
+fires only on the thing this decision forbids. A rung asserts both directions
+— the owned keys refuse, and an ordinary runtime (`device`, `reduce_order`)
+does not — because a guard that refused everything would pass a one-sided
+test while being useless.
+
+Widening what a job may steer on a paid run is now an explicit, separate
+decision needing a concrete run that requires it. Every new override is
+another way two numbers can differ for a reason nobody recorded.
 
 ## CLI-17 — the engine's output is buffered for hours, so a wedged capture looks healthy
 
@@ -2077,6 +2122,30 @@ comparability decision rather than a bug fix and wants the operator's and the
 registry session's call. Until then a fresh Fruit capture still needs the flag
 — but the refusal now tells you the flag and its value instead of leaving you
 to read the published panel receipt.
+
+**FULLY RESOLVED 2026-09-07 — operator decision: prefer the panel's own
+declaration.** `hf_capture` now resolves the tokenizer id as
+`--tokenizer-id` -> the **panel receipt's `tokenizer.id`** ->
+`--weights-repository` -> `--model`, with a verified
+`--panel-binding-evidence` still overriding all four because a binding is
+checked against real bytes and this inference is not.
+
+Measured on the committed panel tree, which is what makes it a fix rather than
+a theory: `panel--fruit.malaiwah.heldout-v1` declares exactly
+`glm-5.2-siq-fruit` — the id the PUBLISHED root records — so a fresh Fruit
+capture now compares to it **with no flag**. Panels that declare nothing keep
+the previous default exactly.
+
+The looser alternative (treat a legacy or path-valued id as *unknown* rather
+than a mismatch) was considered and **rejected**: "unknown" would mean the
+panel gate could no longer tell you two captures used different tokenizers,
+which is the one thing the token-id digest cannot see because it hashes
+integers.
+
+This changes what compares equal for captures made from here on and rewrites
+nothing published, so it is recorded additively as
+`docs/PUBLISHED-CORRECTIONS.md` §5. Seven rungs in
+`bin/selftest_hf_capture.py`.
 
 ## to the published Fruit root, which is the comparison the fix exists to enable
 

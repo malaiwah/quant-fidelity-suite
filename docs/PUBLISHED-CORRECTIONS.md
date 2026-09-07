@@ -867,3 +867,79 @@ fails on the parent tree. Mirror verified byte-for-byte on every changed file.
 Nothing from `docs/REVIEW-DEFERRED.md` is now held back for an operator decision on
 published numbers. The remaining deferrals in that file are blocked by **file ownership**
 (a live measurement campaign holds `bin/measure_cloud.py`), not by publication risk.
+
+---
+
+## 5. PANEL-D6 — a capture now adopts the PANEL's declared tokenizer id
+
+**Decided by the operator 2026-09-07. Nothing published was edited, and no
+digest a third party may have pinned was recomputed.** This is recorded here
+because it changes **what compares equal for captures made from now on**,
+which is a comparability change even though it corrects no published number.
+
+### What was wrong
+
+`engines/tools/hf_capture.py` resolved the panel's tokenizer identity as
+`args.tokenizer_id or args.weights_repository or args.model`. The published
+Fruit root (`malaiwah/fruit-fidelity-root-v1`) records `glm-5.2-siq-fruit`,
+taken from its own panel receipt. A fresh capture passing
+`--weights-repository` — which `bin/stage_measure.sh` always does, and which
+is correct for the four other fields it feeds — recorded
+`malaiwah/GLM-5.2-SIQ-Fruit-bf16` instead.
+
+The two then compared **unequal on the declared name alone**:
+
+```
+REFUSED [panel_mismatch]: the two captures declare different tokenizers
+(PANEL-D6) ... id 'glm-5.2-siq-fruit' vs 'malaiwah/GLM-5.2-SIQ-Fruit-bf16'
+```
+
+Same panel, same token ids per record, same `suite_token_hash_sha256`, same
+`checkpoint_identity_sha256`. The Fruit root is this project's cheapest
+end-to-end fixture and the target of the container acceptance test, the RunPod
+SSH reproduction and any future cross-device check — so every one of those was
+one **undocumented** flag away from a refusal that looked like a panel
+mismatch and was not.
+
+### What changed
+
+A capture bound to a panel is bound to that panel's tokenizer declaration, so
+the panel's own `panel.receipt.json` `tokenizer.id` is now preferred over
+`--weights-repository`. Precedence, most specific first:
+
+1. an explicit `--tokenizer-id` (the operator said so),
+2. the **panel's own declaration**,
+3. `--weights-repository`,
+4. the local `--model` path.
+
+A verified `--panel-binding-evidence` still overrides all four, because a
+binding is checked against real bytes and this inference is not.
+
+### What did NOT change
+
+* **No sealed dataset was touched.** Every published capture keeps the
+  tokenizer id it was sealed with, and every published `dataset_sha256`,
+  `capture_content_digest` and comparability key is byte-identical to before.
+* **No registry row moved.** This affects captures produced after the change.
+* **The gate was not weakened.** The alternative — treating a legacy or
+  path-valued id as *unknown* rather than as a mismatch — was considered and
+  **rejected**: "unknown" would mean the panel gate could no longer tell you
+  two captures used different tokenizers, which is the one thing the token-id
+  digest cannot see, because it hashes integers.
+* **Committed panels are unaffected in behaviour** except where they already
+  declare an id. Measured across the committed panel tree:
+  `panel--fruit.malaiwah.heldout-v1` declares `glm-5.2-siq-fruit` and
+  `panel--glm53.malaiwah.corpus5x5-v1` declares `zai-org/GLM-5.3-BF16`;
+  `panel--glm53.brandonmusic.final25` and
+  `panel--minimaxm3.malaiwah.corpus5x5` declare nothing and keep the previous
+  default exactly.
+
+### How to verify it yourself
+
+```bash
+python3 bin/selftest_hf_capture.py     # the PANEL-D6 rungs, offline
+```
+
+Seven rungs cover the precedence chain, the null/blank/absent declarations,
+and — the one that makes this a fix rather than a theory — that the committed
+Fruit panel declares exactly the id the published root records.

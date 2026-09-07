@@ -124,6 +124,51 @@ def main(argv: List[str] = None) -> int:
           "stdout=None" in body and "stderr=None" in body)
 
     print()
+    print("== NUM-16: the authored profile is the authority ==")
+    # engines.json advertises knobs that no composer fills from a job. Before
+    # 2026-09-07 a job naming one was SILENTLY IGNORED, which is the worst of
+    # the three possible behaviours: the operator believes the value took
+    # effect and the receipt cannot show that it did not. It refuses now.
+    import json as _json
+    from fidelity.engines import load_engines
+    from fidelity.jobcontract import JobContractError
+
+    with open(str(Path(IE.__file__).parent / "engines.json"),
+              encoding="utf-8") as fh:
+        owned = _json.load(fh).get("profile_authoritative_flags") or []
+    check("NUM-16 engines.json declares which flags the profile owns",
+          bool(owned) and "ep_emulate" in owned and "inventory" in owned,
+          repr(owned))
+
+    engine = load_engines()["streaming"]
+    base = {"role": "quant", "lane": "streaming",
+            "profile": {"profile_id": "k6", "lane": "streaming",
+                        "source": "x", "surface": "y", "bits": 6.0}}
+
+    def gate(runtime):
+        """Did the NUM-16 gate specifically refuse this runtime?"""
+        try:
+            IE._invocation_values(dict(base, runtime=runtime), "streaming",
+                                  engine)
+        except JobContractError as exc:
+            return "authored profile owns" in str(exc)
+        return False
+
+    check("NUM-16 a job steering ep_emulate is REFUSED, not ignored",
+          gate({"device": "cuda", "ep_emulate": 8}))
+    check("NUM-16 a job steering inventory is REFUSED, not ignored",
+          gate({"inventory": "/tmp/x"}))
+    check("NUM-16 an ordinary runtime is NOT refused by this gate -- the rule "
+          "is narrow, and no existing job.json carries an owned key",
+          not gate({"device": "cuda", "reduce_order": "layer"}))
+    # A guard that refuses everything would pass the three rungs above while
+    # being useless, so assert the complement too.
+    check("NUM-16 the owned set does not swallow the keys a job legitimately "
+          "sets", not ({"device", "decode_cache", "decode_threads",
+                        "reduce_order", "reader_threads"} & set(owned)),
+          repr(sorted(set(owned))))
+
+    print()
     if FAILURES:
         print("selftest_invoke_engine: %d FAILED" % len(FAILURES))
         return 1

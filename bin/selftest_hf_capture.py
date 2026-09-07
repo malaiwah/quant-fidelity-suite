@@ -203,7 +203,72 @@ def capture(model, panel, out, *, role, dataset_id, name, scope_file=None, extra
                 "--out", out, "--role", role, "--lane", "local-cuda-budget"] + tail, env=env)
 
 
+def paneld6_panel_declares_tokenizer_case():
+    """PANEL-D6 third instance: a capture adopts the PANEL's tokenizer id.
+
+    The published Fruit root records `glm-5.2-siq-fruit` from its own panel
+    receipt. A fresh capture passing --weights-repository recorded
+    `malaiwah/GLM-5.2-SIQ-Fruit-bf16`, so the two compared UNEQUAL on the
+    declared name alone -- same token ids, same scoring window, same
+    checkpoint identity -- and the container acceptance test, the SSH
+    reproduction and every cross-device check were one undocumented flag from
+    a refusal that looked like a panel mismatch and was not.
+
+    Precedence asserted here, most specific first: --tokenizer-id, then the
+    panel's own declaration, then --weights-repository, then --model.
+    """
+    import json as _json
+    import os as _os
+    import sys as _sys
+    import tempfile as _tempfile
+
+    _sys.path.insert(0, _os.path.join(REPO, "engines", "tools"))
+    import hf_capture as HC
+
+    def panel_with(tok_id):
+        d = _tempfile.mkdtemp()
+        _json.dump({"tokenizer": {"id": tok_id} if tok_id is not None else None},
+                   open(_os.path.join(d, "panel.receipt.json"), "w",
+                        encoding="utf-8"))
+        return d
+
+    check("PANEL-D6 a panel that declares a tokenizer id is read",
+          HC._panel_declared_tokenizer_id(panel_with("glm-5.2-siq-fruit"))
+          == "glm-5.2-siq-fruit")
+    check("PANEL-D6 a panel declaring null declares NOTHING, so the old "
+          "default still applies",
+          HC._panel_declared_tokenizer_id(panel_with(None)) is None)
+    check("PANEL-D6 a blank declaration is not a declaration",
+          HC._panel_declared_tokenizer_id(panel_with("   ")) is None)
+    check("PANEL-D6 a panel with no receipt at all is tolerated, because "
+          "load_panel owns refusing that with a better message",
+          HC._panel_declared_tokenizer_id(_tempfile.mkdtemp()) is None)
+
+    # The real committed panels, which is what makes this a fix rather than a
+    # theory: the Fruit panel declares exactly the id the published root uses.
+    fruit = _os.path.join(REPO, "engines", "panels",
+                          "panel--fruit.malaiwah.heldout-v1")
+    if _os.path.isdir(fruit):
+        check("PANEL-D6 the committed Fruit panel declares the id the "
+              "PUBLISHED root records, so a fresh capture now matches it "
+              "with no flag",
+              HC._panel_declared_tokenizer_id(fruit) == "glm-5.2-siq-fruit",
+              repr(HC._panel_declared_tokenizer_id(fruit)))
+
+    # Precedence: an explicit --tokenizer-id must still win, or an operator
+    # loses the ability to name a value the panel does not know.
+    src = open(_os.path.join(REPO, "engines", "tools", "hf_capture.py"),
+               encoding="utf-8").read()
+    check("PANEL-D6 --tokenizer-id still takes precedence over the panel's "
+          "declaration",
+          "args.tokenizer_id or panel_declared" in src)
+    check("PANEL-D6 and the weights repository is still the fallback below "
+          "the panel, not above it",
+          "or args.weights_repository or args.model" in src)
+
+
 def main():
+    paneld6_panel_declares_tokenizer_case()
     try:
         import torch  # noqa: F401
         import transformers  # noqa: F401

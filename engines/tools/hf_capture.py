@@ -280,6 +280,36 @@ def _is_canonical_sha256(value: Any) -> bool:
             and all(char in "0123456789abcdef" for char in value))
 
 
+def _panel_declared_tokenizer_id(panel_dir: str) -> Optional[str]:
+    """The tokenizer id a panel declares about ITSELF, or None.
+
+    PANEL-D6. Read from `panel.receipt.json`'s `tokenizer.id`, which is where
+    a published root records the name its own capture used. Deliberately
+    tolerant: a panel that declares nothing (`id: null`, which is every
+    committed panel in this tree today) returns None and the caller falls
+    through to its existing default. An unreadable or malformed receipt is
+    also None rather than a refusal, because `load_panel` is the function that
+    owns validating this file and will refuse there with a better message --
+    duplicating the refusal here would just move the error away from the code
+    that understands it.
+    """
+    path = os.path.join(panel_dir, "panel.receipt.json")
+    try:
+        with open(path, "r", encoding="utf-8") as stream:
+            doc = json.loads(stream.read())
+    except (OSError, ValueError):
+        return None
+    if not isinstance(doc, dict):
+        return None
+    tokenizer = doc.get("tokenizer")
+    if not isinstance(tokenizer, dict):
+        return None
+    declared = tokenizer.get("id")
+    if isinstance(declared, str) and declared.strip():
+        return declared
+    return None
+
+
 def bind_resolved_panel_tokenizer(panel: Panel, args: argparse.Namespace) -> None:
     """Apply the exact tokenizer and receipt identities from a verified binding.
 
@@ -1497,7 +1527,34 @@ def run_capture(args: argparse.Namespace) -> int:
     # schema requires a string.  Default it to the checkpoint whose tokenizer
     # actually produced these ids rather than emitting null and failing `verify`
     # only after the whole capture has been paid for.
-    tokenizer_id = args.tokenizer_id or args.weights_repository or args.model
+    #
+    # PANEL-D6, third instance, decided 2026-09-07: when the PANEL ITSELF
+    # declares a tokenizer id, prefer THAT over --weights-repository. A
+    # capture bound to a panel is bound to that panel's tokenizer
+    # declaration, and the published Fruit root records `glm-5.2-siq-fruit`
+    # from its panel receipt while a fresh capture passing
+    # --weights-repository recorded `malaiwah/GLM-5.2-SIQ-Fruit-bf16`. The
+    # two compared UNEQUAL on the declared name alone -- same token ids, same
+    # scoring window, same checkpoint identity -- so the container acceptance
+    # test, the SSH reproduction and every cross-device check were each one
+    # undocumented flag away from a refusal that looked like a panel
+    # mismatch and was not.
+    #
+    # Precedence, most specific first: an explicit --tokenizer-id (the
+    # operator said so), then the panel's own declaration, then the weights
+    # repo, then the local model path. A verified --panel-binding-evidence
+    # still overrides all of it in bind_resolved_panel_tokenizer below,
+    # because a binding is checked against real bytes and this is not.
+    #
+    # This changes what compares equal for captures made from HERE ON. It
+    # rewrites nothing already published: every sealed dataset keeps the id it
+    # was sealed with. Recorded in docs/PUBLISHED-CORRECTIONS.md.
+    panel_declared = _panel_declared_tokenizer_id(args.panel)
+    tokenizer_id = (args.tokenizer_id or panel_declared
+                    or args.weights_repository or args.model)
+    if panel_declared and not args.tokenizer_id:
+        log(stage="panel", tokenizer_id_source="panel receipt declaration",
+            tokenizer_id=panel_declared)
     panel = load_panel(args.panel, args.panel_role, args.windows, tokenizer_id, vocab_size)
     bind_resolved_panel_tokenizer(panel, args)
     log(stage="panel", windows=len(panel.windows), panel_json=panel.source,
