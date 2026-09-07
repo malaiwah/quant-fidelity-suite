@@ -1359,6 +1359,22 @@ Owners for this batch:
 | `bin/fidelity/sshbase.py` | live RunPod measurement |
 | `bin/fidelity/bench.py`, `bin/selftest_provider_portability.py` | a second session (uncommitted at audit time) |
 
+**RESOLVED — VERIFIED AGAINST THE LIVE HUB CARD, 2026-09-07** (additive note).
+This entry's last line said *"The Hub card still carries the wrong sentence."*
+**It does not.** Checked by fetching
+`https://huggingface.co/malaiwah/GLM-5.3-Flash-TR3-8bpw/raw/main/README.md`:
+the retracted pair `1.73e-3` / `1.22e-3` is **absent**, and all four
+recomputed values are live — sd 7.2e-3 (K6), 6.9e-3 (K8), paired delta sd
+2.0e-3, effect 1.33e-3. The methodology paragraph is **byte-identical** to the
+repo copy (`docs/cards/GLM-5.3-Flash-TR3-8bpw.README.md`), sha256 of the
+paragraph `c3f55226d7837c15…` on both sides. The 6bpw card carries neither the
+retracted pair nor the sentence, exactly as the entry states.
+
+So no publish was required, and none was made. `bin/check_doc_numbers.py`
+section 12 re-derives all three values from the committed per-window series
+and fails if any document quotes the retracted pair as a live claim — 210
+claims, 0 failed today.
+
 ## DEP-01 — `vastapi._req` retries 429 and nothing else, which is the incident it was written to stop
 
 **Anchor:** `bin/fidelity/vastapi.py`, `def _req`, the `except urllib.error.HTTPError` arm
@@ -1547,6 +1563,15 @@ test either — they were verified live on rented hardware only. `selftest_teard
 `measure_cloud`'s *other* pgrep probe. A rung driving `run_status` against a fake
 `exec_stdout` would cover all three cheaply.
 
+**RESOLVED — already fixed, verified 2026-09-07** (additive note). Liveness
+now comes from the WRAPPER'S OWN pid, not from `pgrep`, and the reasoning is
+recorded at the code (`sshbase.py:788-801`) in the strongest available form:
+*"pgrep was tried and does not work here, which is worth recording because the
+obvious fix does not work either"* — `pgrep -f r_1788…` and
+`pgrep -f '[r]_1788…'` both answer, so the bracket trick that usually
+disambiguates a self-match does not. A defect whose obvious remedy is also
+wrong is exactly the kind worth leaving written down.
+
 ## DEP-05 — `lambdaapi.create()` fetches `/instance-types` twice in one call
 
 **Anchor:** `bin/fidelity/lambdaapi.py`, `def create`, the two `_req("GET", "/instance-types")`
@@ -1729,6 +1754,28 @@ advanced between them, must produce the identical `job_id_full`; and changing
 `--publish-root-to` must still move it. The first fails today.
 
 ## PANEL-D6, third instance — the caller-side fix makes a new capture *un*comparable
+**PARTLY RESOLVED 2026-09-07** (additive note). The half that changes nothing
+about what compares equal is done: when the tokenizer disagreement is confined
+to the two NAME fields — `id` and `repository` — the refusal now names
+`--tokenizer-id <the reference's own declared value>`, which `dscompare` can
+read because it is holding both datasets at the moment it refuses. It
+deliberately does NOT offer that when `vocab_size`, `add_special_tokens`,
+`chat_template_applied` or `revision` disagree: those are evidence of a
+genuinely different tokenization, and suggesting an override there would turn
+an honest refusal into a footgun. The remedy also states outright that the
+flag records a declaration and does not verify one. Three rungs (N13b/N13c in
+`selftest_fidelity_compare.py`), N13b verified failing against the pre-fix
+refusal.
+
+**STILL OPEN, and deliberately:** the engine-side half — preferring the
+reference panel receipt's `tokenizer.id` over `--weights-repository` inside
+`engines/tools/hf_capture.py`. That changes the identity string SEALED into a
+dataset, i.e. what compares equal across published rows, so it is a
+comparability decision rather than a bug fix and wants the operator's and the
+registry session's call. Until then a fresh Fruit capture still needs the flag
+— but the refusal now tells you the flag and its value instead of leaving you
+to read the published panel receipt.
+
 ## to the published Fruit root, which is the comparison the fix exists to enable
 
 **Found 2026-09-06 by T4Verdict**, measuring a Tesla T4's device term against
