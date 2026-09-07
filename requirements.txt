@@ -1,0 +1,2 @@
+# Web UI only. Core registry and CLI tools retain their stdlib-only contract.
+gradio==6.26.0

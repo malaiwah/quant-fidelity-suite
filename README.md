@@ -1,3 +1,16 @@
+---
+title: QFS Explorer
+colorFrom: green
+colorTo: blue
+sdk: gradio
+sdk_version: 6.26.0
+python_version: "3.12"
+app_file: app.py
+suggested_hardware: cpu-basic
+license: mit
+short_description: Explore quantization evidence, costs and receipt provenance
+---
+
 # quant-fidelity-suite — how much quality a quantization costs, with receipts
 
 Tools, a schema-enforced public registry, and the campaign log behind
@@ -14,6 +27,57 @@ The suite began as a GLM-5.3-Flash program — most of the campaign material
 under [`engines/`](engines/) and [`remote/`](remote/) still is — and the measurement
 tooling in [`bin/`](bin/) and the registry in [`registry/`](registry/) are
 model-agnostic.
+
+## QFS Explorer — no-install evidence and cost planning
+
+**[Open QFS Explorer](https://huggingface.co/spaces/malaiwah/qfs-explorer)**
+on Hugging Face CPU Basic. The public app is read-only and requires no tokens.
+
+- **Find & explore:** paste an HF model link, distinguish exact/stale/unpinned
+  revisions, then open its comparison groups and original evidence. The full
+  registry predicate remains authoritative: filtering never makes an
+  incomparable group rankable. Displayed numbers are rounded; original records
+  retain full precision.
+- **Cost planner:** compare dated, sourced HF Spaces/Jobs, RunPod, Vast.ai,
+  JarvisLabs and Lambda offers. Enter your own billable duration; unknown
+  marketplace/storage prices stay unknown. Multi-GPU rates cover the whole
+  configuration, not one GPU. This is not a runtime prediction or spending cap.
+- **Contribute & own workspace:** duplicate into your account privately, inspect
+  a sealed submission or comparison receipt, and follow the actual HF registry
+  discussion workflow. An offline validation preview is not registry acceptance.
+  The included Dione Q4 example demonstrates the advisory review path.
+
+The app never rents hardware, executes user model/shell code, accepts credentials,
+or automatically submits. A private duplicate is still a CPU Explorer; selecting
+paid hardware bills that owner but does not add a runner. HF Jobs is a potential
+future execution route, not an implemented QFS backend. Existing paid admission,
+scientific qualification, retrieval and budget safeguards are unchanged.
+
+The public registry is fetched at startup as one pinned snapshot. A disclosed
+bundled fallback is used if HF is unavailable; integrity/fallback notes disable
+ranking. Restart the Space to load the latest registry. Prices are intentionally
+an authored snapshot in `explorer/pricing.json`, not live availability.
+
+Run locally, without changing the CLI's dependency contract:
+
+```bash
+python3.12 -m venv .venv-explorer
+.venv-explorer/bin/pip install -r requirements.txt
+.venv-explorer/bin/python app.py
+```
+
+Publish from a suite checkout using your local HF authentication:
+
+```bash
+.venv-explorer/bin/python bin/publish_explorer.py --repo <owner>/qfs-explorer
+```
+
+Add `--private` when creating a private deployment. The publisher creates only
+CPU Basic, refuses an existing non-CPU-Basic deployment, and uploads an explicit
+source/schema/registry-metadata allowlist—no model weights, captures, credentials,
+or measurement container. It does not copy secrets or change existing visibility.
+The hosted app disables unused upload/local-file/remote-file routes; receipts
+are pasted as bounded JSON and validated in a time-limited offline worker.
 
 ## Measure a quant from an HF link — one command
 
