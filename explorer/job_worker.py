@@ -286,7 +286,7 @@ class Runner:
         self.plan, self.out, self.deadline = plan, out, deadline
         self.commands = []
         self.maximum = plan["limits"]["max_output_bytes"]
-        self.environment = dict(os.environ, OMP_NUM_THREADS="2", MKL_NUM_THREADS="2", OPENBLAS_NUM_THREADS="2", NUMEXPR_NUM_THREADS="2", VECLIB_MAXIMUM_THREADS="2", TOKENIZERS_PARALLELISM="false", HF_HUB_DISABLE_IMPLICIT_TOKEN="1", HF_HOME="/tmp/qfs-worker-hf", PYTHONDONTWRITEBYTECODE="1", STACKPRINT_IMAGE_PIN=plan["image"], FIDELITY_IMAGE_REFERENCE=plan["image"])
+        self.environment = dict(os.environ, TOKENIZERS_PARALLELISM="false", HF_HUB_DISABLE_IMPLICIT_TOKEN="1", HF_HOME="/tmp/qfs-worker-hf", PYTHONDONTWRITEBYTECODE="1", STACKPRINT_IMAGE_PIN=plan["image"].rsplit("@", 1)[1], FIDELITY_IMAGE_REFERENCE=plan["image"])
         threads = min(32, len(os.sched_getaffinity(0))) if hasattr(os, "sched_getaffinity") else 2
         try:
             quota, period = Path("/sys/fs/cgroup/cpu.max").read_text().split()
