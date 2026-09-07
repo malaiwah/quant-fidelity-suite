@@ -1,0 +1,17 @@
+{
+  "schema": "qfs.hf-job-environment.v1",
+  "image": "python@sha256:581429e3df12d76e6af4be5ab7d0e7fc2013eb57dc23d2de691411c8efdbb970",
+  "image_tag_observed": "python:3.12-bookworm",
+  "python": "3.12",
+  "capture_dependencies": {
+    "torch_cpu": "2.11.0+cpu",
+    "torch_cuda": "2.11.0+cu130",
+    "transformers": "5.16.1",
+    "numpy": "2.5.3",
+    "safetensors": "0.8.0",
+    "tokenizers": "0.23.2",
+    "huggingface_hub": "1.30.0",
+    "accelerate": "1.14.0"
+  },
+  "source_repository": "https://github.com/malaiwah/quant-fidelity-suite"
+}
