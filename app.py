@@ -1,4 +1,4 @@
-"""QFS Explorer: a read-only, CPU-only interface; never provisions compute."""
+"""QFS Explorer: public evidence browsing and explicit caller-funded workflows."""
 from __future__ import annotations
 
 import html
@@ -6,14 +6,16 @@ from pathlib import Path
 import os
 import re
 from functools import lru_cache
-from urllib.parse import parse_qs, quote
+from urllib.parse import quote
 
 import gradio as gr
 from starlette.middleware import Middleware
-from starlette.responses import PlainTextResponse
 
 from explorer.data import ExplorerRegistry
 from explorer import costs, contribute, links, snippets
+from explorer.job_ui import build_jobs_ui
+from explorer.plot_ui import build_plot_ui
+from explorer.transport import ExplorerTransport
 
 SPACE_ID = os.environ.get("SPACE_ID", "malaiwah/qfs-explorer")
 SOURCE_URL = "https://github.com/malaiwah/quant-fidelity-suite"
@@ -32,38 +34,11 @@ CSS = """
 #comparison-status {border-left: 4px solid #16826e; padding-left: 18px; margin: 10px 0;}
 #footer {font-size: 12px; opacity: .8; padding: 20px 0; border-top: 1px solid #b8cbd2;}
 button.primary {font-weight: 650 !important;}
+.qfs-plot svg {width: 100%; height: auto; display: block;}
 @media(max-width: 640px) {#hero {padding: 22px 18px;} #hero h1 {font-size: 29px;} .stat {min-width: 100px;} [role="tab"] {padding-inline: 8px !important;}}
 """
 
 
-class ReadOnlyTransport:
-    """This text/JSON app has no upload, file download or remote-file proxy."""
-
-    def __init__(self, app):
-        self.app = app
-
-    async def __call__(self, scope, receive, send):
-        path = scope.get("path", "")
-        endpoint = path.split("/gradio_api/", 1)[-1]
-        if scope["type"] == "http":
-            try:
-                query = parse_qs(scope.get("query_string", b"").decode("utf-8", "replace"),
-                                 keep_blank_values=True, max_num_fields=64)
-            except ValueError:
-                await PlainTextResponse("Too many URL parameters.", status_code=400)(scope, receive, send)
-                return
-            if any(key in links.QUERY_FIELDS and len(values) != 1 for key, values in query.items()):
-                await PlainTextResponse("Repeated QFS evidence parameters are ambiguous.", status_code=400)(scope, receive, send)
-                return
-            if "deep_link" in query:
-                await PlainTextResponse("Use QFS measurement links with registry_revision; saved Gradio sessions are not evidence snapshots.",
-                                        status_code=400)(scope, receive, send)
-                return
-            if "/gradio_api/" in path and endpoint.startswith(("upload", "file=", "file/", "stream/", "deep_link")):
-                await PlainTextResponse("File and saved-session transport is disabled in this read-only Explorer.",
-                                        status_code=403)(scope, receive, send)
-                return
-        await self.app(scope, receive, send)
 
 
 def md(value):
@@ -145,7 +120,7 @@ def snapshot_markup(overview):
         for value, label in [(overview["measurement_count"], "published measurements"),
                              (overview["model_count"], "model families"),
                              (overview["group_count"], "comparison groups"),
-                             ("$0", "Explorer GPU spend")])
+                             ("CPU", "Public evidence browsing")])
 
 
 def snapshot_footer(overview):
@@ -289,6 +264,8 @@ def create_app():
             mid, gid, model_id = params.get("measurement"), params.get("group"), params.get("model")
             if mid:
                 record = current.detail(mid)
+                if params.get("group") is not None and params["group"] != record["group_id"]:
+                    raise ValueError("The highlighted measurement belongs to a different comparison group.")
                 gid, model_id = record["group_id"], record["measurement"]["model_ref"]
             elif gid:
                 rows = current.group(gid)["rows"]
@@ -317,13 +294,15 @@ def create_app():
                 link_notice: "**Opened linked evidence** from registry `%s`. The model, group and receipt are selected below."
                              % md(current.overview().get("revision") or current.overview()["snapshot"]),
             }
+            plot_mid = params.get("measurement") if params.get("tab") == "plots" else mid
+            result.update(zip(plot_ui["outputs"], plot_ui["view"](revision, gid, plot_mid, params.get("scale", "auto"))))
             if params.get("target"):
                 looked_up = lookup(params["target"], revision)
                 result.update({target: params["target"], lookup_status: looked_up[0], lookup_rows: looked_up[1],
                                matched_group: looked_up[2], target_json: looked_up[3]})
             return result
         except (ValueError, KeyError) as exc:
-            return {
+            result = {
                 snapshot_state: None, link_notice: "**Cannot open this evidence link.** " + md(exc) + "\n\nNo different snapshot or measurement was substituted.",
                 model: gr.Dropdown(choices=[], value=None), group: gr.Dropdown(choices=[], value=None),
                 group_status: "No linked evidence loaded.", table: [], detail_id: gr.Dropdown(choices=[], value=None),
@@ -331,6 +310,8 @@ def create_app():
                 stats: "<p>Requested evidence unavailable.</p>", footer: "Open the Explorer without query parameters to browse the current snapshot.",
                 lookup_rows: [], matched_group: gr.Dropdown(choices=[], value=None), target_json: {},
             }
+            result.update(zip(plot_ui["outputs"], plot_ui["clear"]()))
+            return result
 
     with gr.Blocks(title="QFS Explorer") as demo:
         snapshot_state = gr.State(initial_revision)
@@ -339,7 +320,7 @@ def create_app():
                 '<p>Check what has already been measured, compare only like-for-like results, '
                 'and plan your next measurement—with receipts, not guesswork.</p></div>')
         stats = gr.HTML(snapshot_markup(overview))
-        gr.Markdown("**No GPU required. No credentials requested. This app never rents hardware or submits on your behalf.**")
+        gr.Markdown("**Browse public evidence and plots without signing in or renting a GPU.** HF Jobs are optional, explicitly authorized and billed to your signed-in account. Publication and registry acceptance are separate confirmation steps.")
         link_notice = gr.Markdown("")
         with gr.Tabs() as tabs:
             with gr.Tab("Explore", id="explore"):
@@ -373,6 +354,7 @@ def create_app():
                 initial_share = share_evidence(initial[3])
                 share_url = gr.Textbox(value=initial_share[1], label="Permanent link to this exact evidence", interactive=False, buttons=["copy"])
                 card_selected = gr.Button("Create model-card snippet for this result", variant="primary")
+                plot_selected = gr.Button("Plot this measurement with its same-lane peers")
                 with gr.Accordion("Dataset links and immutable registry source", open=False):
                     share_sources = gr.JSON(value=initial_share[2])
                 with gr.Accordion("Original records and machine-readable provenance", open=False):
@@ -392,6 +374,13 @@ def create_app():
                                  [model, group, group_status, table, detail_id, detail, context], api_name=False)
                 detail_id.change(lambda key, rev: registry_for(rev).detail(key) if key else {}, [detail_id, snapshot_state], [detail], api_name="measurement")
                 detail.change(share_evidence, [detail], [evidence, share_url, share_sources], api_name=False)
+            plot_ui = build_plot_ui(registry_for, snapshot_state, EXPLORER_BASE, initial_revision, first_group)
+            def use_selected_for_plot(mid, revision, scale):
+                if not mid:
+                    raise gr.Error("Select a measurement first.")
+                return (gr.Tabs(selected="plots"), *plot_ui["view"](revision, None, mid, scale))
+            plot_selected.click(use_selected_for_plot, [detail_id, snapshot_state, plot_ui["scale"]],
+                                [tabs, *plot_ui["outputs"]], api_name=False, concurrency_limit=2)
             with gr.Tab("Costs", id="costs"):
                 gr.Markdown("## Find a sensible place to run\nCompare **hardware cost**, then check model fit and QFS compatibility. A cheaper GPU-hour is not necessarily a cheaper finished measurement.")
                 with gr.Row():
@@ -439,9 +428,11 @@ def create_app():
                                       api_name="generate_card_snippet", concurrency_limit=2)
                 card_selected.click(use_selected_for_card, [detail_id, snapshot_state], [tabs, cards_measurements], api_name=False)
             with gr.Tab("Contribute", id="contribute"):
-                gr.Markdown("## Your workspace, your budget\n**1. Make a private copy → 2. Measure with your own resources outside this app → 3. Bring back the receipt for review.**\n\n"
-                            "CPU Basic copies have no hourly compute charge. Paid hardware/storage is billed to the copy's owner. Secrets are not copied. "
-                            "**Duplicating or upgrading this Explorer does not turn it into a GPU runner.** HF Jobs execution is a future integration, not an enabled feature.")
+                gr.Markdown("## Your workspace, your budget\n**Browse first → run only with your consent → inspect saved results → choose publication and review separately.**\n\n"
+                            "Use **HF Jobs** to launch supported captures and measurements in your signed-in account, with your deadline and cost ceiling. "
+                            "Results remain private until you explicitly publish them. Public registry review does not automatically accept a claim.\n\n"
+                            "A private copy is optional for isolating your workspace. CPU Basic copies have no hourly compute charge; paid Space hardware/storage is billed to the copy's owner. "
+                            "Secrets are not copied. Upgrading the Explorer Space does not itself run a measurement.")
                 with gr.Row():
                     gr.Button("Duplicate into my account", link="https://huggingface.co/spaces/%s?duplicate=true" % SPACE_ID, variant="primary")
                     gr.Button("Open registry discussions", link=REGISTRY_URL + "/discussions")
@@ -460,10 +451,11 @@ def create_app():
                     lambda: ((Path(__file__).parent / "registry/docs/examples/dione-q4.submission.json").read_text(encoding="utf-8"),
                              "Published Dione Q4 example loaded. Click Inspect receipt to run the offline checks.", {}, ""),
                     outputs=[receipt_text, inspection, inspection_json, next_steps], api_name=False)
+            build_jobs_ui()
         footer = gr.Markdown(snapshot_footer(overview), elem_id="footer")
         linked_outputs = [snapshot_state, tabs, model, group, group_status, table, detail_id, detail, context,
                           cards_measurements, stats, footer, link_notice, target, lookup_status, lookup_rows,
-                          matched_group, target_json]
+                          matched_group, target_json, *plot_ui["outputs"]]
         demo.load(load_link, outputs=linked_outputs, api_name=False)
     return demo
 
@@ -474,5 +466,5 @@ if __name__ == "__main__":
         theme=gr.themes.Soft(primary_hue="teal", secondary_hue="slate"), css=CSS,
         show_error=False, ssr_mode=False,
         max_file_size=0, allowed_paths=[],
-        app_kwargs={"middleware": [Middleware(ReadOnlyTransport)]},
+        app_kwargs={"middleware": [Middleware(ExplorerTransport, base=EXPLORER_BASE)]},
     )

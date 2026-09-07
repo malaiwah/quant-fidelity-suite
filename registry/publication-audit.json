@@ -17,12 +17,12 @@
   },
   "data_sha256": {
     "data/models.jsonl": "7082eefadd239f22617363d92876828899eaccd96c537ac8b24e2ff50452c847",
-    "data/artifacts.jsonl": "511a20e2fd4d9181ffa58fcec882a92451031af938e4da4a2837de4c9bb66521",
+    "data/artifacts.jsonl": "aaa0555b49bea4f12e917dfc1951243211c3a0cf32f597c1e5b017b44dba180a",
     "data/panels.jsonl": "296a6105bf1252a076010ad96fef133e2d31f89ce3d063cf641906b3470697d0",
     "data/references.jsonl": "8f607dff9ad1b0dda35993318a32b52b26c0eca19ac8fee28e51f86b41f9d40c",
     "data/pipelines.jsonl": "9f9131de1588227fcd04c945f868c0d6bad06b7c09a296c183b2fd8abe2b1320",
     "data/measurements.jsonl": "750e46279da86ae776ee7d69309de37c4cdb7f9e646a35211f8f68e688ff537f",
-    "index.json": "352096186cc1bd99976c3e8bdf034bd64e8ba536d5b9b13cc4b567f6a5687d58",
+    "index.json": "793c1ef73719a2bcc7091c6068612c5d0ff504141c3a228f211d441b4a1c2790",
     "schema/invariants.json": "59a0432690968bcced4ddf2b4fa4b3be7c89bdcc3fe9efd0212bea7d5b7dca0f"
   },
   "fixture_evidence": {

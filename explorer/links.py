@@ -13,7 +13,7 @@ SHA = re.compile(r"[0-9a-f]{40}\Z")
 REPO = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,95}/[A-Za-z0-9][A-Za-z0-9_.-]{0,95}\Z")
 MEASUREMENT = re.compile(r"measurement--[A-Za-z0-9_.-]{1,240}\Z")
 MODEL = re.compile(r"model--[A-Za-z0-9_.-]{1,240}\Z")
-QUERY_FIELDS = {"measurement", "model", "group", "target", "registry_revision", "tab"}
+QUERY_FIELDS = {"measurement", "model", "group", "target", "registry_revision", "tab", "scale"}
 
 
 def explorer_base(host=None):
@@ -50,7 +50,9 @@ def parse_query(query):
         raise ValueError("measurement must be a QFS measurement ID.")
     if "model" in selected and not MODEL.fullmatch(selected["model"]):
         raise ValueError("model must be a QFS model-family ID; use target for an HF model link.")
-    if selected.get("tab", "explore") not in ("explore", "costs", "cards", "contribute"):
+    if selected.get("scale", "auto") not in ("auto", "linear", "symlog"):
+        raise ValueError("Unknown plot scale; choose auto, linear or symlog.")
+    if selected.get("tab", "explore") not in ("explore", "plots", "costs", "cards", "contribute", "jobs", "review"):
         raise ValueError("Unknown Explorer tab in the evidence link.")
     return selected
 
@@ -58,8 +60,8 @@ def parse_query(query):
 def measurement_url(base, measurement_id, registry_revision, *, tab="explore"):
     if not MEASUREMENT.fullmatch(measurement_id or "") or not SHA.fullmatch(registry_revision or ""):
         raise ValueError("A permanent evidence link requires a measurement ID and immutable registry revision.")
-    if tab not in ("explore", "cards"):
-        raise ValueError("Measurement links open Explore or Cards.")
+    if tab not in ("explore", "cards", "plots"):
+        raise ValueError("Measurement links open Explore, Cards or Plots.")
     query = {"measurement": measurement_id, "registry_revision": registry_revision}
     if tab != "explore":
         query["tab"] = tab
@@ -72,6 +74,7 @@ def evidence_links(base, measurement_id, registry_revision):
     return {
         "explorer": measurement_url(base, measurement_id, registry_revision),
         "card_generator": measurement_url(base, measurement_id, registry_revision, tab="cards"),
+        "plot": measurement_url(base, measurement_id, registry_revision, tab="plots"),
         "dataset_viewer_live_search": "https://huggingface.co/datasets/%s/viewer/measurements/train?%s" % (REGISTRY, urlencode({"q": measurement_id})),
         "immutable_registry_records": "https://huggingface.co/datasets/%s/resolve/%s/data/measurements.jsonl" % (REGISTRY, registry_revision),
         "viewer_note": "The dataset viewer searches live data; only the Explorer and raw records above pin this registry snapshot.",

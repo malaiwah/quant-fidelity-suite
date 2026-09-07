@@ -9,6 +9,14 @@ app_file: app.py
 suggested_hardware: cpu-basic
 license: mit
 short_description: Explore quantization evidence, costs and receipt provenance
+hf_oauth: true
+hf_oauth_expiration_minutes: 480
+hf_oauth_scopes:
+  - jobs
+  - read-repos
+  - gated-repos
+  - manage-repos
+  - write-discussions
 ---
 
 # quant-fidelity-suite — distributional fidelity, with receipts
@@ -35,16 +43,22 @@ current inventory: not every row has fp64 accumulation, pinned provenance,
 independent verification, or publicly available captures. Unknown and legacy
 fields are scientific disclosures, not defaults to fill in.
 
-## QFS Explorer — no-install evidence and cost planning
+## QFS Explorer — evidence, plots and caller-funded HF Jobs
 
 **[Open QFS Explorer](https://huggingface.co/spaces/malaiwah/qfs-explorer)**
-on Hugging Face CPU Basic. The public app is read-only and requires no tokens.
+on Hugging Face CPU Basic. Public browsing and plots require no account or token.
 
 - **Find & explore:** paste an HF model link, distinguish exact/stale/unpinned
   revisions, then open its comparison groups and original evidence. The full
   registry predicate remains authoritative: filtering never makes an
   incomparable group rankable. Displayed numbers are rounded; original records
   retain full precision.
+- **Plots:** inspect serialized artifact size in GiB against full-vocabulary KL,
+  with linear or zero-preserving symlog scales and adaptive nats units. Select a
+  measurement to highlight it without hiding peers. Size basis stays explicit:
+  whole-repository bytes, weight-file bytes and tensor payload are not VRAM.
+  Mixed bases and uncertified groups have no Pareto ranking guide. Download
+  PNG/SVG/CSV/JSON, or embed a pinned snapshot or a clearly labeled live view.
 - **Cost planner:** compare dated, sourced HF Spaces/Jobs, RunPod, Vast.ai,
   JarvisLabs and Lambda offers. Enter your own billable duration; unknown
   marketplace/storage prices stay unknown. Multi-GPU rates cover the whole
@@ -55,23 +69,47 @@ on Hugging Face CPU Basic. The public app is read-only and requires no tokens.
   links travel together. Merge into an existing README without changing its body
   or unrelated metadata; ambiguous mixed-metric results are refused rather than
   silently discarded. No model card is uploaded automatically.
-- **Contribute & own workspace:** duplicate into your account privately, inspect
-  a sealed submission or comparison receipt, and follow the actual HF registry
-  discussion workflow. An offline validation preview is not registry acceptance.
-  The included Dione Q4 example demonstrates the advisory review path.
+- **HF Jobs:** sign in as yourself, choose a tiny fixture, Fruit, a supported
+  candidate, or immutable capture datasets; preview the exact plan or explicitly
+  run it. Jobs are billed to your personal namespace, including in private
+  duplicates. Native roots and candidates use two fresh captures and numerical
+  reproduction controls. Candidate measurement uses each artifact's own head.
+- **Durable publication:** results persist in your private bucket without an HF
+  token in the worker. Refresh by Job ID after a browser/Space restart. Recovery
+  checks the provider invocation, reviewed source, final worker result digest,
+  every output byte and scientific receipts. `COMPLETED` alone is not verification.
+  Private evidence publication is the default. Public evidence and canonical
+  roots require separate redistribution consent; existing repositories are not
+  overwritten or made public.
+- **Registry review:** post public immutable evidence as a review request, then
+  let the registry owner inspect validation, provenance, warnings and exact
+  changes. Acceptance requires a separate owner confirmation and unchanged
+  registry HEAD. Acceptance and provider metadata checks are **not independent
+  model reproduction**.
 
-The app never rents hardware, executes user model/shell code, accepts credentials,
-or automatically submits. A private duplicate is still a CPU Explorer; selecting
-paid hardware bills that owner but does not add a runner. HF Jobs is a potential
-future execution route, not an implemented QFS backend. Existing paid admission,
-scientific qualification, retrieval and budget safeguards are unchanged.
+**Compute boundary:** the app never uses an owner token for a visitor. Launches
+need the current caller's HF OAuth identity or explicit Bearer API token; local
+mock OAuth cannot spend. The hardware quote includes the selected timeout plus
+two startup minutes, but is not an account-wide hard-dollar cap. Storage and
+other HF services are separate. HF CPU Basic **Jobs are paid**; CPU Basic Space
+hosting is a different service. Cancellation and provider deadlines bound runs.
+Only one active/unresolved QFS Job per caller is admitted.
 
-The public registry is fetched at startup as one pinned snapshot. A disclosed
-bundled fallback is used if HF is unavailable; integrity/fallback notes disable
-ranking and card generation. Restart the Space to load the latest default registry.
+Worker code and container images are immutable pins. Model code receives
+read-only input mounts and a private output volume, never caller credentials.
+Only native supported loaders or explicitly reviewed code pins execute; an
+arbitrary model `auto_map` is not an execution grant. Failed captures remain
+failed, with bounded progress logs and private partial evidence.
+
+The interactive registry loads one pinned public snapshot. A disclosed bundled
+fallback disables ranking and card generation. Live plot endpoints refresh the
+public registry at most every five minutes and print the resolved revision;
+they never expose private Job results. Pinned plot links retain their registry
+data snapshot. Restart the Space to refresh its default interactive snapshot.
 Evidence links can load an older **explicit 40-character registry revision**; an
 unavailable pin or unknown measurement is refused, never replaced by latest data.
-Prices remain an authored snapshot in `explorer/pricing.json`, not live availability.
+Cost-planner prices are an authored snapshot in `explorer/pricing.json`; Jobs
+preflight separately fetches current provider hardware and prices.
 
 Share the **Permanent link** beside a measurement, or link directly:
 
@@ -79,8 +117,8 @@ Share the **Permanent link** beside a measurement, or link directly:
 https://malaiwah-qfs-explorer.hf.space/?measurement=measurement--glm53.k6-6bpw.brandonmusic-final25&registry_revision=c8c32709884d8f9521799d19d57ae0ea7b5cb621
 ```
 
-Add `&tab=cards` to open the generator with that measurement selected. `model`
-accepts a registry model ID, `group` a group ID emitted by the app, and `target`
+Add `&tab=cards` for the card generator or `&tab=plots&scale=auto` for a highlighted plot.
+`model` accepts a registry model ID, `group` a group ID emitted by the app, and `target`
 an HF model ID/link for lookup. The native HF dataset viewer link is a **live**
 search; the accompanying raw registry URL and Explorer link pin the exact snapshot.
 Native Gradio saved-session deep links are disabled because they do not preserve
@@ -94,6 +132,21 @@ Root dataset links require a manifest seal matching the registry reference, mode
 panel and head identities. The generator does not invent arXiv IDs, HF verification
 badges or a registered `.eval_results` task. Validation is local unless an operator
 explicitly submits a public generated card to HF's YAML validator.
+
+For a private duplicate, retain the README OAuth metadata and requested scopes.
+Authorize your own account; do not install an owner `HF_TOKEN` as an application
+secret. The canonical registry service uses a stable `QFS_REVIEW_SIGNING_KEY`
+for its provider-read attestations. Claims from other workspaces remain reported
+unless the caller imports and revalidates their original Job on this service.
+The generated `explorer/deployment.json` preserves explicitly reviewed source
+revisions so updates need not strand recoverable older Jobs.
+
+The privileged JSON API lives under `/qfs/api/`: `GET account`, `GET jobs`,
+`POST jobs/prepare`, `POST jobs/launch`, and per-Job `results`, `publish`,
+`request-review`, `cancel` actions. Reads of Job status/logs require the same
+caller identity. Use an explicit `Authorization: Bearer …` header, never a URL
+token. Anonymous calls are refused; general filesystem upload/download proxy
+routes are disabled. Public `/plots/` routes generate bounded images/data only.
 
 Complete CPU fixtures and reproduction evidence are published separately:
 
@@ -112,8 +165,8 @@ Complete CPU fixtures and reproduction evidence are published separately:
 | IFM K2-Horizon MoVA | [k2-horizon-tiny-random-bf16](https://huggingface.co/malaiwah/k2-horizon-tiny-random-bf16) | [CPU proof](https://huggingface.co/datasets/malaiwah/k2-horizon-tiny-cpu-repro-v1) |
 
 These are random-init text-path tests, not production model-quality measurements.
-They do not add a capture/rental action to this read-only app. Native fixture bases
-have qualified public CPU roots and fixture-only registry references; quantized
+Native fixture bases have qualified public CPU roots and fixture-only registry
+references. The HF Jobs presets reproduce these synthetic workflows; quantized
 variants are linked artifacts, not invented fine-tunes or new canonical roots.
 The registry keeps synthetic reproduction floors separate from trained-model groups.
 

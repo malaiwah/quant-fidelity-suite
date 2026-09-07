@@ -1282,3 +1282,5 @@ registry/protocol/community-fixtures/variants/qwen-gguf--q8_0/comparison.json
 registry/protocol/community-fixtures/variants/qwen-gguf--q8_0/dataset.json
 registry/protocol/community-fixtures/variants/qwen-gguf--q8_0/runtime.json
 registry/tools/community_fixtures.py
+bin/fidelity/hfjobs.py
+registry/tools/review_requests.py

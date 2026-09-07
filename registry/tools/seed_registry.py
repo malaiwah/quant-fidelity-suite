@@ -1790,7 +1790,7 @@ ARTIFACTS += [
              [QREC("kld5-10M-k5k6.json", "candidate_index_sha256 f8ca5af9..."),
               src("model_card", "https://huggingface.co/malaiwah/Qwen3.8-27B-EXL3-K5K6",
                   None, "MODEL_CARD-K5K6.md: 'Attention weights ship in BF16'; MLP gate/up K5, down K6, lm_head K6/mcg")],
-             [QWEN_NOREV], weights_extra={"size_basis": "tensor_payload"},
+             [QWEN_NOREV], weights_extra={"size_basis": "repo_all_files"},
              derived_from_artifact_ref=Q_BF16,
              availability={"status": "public", "uri": "https://huggingface.co/malaiwah/Qwen3.8-27B-EXL3-K5K6"},
              cross_refs=lair(), seal={"sealed": True}),
@@ -1806,7 +1806,7 @@ ARTIFACTS += [
              [QREC("kld5-10M-hyd.json"),
               src("model_card", "https://huggingface.co/malaiwah/Qwen3.8-27B-EXL3-K5K6-hydrated",
                   None, "attention EXL3 K6 serialized on disk (calibrated), quantized MTP")],
-             [QWEN_NOREV], weights_extra={"size_basis": "tensor_payload"},
+             [QWEN_NOREV], weights_extra={"size_basis": "repo_all_files"},
              derived_from_artifact_ref=Q_BF16,
              availability={"status": "public", "uri": "https://huggingface.co/malaiwah/Qwen3.8-27B-EXL3-K5K6-hydrated"},
              cross_refs=lair(), seal={"sealed": True}),
@@ -1821,7 +1821,7 @@ ARTIFACTS += [
              MAL("quantizer"),
              [QREC("kld5-10M-ctx.json", "candidate_index_sha256 cd53b8e4..."),
               src("model_card", "https://huggingface.co/malaiwah/Qwen3.8-27B-EXL3-K5K6-context")],
-             [QWEN_NOREV], weights_extra={"size_basis": "tensor_payload"},
+             [QWEN_NOREV], weights_extra={"size_basis": "repo_all_files"},
              derived_from_artifact_ref=Q_BF16,
              availability={"status": "public", "uri": "https://huggingface.co/malaiwah/Qwen3.8-27B-EXL3-K5K6-context"},
              cross_refs=lair(), seal={"sealed": True}),
@@ -8013,6 +8013,8 @@ def main():
     # through every authoritative reseed, without changing historical groups.
     import community_fixtures
     collections_out = community_fixtures.apply(collections_out, sys.modules[__name__])
+    import review_requests
+    collections_out = review_requests.apply(collections_out, sys.modules[__name__])
 
     changed = []
     for name, records in collections_out:
