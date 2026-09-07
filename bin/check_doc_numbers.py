@@ -194,7 +194,7 @@ def main():
     # ============================================ 3. the attributable table
     print()
     print("=" * 78)
-    print("3. THE ATTRIBUTABLE TABLE (section 4.5) -- FP8 minus the same-lane floor")
+    print("3. DESCRIPTIVE FP8 MINUS BF16 CONTROL (section 4.5)")
     print("=" * 78)
     for scope in ("panel25", "clean17"):
         fp8 = means[("fp8-crossstack", scope)]
@@ -202,16 +202,16 @@ def main():
         att = fp8 - flr
         ratio = fp8 / flr
         note(att); note(ratio)
-        rep.check("%.9f" % att in align, "attributable %s" % scope,
+        rep.check("%.9f" % att in align, "descriptive control contrast %s" % scope,
                   "%.9f" % att)
-        rep.check("%.3f" % ratio in align, "attributable ratio %s" % scope,
+        rep.check("%.3f" % ratio in align, "descriptive raw/control ratio %s" % scope,
                   "%.3f" % ratio)
     a_p = means[("fp8-crossstack", "panel25")] - means[("bf16-floor-crossstack", "panel25")]
     a_c = means[("fp8-crossstack", "clean17")] - means[("bf16-floor-crossstack", "clean17")]
     move = (a_c - a_p) / a_p * 100.0
     note(move)
     rep.check("%.2f" % move in align,
-              "attributable moves while its inputs move", "+%.2f %%" % move)
+              "descriptive control contrast scope movement", "+%.2f %%" % move)
 
     # ================================================ 4. the emitted analyses
     print()
@@ -241,14 +241,11 @@ def main():
                 rep.check("%.6f" % lo in align and "%.6f" % hi in align,
                           "%s/%s BCa endpoints in doc" % (label, scope),
                           "[%.6f, %.6f]" % (lo, hi))
-                # an interval that does not bracket its own mean is a wrong table
-                rep.check(lo <= d["summary"]["mean"] <= hi,
-                          "%s/%s BCa brackets the mean" % (label, scope), "")
 
     # ================================================== 5. the paired table
     print()
     print("=" * 78)
-    print("5. THE PAIRED TABLE (section 4.4) -- ratios, win counts, BCa, sign p")
+    print("5. HISTORICAL WINDOW DIAGNOSTICS -- numerical transcription, not inference")
     print("=" * 78)
     # Anchor on the doc's OWN table rows. Demanding that every emitted receipt
     # appear in the document is wrong -- which comparisons to tabulate is an
@@ -268,8 +265,24 @@ def main():
         r"\s*([\d.]+)\s*\|\s*([\d.]+)\s*\|\s*([\d.]+)\s*\|"
         r"\s*\[([-+\u2212\d.]+),\s*([-+\u2212\d.]+)\]\s*\|"
         r"\s*(\d+)/(\d+)\s*\|\s*([\d.e+-]+)\s*\|", re.M)
-    seen_rows = 0
-    for m in row_re.finditer(align):
+    paired_section = re.search(r"^### 4\.4\b.*?(?=^### 4\.5\b)", align, re.M | re.S)
+    candidate_rows = []
+    if paired_section:
+        for line in paired_section.group().splitlines():
+            if not line.startswith("|"):
+                continue
+            cells = [cell.strip() for cell in line.strip("|").split("|")]
+            if len(cells) > 1 and cells[1] == "scope":
+                continue
+            if all(re.fullmatch(r"[-:]+", cell) for cell in cells):
+                continue
+            candidate_rows.append(line)
+    rep.check(paired_section is not None, "paired numerical section present", "")
+    for line in candidate_rows:
+        m = row_re.fullmatch(line)
+        rep.check(m is not None, "paired row parses completely", line)
+        if m is None:
+            continue
         a, b, scope = m.group(1), m.group(2), m.group(3)
         stem = DOC_LABEL.get((a, b))
         if stem is None:
@@ -281,8 +294,12 @@ def main():
             rep.check(False, "paired row %s - %s / %s" % (a, b, scope),
                       "receipt %s is missing" % os.path.basename(path))
             continue
-        seen_rows += 1
+        # All printed means, not just the ratio, must match the named receipt.
         r = load_json(path)
+        for column, field in ((4, "mean_a"), (5, "mean_b")):
+            rep.check(abs(float(m.group(column)) - r[field]) < 5e-10,
+                      "%s/%s %s" % (stem, scope, field),
+                      "doc %s vs receipt %.9f" % (m.group(column), r[field]))
         note(r["ratio_a_over_b"]); note(r["ci95_diff_bca"][0])
         note(r["ci95_diff_bca"][1]); note(r["mean_diff"])
         rep.check("%.3f" % r["ratio_a_over_b"] == m.group(6),
@@ -312,12 +329,6 @@ def main():
                       <= 0.05 * max(r["sign_test_p"], 1e-30),
                       "%s/%s sign-test p" % (stem, scope),
                       "doc %s vs receipt %.3g" % (m.group(11), r["sign_test_p"]))
-        # a paired interval that excludes zero is the claim; check the receipt agrees
-        rep.check(r["bca_excludes_zero"] == (lo > 0 or hi < 0),
-                  "%s/%s excludes-zero agrees with the printed interval" % (stem, scope),
-                  str(r["bca_excludes_zero"]))
-    rep.check(seen_rows >= 6, "the paired table has rows to check",
-              "%d rows parsed" % seen_rows)
     # receipts the document does not tabulate: informational, not a failure
     untab = []
     for f in sorted(os.listdir(an_dir)) if os.path.isdir(an_dir) else []:
@@ -331,49 +342,10 @@ def main():
         print("  (%d emitted paired receipts are not tabulated in the doc: %s)"
               % (len(untab), ", ".join(untab)))
 
-    # ========================================= 6. the paired-tightness claim
-    print()
-    print("=" * 78)
-    print("6. THE 'PAIRED IS TIGHTER' CLAIM (section 4.4) -- the one that said 10x")
-    print("=" * 78)
-    pk = os.path.join(an_dir, "paired.K6-vs-K8.selected.json")
-    if os.path.exists(pk):
-        d = load_json(pk)
-        r = d.get("paired") or d
-        ci = r.get("ci95_diff_bca")
-        if ci:
-            pw = ci[1] - ci[0]
-            note(pw)
-            a6 = load_json(os.path.join(an_dir, "k6-sealed.selected.json"))
-            a8 = load_json(os.path.join(an_dir, "k8-streaming.selected.json"))
-            w6 = a6["bootstrap"]["ci95_bca"][1] - a6["bootstrap"]["ci95_bca"][0]
-            w8 = a8["bootstrap"]["ci95_bca"][1] - a8["bootstrap"]["ci95_bca"][0]
-            note(w6); note(w8)
-            ratio = max(w6, w8) / pw
-            note(ratio)
-            rep.check("%.3e" % pw in align, "paired width quoted", "%.3e" % pw)
-            rep.check("%.3e" % w6 in align and "%.3e" % w8 in align,
-                      "both marginal widths quoted", "%.3e / %.3e" % (w6, w8))
-            rep.check(("%.1f" % ratio) in align, "the tightness FACTOR",
-                      "%.1fx (a claim of 10x here would fail)" % ratio)
-            # and no stale "10x"-shaped overclaim may survive anywhere
-            # A QUOTED "10x tighter" is the documents describing an error they
-            # fixed, not making the claim. Only unquoted occurrences are live
-            # claims, so the quoted form is excluded rather than tripping this.
-            # A QUOTED "10x tighter" is the documents describing an error they
-            # fixed, not making the claim, so quotes are excluded. Digits and
-            # dots are excluded too, or the pattern starts mid-number and reads
-            # "0x tighter" out of a quoted "10x tighter".
-            stale = re.findall(
-                r'(?<![\d."\u201c])(\d+(?:\.\d+)?)\s?[x\u00d7]\s+tighter', both)
-            bad = [s for s in stale if abs(float(s) - ratio) > 1.0]
-            rep.check(not bad, "no stale tightness factor in either doc",
-                      "found %s vs measured %.1f" % (bad, ratio) if bad else "clean")
-
     # ================================================ 7. the per-domain table
     print()
     print("=" * 78)
-    print("7. THE PER-DOMAIN TABLE (section 4.6) -- his non-uniformity, our data")
+    print("7. THE PER-DOMAIN TABLE (section 4.6) -- descriptive raw means")
     print("=" * 78)
     dom_src = {}
     for key in ("k6-sealed", "k8-streaming", "fp8-crossstack", "bf16-floor-crossstack"):
@@ -386,26 +358,10 @@ def main():
                 v = dom_src[key][dom]["mean"]
                 note(v)
                 if key == "bf16-floor-crossstack":
-                    # not a column in the doc's table; it enters only through
-                    # the FP8/floor ratio, which is checked below
+                    # The document tabulates quant means, not this control.
                     continue
                 rep.check("%.9f" % v in align,
                           "%s / %s" % (dom, key), "%.9f" % v)
-            r_k6 = dom_src["fp8-crossstack"][dom]["mean"] / dom_src["k6-sealed"][dom]["mean"]
-            r_fl = (dom_src["fp8-crossstack"][dom]["mean"]
-                    / dom_src["bf16-floor-crossstack"][dom]["mean"])
-            note(r_k6); note(r_fl)
-            rep.check("%.3f" % r_k6 in align, "%s FP8/K6 ratio" % dom, "%.3f" % r_k6)
-            rep.check("%.3f" % r_fl in align, "%s FP8/floor ratio" % dom, "%.3f" % r_fl)
-        ratios = {d: dom_src["fp8-crossstack"][d]["mean"] / dom_src["k6-sealed"][d]["mean"]
-                  for d in dom_src["k6-sealed"]}
-        spread = max(ratios.values()) / min(ratios.values())
-        note(spread)
-        rep.check("%.2f" % spread in align, "the cross-domain spread",
-                  "%.2fx" % spread)
-        worst = max(ratios, key=ratios.get)
-        rep.check("legal" in worst, "legal is the worst domain, as he found",
-                  "worst = %s at %.3f" % (worst, ratios[worst]))
         # the positions must partition the scope, or the table is not a partition
         tot = sum(dom_src["k6-sealed"][d]["n"] for d in dom_src["k6-sealed"])
         rep.check(tot == 17 * 2047, "per-domain positions partition clean17",
@@ -435,9 +391,6 @@ def main():
                   "P_m mean %.6e" % t["Pm_mean"])
         rep.check(t["Pm_mean"] < 1e-7, "the padded mass is the order the doc claims",
                   "%.3e < 1e-7" % t["Pm_mean"])
-        # the doc's general cap is order e_p; it must NOT claim 1e-10 generally
-        rep.check("1e-8" in align, "the GENERAL cap is stated as order 1e-8",
-                  "the shared-head 1e-10 is the special case")
         n_students = 0
         for block in ("case_A_shared_head", "case_B_quantized_head"):
             n_students += len([k for k in (study.get(block) or {})
@@ -573,13 +526,6 @@ def main():
                   "%s: its own headline is the panel25 value"
                   % os.path.basename(path)[:22],
                   "%.6f" % means[(own, "panel25")])
-        # and the widening ratio it quotes must be the real one
-        for scope, places in (("panel25", 2), ("clean17", 2)):
-            r_ = means[("fp8-crossstack", scope)] / means[(own, scope)]
-            note(r_)
-            rep.check(("%.2f" % r_) in card,
-                      "%s: FP8-over-own ratio %s"
-                      % (os.path.basename(path)[:22], scope), "%.2fx" % r_)
         # the padded-column figure the card quotes must be the receipt's
         if study is not None:
             rep.check("1.6e-8" in card,

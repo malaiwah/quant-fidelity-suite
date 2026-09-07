@@ -25,6 +25,11 @@ The fixtures exist so the mlx-equality proof replays where mlx cannot be
 installed (every CUDA box). Affine packing is per output row, so a row prefix
 is a self-contained, independently decodable tensor.
 
+**2026-09-07 scope qualification:** these row-prefix fixtures validate sampled
+decoder outputs at MLX's output dtype, not full-shard integrity or complete
+native-model forwarding. Header/index census and sampled tensor bytes provide
+different evidence; neither replaces full content hashing.
+
 Regenerate (macOS, mlx installed):
 
 ```bash

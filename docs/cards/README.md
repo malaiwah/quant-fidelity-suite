@@ -2,9 +2,11 @@
 
 These are the **reference implementation** of
 [`../CARD-ANNOTATION-SPEC.md`](../CARD-ANNOTATION-SPEC.md), applied to our own
-two published models. They are generated files: the frontmatter is produced by
-`bin/fidelity-card annotate` from live registry rows, and the **body is byte-identical
-to the published card** — `annotate` never rewrites prose.
+two published models. Frontmatter is produced by `bin/fidelity-card annotate`
+from registry rows; `annotate` does not rewrite body prose. **Correction,
+2026-09-07:** the local bodies now include scientific corrections to the older
+published cards. They are not asserted byte-identical to the live Hub bodies,
+and this repository update does not publish them to the Hub.
 
 ```
 GLM-5.3-Flash-TR3-6bpw.README.md    malaiwah/GLM-5.3-Flash-TR3-6bpw
@@ -13,8 +15,8 @@ GLM-5.3-Flash-TR3-8bpw.README.md    malaiwah/GLM-5.3-Flash-TR3-8bpw
 
 ## Verification
 
-Pushing a card to a model repository is a permissioned act. Everything that can
-be verified without pushing:
+Pushing a card is a separately permissioned act. The following are historical
+checks, not fresh live Hub/rendering verification:
 
 | axis | result |
 |---|---|
@@ -36,7 +38,7 @@ records which registry state produced it, in
 
 ```bash
 bin/fidelity-card annotate \
-  --card <the current published README.md> \
+  --card docs/cards/GLM-5.3-Flash-TR3-6bpw.README.md \
   --role quant --model-name GLM-5.3-Flash-TR3-6bpw \
   --artifact-id artifact--malaiwah.glm-5.3-flash-tr3-6bpw \
   --base-model zai-org/GLM-5.3-Flash-BF16 \
@@ -53,10 +55,10 @@ new row appears in the card automatically and XC-3 keeps the two layers in step.
 
 `--reference-model` and `--reference-revision` are **no longer passed**: the
 generator derives them by walking measurement → `reference_ref` →
-`artifact_ref` → `huggingface.{repository, revision}` (GEN-11). Re-running the
-command above reproduces both committed cards **byte for byte**, which is the
-property that matters: a generator that cannot reproduce its own output from the
-registry alone is asking every other quant author to guess five values.
+`artifact_ref` → `huggingface.{repository, revision}` (GEN-11). Regenerate
+from the **corrected local body**, not an older remote README, so annotation
+cannot restore withdrawn scientific headlines. Exact output also depends on
+the pinned registry snapshot and supplied metadata.
 
 The one field nothing in the registry supplies —
 `head.lm_head_tensor_content_sha256`, which is a *content* digest and the
@@ -96,7 +98,7 @@ That is not an omission. Our published receipts
 digest `47eaf729…`, which is a container digest and never an identity. The
 **tensor content** digest is `aa21c427970f64edd82669db3a8fb46613084e8bc271a3728784a52eb3f25ab4`
 — recomputed independently from the published `head/head.safetensors` by
-`bin/fidelity/dsformat.py::tensor_content_sha256` — but it is not yet part of a
-sealed, published dataset. Until it is, the generator refuses to write it
-(GEN-8) and the comparator refuses cross-artifact hidden replay against these
-cards (HEAD-4). Filling it in is one line once a capture publishes it.
+`bin/fidelity/dsformat.py::tensor_content_sha256`. These legacy cards retain
+their own unbound/null head metadata; newer published root datasets in the
+registry do not retroactively bind these old cards. Adding a digest requires
+the exact capture/head provenance, not merely finding a familiar tensor hash.

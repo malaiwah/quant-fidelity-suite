@@ -4,13 +4,13 @@
       "file": "data/artifacts.jsonl",
       "record_count": 90,
       "schema": "schema/artifact.schema.json",
-      "sha256": "b44e97df3c251d32cf60f3642422a646780d813af492f51890fcc4814f418c50"
+      "sha256": "0fe6cac49ec3b39f7a1e039b642ec661a585337adfdaa78f290439d9e3cdf943"
     },
     "measurements": {
       "file": "data/measurements.jsonl",
       "record_count": 107,
       "schema": "schema/measurement.schema.json",
-      "sha256": "855b019b96e031eb2d92358069ecb72a67c28ff773d6fe206ee6b4e6836f2dc1"
+      "sha256": "77fd34073f5645ef5d818d570809f8809aa712252a5d46171aa1253a36fb0a7b"
     },
     "models": {
       "file": "data/models.jsonl",
@@ -28,28 +28,44 @@
       "file": "data/pipelines.jsonl",
       "record_count": 28,
       "schema": "schema/pipeline.schema.json",
-      "sha256": "7a23636d33355fd1871002e6c7f60d5e2eec7eec48ae81e327d373af0f40389f"
+      "sha256": "6c29681ae93a9db6918545420e885e1c84ac922655f7843084a2efcf1955c8f0"
     },
     "references": {
       "file": "data/references.jsonl",
       "record_count": 28,
       "schema": "schema/reference.schema.json",
-      "sha256": "9d961783324dc2249981ae6baf8c9679d1805937d70a56b3f32c57cb5239d919"
+      "sha256": "a8cb3d2f5bf256435a6fed6aa3141f8a8a3755562f818d6bc58a51105e260fd1"
     }
   },
   "comparability_keys": [
     {
       "accumulation_dtype": "float64",
       "comparability": {
-        "comparable": "true",
+        "comparable": "unknown",
         "live_member_count": 3,
-        "predicate_version": "comparability-predicate/v1",
-        "reasons": [],
+        "predicate_version": "comparability-predicate/v2",
+        "reasons": [
+          "stack: unrecorded for 3 members; homogeneity cannot be certified",
+          "replay_backend: unrecorded for 3 members; homogeneity cannot be certified",
+          "replay_env: unrecorded for 3 members; homogeneity cannot be certified"
+        ],
         "secondary": {
           "hardware": {
             "status": "pass",
             "values": [
               "1x NVIDIA RTX PRO 6000 Blackwell Server Edition"
+            ]
+          },
+          "harness": {
+            "status": "pass",
+            "values": [
+              "harness--443b755da4d6ba81"
+            ]
+          },
+          "key": {
+            "status": "pass",
+            "values": [
+              "cmp--05e16411a5932713"
             ]
           },
           "lane": {
@@ -64,10 +80,28 @@
               "pipeline--malaiwah.fidelity-dataset-hf.rtxpro6000"
             ]
           },
+          "replay_backend": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "replay_env": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
           "scope": {
             "status": "pass",
             "values": [
               "attn.o+attn.qkv+mlp.down+mlp.gate+mlp.up|head=native|kv=bf16"
+            ]
+          },
+          "stack": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
             ]
           }
         }
@@ -87,8 +121,12 @@
       "comparability": {
         "comparable": "false",
         "live_member_count": 5,
-        "predicate_version": "comparability-predicate/v1",
+        "predicate_version": "comparability-predicate/v2",
         "reasons": [
+          "harness: unrecorded for 5 members; homogeneity cannot be certified",
+          "stack: unrecorded for 5 members; homogeneity cannot be certified",
+          "replay_backend: unrecorded for 5 members; homogeneity cannot be certified",
+          "replay_env: unrecorded for 5 members; homogeneity cannot be certified",
           "scope: members span {attn.o+attn.qkv+lm_head+mlp.down+mlp.gate+mlp.up+mtp|head=quantized|kv=bf16, attn.o+attn.qkv+mlp.down+mlp.gate+mlp.up|head=native|kv=bf16, lm_head+mlp.down+mlp.gate+mlp.up|head=quantized|kv=bf16} -- these are different interventions; equal nominal bpw does not make a routed-experts-only quant and a full-forward quant the same thing (docs/GGUF-MEASUREMENT.md)"
         ],
         "secondary": {
@@ -96,6 +134,18 @@
             "status": "pass",
             "values": [
               "cuda"
+            ]
+          },
+          "harness": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "key": {
+            "status": "pass",
+            "values": [
+              "cmp--0bb49e8411b6dc75"
             ]
           },
           "lane": {
@@ -110,12 +160,30 @@
               "pipeline--malaiwah.qwen38-kld-ladder"
             ]
           },
+          "replay_backend": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "replay_env": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
           "scope": {
             "status": "fail",
             "values": [
               "attn.o+attn.qkv+lm_head+mlp.down+mlp.gate+mlp.up+mtp|head=quantized|kv=bf16",
               "attn.o+attn.qkv+mlp.down+mlp.gate+mlp.up|head=native|kv=bf16",
               "lm_head+mlp.down+mlp.gate+mlp.up|head=quantized|kv=bf16"
+            ]
+          },
+          "stack": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
             ]
           }
         }
@@ -135,8 +203,12 @@
       "comparability": {
         "comparable": "false",
         "live_member_count": 2,
-        "predicate_version": "comparability-predicate/v1",
+        "predicate_version": "comparability-predicate/v2",
         "reasons": [
+          "harness: unrecorded for 2 members; homogeneity cannot be certified",
+          "stack: unrecorded for 2 members; homogeneity cannot be certified",
+          "replay_backend: unrecorded for 2 members; homogeneity cannot be certified",
+          "replay_env: unrecorded for 2 members; homogeneity cannot be certified",
           "pipeline: members span {pipeline--brandonmusic.glm53-custom-tp2-runtime, pipeline--brandonmusic.sm120-runtime.v44} -- the candidate pipeline is not a key input, and a measured pipeline effect of ~24% exists on this registry's own data",
           "scope: unrecorded for 1 member; homogeneity cannot be certified",
           "hardware: unrecorded for 1 member; homogeneity cannot be certified"
@@ -147,6 +219,18 @@
             "values": [
               "2x SM120",
               "unrecorded"
+            ]
+          },
+          "harness": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "key": {
+            "status": "pass",
+            "values": [
+              "cmp--18990ab191ea7a67"
             ]
           },
           "lane": {
@@ -162,10 +246,28 @@
               "pipeline--brandonmusic.sm120-runtime.v44"
             ]
           },
+          "replay_backend": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "replay_env": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
           "scope": {
             "status": "unknown",
             "values": [
               "moe.experts+mtp|head=native|kv=bf16",
+              "unrecorded"
+            ]
+          },
+          "stack": {
+            "status": "unknown",
+            "values": [
               "unrecorded"
             ]
           }
@@ -186,8 +288,11 @@
       "comparability": {
         "comparable": "unknown",
         "live_member_count": 1,
-        "predicate_version": "comparability-predicate/v1",
+        "predicate_version": "comparability-predicate/v2",
         "reasons": [
+          "stack: unrecorded for 1 member; homogeneity cannot be certified",
+          "replay_backend: unrecorded for 1 member; homogeneity cannot be certified",
+          "replay_env: unrecorded for 1 member; homogeneity cannot be certified",
           "hardware: unrecorded for 1 member; homogeneity cannot be certified"
         ],
         "secondary": {
@@ -195,6 +300,18 @@
             "status": "unknown",
             "values": [
               "unrecorded"
+            ]
+          },
+          "harness": {
+            "status": "pass",
+            "values": [
+              "harness--396fa2949104507e"
+            ]
+          },
+          "key": {
+            "status": "pass",
+            "values": [
+              "cmp--1b9cc52aa250300f"
             ]
           },
           "lane": {
@@ -209,10 +326,28 @@
               "pipeline--fixture.cpu.spark2-5.396fa2949104507e"
             ]
           },
+          "replay_backend": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "replay_env": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
           "scope": {
             "status": "pass",
             "values": [
               "unquantized"
+            ]
+          },
+          "stack": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
             ]
           }
         }
@@ -232,8 +367,11 @@
       "comparability": {
         "comparable": "unknown",
         "live_member_count": 1,
-        "predicate_version": "comparability-predicate/v1",
+        "predicate_version": "comparability-predicate/v2",
         "reasons": [
+          "stack: unrecorded for 1 member; homogeneity cannot be certified",
+          "replay_backend: unrecorded for 1 member; homogeneity cannot be certified",
+          "replay_env: unrecorded for 1 member; homogeneity cannot be certified",
           "hardware: unrecorded for 1 member; homogeneity cannot be certified"
         ],
         "secondary": {
@@ -241,6 +379,18 @@
             "status": "unknown",
             "values": [
               "unrecorded"
+            ]
+          },
+          "harness": {
+            "status": "pass",
+            "values": [
+              "harness--a9860489ffc00e4b"
+            ]
+          },
+          "key": {
+            "status": "pass",
+            "values": [
+              "cmp--1fc318e7eb2a6ed5"
             ]
           },
           "lane": {
@@ -255,10 +405,28 @@
               "pipeline--fixture.cpu.k2-horizon.a9860489ffc00e4b"
             ]
           },
+          "replay_backend": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "replay_env": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
           "scope": {
             "status": "pass",
             "values": [
               "unquantized"
+            ]
+          },
+          "stack": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
             ]
           }
         }
@@ -278,8 +446,12 @@
       "comparability": {
         "comparable": "false",
         "live_member_count": 11,
-        "predicate_version": "comparability-predicate/v1",
+        "predicate_version": "comparability-predicate/v2",
         "reasons": [
+          "harness: unrecorded for 10 members; homogeneity cannot be certified",
+          "stack: unrecorded for 11 members; homogeneity cannot be certified",
+          "replay_backend: unrecorded for 11 members; homogeneity cannot be certified",
+          "replay_env: unrecorded for 11 members; homogeneity cannot be certified",
           "lane: members span {sealed-ep8, streaming} -- lanes are not interchangeable: where one artifact appears on two lanes it is one set of weights measured twice, not two quants, and the renderer tables non-sealed lanes apart (a same-stack pipeline with no lane declaration is the sealed-ep8 lane, per BIAS-006)",
           "pipeline: members span {pipeline--brandonmusic.glm53-packed-kld, pipeline--malaiwah.glm53-dione-packed-kld, pipeline--malaiwah.glm53-packed-kld, pipeline--malaiwah.glm53-stream-packed-kld} -- the candidate pipeline is not a key input, and a measured pipeline effect of ~24% exists on this registry's own data",
           "scope: members span {attn.o+attn.qkv+lm_head+mlp.down+mlp.gate+mlp.up+moe.experts+moe.shared_expert+mtp+other|head=quantized|kv=not_applicable, moe.experts+mtp|head=native|kv=bf16, moe.experts|head=native|kv=bf16} -- these are different interventions; equal nominal bpw does not make a routed-experts-only quant and a full-forward quant the same thing (docs/GGUF-MEASUREMENT.md)",
@@ -291,6 +463,19 @@
             "values": [
               "1x H200",
               "unrecorded"
+            ]
+          },
+          "harness": {
+            "status": "unknown",
+            "values": [
+              "harness--1d5d479e75bb0bfa",
+              "unrecorded"
+            ]
+          },
+          "key": {
+            "status": "pass",
+            "values": [
+              "cmp--202b717f3219c414"
             ]
           },
           "lane": {
@@ -309,12 +494,30 @@
               "pipeline--malaiwah.glm53-stream-packed-kld"
             ]
           },
+          "replay_backend": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "replay_env": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
           "scope": {
             "status": "fail",
             "values": [
               "attn.o+attn.qkv+lm_head+mlp.down+mlp.gate+mlp.up+moe.experts+moe.shared_expert+mtp+other|head=quantized|kv=not_applicable",
               "moe.experts+mtp|head=native|kv=bf16",
               "moe.experts|head=native|kv=bf16"
+            ]
+          },
+          "stack": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
             ]
           }
         }
@@ -334,8 +537,11 @@
       "comparability": {
         "comparable": "unknown",
         "live_member_count": 1,
-        "predicate_version": "comparability-predicate/v1",
+        "predicate_version": "comparability-predicate/v2",
         "reasons": [
+          "stack: unrecorded for 1 member; homogeneity cannot be certified",
+          "replay_backend: unrecorded for 1 member; homogeneity cannot be certified",
+          "replay_env: unrecorded for 1 member; homogeneity cannot be certified",
           "hardware: unrecorded for 1 member; homogeneity cannot be certified"
         ],
         "secondary": {
@@ -343,6 +549,18 @@
             "status": "unknown",
             "values": [
               "unrecorded"
+            ]
+          },
+          "harness": {
+            "status": "pass",
+            "values": [
+              "harness--89df8965fe821f7b"
+            ]
+          },
+          "key": {
+            "status": "pass",
+            "values": [
+              "cmp--238563353ac89178"
             ]
           },
           "lane": {
@@ -357,10 +575,28 @@
               "pipeline--fixture.cpu.qwen3-5.89df8965fe821f7b"
             ]
           },
+          "replay_backend": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "replay_env": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
           "scope": {
             "status": "pass",
             "values": [
               "unquantized"
+            ]
+          },
+          "stack": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
             ]
           }
         }
@@ -380,8 +616,11 @@
       "comparability": {
         "comparable": "false",
         "live_member_count": 4,
-        "predicate_version": "comparability-predicate/v1",
+        "predicate_version": "comparability-predicate/v2",
         "reasons": [
+          "stack: unrecorded for 4 members; homogeneity cannot be certified",
+          "replay_backend: unrecorded for 4 members; homogeneity cannot be certified",
+          "replay_env: unrecorded for 4 members; homogeneity cannot be certified",
           "lane: members span {sealed-ep8, streaming} -- lanes are not interchangeable: where one artifact appears on two lanes it is one set of weights measured twice, not two quants, and the renderer tables non-sealed lanes apart (a same-stack pipeline with no lane declaration is the sealed-ep8 lane, per BIAS-006)",
           "pipeline: members span {pipeline--brandonmusic.glm53-packed-kld, pipeline--malaiwah.glm53-packed-kld, pipeline--malaiwah.glm53-stream-packed-kld} -- the candidate pipeline is not a key input, and a measured pipeline effect of ~24% exists on this registry's own data",
           "hardware: unrecorded for 2 members; homogeneity cannot be certified"
@@ -392,6 +631,18 @@
             "values": [
               "1x H200",
               "unrecorded"
+            ]
+          },
+          "harness": {
+            "status": "pass",
+            "values": [
+              "harness--9fc9f3518e2594a1"
+            ]
+          },
+          "key": {
+            "status": "pass",
+            "values": [
+              "cmp--2b9c401d13806d7e"
             ]
           },
           "lane": {
@@ -409,10 +660,28 @@
               "pipeline--malaiwah.glm53-stream-packed-kld"
             ]
           },
+          "replay_backend": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "replay_env": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
           "scope": {
             "status": "pass",
             "values": [
               "moe.experts+mtp|head=native|kv=bf16"
+            ]
+          },
+          "stack": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
             ]
           }
         }
@@ -432,8 +701,11 @@
       "comparability": {
         "comparable": "unknown",
         "live_member_count": 1,
-        "predicate_version": "comparability-predicate/v1",
+        "predicate_version": "comparability-predicate/v2",
         "reasons": [
+          "stack: unrecorded for 1 member; homogeneity cannot be certified",
+          "replay_backend: unrecorded for 1 member; homogeneity cannot be certified",
+          "replay_env: unrecorded for 1 member; homogeneity cannot be certified",
           "hardware: unrecorded for 1 member; homogeneity cannot be certified"
         ],
         "secondary": {
@@ -441,6 +713,18 @@
             "status": "unknown",
             "values": [
               "unrecorded"
+            ]
+          },
+          "harness": {
+            "status": "pass",
+            "values": [
+              "harness--89df8965fe821f7b"
+            ]
+          },
+          "key": {
+            "status": "pass",
+            "values": [
+              "cmp--2cd2acab7abc566a"
             ]
           },
           "lane": {
@@ -455,10 +739,28 @@
               "pipeline--fixture.cpu.kimi-k25.89df8965fe821f7b"
             ]
           },
+          "replay_backend": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "replay_env": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
           "scope": {
             "status": "pass",
             "values": [
               "unquantized"
+            ]
+          },
+          "stack": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
             ]
           }
         }
@@ -478,8 +780,12 @@
       "comparability": {
         "comparable": "unknown",
         "live_member_count": 4,
-        "predicate_version": "comparability-predicate/v1",
+        "predicate_version": "comparability-predicate/v2",
         "reasons": [
+          "harness: unrecorded for 4 members; homogeneity cannot be certified",
+          "stack: unrecorded for 4 members; homogeneity cannot be certified",
+          "replay_backend: unrecorded for 4 members; homogeneity cannot be certified",
+          "replay_env: unrecorded for 4 members; homogeneity cannot be certified",
           "lane: unrecorded for 4 members; homogeneity cannot be certified",
           "scope: unrecorded for 3 members; homogeneity cannot be certified"
         ],
@@ -488,6 +794,18 @@
             "status": "pass",
             "values": [
               "cuda"
+            ]
+          },
+          "harness": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "key": {
+            "status": "pass",
+            "values": [
+              "cmp--35a4b2ab8ed5cd50"
             ]
           },
           "lane": {
@@ -502,7 +820,25 @@
               "pipeline--malaiwah.qwen38-gguf-cross-engine"
             ]
           },
+          "replay_backend": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "replay_env": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
           "scope": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "stack": {
             "status": "unknown",
             "values": [
               "unrecorded"
@@ -525,8 +861,12 @@
       "comparability": {
         "comparable": "false",
         "live_member_count": 5,
-        "predicate_version": "comparability-predicate/v1",
+        "predicate_version": "comparability-predicate/v2",
         "reasons": [
+          "harness: unrecorded for 5 members; homogeneity cannot be certified",
+          "stack: unrecorded for 5 members; homogeneity cannot be certified",
+          "replay_backend: unrecorded for 5 members; homogeneity cannot be certified",
+          "replay_env: unrecorded for 5 members; homogeneity cannot be certified",
           "scope: members span {attn.o+attn.qkv+lm_head+mlp.down+mlp.gate+mlp.up+mtp|head=quantized|kv=bf16, attn.o+attn.qkv+mlp.down+mlp.gate+mlp.up|head=native|kv=bf16, lm_head+mlp.down+mlp.gate+mlp.up|head=quantized|kv=bf16} -- these are different interventions; equal nominal bpw does not make a routed-experts-only quant and a full-forward quant the same thing (docs/GGUF-MEASUREMENT.md)"
         ],
         "secondary": {
@@ -534,6 +874,18 @@
             "status": "pass",
             "values": [
               "cuda"
+            ]
+          },
+          "harness": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "key": {
+            "status": "pass",
+            "values": [
+              "cmp--47c0bc74ebec3fa7"
             ]
           },
           "lane": {
@@ -548,12 +900,30 @@
               "pipeline--malaiwah.qwen38-kld-ladder"
             ]
           },
+          "replay_backend": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "replay_env": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
           "scope": {
             "status": "fail",
             "values": [
               "attn.o+attn.qkv+lm_head+mlp.down+mlp.gate+mlp.up+mtp|head=quantized|kv=bf16",
               "attn.o+attn.qkv+mlp.down+mlp.gate+mlp.up|head=native|kv=bf16",
               "lm_head+mlp.down+mlp.gate+mlp.up|head=quantized|kv=bf16"
+            ]
+          },
+          "stack": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
             ]
           }
         }
@@ -573,8 +943,12 @@
       "comparability": {
         "comparable": "unknown",
         "live_member_count": 5,
-        "predicate_version": "comparability-predicate/v1",
+        "predicate_version": "comparability-predicate/v2",
         "reasons": [
+          "harness: unrecorded for 5 members; homogeneity cannot be certified",
+          "stack: unrecorded for 5 members; homogeneity cannot be certified",
+          "replay_backend: unrecorded for 5 members; homogeneity cannot be certified",
+          "replay_env: unrecorded for 5 members; homogeneity cannot be certified",
           "scope: unrecorded for 5 members; homogeneity cannot be certified",
           "hardware: unrecorded for 5 members; homogeneity cannot be certified"
         ],
@@ -583,6 +957,18 @@
             "status": "unknown",
             "values": [
               "unrecorded"
+            ]
+          },
+          "harness": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "key": {
+            "status": "pass",
+            "values": [
+              "cmp--492e9b16e8bd6fbd"
             ]
           },
           "lane": {
@@ -597,7 +983,25 @@
               "pipeline--orcarouter.mlx-eval"
             ]
           },
+          "replay_backend": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "replay_env": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
           "scope": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "stack": {
             "status": "unknown",
             "values": [
               "unrecorded"
@@ -620,8 +1024,11 @@
       "comparability": {
         "comparable": "unknown",
         "live_member_count": 1,
-        "predicate_version": "comparability-predicate/v1",
+        "predicate_version": "comparability-predicate/v2",
         "reasons": [
+          "stack: unrecorded for 1 member; homogeneity cannot be certified",
+          "replay_backend: unrecorded for 1 member; homogeneity cannot be certified",
+          "replay_env: unrecorded for 1 member; homogeneity cannot be certified",
           "hardware: unrecorded for 1 member; homogeneity cannot be certified"
         ],
         "secondary": {
@@ -629,6 +1036,18 @@
             "status": "unknown",
             "values": [
               "unrecorded"
+            ]
+          },
+          "harness": {
+            "status": "pass",
+            "values": [
+              "harness--89df8965fe821f7b"
+            ]
+          },
+          "key": {
+            "status": "pass",
+            "values": [
+              "cmp--4941dc6687219470"
             ]
           },
           "lane": {
@@ -643,10 +1062,28 @@
               "pipeline--fixture.cpu.qwen35-gguf.89df8965fe821f7b"
             ]
           },
+          "replay_backend": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "replay_env": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
           "scope": {
             "status": "pass",
             "values": [
               "unquantized"
+            ]
+          },
+          "stack": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
             ]
           }
         }
@@ -666,8 +1103,11 @@
       "comparability": {
         "comparable": "unknown",
         "live_member_count": 1,
-        "predicate_version": "comparability-predicate/v1",
+        "predicate_version": "comparability-predicate/v2",
         "reasons": [
+          "stack: unrecorded for 1 member; homogeneity cannot be certified",
+          "replay_backend: unrecorded for 1 member; homogeneity cannot be certified",
+          "replay_env: unrecorded for 1 member; homogeneity cannot be certified",
           "hardware: unrecorded for 1 member; homogeneity cannot be certified"
         ],
         "secondary": {
@@ -675,6 +1115,18 @@
             "status": "unknown",
             "values": [
               "unrecorded"
+            ]
+          },
+          "harness": {
+            "status": "pass",
+            "values": [
+              "harness--c7d11a9648194cf6"
+            ]
+          },
+          "key": {
+            "status": "pass",
+            "values": [
+              "cmp--4a66bc7afad67fe2"
             ]
           },
           "lane": {
@@ -689,10 +1141,28 @@
               "pipeline--fixture.cpu.kimi-k3.c7d11a9648194cf6"
             ]
           },
+          "replay_backend": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "replay_env": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
           "scope": {
             "status": "pass",
             "values": [
               "unquantized"
+            ]
+          },
+          "stack": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
             ]
           }
         }
@@ -712,8 +1182,12 @@
       "comparability": {
         "comparable": "unknown",
         "live_member_count": 2,
-        "predicate_version": "comparability-predicate/v1",
+        "predicate_version": "comparability-predicate/v2",
         "reasons": [
+          "harness: unrecorded for 2 members; homogeneity cannot be certified",
+          "stack: unrecorded for 2 members; homogeneity cannot be certified",
+          "replay_backend: unrecorded for 2 members; homogeneity cannot be certified",
+          "replay_env: unrecorded for 2 members; homogeneity cannot be certified",
           "lane: unrecorded for 2 members; homogeneity cannot be certified"
         ],
         "secondary": {
@@ -721,6 +1195,18 @@
             "status": "pass",
             "values": [
               "cuda"
+            ]
+          },
+          "harness": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "key": {
+            "status": "pass",
+            "values": [
+              "cmp--4a8630bdcadab97f"
             ]
           },
           "lane": {
@@ -735,10 +1221,28 @@
               "pipeline--malaiwah.glm53-crosscheck"
             ]
           },
+          "replay_backend": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "replay_env": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
           "scope": {
             "status": "pass",
             "values": [
               "attn.o+attn.qkv+mlp.down+mlp.gate+mlp.up+moe.experts|head=native|kv=bf16"
+            ]
+          },
+          "stack": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
             ]
           }
         }
@@ -758,8 +1262,11 @@
       "comparability": {
         "comparable": "unknown",
         "live_member_count": 1,
-        "predicate_version": "comparability-predicate/v1",
+        "predicate_version": "comparability-predicate/v2",
         "reasons": [
+          "stack: unrecorded for 1 member; homogeneity cannot be certified",
+          "replay_backend: unrecorded for 1 member; homogeneity cannot be certified",
+          "replay_env: unrecorded for 1 member; homogeneity cannot be certified",
           "hardware: unrecorded for 1 member; homogeneity cannot be certified"
         ],
         "secondary": {
@@ -767,6 +1274,18 @@
             "status": "unknown",
             "values": [
               "unrecorded"
+            ]
+          },
+          "harness": {
+            "status": "pass",
+            "values": [
+              "harness--89df8965fe821f7b"
+            ]
+          },
+          "key": {
+            "status": "pass",
+            "values": [
+              "cmp--57fd571961121fe6"
             ]
           },
           "lane": {
@@ -781,10 +1300,28 @@
               "pipeline--fixture.cpu.qwen4-exp.89df8965fe821f7b"
             ]
           },
+          "replay_backend": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "replay_env": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
           "scope": {
             "status": "pass",
             "values": [
               "unquantized"
+            ]
+          },
+          "stack": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
             ]
           }
         }
@@ -804,8 +1341,11 @@
       "comparability": {
         "comparable": "unknown",
         "live_member_count": 1,
-        "predicate_version": "comparability-predicate/v1",
+        "predicate_version": "comparability-predicate/v2",
         "reasons": [
+          "stack: unrecorded for 1 member; homogeneity cannot be certified",
+          "replay_backend: unrecorded for 1 member; homogeneity cannot be certified",
+          "replay_env: unrecorded for 1 member; homogeneity cannot be certified",
           "hardware: unrecorded for 1 member; homogeneity cannot be certified"
         ],
         "secondary": {
@@ -813,6 +1353,18 @@
             "status": "unknown",
             "values": [
               "unrecorded"
+            ]
+          },
+          "harness": {
+            "status": "pass",
+            "values": [
+              "harness--89df8965fe821f7b"
+            ]
+          },
+          "key": {
+            "status": "pass",
+            "values": [
+              "cmp--6757032314e38a59"
             ]
           },
           "lane": {
@@ -827,10 +1379,28 @@
               "pipeline--fixture.cpu.glm5-next.89df8965fe821f7b"
             ]
           },
+          "replay_backend": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "replay_env": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
           "scope": {
             "status": "pass",
             "values": [
               "unquantized"
+            ]
+          },
+          "stack": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
             ]
           }
         }
@@ -850,8 +1420,9 @@
       "comparability": {
         "comparable": "false",
         "live_member_count": 6,
-        "predicate_version": "comparability-predicate/v1",
+        "predicate_version": "comparability-predicate/v2",
         "reasons": [
+          "harness: different recorded closures; numerical equivalence is not certified",
           "scope: members span {attn.o+attn.other+attn.qkv+embed_tokens+lm_head+mlp.down+mlp.gate+mlp.up+moe.experts+moe.shared_expert+mtp|head=quantized|kv=not_applicable, attn.o+attn.other+attn.qkv+mlp.down+mlp.gate+mlp.up+moe.experts+moe.shared_expert+mtp|head=native|kv=bf16, moe.experts+mtp|head=native|kv=bf16, moe.experts|head=native|kv=bf16} -- these are different interventions; equal nominal bpw does not make a routed-experts-only quant and a full-forward quant the same thing (docs/GGUF-MEASUREMENT.md)"
         ],
         "secondary": {
@@ -859,6 +1430,20 @@
             "status": "pass",
             "values": [
               "1x NVIDIA H200"
+            ]
+          },
+          "harness": {
+            "status": "unknown",
+            "values": [
+              "harness--81d9771e6cc75949",
+              "harness--94556a32c0c38dc9",
+              "harness--d57e031c148ee308"
+            ]
+          },
+          "key": {
+            "status": "pass",
+            "values": [
+              "cmp--6ccc41df40f849da"
             ]
           },
           "lane": {
@@ -873,6 +1458,18 @@
               "pipeline--malaiwah.fidelity-dataset-hf.h200-layer-outer"
             ]
           },
+          "replay_backend": {
+            "status": "pass",
+            "values": [
+              "numpy:cpu:float32"
+            ]
+          },
+          "replay_env": {
+            "status": "pass",
+            "values": [
+              "{\"blas_configuration\":\"OpenBLAS 0.3.34.0.0  USE64BITINT DYNAMIC_ARCH NO_AFFINITY Haswell MAX_THREADS=64\",\"blas_name\":\"scipy-openblas\",\"blas_threads\":64,\"blas_version\":\"0.3.34.0.0\",\"cpu_model\":\"INTEL(R) XEON(R) PLATINUM 8568Y+\",\"library\":\"numpy\",\"numpy_version\":\"2.5.2\",\"replay_dtype\":\"float32\"}"
+            ]
+          },
           "scope": {
             "status": "fail",
             "values": [
@@ -880,6 +1477,12 @@
               "attn.o+attn.other+attn.qkv+mlp.down+mlp.gate+mlp.up+moe.experts+moe.shared_expert+mtp|head=native|kv=bf16",
               "moe.experts+mtp|head=native|kv=bf16",
               "moe.experts|head=native|kv=bf16"
+            ]
+          },
+          "stack": {
+            "status": "pass",
+            "values": [
+              "e7ddf6b280474c1709836e227b55dda1247b32148313bc87fd88a2ada704f0e0"
             ]
           }
         }
@@ -899,8 +1502,12 @@
       "comparability": {
         "comparable": "false",
         "live_member_count": 5,
-        "predicate_version": "comparability-predicate/v1",
+        "predicate_version": "comparability-predicate/v2",
         "reasons": [
+          "harness: unrecorded for 5 members; homogeneity cannot be certified",
+          "stack: unrecorded for 5 members; homogeneity cannot be certified",
+          "replay_backend: unrecorded for 5 members; homogeneity cannot be certified",
+          "replay_env: unrecorded for 5 members; homogeneity cannot be certified",
           "scope: members span {attn.o+attn.qkv+lm_head+mlp.down+mlp.gate+mlp.up+mtp|head=quantized|kv=bf16, attn.o+attn.qkv+mlp.down+mlp.gate+mlp.up|head=native|kv=bf16, lm_head+mlp.down+mlp.gate+mlp.up|head=quantized|kv=bf16} -- these are different interventions; equal nominal bpw does not make a routed-experts-only quant and a full-forward quant the same thing (docs/GGUF-MEASUREMENT.md)"
         ],
         "secondary": {
@@ -908,6 +1515,18 @@
             "status": "pass",
             "values": [
               "cuda"
+            ]
+          },
+          "harness": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "key": {
+            "status": "pass",
+            "values": [
+              "cmp--726ac1b18b8129fa"
             ]
           },
           "lane": {
@@ -922,12 +1541,30 @@
               "pipeline--malaiwah.qwen38-kld-ladder"
             ]
           },
+          "replay_backend": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "replay_env": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
           "scope": {
             "status": "fail",
             "values": [
               "attn.o+attn.qkv+lm_head+mlp.down+mlp.gate+mlp.up+mtp|head=quantized|kv=bf16",
               "attn.o+attn.qkv+mlp.down+mlp.gate+mlp.up|head=native|kv=bf16",
               "lm_head+mlp.down+mlp.gate+mlp.up|head=quantized|kv=bf16"
+            ]
+          },
+          "stack": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
             ]
           }
         }
@@ -947,8 +1584,12 @@
       "comparability": {
         "comparable": "false",
         "live_member_count": 12,
-        "predicate_version": "comparability-predicate/v1",
+        "predicate_version": "comparability-predicate/v2",
         "reasons": [
+          "harness: unrecorded for 12 members; homogeneity cannot be certified",
+          "stack: unrecorded for 12 members; homogeneity cannot be certified",
+          "replay_backend: unrecorded for 12 members; homogeneity cannot be certified",
+          "replay_env: unrecorded for 12 members; homogeneity cannot be certified",
           "scope: members span {attn.o+attn.qkv+lm_head+mlp.down+mlp.gate+mlp.up+mtp|head=quantized|kv=bf16, attn.o+attn.qkv+mlp.down+mlp.gate+mlp.up|head=native|kv=bf16, lm_head+mlp.down+mlp.gate+mlp.up|head=quantized|kv=bf16, unrecorded} -- these are different interventions; equal nominal bpw does not make a routed-experts-only quant and a full-forward quant the same thing (docs/GGUF-MEASUREMENT.md)"
         ],
         "secondary": {
@@ -956,6 +1597,18 @@
             "status": "pass",
             "values": [
               "cuda"
+            ]
+          },
+          "harness": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "key": {
+            "status": "pass",
+            "values": [
+              "cmp--75b64be1f101ed22"
             ]
           },
           "lane": {
@@ -970,12 +1623,30 @@
               "pipeline--malaiwah.qwen38-kld-ladder"
             ]
           },
+          "replay_backend": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "replay_env": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
           "scope": {
             "status": "fail",
             "values": [
               "attn.o+attn.qkv+lm_head+mlp.down+mlp.gate+mlp.up+mtp|head=quantized|kv=bf16",
               "attn.o+attn.qkv+mlp.down+mlp.gate+mlp.up|head=native|kv=bf16",
               "lm_head+mlp.down+mlp.gate+mlp.up|head=quantized|kv=bf16",
+              "unrecorded"
+            ]
+          },
+          "stack": {
+            "status": "unknown",
+            "values": [
               "unrecorded"
             ]
           }
@@ -996,8 +1667,11 @@
       "comparability": {
         "comparable": "unknown",
         "live_member_count": 1,
-        "predicate_version": "comparability-predicate/v1",
+        "predicate_version": "comparability-predicate/v2",
         "reasons": [
+          "stack: unrecorded for 1 member; homogeneity cannot be certified",
+          "replay_backend: unrecorded for 1 member; homogeneity cannot be certified",
+          "replay_env: unrecorded for 1 member; homogeneity cannot be certified",
           "hardware: unrecorded for 1 member; homogeneity cannot be certified"
         ],
         "secondary": {
@@ -1005,6 +1679,18 @@
             "status": "unknown",
             "values": [
               "unrecorded"
+            ]
+          },
+          "harness": {
+            "status": "pass",
+            "values": [
+              "harness--89df8965fe821f7b"
+            ]
+          },
+          "key": {
+            "status": "pass",
+            "values": [
+              "cmp--7e10ab9bcc7628b7"
             ]
           },
           "lane": {
@@ -1019,10 +1705,28 @@
               "pipeline--fixture.cpu.minimax-m3.89df8965fe821f7b"
             ]
           },
+          "replay_backend": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "replay_env": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
           "scope": {
             "status": "pass",
             "values": [
               "unquantized"
+            ]
+          },
+          "stack": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
             ]
           }
         }
@@ -1040,15 +1744,32 @@
     {
       "accumulation_dtype": "float64",
       "comparability": {
-        "comparable": "true",
+        "comparable": "unknown",
         "live_member_count": 1,
-        "predicate_version": "comparability-predicate/v1",
-        "reasons": [],
+        "predicate_version": "comparability-predicate/v2",
+        "reasons": [
+          "harness: unrecorded for 1 member; homogeneity cannot be certified",
+          "stack: unrecorded for 1 member; homogeneity cannot be certified",
+          "replay_backend: unrecorded for 1 member; homogeneity cannot be certified",
+          "replay_env: unrecorded for 1 member; homogeneity cannot be certified"
+        ],
         "secondary": {
           "hardware": {
             "status": "pass",
             "values": [
               "cuda"
+            ]
+          },
+          "harness": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "key": {
+            "status": "pass",
+            "values": [
+              "cmp--9b009314102d9e8b"
             ]
           },
           "lane": {
@@ -1063,10 +1784,28 @@
               "pipeline--malaiwah.glm53-fidelity-replay"
             ]
           },
+          "replay_backend": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "replay_env": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
           "scope": {
             "status": "pass",
             "values": [
               "attn.o+attn.qkv+mlp.down+mlp.gate+mlp.up+moe.experts|head=native|kv=bf16"
+            ]
+          },
+          "stack": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
             ]
           }
         }
@@ -1086,8 +1825,11 @@
       "comparability": {
         "comparable": "unknown",
         "live_member_count": 1,
-        "predicate_version": "comparability-predicate/v1",
+        "predicate_version": "comparability-predicate/v2",
         "reasons": [
+          "stack: unrecorded for 1 member; homogeneity cannot be certified",
+          "replay_backend: unrecorded for 1 member; homogeneity cannot be certified",
+          "replay_env: unrecorded for 1 member; homogeneity cannot be certified",
           "hardware: unrecorded for 1 member; homogeneity cannot be certified"
         ],
         "secondary": {
@@ -1095,6 +1837,18 @@
             "status": "unknown",
             "values": [
               "unrecorded"
+            ]
+          },
+          "harness": {
+            "status": "pass",
+            "values": [
+              "harness--89df8965fe821f7b"
+            ]
+          },
+          "key": {
+            "status": "pass",
+            "values": [
+              "cmp--9b87b6d52c97e8ca"
             ]
           },
           "lane": {
@@ -1109,10 +1863,28 @@
               "pipeline--fixture.cpu.glm-moe-dsa.89df8965fe821f7b"
             ]
           },
+          "replay_backend": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "replay_env": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
           "scope": {
             "status": "pass",
             "values": [
               "unquantized"
+            ]
+          },
+          "stack": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
             ]
           }
         }
@@ -1132,8 +1904,11 @@
       "comparability": {
         "comparable": "unknown",
         "live_member_count": 1,
-        "predicate_version": "comparability-predicate/v1",
+        "predicate_version": "comparability-predicate/v2",
         "reasons": [
+          "stack: unrecorded for 1 member; homogeneity cannot be certified",
+          "replay_backend: unrecorded for 1 member; homogeneity cannot be certified",
+          "replay_env: unrecorded for 1 member; homogeneity cannot be certified",
           "hardware: unrecorded for 1 member; homogeneity cannot be certified"
         ],
         "secondary": {
@@ -1141,6 +1916,18 @@
             "status": "unknown",
             "values": [
               "unrecorded"
+            ]
+          },
+          "harness": {
+            "status": "pass",
+            "values": [
+              "harness--89df8965fe821f7b"
+            ]
+          },
+          "key": {
+            "status": "pass",
+            "values": [
+              "cmp--a99c67940f387a86"
             ]
           },
           "lane": {
@@ -1155,10 +1942,28 @@
               "pipeline--fixture.cpu.minimax-m2.89df8965fe821f7b"
             ]
           },
+          "replay_backend": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "replay_env": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
           "scope": {
             "status": "pass",
             "values": [
               "unquantized"
+            ]
+          },
+          "stack": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
             ]
           }
         }
@@ -1178,8 +1983,12 @@
       "comparability": {
         "comparable": "false",
         "live_member_count": 6,
-        "predicate_version": "comparability-predicate/v1",
+        "predicate_version": "comparability-predicate/v2",
         "reasons": [
+          "harness: unrecorded for 6 members; homogeneity cannot be certified",
+          "stack: unrecorded for 6 members; homogeneity cannot be certified",
+          "replay_backend: unrecorded for 6 members; homogeneity cannot be certified",
+          "replay_env: unrecorded for 6 members; homogeneity cannot be certified",
           "pipeline: members span {pipeline--brandonmusic.sm120-runtime.v44, pipeline--brandonmusic.sm120-runtime.v71, pipeline--brandonmusic.sm120-runtime.v75} -- the candidate pipeline is not a key input, and a measured pipeline effect of ~24% exists on this registry's own data",
           "scope: unrecorded for 3 members; homogeneity cannot be certified"
         ],
@@ -1188,6 +1997,18 @@
             "status": "pass",
             "values": [
               "2x SM120"
+            ]
+          },
+          "harness": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "key": {
+            "status": "pass",
+            "values": [
+              "cmp--b55c2d693d127f20"
             ]
           },
           "lane": {
@@ -1204,10 +2025,28 @@
               "pipeline--brandonmusic.sm120-runtime.v75"
             ]
           },
+          "replay_backend": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "replay_env": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
           "scope": {
             "status": "unknown",
             "values": [
               "attn.o+attn.qkv+kv_cache+mlp.down+mlp.gate+mlp.up+moe.experts|head=native|kv=fp8_e4m3",
+              "unrecorded"
+            ]
+          },
+          "stack": {
+            "status": "unknown",
+            "values": [
               "unrecorded"
             ]
           }
@@ -1228,8 +2067,11 @@
       "comparability": {
         "comparable": "unknown",
         "live_member_count": 1,
-        "predicate_version": "comparability-predicate/v1",
+        "predicate_version": "comparability-predicate/v2",
         "reasons": [
+          "stack: unrecorded for 1 member; homogeneity cannot be certified",
+          "replay_backend: unrecorded for 1 member; homogeneity cannot be certified",
+          "replay_env: unrecorded for 1 member; homogeneity cannot be certified",
           "hardware: unrecorded for 1 member; homogeneity cannot be certified"
         ],
         "secondary": {
@@ -1237,6 +2079,18 @@
             "status": "unknown",
             "values": [
               "unrecorded"
+            ]
+          },
+          "harness": {
+            "status": "pass",
+            "values": [
+              "harness--0e86ec05d2104689"
+            ]
+          },
+          "key": {
+            "status": "pass",
+            "values": [
+              "cmp--b9834d82706b4192"
             ]
           },
           "lane": {
@@ -1251,10 +2105,28 @@
               "pipeline--fixture.cpu.deepseek-v4.0e86ec05d2104689"
             ]
           },
+          "replay_backend": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "replay_env": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
           "scope": {
             "status": "pass",
             "values": [
               "unquantized"
+            ]
+          },
+          "stack": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
             ]
           }
         }
@@ -1274,8 +2146,12 @@
       "comparability": {
         "comparable": "false",
         "live_member_count": 6,
-        "predicate_version": "comparability-predicate/v1",
+        "predicate_version": "comparability-predicate/v2",
         "reasons": [
+          "harness: unrecorded for 6 members; homogeneity cannot be certified",
+          "stack: unrecorded for 6 members; homogeneity cannot be certified",
+          "replay_backend: unrecorded for 6 members; homogeneity cannot be certified",
+          "replay_env: unrecorded for 6 members; homogeneity cannot be certified",
           "scope: members span {attn.o+attn.qkv+lm_head+mlp.down+mlp.gate+mlp.up+mtp|head=quantized|kv=bf16, attn.o+attn.qkv+mlp.down+mlp.gate+mlp.up|head=native|kv=bf16, lm_head+mlp.down+mlp.gate+mlp.up|head=quantized|kv=bf16, unrecorded} -- these are different interventions; equal nominal bpw does not make a routed-experts-only quant and a full-forward quant the same thing (docs/GGUF-MEASUREMENT.md)"
         ],
         "secondary": {
@@ -1283,6 +2159,18 @@
             "status": "pass",
             "values": [
               "cuda"
+            ]
+          },
+          "harness": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "key": {
+            "status": "pass",
+            "values": [
+              "cmp--c8c4df32774bdb63"
             ]
           },
           "lane": {
@@ -1297,12 +2185,30 @@
               "pipeline--malaiwah.qwen38-kld-ladder"
             ]
           },
+          "replay_backend": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "replay_env": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
           "scope": {
             "status": "fail",
             "values": [
               "attn.o+attn.qkv+lm_head+mlp.down+mlp.gate+mlp.up+mtp|head=quantized|kv=bf16",
               "attn.o+attn.qkv+mlp.down+mlp.gate+mlp.up|head=native|kv=bf16",
               "lm_head+mlp.down+mlp.gate+mlp.up|head=quantized|kv=bf16",
+              "unrecorded"
+            ]
+          },
+          "stack": {
+            "status": "unknown",
+            "values": [
               "unrecorded"
             ]
           }
@@ -1321,15 +2227,32 @@
     {
       "accumulation_dtype": "float64",
       "comparability": {
-        "comparable": "true",
+        "comparable": "unknown",
         "live_member_count": 2,
-        "predicate_version": "comparability-predicate/v1",
-        "reasons": [],
+        "predicate_version": "comparability-predicate/v2",
+        "reasons": [
+          "harness: unrecorded for 2 members; homogeneity cannot be certified",
+          "stack: unrecorded for 2 members; homogeneity cannot be certified",
+          "replay_backend: unrecorded for 2 members; homogeneity cannot be certified",
+          "replay_env: unrecorded for 2 members; homogeneity cannot be certified"
+        ],
         "secondary": {
           "hardware": {
             "status": "pass",
             "values": [
               "1x NVIDIA L4"
+            ]
+          },
+          "harness": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "key": {
+            "status": "pass",
+            "values": [
+              "cmp--e21ff3b61b1bb2ec"
             ]
           },
           "lane": {
@@ -1344,10 +2267,28 @@
               "pipeline--malaiwah.fidelity-dataset-hf"
             ]
           },
+          "replay_backend": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "replay_env": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
           "scope": {
             "status": "pass",
             "values": [
               "moe.experts+mtp|head=native|kv=bf16"
+            ]
+          },
+          "stack": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
             ]
           }
         }
@@ -1365,15 +2306,32 @@
     {
       "accumulation_dtype": "float64",
       "comparability": {
-        "comparable": "true",
+        "comparable": "unknown",
         "live_member_count": 1,
-        "predicate_version": "comparability-predicate/v1",
-        "reasons": [],
+        "predicate_version": "comparability-predicate/v2",
+        "reasons": [
+          "harness: unrecorded for 1 member; homogeneity cannot be certified",
+          "stack: unrecorded for 1 member; homogeneity cannot be certified",
+          "replay_backend: unrecorded for 1 member; homogeneity cannot be certified",
+          "replay_env: unrecorded for 1 member; homogeneity cannot be certified"
+        ],
         "secondary": {
           "hardware": {
             "status": "pass",
             "values": [
               "cuda"
+            ]
+          },
+          "harness": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "key": {
+            "status": "pass",
+            "values": [
+              "cmp--e6cdd07242bdde05"
             ]
           },
           "lane": {
@@ -1388,10 +2346,28 @@
               "pipeline--malaiwah.glm53-fidelity-replay"
             ]
           },
+          "replay_backend": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "replay_env": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
           "scope": {
             "status": "pass",
             "values": [
               "attn.o+attn.qkv+mlp.down+mlp.gate+mlp.up+moe.experts|head=native|kv=bf16"
+            ]
+          },
+          "stack": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
             ]
           }
         }
@@ -1411,8 +2387,11 @@
       "comparability": {
         "comparable": "unknown",
         "live_member_count": 2,
-        "predicate_version": "comparability-predicate/v1",
+        "predicate_version": "comparability-predicate/v2",
         "reasons": [
+          "stack: unrecorded for 2 members; homogeneity cannot be certified",
+          "replay_backend: unrecorded for 2 members; homogeneity cannot be certified",
+          "replay_env: unrecorded for 2 members; homogeneity cannot be certified",
           "lane: unrecorded for 2 members; homogeneity cannot be certified"
         ],
         "secondary": {
@@ -1420,6 +2399,18 @@
             "status": "pass",
             "values": [
               "cuda"
+            ]
+          },
+          "harness": {
+            "status": "pass",
+            "values": [
+              "harness--9fc9f3518e2594a1"
+            ]
+          },
+          "key": {
+            "status": "pass",
+            "values": [
+              "cmp--eee09298c558ab21"
             ]
           },
           "lane": {
@@ -1434,10 +2425,28 @@
               "pipeline--malaiwah.glm53-crosscheck"
             ]
           },
+          "replay_backend": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "replay_env": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
           "scope": {
             "status": "pass",
             "values": [
               "attn.o+attn.qkv+mlp.down+mlp.gate+mlp.up+moe.experts|head=native|kv=bf16"
+            ]
+          },
+          "stack": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
             ]
           }
         }
@@ -1455,15 +2464,31 @@
     {
       "accumulation_dtype": "float64",
       "comparability": {
-        "comparable": "true",
+        "comparable": "false",
         "live_member_count": 2,
-        "predicate_version": "comparability-predicate/v1",
-        "reasons": [],
+        "predicate_version": "comparability-predicate/v2",
+        "reasons": [
+          "harness: different recorded closures; numerical equivalence is not certified",
+          "replay_env.blas_configuration: members span {\"OpenBLAS 0.3.34.0.0  USE64BITINT DYNAMIC_ARCH NO_AFFINITY Haswell MAX_THREADS=64\", \"OpenBLAS 0.3.34.0.0  USE64BITINT DYNAMIC_ARCH NO_AFFINITY SkylakeX MAX_THREADS=64\"}; replay_env.blas_threads: members span {16, 64}; replay_env.cpu_model: members span {\"INTEL(R) XEON(R) PLATINUM 8568Y+\", \"Intel(R) Xeon(R) CPU           X5570  @ 2.93GHz\"}"
+        ],
         "secondary": {
           "hardware": {
             "status": "pass",
             "values": [
               "1x NVIDIA H200"
+            ]
+          },
+          "harness": {
+            "status": "unknown",
+            "values": [
+              "harness--6ecf79f38557fa74",
+              "harness--c2fe7ca3c33bd125"
+            ]
+          },
+          "key": {
+            "status": "pass",
+            "values": [
+              "cmp--f0823827adb15376"
             ]
           },
           "lane": {
@@ -1478,10 +2503,29 @@
               "pipeline--malaiwah.fidelity-dataset-hf.h200-layer-outer"
             ]
           },
+          "replay_backend": {
+            "status": "pass",
+            "values": [
+              "numpy:cpu:float32"
+            ]
+          },
+          "replay_env": {
+            "status": "fail",
+            "values": [
+              "{\"blas_configuration\":\"OpenBLAS 0.3.34.0.0  USE64BITINT DYNAMIC_ARCH NO_AFFINITY Haswell MAX_THREADS=64\",\"blas_name\":\"scipy-openblas\",\"blas_threads\":64,\"blas_version\":\"0.3.34.0.0\",\"cpu_model\":\"INTEL(R) XEON(R) PLATINUM 8568Y+\",\"library\":\"numpy\",\"numpy_version\":\"2.5.2\",\"replay_dtype\":\"float32\"}",
+              "{\"blas_configuration\":\"OpenBLAS 0.3.34.0.0  USE64BITINT DYNAMIC_ARCH NO_AFFINITY SkylakeX MAX_THREADS=64\",\"blas_name\":\"scipy-openblas\",\"blas_threads\":16,\"blas_version\":\"0.3.34.0.0\",\"cpu_model\":\"Intel(R) Xeon(R) CPU           X5570  @ 2.93GHz\",\"library\":\"numpy\",\"numpy_version\":\"2.5.2\",\"replay_dtype\":\"float32\"}"
+            ]
+          },
           "scope": {
             "status": "pass",
             "values": [
               "moe.experts+mtp|head=native|kv=bf16"
+            ]
+          },
+          "stack": {
+            "status": "pass",
+            "values": [
+              "e7ddf6b280474c1709836e227b55dda1247b32148313bc87fd88a2ada704f0e0"
             ]
           }
         }
@@ -1501,8 +2545,10 @@
       "comparability": {
         "comparable": "false",
         "live_member_count": 11,
-        "predicate_version": "comparability-predicate/v1",
+        "predicate_version": "comparability-predicate/v2",
         "reasons": [
+          "harness: different recorded closures; numerical equivalence is not certified",
+          "replay_env.blas_configuration: unrecorded for 7 members; homogeneity cannot be certified; replay_env.blas_name: unrecorded for 7 members; homogeneity cannot be certified; replay_env.blas_threads: unrecorded for 7 members; homogeneity cannot be certified; replay_env.blas_version: unrecorded for 7 members; homogeneity cannot be certified; replay_env.cpu_model: unrecorded for 7 members; homogeneity cannot be certified; replay_env.library: unrecorded for 7 members; homogeneity cannot be certified; replay_env.numpy_version: unrecorded for 7 members; homogeneity cannot be certified; replay_env.replay_dtype: unrecorded for 7 members; homogeneity cannot be certified",
           "scope: members span {attn.o+attn.other+attn.qkv+embed_tokens+lm_head+mlp.down+mlp.gate+mlp.up+moe.experts+moe.shared_expert+mtp|head=quantized|kv=not_applicable, attn.o+attn.other+attn.qkv+mlp.down+mlp.gate+mlp.up+moe.experts+moe.shared_expert+mtp|head=native|kv=bf16, attn.o+attn.qkv+mlp.down+mlp.gate+mlp.up+moe.experts+moe.shared_expert|head=native|kv=bf16, moe.experts+mtp|head=native|kv=bf16, moe.experts|head=native|kv=bf16} -- these are different interventions; equal nominal bpw does not make a routed-experts-only quant and a full-forward quant the same thing (docs/GGUF-MEASUREMENT.md)"
         ],
         "secondary": {
@@ -1510,6 +2556,25 @@
             "status": "pass",
             "values": [
               "1x NVIDIA H200"
+            ]
+          },
+          "harness": {
+            "status": "unknown",
+            "values": [
+              "harness--0d548c5ec13fe054",
+              "harness--18700b2fd8e20a5c",
+              "harness--323922aa7f77dc6e",
+              "harness--582012c7977a17e7",
+              "harness--76f91557e213664c",
+              "harness--7f46284f6b577798",
+              "harness--cb703e1abee3c1ec",
+              "harness--cce1392ac2e1945e"
+            ]
+          },
+          "key": {
+            "status": "pass",
+            "values": [
+              "cmp--fdbd312a2551db89"
             ]
           },
           "lane": {
@@ -1524,6 +2589,19 @@
               "pipeline--malaiwah.fidelity-dataset-hf.h200-layer-outer"
             ]
           },
+          "replay_backend": {
+            "status": "pass",
+            "values": [
+              "numpy:cpu:float32"
+            ]
+          },
+          "replay_env": {
+            "status": "unknown",
+            "values": [
+              "unrecorded",
+              "{\"blas_configuration\":\"OpenBLAS 0.3.34.0.0  USE64BITINT DYNAMIC_ARCH NO_AFFINITY Haswell MAX_THREADS=64\",\"blas_name\":\"scipy-openblas\",\"blas_threads\":64,\"blas_version\":\"0.3.34.0.0\",\"cpu_model\":\"INTEL(R) XEON(R) PLATINUM 8568Y+\",\"library\":\"numpy\",\"numpy_version\":\"2.5.2\",\"replay_dtype\":\"float32\"}"
+            ]
+          },
           "scope": {
             "status": "fail",
             "values": [
@@ -1532,6 +2610,12 @@
               "attn.o+attn.qkv+mlp.down+mlp.gate+mlp.up+moe.experts+moe.shared_expert|head=native|kv=bf16",
               "moe.experts+mtp|head=native|kv=bf16",
               "moe.experts|head=native|kv=bf16"
+            ]
+          },
+          "stack": {
+            "status": "pass",
+            "values": [
+              "e7ddf6b280474c1709836e227b55dda1247b32148313bc87fd88a2ada704f0e0"
             ]
           }
         }
@@ -1552,11 +2636,11 @@
   "counts": {
     "artifacts": 90,
     "measurements": 107,
-    "measurements_advisory": 87,
+    "measurements_advisory": 99,
     "measurements_author_reported": 15,
     "measurements_independently_verified": 0,
     "measurements_self_measured": 92,
-    "measurements_strict": 20,
+    "measurements_strict": 8,
     "measurements_third_party_reported": 0,
     "models": 17,
     "panels": 18,
@@ -1571,13 +2655,13 @@
       "url": "https://huggingface.co/datasets/0xSero/local-ai-registry"
     }
   },
-  "generated_at": "2026-09-07T18:29:48+00:00",
+  "generated_at": "2026-09-07T18:45:07+00:00",
   "registry_id": "malaiwah/quant-fidelity-registry",
   "resolver_rule": "Every *_ref is the id field of a record in the collection named by the ref's id prefix: model--, artifact--, panel--, reference--, pipeline--, measurement--.",
   "schema_version": "quant-fidelity-registry/v1",
   "validator": {
     "invariants_file": "schema/invariants.json",
-    "last_run_at": "2026-09-07T18:29:48+00:00",
+    "last_run_at": "2026-09-07T18:45:07+00:00",
     "passed": true,
     "tool": "tools/registry_validate.py"
   }

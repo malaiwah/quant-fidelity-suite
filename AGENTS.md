@@ -1,309 +1,207 @@
-# AGENTS.md — working on this repository
+# Working on quant-fidelity-suite
 
-You are editing code that produces published scientific claims. Numbers from this
-tree are on Hugging Face model cards, in a public registry other people query, and
-in a community standards discussion. A silently wrong number here is worse than a
-crash, because a crash gets fixed and a wrong number gets cited. Fail closed
-rather than infer a revision, surface, scope, profile, lane, dependency or metric.
+This repository produces published scientific claims. A plausible wrong number is
+worse than a refusal. Never infer a revision, tokenizer, scope, profile, lane,
+dependency, metric, or successful experiment from a name or an old document.
 
-If you are here to *use* the yardstick rather than change it, read
-[`llms.txt`](llms.txt) instead — it carries the rules that decide whether two
-numbers may be compared. [`WHAT-WE-MEASURE.md`](WHAT-WE-MEASURE.md) says what a
-number actually is.
+## Start with the right contract
 
-## What this is, and how a number gets made
+- **Using or citing measurements:** read [llms.txt](llms.txt), then
+  [WHAT-WE-MEASURE.md](WHAT-WE-MEASURE.md).
+- **Contributing a measurement:** use [registry/CONTRIBUTING.md](registry/CONTRIBUTING.md)
+  and [the walkthrough](docs/THIRD-PARTY-QUICKSTART.md). Do not duplicate their recipes.
+- **Changing the implementation:** read the relevant code, schema, and actual
+  receipt before editing. Probe CLI flags with `--help`; prose is not an API test.
+- **Reviewing prior claims:** consult [PUBLISHED-CORRECTIONS](docs/PUBLISHED-CORRECTIONS.md)
+  and [REVIEW-DEFERRED](docs/REVIEW-DEFERRED.md). Dated plans and the append-only
+  [JOURNAL](JOURNAL.md) are history, not proof of current support or completion.
 
-There is no `src/` tree and no application server. The product is a set of Python
-and Bash CLIs over explicit filesystem/JSON state, in six stages:
+Current code determines behavior; immutable receipts establish what a past run
+recorded. Neither a passing schema nor a hash proves that the model forward was
+correct. Preserve the distinction between an implemented mechanism, an exercised
+path, an independently reproduced result, and an untested proposal.
 
-1. **Resolve and gate.** `bin/measure` (→ `bin/measure_one.py`) parses an HF
-   target, asks the registry whether it is already measured *before* any work or
-   spend, pins a 40-hex revision, walks `base_model` lineage to a root the
-   registry knows, inherits panel/reference precedent, sniffs the artifact's
-   storage surface, and picks a lane.
-2. **Plan.** `bin/measure_local.py` solves identity, device, memory, disk and
-   invocation for hardware you already own; `bin/measure_cloud.py` adds provider
-   capacity, a cost estimate, runtime/cost limits, leases and teardown backstops.
-   Shared policy lives in `bin/fidelity/` — HF identity, lineage, the registry
-   front gate, fit arithmetic, engines, stages, receipts, provider adapters.
-3. **Execute.** `bin/engines.json` is the authored lane → entrypoint/profile/flag
-   contract; `bin/fidelity/engines.py` maps lane-neutral values onto the engine
-   CLI that was actually probed. Remote work persists `job.json` and drives
-   `bin/stage_measure.sh` through `bin/fidelity/stages.py`. Two transports exist:
-   SSH plus an uploaded bundle, and the measurement image
-   (`container/Dockerfile`, entrypoint `bin/container_entry.py`, built by
-   `container/build.sh`, CI in `.github/workflows/container-image.yml`).
-4. **Measure and score.** `engines/tools/stream_score.py` (single device,
-   streaming) and `engines/tools/student_capture.py` (distributed sealed capture)
-   produce logits through per-format adapters (`engines/tools/*_surface.py`);
-   `engines/tools/kld_report.py` verifies teacher/candidate identity, computes
-   tokenwise KL(reference ‖ candidate) in fp64, and aggregates cold runs.
-5. **Seal.** `bin/fidelity/receipt.py` and `bin/seal_receipt.py` reject preview and
-   teacher material, bind code and artifact digests, and emit a self-sealed
-   submission receipt.
-6. **Ingest and publish.** `bin/registry-submit <receipt.json>` validates offline
-   and publishes nothing. Maintainer ingestion files the receipt under
-   `registry/receipts/<handle>/`, derives rows with `registry/tools/registry_add.py`,
-   validates them, and regenerates `registry/data/*.jsonl`, `index.json` and
-   `README.md` with the registry's render tool.
+## Architecture and ownership
 
-The portable dataset route is parallel, not a shortcut around any of that:
-`bin/fidelity-dataset capture | verify | compare | publish` makes a root capture a
-public good that later measurements read instead of re-paying for. `measure-cloud
---role root` is how a root is captured, and with `--candidate-scope … --reference-dataset`
-how a quant is scored against a published root; `--race` is an engine-level
-experiment the paid controller refuses ([`docs/RACE-MODE.md`](docs/RACE-MODE.md)).
-Model-card publication is a separate, permissioned step *after* registry identity exists.
+The measurement core is a set of Python/Bash CLIs over explicit filesystem
+state, with no `src/` package. The optional read-only Gradio Explorer
+(`app.py`, `explorer/`) is a separate web interface, not a paid runner:
 
-State is files — plans, `job.json`, leases, stage logs, `.done` markers, captures,
-reports, receipts — and a `.done` marker appears only after success. CLIs are
-synchronous; cloud work uses detached remote stages plus polling, a heartbeat
-thread and locked teardown. Do not introduce an async framework without a
-demonstrated need.
+1. `bin/measure` / `measure_one.py`: resolve the HF target and revision, check the
+   registry before spending, follow lineage, and select a local plan or refusal.
+2. `bin/measure_local.py` and `measure_cloud.py`: device/disk/identity planning;
+   the latter adds provider admission, budget, leases, watchdogs and teardown.
+3. `bin/engines.json`, `fidelity/engines.py`, `fidelity/stages.py`, and
+   `stage_measure.sh`: authored engine contracts and execution stages.
+4. `engines/tools/`: model capture, weight decoders and scoring. `hf_capture.py`
+   with `layer_outer.py` is the portable hidden-capture route; `stream_score.py`
+   and `student_capture.py` are the streaming and distributed campaign routes.
+5. `bin/fidelity/dscompare.py`: offline comparison of sealed captures;
+   `receipt.py` / `seal_receipt.py`: submission sealing.
+6. `registry/tools/`: ingestion, validation, receipt-derived rows and rendering.
+   `registry-submit` validates locally; it does not publish.
 
-## Where things live
-
-| path | what it owns, and its boundary |
+| Path | Boundary |
 |---|---|
-| `bin/` | user CLIs, local/cloud controllers, receipt/dataset/card tooling, selftests, the on-box bundle manifest. Orchestrates; implements no model math. |
-| `bin/fidelity/` | shared controller policy: HF identity, lineage, the registry front gate, fit arithmetic, engines, stages, provider adapters, receipts, dataset formats. |
-| `engines/tools/` | capture and scoring engines, storage-surface adapters, real-tensor parity evidence, offline selftests. Tensor-heavy code lives only here. |
-| `engines/` | campaign recipes, panels, upstream patch series, the stage driver, operational evidence. Deliberately model- and campaign-specific in places. |
-| `registry/` | schemas, invariants, sealed receipts, generated records/index/README, frozen protocols, add/validate/render tools. |
-| `docs/` | frozen wire-format contracts, operational plans, analyses, additive corrections. Status prose ages; schemas and receipts are the stronger evidence. |
-| `container/` | the reproducible measurement image and its build wrapper. |
-| `reports/`, `registry/protocol/` | receipt-backed experimental evidence and frozen protocol inputs. Cite these; never copy their numbers into fresh prose. |
-| `suite/`, `calsuite/` | committed suite and calibration manifests; token payloads are generated and gitignored. |
-| `tools/`, `remote/` | the original GLM serving-lane harness and VM campaign pipeline. Historical, not the current generic runner. |
-| `port/` | draft native exllamav3 architecture port and manual parity harnesses. Not production code. |
+| `bin/fidelity/` | Shared controller policy, identity, datasets, comparison, provider adapters and receipts; no model forward implementation. |
+| `engines/` | Capture/scoring code, per-format surfaces, panels, campaign recipes, upstream patches and parity evidence. |
+| `registry/` | Schemas, frozen protocols, receipts, generated data/index/tables and ingestion tools. |
+| `container/` | Measurement image and build wrapper; image capability is not paid admission. |
+| `app.py`, `explorer/` | Optional Gradio evidence/cost/contribution UI. Keep snapshot predicates, escaped output, bounded offline receipt validation and no-spend/no-token boundaries. `requirements.txt` is web-only. |
+| `reports/`, `registry/protocol/` | Experimental evidence. Cite original receipts; do not promote a tiny experiment to universal parity. |
+| `suite/`, `calsuite/` | Suite/calibration manifests; large token or tensor payloads may not be present. Some small token panels are committed under `engines/panels/`. |
+| `tools/`, `remote/` | Original serving-lane harness and VM campaign pipeline; still relevant to historical receipts. |
+| `port/` | Draft native exllamav3 architecture and manual parity harnesses, not a qualified production port. |
+| `docs/` | Wire formats, operational instructions, plans and additive corrections. |
 
-The engine tree's root is `FIDELITY_ENGINE_ROOT` (the pre-2026-08-31 spelling
-`FIDELITY_K6_ROOT` is still *read* as a fallback, never written).
+State is plans, `job.json`, leases, logs, captures, reports and receipts. A `.done`
+marker means the required stage succeeded, not merely that output exists. CLIs
+are synchronous; detached remote stages use polling, heartbeats and locked
+teardown. Do not introduce an async framework into CLI orchestration without a
+demonstrated need; the optional web UI has its own framework lifecycle.
 
-## Verify before you claim
+`FIDELITY_ENGINE_ROOT` is the current engine-root variable. The historical
+`FIDELITY_K6_ROOT` fallback is read for compatibility, never newly written.
 
-The single most expensive failure mode in this project's history is an agent
-believing a document, a docstring, or another agent instead of running the thing.
+## Scientific invariants
 
-- **Probe CLIs, never read their docs.** A runner was once written against a
-  scorer's *documented* flags; five of them did not exist, and the lane could not
-  run at all. `--help` is cheap; so is `bin/measure-local --probe-engines`, which
-  reports what each lane's entrypoint really accepts. Never document a flag you
-  did not confirm.
-- **Hash tensor CONTENT, never containers.** Receipts embed `elapsed_seconds`;
-  safetensors embed `__metadata__` including `cold_run`. Two bitwise-identical
-  computations produce different file digests. We raised two false
-  "nondeterminism" alarms in one hour before comparing tensor bytes and finding
-  `max_abs_diff` exactly 0.0.
-- **A guard must name every dependency it guards.** An install block gated on
-  `import torch, transformers, safetensors, huggingface_hub` silently skipped
-  `hf_transfer` on any host that pre-shipped the first four.
-- **Watch run STATE, not output counts.** A failed remote run leaves its box idle
-  but *running*; a stalled file counter looks exactly like slow progress.
-- **Read identity from bytes.** Scope, rate, profile and tensor inventory come
-  from artifact metadata, never from a repo name or a filename.
+- Full declared vocabulary, fp64 normalization/reduction, direction
+  KL(reference || candidate), natural-log units. No top-k substitute. Reject
+  non-finite inputs/intermediates; never clamp garbage into plausible output.
+- Pin token histories, tokenizer identity, masks and scored positions. Changing
+  any of these changes the measurement. A filename is not artifact identity.
+- Distinguish **fixed-panel descriptive means**, **run repeatability**, and
+  **population inference**. Repeated identical cold runs add no independent text.
+  The historical Flash final25 panel has four source documents; clean17 has
+  three. Do not transfer those counts to other panels. Use actual document
+  provenance; missing provenance cannot authorize inferential p-values.
+- Previews and single-window comparisons establish liveness or local behavior,
+  not general rate/quality rankings. A nominal confidence level or fitted-model
+  coverage simulation is not demonstrated coverage for deployment text.
+- Equal recomputed `comparability.key` is necessary, not sufficient. Apply the
+  secondary pair/group predicate and inspect lane, pipeline, hardware, replay,
+  scope and missing evidence. `unknown` is not permission to rank.
+- A same-panel/reference/lane control permits an **excess-over-control** contrast,
+  not an automatically causal quantization-error decomposition. It can be
+  negative. A candidate below an unquantized control is not invalid for that
+  reason alone. Never use a foreign-lane or foreign-scope floor (`BIAS-006`).
+- Additional runtime/activation perturbations can amplify or cancel divergence.
+  Weights-only KL is not a mathematical lower bound on served KL; a quantized
+  proxy reference does not have a guaranteed bias direction.
+- Weight reconstruction, native decoding, complete model forward and served
+  generation are different validation targets. Real-tensor bitwise parity must
+  name the stage and dtype compared. Pre-Hadamard EXL3 equality does not prove
+  complete native reconstruction; retain the advisory caveat when that fails.
+- Hash tensor **content**, not timestamp-bearing containers, for repeatability.
+  Two matching captures prove observed conditional repeatability, not universal
+  determinism or correctness. A same-file self-compare is not an independent run.
+- Hidden-form capture/replay must state the cut point, each applied head and
+  replay precision/backend. A shared head can erase head-quantization error;
+  shared head weights do not imply identical logits or padded probability mass.
+- Scope/rate/tensor inventory come from artifact bytes. Report actual quantized
+  tensor classes, retained tensors and omitted activation/vision/MTP behavior.
+  Lower teacher-forced KL alone does not establish task accuracy or long-context
+  or native-serving quality.
 
-## Commands that define "done"
+## Verification and tests
+
+Run the closest executable selftest first, then the full battery and registry:
 
 ```bash
-bash bin/selftest_all.sh          # the full local battery; must be 0 failed (82 passed today)
-cd registry && make check         # schema + invariants + render drift + selftests; must be 0 errors
-python3 bin/selftest_<tool>.py    # per-tool suites; run the ones you touched
+python3 bin/selftest_<feature>.py
+bash bin/selftest_all.sh
+make -C registry check
 ```
 
-Run the closest test first, then the battery. It is spend-free and GPU-free but
-not hermetic: some sections use network metadata, read-only account queries, or a
-cached fixture. Read the internal `SKIP` lines — an outer PASS can still hide an
-optional rung. Green means green: no new skips, no gate weakened to pass. If you
-fix a defect, add a regression test that **fails without your fix** — and verify
-that by reverting it in a scratch copy, not by assuming.
+Use an existing suitable interpreter through `FIDELITY_PYTHON` for tensor tests;
+do not install into system Python. The battery needs no rental or GPU, but some
+rungs access network metadata, optional packages, cached fixtures or read-only
+accounts. Report **outer and internal skips** and their prerequisites. Do not
+turn a skipped native/GPU/oracle test into a claim of parity.
 
-Contract-specific gates on top of the battery: `bin/check_doc_numbers.py` for a
-numeric doc or card change; `bin/selftest_naming_sweep.py` before any rename;
-`selftest_container.py` + `selftest_bundle_complete.py` for container, bootstrap
-or bundle changes; the matching `engines/tools/selftest_*_offline.py` plus
-committed real-tensor parity for an engine or surface; `--probe-engines` for any
-edit to `bin/engines.json`; and in `registry/`, `make reseed-check` for
-receipt-derived rows and `make stat-selftest` for interval statistics.
+`make check` permits counted validator warnings for development;
+`make -C registry check-release` rejects them. A green development banner is not
+release certification. Disposition warnings; do not weaken a gate to get green.
 
-Read-only and planning commands, safe to run freely:
+For fixes, retain a behavior-level regression that fails without the fix and
+verify that failure in a scratch copy. Tests should exercise observable output,
+refusal, identity, numeric boundaries and required coverage—not source substrings,
+incidental prose, mock echoes, or a success exit after every real check skipped.
+A native constructor/forward exception is a failed requested test, not a SKIP.
+A self-comparison zero needs nonzero/perturbed controls to test the computation.
+Register new selftests in `bin/SELFTEST-PARTITION.json` and the appropriate battery
+or CI tier; explain any intentionally omitted dependency tier.
 
-```bash
-bin/measure <hf-repo-or-url> --plan-only
-bin/measure-local --artifact <repo> --panel <dataset> --estimate-only
-bin/measure-cloud --provider runpod --role root --model <repo> --panel-dir <dir> --dataset-id <id> \
-    --measurer <handle> --max-cost <usd> --max-runtime <duration> --out <dir> --dry-run
-bin/registry-view rows --model <name> --lane <lane> --registry local
-bin/registry-submit <receipt.json>                     # validates; publishes nothing
-container/build.sh --tag quant-fidelity-measure:dev    # docker or podman; refuses a dirty tree
-python3 bin/changelog.py --all --out CHANGELOG.md      # CHANGELOG.md is generated
-```
+Additional gates:
 
-There is no root build, package manifest, lockfile, lint, format or type-check
-target, and no pytest discovery — tests are executable selftests. Do not invent a
-second toolchain; match the file you are editing.
+- Numeric docs/cards: `python3 bin/check_doc_numbers.py`.
+- Names: read [NAMING-SWEEP](docs/NAMING-SWEEP.md), run `selftest_naming_sweep.py`.
+- Container/bootstrap/bundle: `selftest_container.py` and `selftest_bundle_complete.py`.
+- Engine/surface: matching `engines/tools/selftest_*_offline.py` and scoped real
+  tensor evidence. Never manufacture unavailable GPU proof.
+- Engine contract edits: `bin/measure-local --probe-engines`.
+- Receipt-derived data: `make -C registry reseed-check`; interval changes also
+  `make -C registry stat-selftest`.
+- Annotations: narrow LSP diagnostics and `selftest_annotations.py`.
+  `py_compile`/import alone do not resolve postponed annotations.
 
-**Amended 2026-09-06.** A `pyproject.toml` now exists and the sentence above
-still holds: it has no `[project]` and no `[build-system]` table, so nothing can
-build, package or install this tree from it, and it gates no commit. It carries
-only editor/LSP diagnostics config for `pyright` and `ruff`, narrowed to rules
-that fire on code that is *wrong* rather than code that is merely untyped —
-`reportUndefinedVariable`, `reportPossiblyUnbound`, `reportSelfClsParameterName`,
-and ruff's `F821`/`F811`/`F823`/`F632`/`B006`/`E9`. Read the comments in the file
-before widening it; each exclusion is a measurement, not an opinion.
+There is no installable root package, root build/formatter target, or pytest
+collection. `pyproject.toml` configures narrow defect diagnostics only. Read its
+comments before changing rules; do not mass-restyle untyped code or remove broad
+interrupt-safe exception handlers. Hashed CUDA dependency locks do exist under
+`bin/`; they are inputs to the bootstrap, not a root packaging toolchain.
 
-It exists because of a defect class every runtime check we own is blind to:
-`measure_cloud.py` gained `allow_unindexed: Sequence[str] = ()` with no
-`Sequence` import, and because the module carries `from __future__ import
-annotations`, `py_compile` passed, the import passed and all 86 battery rungs
-passed while `typing.get_type_hints()` raised `NameError`. Two such defects
-existed tree-wide; both are fixed. **`py_compile` plus a green suite does not
-validate an annotation** — run the diagnostics after touching one.
+## Dependencies and coding conventions
 
-Do NOT act on the rules that are off. `UP031`/`UP006`/`UP045` would mass-restyle
-files this file tells you to match, and `X | None` at runtime breaks the
-python3.9 floor below; `BLE001` would delete the broad `except BaseException`
-handlers that exist on purpose so teardown runs on interrupt.
+- Controller startup and all of `registry/` must work on stock Python 3.9.
+  Optional tensor/dataset/card modes may lazily import NumPy, Torch, safetensors
+  or PyYAML. Keep optional imports off unrelated startup paths.
+- Paid CUDA runtime: Python 3.12; `bin/bootstrap_measure.sh` and its hashed lock
+  files are the install contract, also used by `container/Dockerfile`.
+- MPS has no fp64 support: use CPU for its KL accumulation. CUDA fp64 is a
+  separate supported path; record the actual device/backend.
+- Match neighboring code: four-space Python, `snake_case`, `pathlib.Path`, small
+  dataclasses, `argparse`, `main(...) -> int`; quoted shell arguments and explicit
+  error/interrupt traps. A dependency guard must name every dependency it needs.
+- Expected invalid inputs use actionable refusals. Preserve exit codes.
+  Registry validation accumulates findings rather than hiding later errors.
+- Write structured artifacts atomically. Provider/config/console objects and
+  scratch directories are existing injection seams; do not add a DI framework.
+- Optimize only measured or demonstrably redundant work. A microbenchmark,
+  self-comparison, tiny model or one GPU cannot establish an end-to-end speedup
+  for all candidates. Numerical-policy changes need separate identity/evidence.
 
-## Dependency discipline
+## Money, credentials and publication
 
-- `bin/` controller paths and all of `registry/` must run on **stock python3.9
-  with no installs**. The registry vendors `_minischema.py` precisely so a
-  contributor needs nothing. Optional dataset/card/engine modes may lazily import
-  PyYAML, NumPy, torch or safetensors; do not pull those into a startup path.
-- Torch-dependent local engines run under `FIDELITY_PYTHON` (default: homebrew
-  `/opt/homebrew/bin/python3.14` when present, else `python3`). Use a venv or an
-  explicit interpreter rather than changing system packages.
-- The paid CUDA environment is **python3.12 only** and `bin/bootstrap_measure.sh`
-  — not a requirements file — is its install contract; `container/Dockerfile`
-  bakes the same recipe. Pins live in the script and the build metadata.
-- MPS cannot do float64 at all — it raises. KLD accumulation pins to CPU.
-- The stdlib rule is about `bin/` and `registry/`. It is **not** a licence to
-  argue "no dependencies" anywhere else: `bootstrap_measure.sh` installs torch,
-  transformers, accelerate and `rich` on the instance, so `engines/tools/` engines
-  already run inside a stack. Before rejecting a library, check whether it is
-  *already transitively installed* — that argument has been made here and been
-  wrong. [`docs/DEPENDENCIES.md`](docs/DEPENDENCIES.md) is the audit of every
-  hand-rolled component, with the verdict and the reason for each.
+- Only execute paid work when explicitly asked. Begin with `--dry-run`, explicit
+  `--max-cost` and realistic `--max-runtime`; it must create no provider resource.
+  Parser choices, adapter existence and historical recipes are not current paid
+  admission. Verify the exact provider/transport/target with the controller.
+- Preserve teardown on success, failure, exception and interrupt, with independent
+  reaper/watchdog backstops. Verify exact terminal absence using the selected
+  provider, not `jl list` for a non-JarvisLabs instance. Unknown state is not gone.
+  A leaked instance is a blocker. Never mutate a machine you did not create.
+- Budget fetch, setup, all captures/repeats, comparison, retrieval and teardown,
+  not compute alone. Hidden-form and logit-form storage costs differ materially.
+  Claimed limits depend on functioning backstops; disclose provider limitations.
+- Tokens come from protected files, never argv values, logs, receipts, bundles or
+  git. No shell tracing around credentials. Keep publication credentials local;
+  use the explicit download credential contract for remote fetches. Verify file
+  permissions, secure transport, token removal and remote-code exposure.
+- GitHub/HF/GHCR publication requires explicit user approval for that destination.
+  Before publishing, scan new artifacts for credentials and private host paths.
+- Preserve sealed historical receipt bytes and hashed identities. Correct public
+  claims additively in [PUBLISHED-CORRECTIONS](docs/PUBLISHED-CORRECTIONS.md), quantify
+  any numeric delta, and distinguish third-party attribution. Self-seals are
+  tamper-evident against an anchor, not authenticated execution attestations.
+- `registry/data/*.jsonl`, `registry/index.json`, registry tables and
+  `reports/clean-scope-recompute.*` are generated. Fix the producer and regenerate;
+  never hand-edit a scientific value. `CHANGELOG.md` is generated from commits.
 
-## Numerical rules that are not negotiable
+## Concurrent work
 
-- Full vocabulary, fp64 accumulation, direction KLD(reference ‖ candidate).
-  No top-k, ever. Never clamp a non-finite value into plausibility — refuse.
-- **Never compare a single window** to rank two artifacts: even the paired
-  per-window delta scatter (sd ≈ 2.0e-3) exceeds the effect between adjacent
-  bit-widths (≈ 1.33e-3); raw per-window scatter is ≈ 7.2e-3. (The 1.7e-3 /
-  1.2e-3 pair formerly quoted here was mis-scoped — CC-01.)
-  Previews prove liveness, not quality.
-- **Never subtract a floor from a different lane.** Invariant `BIAS-006` refuses
-  it; do not route around the validator.
-- Rank only within a group whose recomputed `comparability.key` values match, and
-  check `index.json`'s per-group predicate — an equal key alone is not a licence.
-- A decode surface must be proven **bitwise** against the ecosystem reference
-  implementation (mlx.core, gguf-py, compressed-tensors, exllamav3) on real
-  fetched tensors before it ships.
-
-## Money and rented machines
-
-`bin/measure-cloud` spends real money on someone's account, on any of four
-providers (`--provider {jarvislabs,runpod,vast,lambda}`).
-
-- Run it only when asked, and start with `--dry-run`, an explicit `--max-cost`
-  and a realistic `--max-runtime`. `--dry-run` creates nothing at all.
-- Teardown must be guaranteed on success, failure, exception and interrupt, with
-  the on-instance watchdog as backstop. Never weaken that path.
-- A leaked instance is a blocker-level defect. Verify with `jl list` afterwards.
-- Budget for the **measurement** phase, not just compute: each cold run writes
-  ~32 GB of fp32 logits, and runs are kept for the determinism check.
-- Never create, pause, or destroy a machine you did not create.
-
-Recipes and per-provider detail: [`docs/CLOUD-RECIPES.md`](docs/CLOUD-RECIPES.md).
-Running a model whose modeling code ships in its repo:
-[`docs/REMOTE-CODE-POLICY.md`](docs/REMOTE-CODE-POLICY.md).
-
-## Secrets
-
-Read the HF token from a file; never echo it, never put it in argv, a log, a
-receipt, a bundle, or git. `measure-cloud` transports it as a 0600 file and
-shreds it at teardown — match that standard. Never `set -x` in a shell path that
-could see a credential. Before publishing any artifact, grep it for credentials
-**and for private absolute paths**: a published receipt once pointed at
-`/home/jl_fs/...` on a filesystem that no longer exists.
-
-## Concurrency: this repo has multiple agents in it
-
-Several workflows may be editing simultaneously.
-
-- `git pull --rebase origin main` before every commit.
-- **Stage only the files you changed. Never `git add -A`.**
-- If another workflow owns a file (a live measurement campaign owns the runner
-  files), review it read-only and write your patch into `docs/REVIEW-DEFERRED.md`
-  instead of editing it.
-- Box and repo copies of a script have drifted before, and a downstream agent
-  then "verified" a CLI that did not exist. After any on-box fix, pull it back
-  into git the same day.
-
-## Publishing
-
-Publishing to HF, GitHub or GHCR is outward-facing and requires explicit
-approval. Model cards, datasets and registry mirrors are the user's public record.
-
-- Never publish a number you cannot trace to a receipt. If an experiment did not
-  run, publish nothing — an honest "blocked, here is why" beats a receipt of
-  invented metrics.
-- Changing a published number requires quantifying the delta and disclosing it
-  additively, not editing history.
-- Third-party numbers stay visibly third-party: `measured_by` is enumerated and
-  the validator refuses conflation.
-- `registry/data/*.jsonl`, `registry/index.json` and generated README tables are
-  derived. Change the receipt, schema or tool and regenerate; never hand-edit a
-  published number.
-- The contributor path is [`registry/CONTRIBUTING.md`](registry/CONTRIBUTING.md),
-  and the unaided walkthrough is
-  [`docs/THIRD-PARTY-QUICKSTART.md`](docs/THIRD-PARTY-QUICKSTART.md). Point people
-  at those rather than restating them — a duplicated contract is a contract that
-  drifts.
-
-## How code in here is written
-
-- Python: four spaces, `snake_case`, `pathlib.Path`, small dataclasses for durable
-  concepts, `argparse`, `main(...) -> int`, `raise SystemExit(main())`. Shell uses
-  `set -euo pipefail`, explicit traps and quoted paths. Match the surrounding
-  file; do not mass-restyle older registry code.
-- User commands are hyphenated wrappers (`measure-cloud`); implementations are
-  underscore modules (`measure_cloud.py`); tests are `selftest_<feature>.py`.
-  Provenance-bearing fields carry explicit suffixes (`_ref`, `_revision`,
-  `_sha256`, `_schema`, `_bytes`, `_gb`), and schema strings are versioned.
-- **An expected invalid state is a refusal, not a guess**: `Refusal(reason,
-  advice)` in controllers, tool-prefixed `_fail()` in engines, coded
-  `Refuse(code, message, remedy)` in registry ingestion. Preserve the exit codes
-  and give an actionable remedy. Registry validation accumulates findings in a
-  `Report` — do not stop at the first and hide the rest.
-- Write structured artifacts atomically when they can be interrupted, and keep
-  plans, jobs and receipts self-describing: missing provenance is never inferred
-  later. Provider objects, `Console`, config paths, environment roots and
-  simulated devices are the injection seams; tests use stubs and scratch dirs.
-  There is no DI container and no global state store.
-
-## Where the hard-won detail lives
-
-- [`JOURNAL.md`](JOURNAL.md) — the append-only campaign ledger, 63 dated entries,
-  each written at the milestone and never edited after the fact.
-- [`docs/NAMING-SWEEP.md`](docs/NAMING-SWEEP.md) — which names in this tree
-  are incidental and which are IDENTITY. Registry ids are hashed into
-  `comparability.key`, receipt schema strings sit inside sealed receipts, and
-  a published row's `harness.code_digests[].path` is inside `harness_id`.
-  Read it before renaming anything; `bin/selftest_naming_sweep.py` enforces it.
-- [`engines/HANDOFF.md`](engines/HANDOFF.md) — 24 numbered operational lessons for
-  running a campaign.
-- [`docs/FIDELITY-DATASET-SPEC.md`](docs/FIDELITY-DATASET-SPEC.md) and
-  [`docs/CARD-ANNOTATION-SPEC.md`](docs/CARD-ANNOTATION-SPEC.md) — frozen public
-  wire formats; evolve them additively.
-  [`docs/PUBLISHED-CORRECTIONS.md`](docs/PUBLISHED-CORRECTIONS.md) is how a
-  published number gets corrected without rewriting history.
-- [`docs/CAPTURE-SCALING-PLAN.md`](docs/CAPTURE-SCALING-PLAN.md) — plan of record
-  for scaling a capture: the parallelism decision (tensor-parallel changes the
-  numbers and is rejected), the cost model, and per-family budgets.
-  [`docs/CONTAINER.md`](docs/CONTAINER.md) is why the image exists.
-- [`docs/`](docs/) and [`bin/README.md`](bin/README.md) — everything else. Both
-  carry historical status; verify against `--help` and the code.
+Other workflows may own these files. Check ownership before shared edits; if a
+live campaign holds the runner, record the proposed fix in `docs/REVIEW-DEFERRED.md`
+instead. Preserve unrelated changes. Pull with `git pull --rebase origin main`
+before every commit, stage only your own explicit paths, and never `git add -A`.
+After an on-box fix, reconcile it into the repository the same day.

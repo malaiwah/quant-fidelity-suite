@@ -1,12 +1,18 @@
 # 10 tips & wishes for the next campaign (GLM-5.3-full and beyond)
 
+> 2026-09-07 qualification: historical campaign lessons and observed costs,
+> not current fleet state, spend authorization or whole-model qualification.
+> Tiny-fixture success validates that fixture's exercised path only. EP/TP
+> repartition can change finite-precision logits even with identical decoded
+> tensors; consult `STREAMING.md` for measured lane effects.
+
 Distilled from the GLM-5.3-Flash K6/K8 campaign (2026-08-27/28). The full
 record: `JOURNAL.md` (27+ lessons), `engines/DECISIONS.md` (9 operator decisions),
 `engines/RUNBOOK.md`, patch series `engines/patches-v2/0001-0010`.
 
 1. **Fixture before real weights, always.** The 0.1B random fixture
-   (`inference-optimization/GLM-5.3-Flash-0.1B-A0.1B`) validated the entire
-   chain in minutes and its per-matrix bench set the fleet plan. For a new
+   (`inference-optimization/GLM-5.3-Flash-0.1B-A0.1B`) exercised the pipeline
+   chain on that fixture, and its per-matrix bench informed the fleet plan. For a new
    model, find or build the tiny-random fixture FIRST and run
    `campaign_driver.py rehearse` end-to-end on a $2 GPU-hour before renting anything
    big. If no fixture exists, make one (tiny dims, full architecture, stock-

@@ -27,8 +27,8 @@ swap.
         by faith.  On a backend pair that happens to agree bitwise this is 0.0;
         on one that does not, the test still passes and prints the delta,
         because the point of the rung is that the number is measured.
-    R5  chunking is value-preserving on the torch path too: --vocab-chunk and
-        --chunk-positions partition the OUTPUT, never a reduction.
+    R5  chunking preserves the mathematical outputs, within a fixture-specific
+        tolerance; different GEMM shapes need not accumulate bitwise identically.
     R6  --replay-device on a device the estimator does not use is refused: the
         logits would cross the bus twice per block, which is slower than the
         numpy path it replaces.
@@ -57,6 +57,7 @@ from fidelity import dscompare  # noqa: E402
 from fidelity import dsformat as F  # noqa: E402
 
 import selftest_fidelity_dataset as fixtures  # noqa: E402
+from selftest_fidelity_compare import analytic_kl  # noqa: E402
 
 PASS, FAIL, SKIP = [], [], []
 
@@ -163,29 +164,33 @@ def body(tmp):
         print("        replay-backend delta on a real measurement: "
               "numpy %.17g vs %s %.17g -> abs %.3e, rel %.3e (~%d significant digits agree)"
               % (receipt["metric"]["value"], want, r2["metric"]["value"], delta, rel, agree))
-        # The bound: fp32 accumulation noise on the logits is ~1e-5 absolute and
-        # enters the KLD linearly with random sign over ~1e4 positions here, so
-        # anything above 1e-4 RELATIVE is not rounding, it is a broken replay.
-        check("R4  the two backends agree to within the fp32-accumulation term "
+        # Fixture-specific tolerance for this small, well-conditioned replay;
+        # not a bound on every model, GEMM shape, or near-zero KL.
+        check("R4  the two backends agree within the fixture's replay tolerance "
               "(and the delta is printed, not assumed)",
-              rel < 1e-4 and r2["top1_agreement"] == receipt["top1_agreement"],
+              receipt["metric"]["value"] > 0.0 and r2["metric"]["value"] > 0.0
+              and rel < 1e-4 and r2["top1_agreement"] == receipt["top1_agreement"],
               "rel=%.3e top1 %r vs %r"
               % (rel, r2["top1_agreement"], receipt["top1_agreement"]))
 
         # -- R5 -------------------------------------------------------------
-        # Chunking splits the OUTPUT (positions, vocabulary); every output
-        # element is an independent dot product over the hidden axis, so no
-        # reduction is touched and the values must be identical, not close.
+        # Chunking preserves the mathematical dot products, not necessarily
+        # their floating-point reduction order. Compare every scored position.
         vc = dscompare.compare(a, c, os.path.join(tmp, "torch-vc"),
                                {"device": device, "replay_device": device,
-                                "vocab_chunk": 4})
+                                "vocab_chunk": 7})
         pb = dscompare.compare(a, c, os.path.join(tmp, "torch-pb"),
                                {"device": device, "replay_device": device,
-                                "position_block": 3})
-        check("R5  on the torch path, --vocab-chunk and --chunk-positions leave the "
-              "value bitwise unchanged",
-              vc["metric"]["value"] == r2["metric"]["value"]
-              and pb["metric"]["value"] == r2["metric"]["value"],
+                                "position_block": 2})
+        base_values = np.load(os.path.join(out2, "tokenwise-kld.npy"))
+        check("R5  partial vocab/position chunks preserve each nonzero fixture score",
+              r2["metric"]["value"] > 0.0
+              and np.allclose(
+                  np.load(os.path.join(tmp, "torch-vc", "tokenwise-kld.npy")),
+                  base_values, rtol=1e-4, atol=1e-8)
+              and np.allclose(
+                  np.load(os.path.join(tmp, "torch-pb", "tokenwise-kld.npy")),
+                  base_values, rtol=1e-4, atol=1e-8),
               "base %.17g vocab_chunk %.17g position_block %.17g"
               % (r2["metric"]["value"], vc["metric"]["value"], pb["metric"]["value"]))
 
@@ -214,8 +219,22 @@ def body(tmp):
         orel = (abs(own_t["metric"]["value"] - own_np["metric"]["value"])
                 / abs(own_np["metric"]["value"]))
         ca, ct = own_np["comparator"], own_t["comparator"]
+        ref_ds, cand_ds = dscompare.load_dataset(a), dscompare.load_dataset(other)
+        heads = [dscompare.load_tensor(ds.head_path(), "lm_head.weight")
+                 for ds in (ref_ds, cand_ds)]
+        expected = []
+        for left_rec, right_rec in zip(ref_ds.records, cand_ds.records):
+            left = dscompare.load_tensor(ref_ds.record_path(left_rec), left_rec["key"])
+            right = dscompare.load_tensor(cand_ds.record_path(right_rec), right_rec["key"])
+            expected.extend(analytic_kl(
+                (left @ heads[0].T).astype(np.float64).tolist(),
+                (right @ heads[1].T).astype(np.float64).tolist()))
         check("R10 --own-heads on the device path replays each side through its own head",
               ct.get("replay_backend") == want and orel < 1e-4
+              and own_t["metric"]["value"] > 0.0
+              and np.allclose(
+                  np.load(os.path.join(tmp, "own-torch", "tokenwise-kld.npy")),
+                  expected, rtol=1e-4, atol=1e-8)
               and own_t["estimator"]["head_policy"] == "native_head"
               and ct["head_applied_tensor_content_sha256"] is None
               and ct["head_applied_reference_tensor_content_sha256"]

@@ -77,6 +77,8 @@ JOINT_DERIVATION_CLOSURE = (
     ("estimator_numerics", "bin/jointstd/chi2.py"),
     ("protocol_stamp", "bin/jointstd/protocol.py"),
     ("enrichment", "registry/tools/joint_enrich.py"),
+    # Pair-policy decisions now affect the enrichment's published commentary.
+    ("enrichment_comparability", "registry/tools/registry_predicate.py"),
     # `coverage_measured` is a published number too, and this is the code that
     # produced it. Leaving it out would let the simulator change while every row
     # quoting its output kept the same identity -- which is precisely the failure

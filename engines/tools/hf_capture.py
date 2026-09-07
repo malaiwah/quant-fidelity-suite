@@ -84,15 +84,11 @@ import progress as progress_meter  # noqa: E402
 
 TOOL_VERSION = "hf_capture/1"
 
-# Recorded in `runtime.capture_tool.mechanism`, which is NOT an input to
-# `stack_fingerprint_sha256` -- deliberately.  The fingerprint is what
-# `dscompare` reads to decide `stack_relation`, and a cross-stack verdict
-# stamps `usable_as_floor: false` and attaches a 1e-2-class bias block.  The
-# layer-outer schedule is proven bit-identical to the window-outer one on two
-# architectures (see docs/LAYER-OUTER.md), so charging a capture a
-# comparability penalty for it would be asserting a difference the digests say
-# is not there.  It is still written down, in the sealed receipt, where a
-# reader can see which loop produced their tensors.
+# The schedule and source hashes are recorded in the sealed runtime receipt.
+# The environment fingerprint is not a complete capture-code identity:
+# dscompare also requires equal recorded source_files for same-stack claims.
+# Fixture schedule parity is bounded evidence, not a universal exemption for
+# different capture code or every architecture.
 SCHEDULE_MECHANISM = {
     layer_outer.SCHEDULE_WINDOW_OUTER:
         "transformers forward pass; forward pre-hook on model.get_output_embeddings()",
@@ -279,6 +275,36 @@ def load_panel(panel_dir: str, role: str, limit: Optional[int],
 def _is_canonical_sha256(value: Any) -> bool:
     return (isinstance(value, str) and len(value) == 64
             and all(char in "0123456789abcdef" for char in value))
+
+
+def _panel_declared_tokenizer_id(panel_dir: str) -> Optional[str]:
+    """The tokenizer id a panel declares about ITSELF, or None.
+
+    PANEL-D6. Read from `panel.receipt.json`'s `tokenizer.id`, which is where
+    a published root records the name its own capture used. Deliberately
+    tolerant: a panel that declares nothing (`id: null`, which is every
+    committed panel in this tree today) returns None and the caller falls
+    through to its existing default. An unreadable or malformed receipt is
+    also None rather than a refusal, because `load_panel` is the function that
+    owns validating this file and will refuse there with a better message --
+    duplicating the refusal here would just move the error away from the code
+    that understands it.
+    """
+    path = os.path.join(panel_dir, "panel.receipt.json")
+    try:
+        with open(path, "r", encoding="utf-8") as stream:
+            doc = json.loads(stream.read())
+    except (OSError, ValueError):
+        return None
+    if not isinstance(doc, dict):
+        return None
+    tokenizer = doc.get("tokenizer")
+    if not isinstance(tokenizer, dict):
+        return None
+    declared = tokenizer.get("id")
+    if isinstance(declared, str) and declared.strip():
+        return declared
+    return None
 
 
 def bind_resolved_panel_tokenizer(panel: Panel, args: argparse.Namespace) -> None:
@@ -1619,7 +1645,34 @@ def run_capture(args: argparse.Namespace) -> int:
     # schema requires a string.  Default it to the checkpoint whose tokenizer
     # actually produced these ids rather than emitting null and failing `verify`
     # only after the whole capture has been paid for.
-    tokenizer_id = args.tokenizer_id or args.weights_repository or args.model
+    #
+    # PANEL-D6, third instance, decided 2026-09-07: when the PANEL ITSELF
+    # declares a tokenizer id, prefer THAT over --weights-repository. A
+    # capture bound to a panel is bound to that panel's tokenizer
+    # declaration, and the published Fruit root records `glm-5.2-siq-fruit`
+    # from its panel receipt while a fresh capture passing
+    # --weights-repository recorded `malaiwah/GLM-5.2-SIQ-Fruit-bf16`. The
+    # two compared UNEQUAL on the declared name alone -- same token ids, same
+    # scoring window, same checkpoint identity -- so the container acceptance
+    # test, the SSH reproduction and every cross-device check were each one
+    # undocumented flag away from a refusal that looked like a panel
+    # mismatch and was not.
+    #
+    # Precedence, most specific first: an explicit --tokenizer-id (the
+    # operator said so), then the panel's own declaration, then the weights
+    # repo, then the local model path. A verified --panel-binding-evidence
+    # still overrides all of it in bind_resolved_panel_tokenizer below,
+    # because a binding is checked against real bytes and this is not.
+    #
+    # This changes what compares equal for captures made from HERE ON. It
+    # rewrites nothing already published: every sealed dataset keeps the id it
+    # was sealed with. Recorded in docs/PUBLISHED-CORRECTIONS.md.
+    panel_declared = _panel_declared_tokenizer_id(args.panel)
+    tokenizer_id = (args.tokenizer_id or panel_declared
+                    or args.weights_repository or args.model)
+    if panel_declared and not args.tokenizer_id:
+        log(stage="panel", tokenizer_id_source="panel receipt declaration",
+            tokenizer_id=panel_declared)
     panel = load_panel(args.panel, args.panel_role, args.windows, tokenizer_id, vocab_size)
     bind_resolved_panel_tokenizer(panel, args)
     log(stage="panel", windows=len(panel.windows), panel_json=panel.source,
@@ -2326,19 +2379,30 @@ def _assemble(args, writer, panel, panel_records, capture_records, *, context_le
         vocab_size=vocab_size, context_length=context_length, records=capture_records,
         hidden_width=hidden_size, coverage=coverage)
 
-    # A head the trellis decoder produced from an exl3 payload (jpsequeira's
-    # 8-bit lm_head) is the candidate's OWN dequantized head: sealed as such
-    # (spec head-source table: artifact_dequantized) and replayed under
-    # HEAD-1d, own heads. Every other head is shipped as loaded.
+    # Trellis decode evidence supplies exact head provenance when available.
+    # Other loaders may also materialize a quantized head as BF16; its storage
+    # dtype does not erase the artifact's declared quantization scope.
     head_decoded = (layer_outer.head_decode_identity(args._weights_decode_streamer)
                     if getattr(args, "_weights_decode_streamer", None) is not None else None)
+    head_assignment = next(
+        (row for row in scope["assignments"] if row["tensor_class"] == "lm_head"), {})
+    head_quantized = bool(head_decoded) or (
+        head_assignment.get("treatment") == "quantized"
+        or scope.get("head_policy") == "quantized")
+    declared_head_bits = (head_decoded["bits"] if head_decoded else
+                          head_assignment.get("bits_per_weight") if head_quantized else 16)
+    head_bits = (int(declared_head_bits)
+                 if declared_head_bits is not None
+                 and float(declared_head_bits).is_integer() else None)
     head_doc = dsmanifest.head_identity(
         present=True, tensor_key=(getattr(args, "_head_module_path", None) or "lm_head") + ".weight",
         shape=head_shape, dtype="BF16",
         file_sha256=head_digests["file_sha256"], tensor_content_sha256=head_content,
-        quantized=bool(head_decoded), source=(head_decoded or {}).get("source", "native"),
+        quantized=head_quantized,
+        source=(head_decoded or {}).get(
+            "source", "artifact_dequantized" if head_quantized else "native"),
         applied_in_capture=False, file=head_rel,
-        bits=int(head_decoded["bits"]) if head_decoded else 16,
+        bits=head_bits,
         final_norm={"file": None, "tensor_key": None, "shape": None, "dtype": None,
                     "file_sha256": None, "tensor_content_sha256": None,
                     "applied_in_capture": True, "applied_at_replay": False},
@@ -2347,8 +2411,12 @@ def _assemble(args, writer, panel, panel_records, capture_records, *, context_le
                "included -- shipped so a third party can replay logits = hidden @ head^T"
                % (head_decoded["bits"], head_decoded["reference"], head_decoded["method"]))
               if head_decoded else
-              "the head is shipped verbatim from the checkpoint so a third party can "
-              "replay logits = hidden @ head^T without the weights"))
+              ("the artifact scope declares a quantized head; its loaded bf16 "
+               "materialization is shipped for offline logits = hidden @ head^T. "
+               "Replay includes these head weights, not native serving arithmetic."
+               if head_quantized else
+               "the checkpoint's head loaded as bf16 is shipped so a third party can "
+               "replay logits = hidden @ head^T without the remaining weights")))
 
     fingerprint = _stack_fingerprint(args.device)
     verified_code = getattr(args, "_verified_code", None)

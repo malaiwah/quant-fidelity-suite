@@ -21,7 +21,7 @@
     {
       "id": "BIAS-001",
       "severity": "error",
-      "statement": "estimator.stack_relation=cross_stack requires comparability.bias with kind=cross_stack_capture_replay, a non-unknown direction, and either floor_measurement_ref or an explicit detail saying no floor exists."
+      "statement": "estimator.stack_relation=cross_stack requires comparability.bias with kind=cross_stack_capture_replay and either floor_measurement_ref or explicit detail saying why no floor exists. An unknown direction is honest advisory evidence and requires comparability.usable_as_floor=false, never an invented upward bound."
     },
     {
       "id": "BIAS-002",
@@ -89,7 +89,7 @@
     {
       "id": "CMP-007",
       "severity": "error",
-      "statement": "index.json comparability_keys[].comparability -- the like-for-like predicate over the secondary dimensions the seven-field key deliberately omits (measurement lane, candidate pipeline, artifact scope coverage, hardware) -- equals the predicate recomputed from the data by tools/registry_predicate.py. comparable='false' whenever a recorded secondary dimension differs across a group's live members, 'unknown' when one is unrecorded, 'true' only when all four are recorded and homogeneous. The key is a NECESSARY partition, never a sufficient certificate; this predicate is the machine-readable rest of the contract, and a hand-edited one is rejected exactly like a forged key."
+      "statement": "index.json comparability_keys[].comparability equals the predicate recomputed by tools/registry_predicate.py over key, measurement lane, candidate pipeline, artifact scope coverage, hardware, metric-covering harness, stack fingerprint, replay backend and replay environment. Recorded incompatible dimensions give comparable='false'; missing evidence gives 'unknown'; different harness IDs also give 'unknown' because the closure is deliberately oversensitive. Matching recorded dimensions give 'true'. Explicitly inapplicable replay needs no backend/environment. The seven-field key remains unchanged and necessary, never sufficient. A hand-edited predicate is rejected."
     },
     {
       "id": "DET-001",
@@ -247,7 +247,7 @@
       "amended": "v1.0.0: restated as a family rule. Two sibling scoring-window views of one parent share the parent's digest without either deriving from the other, which the original pairwise wording rejected.",
       "id": "PANEL-004",
       "severity": "error",
-      "statement": "Two panels never share an identity.panel_token_sha256 unless they belong to one token-identity family: a connected component of the derived_from graph in which every edge has derivation.kind in {reformat, scoring_window_change}. Those derivations re-score identical tokens; every other derivation changes which tokens are in the panel and must therefore change the digest."
+      "statement": "Two panels bound to the same tokenizer.id never share an identity.panel_token_sha256 unless they belong to one token-identity family: a connected component of the derived_from graph in which every edge has derivation.kind in {reformat, scoring_window_change}. Those derivations re-score identical tokens; every other derivation changes which tokens are in the panel and must therefore change the digest. Equal numeric token IDs under different tokenizers do not establish token identity and are not grouped by this rule."
     },
     {
       "id": "PANEL-005",
@@ -416,7 +416,7 @@
     {
       "id": "REFC-006",
       "severity": "error",
-      "statement": "reference.reference_kind=quantized_proxy requires artifacts[reference.artifact_ref].kind in {quant,requantized}, and every measurement using that reference carries a different_reference_kind disclosure (affects_comparability) and is comparability.class=advisory. A quantized_proxy is the most-faithful PUBLISHED artifact of a family that releases no unquantized weights, DESIGNATED as the reference so its children are measurable at all; it is not a measured floor, and rows against it are systematically smaller than they would be against true unquantized weights."
+      "statement": "reference.reference_kind=quantized_proxy requires artifacts[reference.artifact_ref].kind in {quant,requantized}, and every measurement using that reference carries a different_reference_kind disclosure (affects_comparability) and is comparability.class=advisory. A quantized_proxy is a designated published artifact used where the family releases no unquantized weights. It is not a measured floor, and divergence from it is a different estimand with no guaranteed ordering relative to divergence from true unquantized weights."
     },
     {
       "id": "RC-001",
@@ -519,20 +519,20 @@
     {
       "enforced_by": "tools/registry_validate.py check_comparability",
       "id": "FLOOR-001",
-      "severity": "error",
-      "statement": "A published quantized row does not report LESS divergence than the measurement floor of its own comparability group on its own lane. Unquantized weights measured through the same stack are the zero-point; a number below them is a defect, not a ranking."
+      "severity": "warn",
+      "statement": "A published quantized row below an unquantized control on the same key and lane is flagged for inspection, not rejected on its value alone. Runtime and quantization perturbations can cancel; the control is not a mathematical lower bound and scalar subtraction does not isolate quantization error."
     },
     {
       "enforced_by": "tools/registry_validate.py check_comparability",
       "id": "FLOOR-002",
-      "severity": "error",
-      "statement": "When no floor was measured on a row's own lane, the row is still bounded by the floors in its comparability group on other lanes, with a 5% margin. This is a bound, not a paired comparison: BIAS-006 still forbids SUBTRACTING a cross-lane floor. The measured lane offset on this registry is 8.5e-06 nats, ~6e-04 of the floor."
+      "severity": "warn",
+      "statement": "When no same-lane control exists, a value below a control on another lane is descriptive context only. No universal cross-lane lower bound or percentage margin follows from previously observed lane offsets. BIAS-006 still refuses naming a foreign-lane control as the row's floor."
     },
     {
       "enforced_by": "tools/registry_validate.py check_comparability",
       "id": "FLOOR-003",
       "severity": "warn",
-      "statement": "A comparability group that ranks more than one published row has a measurement floor on some lane. Reported once per group: a ranked table with no zero-point has nothing bounding how low a member may be reported."
+      "statement": "A group with multiple published rows and no unquantized control is reported once for missing context. Its values remain descriptive; neither presence nor absence of a control alone determines rankability."
     },
     {
       "id": "HARN-001",

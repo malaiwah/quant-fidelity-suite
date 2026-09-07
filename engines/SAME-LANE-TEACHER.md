@@ -1,33 +1,28 @@
-# The same-lane teacher — driving the streaming lane's floor to zero
+# The same-lane teacher — a hash-evidenced self-consistency control
 
-**Status: tooling shipped, GPU run NOT executed.** `stream_score.py
---capture-role teacher` exists, is selftested (ladder rungs L1.g–L1.j), and its
-output tree is a valid `--teacher` for `engines/tools/k6_kld_report.py` and
-`bin/kld-preview`. The ~$6 capture run itself is deliberately not part of this
-change (no renting); this document is the complete recipe for whoever runs it.
+**Historical recipe; qualified 2026-09-07.** The original recipe predates newer
+same-lane registry rows; it is not a current completion/status ledger or spending
+authorization. Consult pinned measurement receipts for completed captures.
+The current scorer is `engines/tools/kld_report.py`; `bin/kld-preview` handles previews.
 
 ## Why
 
-The streaming lane's measured floor against the sealed EP8 teacher is
-**0.011505922619330299** nats (2 cold runs, identical means,
-`engines/native-bf16-kld.json`). Every quant measured on this lane sits on that
-floor: K6's panel mean 0.013715 is only 0.002209 of quantization error; K8's
-0.012384 is only 0.000878. The floor exists because the teacher was captured
-on a DIFFERENT stack (8×H200 EP8 NCCL) than the streaming lane replays.
+The streaming lane's measured unquantized control against the original teacher
+(EP4 runtime, not the sealed EP8 student capture) is
+**0.011505922619330299** nats (2 cold runs with identical reported means and
+tokenwise-KL digest; `engines/native-bf16-kld.json`). K6's 0.013715 and K8's
+0.012384 have descriptive excesses of 0.002209 and 0.000878 over that control.
+Those differences are not causal quantization error or a guaranteed lower bound.
 
-A teacher captured **by the streaming lane itself** removes that term exactly:
-the lane is bitwise deterministic (proven: two cold runs, one distinct
-`tokenwise_kld_sha256`), so a native re-run reproduces the teacher's fp32
-logit files byte for byte, and the fp64 KLD of bitwise-equal logits is a sum
-of exact `+0.0`s. Not epsilon — zero. `bin/selftest_zero_floor.py` proves the
-identity end to end on synthetic captures, including the fixed constant below.
+A teacher captured by the same lane has exactly zero self-KL **if complete
+logit tensor content is identical**. Equal tokenwise-KL digests against a third
+teacher do not prove logit identity. Two captures establish conditional
+repeatability, not universal reproducibility or whole-model correctness.
+`bin/selftest_zero_floor.py` exercises the identity on synthetic captures.
 
-Does fp32-logit storage rounding leave residue? **No, not in the floor**: the
-`.float()` store is applied identically on both sides, so it cancels
-bit-for-bit. What it does do is *define the reference*: the recorded teacher
-is "the lane's bf16 forward, logits rounded to fp32" — a property of the
-reference (recorded as `capture.logits_dtype`), not a measurement error, and
-the same convention the sealed EP8 teacher already uses.
+The `.float()` store defines the recorded reference; it causes no self-KL
+residue when both stored tensors match. Same dtype and lane names alone are
+not evidence that they match.
 
 ## The capture (the ~$6 recipe)
 
@@ -49,11 +44,10 @@ FIDELITY_PYTHON stream_score.py \
 floor runs measured ~8.3 min/window on CephFS at ~1.05 GB/s), so ≈$6–8 for
 the pair plus staging. Peak ≈47 GB VRAM, same as every streaming run.
 
-**Determinism evidence requirement:** the 25 per-window `logits/*.safetensors`
-sha256 sets of the two runs must be IDENTICAL. That is `evidence_kind:
-logits_tensor_sha256` — never receipt-file or archive hashes (campaign lesson
-27; the registry's determinism schema refuses those kinds by design). Either
-run's tree is then the teacher: 31.7 GB of fp32 logits + 4 receipts.
+**Determinism evidence requirement:** compare the complete logit tensor-content
+SHA-256 sets for all 25 windows, not metadata-bearing safetensors file hashes.
+That is `evidence_kind: logits_tensor_sha256`, never receipt or archive hashes.
+Only after this check may either capture serve as a hash-evidenced self-control.
 
 What `--capture-role teacher` changes, and only this:
 
@@ -73,8 +67,8 @@ panel every student is scored against).
 
 ## The floor ladder (decision rule; tooling enforces it)
 
-* **T1** — a fresh native run's per-window logit sha256s equal the teacher's
-  `logit_files[].sha256` → **floor ≡ 0.0 exactly**, no KLD pass needed.
+* **T1** — a fresh BF16 run's complete per-window logit **tensor-content**
+  digests equal the teacher's corresponding content digests → self-KL is 0.0.
   Every tokenwise value is `+0.0`; the run's `tokenwise-kld.npy` is the
   np.save of 51,175 float64 zeros, whose sha256 is the fixed constant
   `3ffddc61af8350782afd24c7a69de1f37c260bf5489c4e0f6e3ad89b0ab9be17`
@@ -85,18 +79,18 @@ panel every student is scored against).
   floor: it can be 1e-2-class. Measure the residual floor with the native run
   just made.
 
-Rule enforced by `bin/fidelity-stats attributable`: **"floor = 0" may be
-claimed only with T1 hash evidence** (`zero_floor_evidence` of kind
-`logits_tensor_sha256` in the floor summary); a claimed zero floor without it
-is refused.
+`bin/fidelity-stats attributable` refuses a zero claimed only by a legacy
+scalar summary: an `evidence_kind` string and explanatory prose do not bind
+teacher/student tensor operands. Establish zero with two independently captured,
+sealed datasets through `fidelity-dataset compare --self-compare --force-compute`
+and retain the qualification evidence. T1 is a content comparison, not a label.
 
-**Scope note.** The teacher zeroes the floor for the CUDA streaming lane it
-was captured on. A local Apple/MPS pass against it is a *different lane* (the
-MPS forward is not bitwise CUDA; only the decode is proven MPS==CPU bitwise)
-with its own unknown floor — measuring it needs a local native pass over the
-~630 GB checkpoint. Local quant-vs-quant paired deltas are floor-invariant
-(the shared floor subtracts out exactly in the difference — observed on the
-committed data: raw K6−K8 delta == attributable delta to the last digit).
+**Scope note.** A different CUDA or Apple/MPS lane has an unknown cross-stack
+control and unknown bias direction until measured. Unknown direction is a valid
+disclosure, not evidence usable as a floor. Subtracting the same control from
+two fixed means preserves their difference algebraically; changing the teacher,
+lane, panel or arithmetic can change that difference. No cross-lane invariance
+follows from the subtraction.
 
 ## Recording it in the registry (paste-ready spec — registry/ is not edited here)
 

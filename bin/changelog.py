@@ -16,10 +16,10 @@ across the whole history, the FIRST LINE is already a good changelog entry:
     bundle: a bundled script's DATA is a dependency too -- found by a root capture dying on it
     clouds: dollars per hour is the wrong metric, and on that metric Lambda was misjudged
 
-So the generator is thirty lines of stdlib rather than a pinned Rust binary
-with a template language: it takes the first line, splits the topic off at the
-first colon, and groups by topic. Adding a tool would add a dependency, a
-config file and a second convention, to produce the same list.
+The generator uses stdlib and Git: it takes the first line, splits the topic off
+at the first colon, and groups by topic. Commits changing only CHANGELOG.md are
+excluded by path, not by their subject, so a generated changelog can be committed
+without immediately becoming stale by referring to its own unknown commit hash.
 
 The rule about the LAST line matters as much: `Co-Authored-By` trailers and
 empty merges are dropped, because a changelog is what changed, not who typed.
@@ -79,7 +79,8 @@ def split_subject(subject: str):
 
 
 def entries(rev_range: str):
-    out = git("log", "--no-merges", "--pretty=format:%H%x1f%s", rev_range)
+    out = git("log", "--no-merges", "--pretty=format:%H%x1f%s", rev_range,
+              "--", ".", ":(exclude)CHANGELOG.md")
     rows = []
     for line in out.splitlines():
         if "\x1f" not in line:

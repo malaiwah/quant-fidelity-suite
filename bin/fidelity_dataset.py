@@ -2408,7 +2408,7 @@ def build_parser():
                    help="skip re-reading the tensors; see `verify --no-verify-tensors`. "
                         "The receipt records which of the two ran.")
     p.add_argument("--disclose-head-substitution", action="store_true",
-                   help="HEAD-1b override: advisory, downward bias, BLOCKING disclosure")
+                   help="HEAD-1b override: advisory, unknown bias direction, BLOCKING disclosure")
     p.add_argument("--own-heads", action="store_true",
                    help="HEAD-1d: replay each hidden-form side through the head ITS OWN "
                         "dataset sealed (head_policy=native_head, strict). Nothing is "

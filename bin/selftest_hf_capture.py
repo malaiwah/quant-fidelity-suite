@@ -133,13 +133,20 @@ def tiny_panel(path, windows=3, length=12, vocab=64, seed=1):
     return path
 
 
+def _quantize_rows(value, bits):
+    import torch
+
+    wide = value.float()
+    scale = wide.abs().amax(dim=1, keepdim=True).clamp(min=1e-12) / (2 ** (bits - 1) - 1)
+    return (torch.round(wide / scale) * scale).to(value.dtype)
+
+
 def toy_quantize(src, dst, bits=4):
     """Round-to-nearest, per-output-row scale, on the MLP down_proj only.
 
     Deliberately crude and deliberately narrow: the point is a candidate that
     differs from the reference by a scheme that can be stated in one sentence.
     """
-    import torch
     from safetensors.torch import load_file, save_file
 
     os.makedirs(dst, exist_ok=True)
@@ -147,14 +154,11 @@ def toy_quantize(src, dst, bits=4):
         if not name.endswith(".safetensors"):
             shutil.copy2(os.path.join(src, name), os.path.join(dst, name))
     tensors = load_file(os.path.join(src, "model.safetensors"))
-    levels = 2 ** (bits - 1) - 1
     touched = []
     for key, value in tensors.items():
         if "down_proj.weight" not in key:
             continue
-        wide = value.float()
-        scale = wide.abs().amax(dim=1, keepdim=True).clamp(min=1e-12) / levels
-        tensors[key] = (torch.round(wide / scale) * scale).to(value.dtype)
+        tensors[key] = _quantize_rows(value, bits)
         touched.append(key)
     save_file(tensors, os.path.join(dst, "model.safetensors"))
     return touched
@@ -203,7 +207,72 @@ def capture(model, panel, out, *, role, dataset_id, name, scope_file=None, extra
                 "--out", out, "--role", role, "--lane", "local-cuda-budget"] + tail, env=env)
 
 
+def paneld6_panel_declares_tokenizer_case():
+    """PANEL-D6 third instance: a capture adopts the PANEL's tokenizer id.
+
+    The published Fruit root records `glm-5.2-siq-fruit` from its own panel
+    receipt. A fresh capture passing --weights-repository recorded
+    `malaiwah/GLM-5.2-SIQ-Fruit-bf16`, so the two compared UNEQUAL on the
+    declared name alone -- same token ids, same scoring window, same
+    checkpoint identity -- and the container acceptance test, the SSH
+    reproduction and every cross-device check were one undocumented flag from
+    a refusal that looked like a panel mismatch and was not.
+
+    Precedence asserted here, most specific first: --tokenizer-id, then the
+    panel's own declaration, then --weights-repository, then --model.
+    """
+    import json as _json
+    import os as _os
+    import sys as _sys
+    import tempfile as _tempfile
+
+    _sys.path.insert(0, _os.path.join(REPO, "engines", "tools"))
+    import hf_capture as HC
+
+    def panel_with(tok_id):
+        d = _tempfile.mkdtemp()
+        _json.dump({"tokenizer": {"id": tok_id} if tok_id is not None else None},
+                   open(_os.path.join(d, "panel.receipt.json"), "w",
+                        encoding="utf-8"))
+        return d
+
+    check("PANEL-D6 a panel that declares a tokenizer id is read",
+          HC._panel_declared_tokenizer_id(panel_with("glm-5.2-siq-fruit"))
+          == "glm-5.2-siq-fruit")
+    check("PANEL-D6 a panel declaring null declares NOTHING, so the old "
+          "default still applies",
+          HC._panel_declared_tokenizer_id(panel_with(None)) is None)
+    check("PANEL-D6 a blank declaration is not a declaration",
+          HC._panel_declared_tokenizer_id(panel_with("   ")) is None)
+    check("PANEL-D6 a panel with no receipt at all is tolerated, because "
+          "load_panel owns refusing that with a better message",
+          HC._panel_declared_tokenizer_id(_tempfile.mkdtemp()) is None)
+
+    # The real committed panels, which is what makes this a fix rather than a
+    # theory: the Fruit panel declares exactly the id the published root uses.
+    fruit = _os.path.join(REPO, "engines", "panels",
+                          "panel--fruit.malaiwah.heldout-v1")
+    if _os.path.isdir(fruit):
+        check("PANEL-D6 the committed Fruit panel declares the id the "
+              "PUBLISHED root records, so a fresh capture now matches it "
+              "with no flag",
+              HC._panel_declared_tokenizer_id(fruit) == "glm-5.2-siq-fruit",
+              repr(HC._panel_declared_tokenizer_id(fruit)))
+
+    # Precedence: an explicit --tokenizer-id must still win, or an operator
+    # loses the ability to name a value the panel does not know.
+    src = open(_os.path.join(REPO, "engines", "tools", "hf_capture.py"),
+               encoding="utf-8").read()
+    check("PANEL-D6 --tokenizer-id still takes precedence over the panel's "
+          "declaration",
+          "args.tokenizer_id or panel_declared" in src)
+    check("PANEL-D6 and the weights repository is still the fallback below "
+          "the panel, not above it",
+          "or args.weights_repository or args.model" in src)
+
+
 def main():
+    paneld6_panel_declares_tokenizer_case()
     try:
         import torch  # noqa: F401
         import transformers  # noqa: F401
@@ -594,6 +663,29 @@ def _body(work):
         check(name + " == exactly 0.0", ok, "rc=%s value=%r %s"
               % (proc.returncode, value, proc.stdout[-400:]))
 
+    # A repeatable capture can still tap the wrong layer or rows. Compare its
+    # tensor to a direct model output, independently of the capture hook and
+    # independently of the comparator's exact-zero self-compare.
+    import numpy as np
+    import torch
+    from transformers import LlamaForCausalLM
+    from fidelity import dscompare
+
+    direct_model = LlamaForCausalLM.from_pretrained(model, torch_dtype=torch.bfloat16).eval()
+    direct_ids = torch.from_numpy(
+        np.load(os.path.join(panel, "arrays", "final-0000.tokens.npy")).astype(np.int64))[None]
+    with torch.inference_mode():
+        direct_output = direct_model(
+            input_ids=direct_ids, attention_mask=torch.ones_like(direct_ids),
+            use_cache=False, output_hidden_states=True)
+    captured_ds = dscompare.load_dataset(a)
+    captured_hidden = dscompare.load_tensor(
+        captured_ds.record_path(captured_ds.records[0]), "hidden_states")
+    direct_hidden = direct_output.hidden_states[-1][0, :-1].float().numpy()
+    check("A4b captured rows equal the model's post-norm causal-prediction states",
+          np.array_equal(captured_hidden, direct_hidden))
+    del direct_output, direct_model
+
     # -- A5 ------------------------------------------------------------------
     quant_dir = os.path.join(work, "candidate")
     touched = toy_quantize(model, quant_dir)
@@ -635,6 +727,50 @@ def _body(work):
                     "--receipt", receipt_path]) if os.path.isfile(receipt_path) else None
     check("A7 the receipt validates", validate is not None and validate.returncode in (0, 2),
           validate.stdout[-400:] if validate else "no receipt")
+
+    # A materialized quantized head is BF16 on disk but remains quantized in
+    # artifact provenance. Exercise the real loader, seal and own-head scorer.
+    from safetensors.torch import load_file, save_file
+
+    head_model = os.path.join(work, "head-quantized-model")
+    shutil.copytree(model, head_model)
+    head_weights_path = os.path.join(head_model, "model.safetensors")
+    head_weights = load_file(head_weights_path)
+    head_weights["lm_head.weight"] = _quantize_rows(head_weights["lm_head.weight"], 4)
+    save_file(head_weights, head_weights_path)
+    head_scope = json.loads(json.dumps(SCOPE))
+    head_scope["head_policy"] = "quantized"
+    for assignment in head_scope["assignments"]:
+        if assignment["tensor_class"] == "mlp.down":
+            assignment.update(treatment="native", format="bf16", bits_per_weight=16)
+        elif assignment["tensor_class"] == "lm_head":
+            assignment.update(treatment="quantized", format="int4", bits_per_weight=4)
+    head_scope_path = os.path.join(work, "head-scope.json")
+    F.write_json(head_scope_path, head_scope)
+    head_capture = os.path.join(work, "ds-head-quantized")
+    head_proc = capture(
+        head_model, panel, head_capture, role="quant",
+        dataset_id="fidelity--selftest.hf.headquant", name="selftest head quant",
+        scope_file=head_scope_path, extra=["--codec", "rtn-int4-per-row", "--declared-bits", "4"])
+    check("A7b the head-only quantized checkpoint captures", head_proc.returncode == 0,
+          head_proc.stderr[-400:])
+    if head_proc.returncode == 0:
+        head_manifest = F.load_manifest(head_capture)
+        head_identity = head_manifest["head"]
+        check("A7c a BF16 materialization retains quantized-head provenance and identical hiddens",
+              head_identity["quantized"] is True
+              and head_identity["source"] == "artifact_dequantized"
+              and head_identity["bits"] == 4
+              and head_identity["tensor_content_sha256"]
+              != manifest_a["head"]["tensor_content_sha256"]
+              and head_manifest["capture"]["capture_content_digest"]
+              == manifest_a["capture"]["capture_content_digest"])
+        head_result = dscompare.compare(
+            a, head_capture, os.path.join(work, "head-only-comparison"), {"own_heads": True})
+        check("A7d own-head replay measures a real head-only difference, never a zero shortcut",
+              head_result["comparison_kind"] == "measurement"
+              and head_result["metric"]["value"] > 0.0
+              and head_result["comparator"]["short_circuited"] is False)
 
     # -- A8 ------------------------------------------------------------------
     tampered = os.path.join(work, "ds-tampered")

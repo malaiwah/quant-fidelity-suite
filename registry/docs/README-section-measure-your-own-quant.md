@@ -6,59 +6,35 @@ and before the schema reference. Verbatim; do not summarize it further.
 
 ## Measure your own quant
 
-Every number in this registry was produced by a recipe you can run yourself, on
-someone else's weights, and submit. That is the point of it.
+The supported measurement routes live in
+[CONTRIBUTING.md](CONTRIBUTING.md) and the suite's
+[third-party quickstart](https://github.com/malaiwah/quant-fidelity-suite/blob/main/docs/THIRD-PARTY-QUICKSTART.md).
+Run commands from a clone of the suite, not from the registry dataset clone.
 
-**Cloud — one paste, ~$10–15 at spot, tears the instance down for you:**
+**Cloud candidate measurement:** use `bin/measure-cloud --provider runpod
+--role candidate` with a pinned model revision, authored candidate scope,
+codec and bits, matching `--panel-dir`, and a pinned `--reference-dataset`.
+It also requires explicit spend limits and an output directory. Start with
+the quickstart's complete `--dry-run` command: no resources are created.
+There are no `--lane` or `--spot` flags on the current cloud CLI.
 
-```bash
-export JL_API_KEY=...        # your key; never logged, never written to a receipt
-./bin/measure-cloud \
-    --model brandonmusic/GLM-5.3-Flash-tr3-4bpw \
-    --panel brandonmusic/GLM-5.3-Flash-BF16-Teacher-Logits \
-    --lane  streaming --spot --max-runtime 8h
-```
+The candidate route produces a fidelity dataset plus
+`<out>/result/receipts/reference-comparison/comparison-receipt.json`.
+That is not a registry submission receipt. Submit the comparison evidence
+and discussion through the maintainer workflow in CONTRIBUTING.
 
-It prints a cost estimate and waits for your confirmation, creates the instance,
-fetches weights and panel, runs the measurement, seals the receipt, pulls it
-back to your machine, destroys the instance — including on failure or Ctrl-C —
-and prints what it actually cost, four different ways.
+**Local planning:** `bin/measure-local --artifact <hf-repo> --panel <hf-dataset>
+--vram-budget 30 --estimate-only` plans without downloading weights.
+Local execution supports only its declared `packed` and `native-bf16`
+surfaces and emits preview-class evidence; planning another surface does not
+make it executable through `--execute` or promote a preview to publication.
 
-Add `--dry-run` to see all of that and create nothing. It resolves the repo to
-an immutable commit, sizes the instance, prices the run and refuses anything
-that will not fit — for the cost of a few hundred kilobytes of metadata.
+**Legacy teacher-logits submission:** the admitted cloud `--role quant`
+route produces `<out>/receipts/measurement-receipt.json`, schema
+`quant-fidelity-registry/submission-receipt.v1`. Submit that sealed file at
+<https://huggingface.co/datasets/malaiwah/quant-fidelity-registry/discussions>
+with title `submission: <repo> on <panel>`. Do not edit the sealed receipt.
 
-**Local — same measurement, your hardware.** 128 GB Apple Silicon via MPS, or a
-consumer CUDA card under a hard VRAM budget:
-
-```bash
-./bin/measure-local \
-    --artifact <hf-repo> \
-    --panel    brandonmusic/GLM-5.3-Flash-BF16-Teacher-Logits \
-    --vram-budget 30
-```
-
-It tells you up front what it needs — disk, RAM, VRAM schedule and hours, with
-each number's provenance — and refuses with advice rather than thrashing if it
-will not fit. The hours come from a five-second benchmark of the real decode on
-*your* machine, not from a table of GPUs somebody once owned. `--estimate-only`
-stops after the plan. `--simulate-device "RTX 5090:32"` plans for hardware you
-do not have yet.
-
-**Then submit it.** One file, one discussion, no git required:
-
-> <https://huggingface.co/datasets/malaiwah/quant-fidelity-registry/discussions>
-> → **New discussion** → title `submission: <repo> on <panel>` → paste your
-> `measurement-receipt.json` (the sealed file either runner writes under
-> `<out>/receipts/` — it IS your submission receipt).
-
-The GitHub pull-request mirror is written but **not live yet**; until it is,
-the discussion above is the one working path. Both paths, the exact
-template, what gets bounced and how you are credited:
-[CONTRIBUTING.md](CONTRIBUTING.md). A real, sealed, schema-valid example:
-[`docs/examples/dione-q4.submission.json`](docs/examples/dione-q4.submission.json).
-
-**Before you start:** the panel and the teacher capture you score against have
-to exist in the registry already. Every panel in `data/panels.jsonl` is fair
-game. If you need a new one, open a `panel: <name>` discussion first —
-CONTRIBUTING.md §6 says what to put in it.
+A registered panel is not necessarily public or fetchable. Check the route's
+descriptor/reference requirements before running. For a new registry panel,
+follow CONTRIBUTING §6 rather than relabelling an existing panel.

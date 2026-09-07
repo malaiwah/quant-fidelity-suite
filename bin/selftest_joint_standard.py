@@ -648,8 +648,7 @@ def t_paired_provenance() -> None:
     if (dl.get("n_documents") == 4 and dl.get("documents_b_better") == 4
             and dl.get("sign_test_p") is not None
             and abs(dl["sign_test_p"] - 0.125) < 1e-12
-            and r.get("inference_unit") == "source_document"
-            and "pseudoreplicates" in (r.get("window_stats_are") or "")):
+            and r.get("inference_unit") == "source_document"):
         ok("P1-15: document-level sign test is the inferential statement",
            "4 docs all one way -> p=0.125 (window-level n=8 would say %.4f)"
            % r["sign_test_p"])
@@ -663,6 +662,55 @@ def t_paired_provenance() -> None:
            "document_level.available=False")
     else:
         bad("P1-15: no document map", json.dumps(r2.get("document_level"))[:150])
+    invalid_docs = [
+        ("empty", [], [], {}),
+        ("unequal lengths", [1.0], ["a", "b"], {"a": "x", "b": "y"}),
+        ("duplicate window", [1.0, 2.0], ["a", "a"], {"a": "x"}),
+        ("nonfinite", [float("inf")], ["a"], {"a": "x"}),
+        ("missing document", [1.0, 2.0], ["a", "b"], {"a": "x"}),
+        ("empty document", [1.0], ["a"], {"a": ""}),
+    ]
+    for name, differences, windows, provenance in invalid_docs:
+        try:
+            stats_mod.document_level_paired(differences, windows, provenance)
+        except ValueError:
+            ok("document inference refuses %s" % name)
+        else:
+            bad("document inference accepts %s" % name, "expected ValueError")
+    one = stats_mod.document_level_paired([1.0], ["a"], {"a": "x"})
+    if one["sign_test_p"] == 1.0 and "ci95_diff_t" not in one:
+        ok("one document cannot supply a between-document t interval")
+    else:
+        bad("single document", repr(one))
+    tied = stats_mod.document_level_paired([0.0, 0.0], ["a", "b"], {"a": "x", "b": "y"})
+    if tied["sign_test_p"] is None and tied["sign_test_n"] == 0 and tied["ci95_diff_t"] == [0.0, 0.0]:
+        ok("all tied documents have no informative signs")
+    else:
+        bad("tied documents", repr(tied))
+    for provenance in ({"w00": "d0"}, {w: "" for w in a}):
+        try:
+            stats_mod.paired_windows(a, b, boot_b=20, backend="stdlib", documents=provenance)
+        except ValueError:
+            ok("partial/empty provenance refuses instead of becoming valid inference")
+        else:
+            bad("invalid paired provenance", repr(provenance))
+    for backend in ("stdlib", "numpy"):
+        if backend == "numpy":
+            try:
+                import numpy  # noqa: F401
+            except ImportError:
+                skip("zero-denominator numpy ratio", "numpy absent")
+                continue
+        zero = stats_mod.paired_windows({"a": 0.0, "b": 0.0}, {"a": 0.0, "b": 0.0},
+                                        boot_b=20, backend=backend)
+        if (zero["ratio_a_over_b"] is None
+                and zero["ci95_ratio_percentile"] == [None, None]
+                and zero["ci95_diff_bca"] == [0.0, 0.0]
+                and zero["sign_test_p"] is None):
+            ok("zero denominator leaves difference usable and ratio unavailable (%s)" % backend)
+        else:
+            bad("zero-denominator ratio (%s)" % backend, repr(zero))
+        json.dumps(zero, allow_nan=False)
 
     # ---- P1-16: a mixed-lane contrast refuses without an explicit bridge ----
     cli = os.path.join(ROOT, "bin", "joint_standard.py")
@@ -705,6 +753,65 @@ def t_paired_provenance() -> None:
         ok("P1-16: a same-lane pair needs no bridge", "streaming vs streaming, exit 0")
     else:
         bad("P1-16: same-lane pair", "rc=%d" % rc)
+
+    # Both report declarations must agree; a supplied map cannot overwrite one.
+    import copy
+    left_path, right_path = (os.path.join(tmp, n) for n in ("a.json", "b.json"))
+    map_path = os.path.join(tmp, "map.json")
+    paired_rows = [
+        {"window_id": "w%d" % i, "document_id": "d%d" % (i // 2),
+         "mean": 2.0, "count": 10} for i in range(4)]
+
+    def synthetic_pair(left_rows, right_rows, mapping=None):
+        with open(left_path, "w") as fh:
+            json.dump({"per_window": left_rows}, fh)
+        with open(right_path, "w") as fh:
+            json.dump({"per_window": right_rows}, fh)
+        with open(out2, "w") as fh:
+            json.dump({"unchanged": True}, fh)
+        argv = ["paired", "--a", left_path, "--b", right_path,
+                "--bootstrap-b", "20", "--backend", "stdlib", "--out", out2]
+        if mapping is not None:
+            with open(map_path, "w") as fh:
+                json.dump(mapping, fh)
+            argv += ["--document-map", map_path]
+        rc, msg = run(argv)
+        return rc, json.load(open(out2))
+
+    wrong = copy.deepcopy(paired_rows)
+    wrong[0]["document_id"] = "different-source"
+    partial = copy.deepcopy(paired_rows)
+    partial[0].pop("document_id")
+    no_docs = [{k: v for k, v in row.items() if k != "document_id"} for row in paired_rows]
+    good_map = {row["window_id"]: row["document_id"] for row in paired_rows}
+    bad_maps = [
+        {"w0": "d0"},
+        {"per_window": [{"window_id": "w0", "document_id": "d0"},
+                        {"window_id": "w0", "document_id": "d1"}]},
+        dict(good_map, w0=""),
+    ]
+    for name, lr, rr, mapping in [
+            ("conflicting A/B", paired_rows, wrong, None),
+            ("partial row provenance", paired_rows, partial, None),
+            ("one-sided row provenance", paired_rows, no_docs, None),
+            ("map contradicts B", paired_rows, wrong, good_map),
+            ("duplicate report window", paired_rows, paired_rows + paired_rows[:1], None),
+    ] + [("malformed supplied map %d" % i, no_docs, no_docs, m) for i, m in enumerate(bad_maps)]:
+        rc, result = synthetic_pair(lr, rr, mapping)
+        if rc == 3 and result == {"unchanged": True}:
+            ok("joint CLI refuses %s without replacing output" % name)
+        else:
+            bad("joint CLI %s" % name, "rc=%d result=%r" % (rc, result))
+    rc, result = synthetic_pair(no_docs, no_docs)
+    if rc == 0 and result.get("inference_unit") == "none":
+        ok("joint CLI genuinely absent provenance remains descriptive")
+    else:
+        bad("joint CLI absent provenance", "rc=%d result=%r" % (rc, result))
+    rc, result = synthetic_pair(no_docs, no_docs, good_map)
+    if rc == 0 and result.get("document_level", {}).get("n_documents") == 2:
+        ok("joint CLI explicit consistent map supplies document provenance")
+    else:
+        bad("joint CLI explicit valid map", "rc=%d result=%r" % (rc, result))
     shutil.rmtree(tmp, ignore_errors=True)
 
 
@@ -716,10 +823,10 @@ def t_sigma_run() -> None:
         got = stats_mod.sigma_run(means)
         close("sigma_run %s (%d runs)" % (label, len(means)),
               got["sigma_run"], case["sigma_run"], 1e-18, "%.12e")
-        if len(means) == 2 and "two-run" not in (got.get("note") or ""):
-            bad("two-run disclosure %s" % label, "no 1-dof flag")
-        elif len(means) == 2:
-            ok("two-run sigma carries its 1-dof flag", got["note"][:52] + "...")
+        if got["runs"] == len(means) and got["dof"] == len(means) - 1:
+            ok("run spread discloses the actual sample size and degrees of freedom")
+        else:
+            bad("run spread sample size", repr(got))
 
     # a 2-run sigma is |delta|/sqrt(2): check it algebraically
     case = fix["expected_sigma_run"]["nvfp4_2cold_25w"]
@@ -765,11 +872,8 @@ def t_sigma_run() -> None:
               m - 1.96 * math.hypot(1e-3, 5e-4), 0.0, "%.15e")
         close("ci95_total high == mean + 1.96*SE_total", hi,
               m + 1.96 * math.hypot(1e-3, 5e-4), 0.0, "%.15e")
-        if q3["interval_kind"] == "z" and "NOT BCa" not in q3["note"] and "not BCa" in q3["note"]:
-            ok("ci95_total is labelled a z-interval, not BCa", q3["note"][-46:])
-        elif q3["interval_kind"] == "z":
-            ok("ci95_total is labelled a z-interval, not BCa",
-               "interval_kind=%s" % q3["interval_kind"])
+        if q3["interval_kind"] == "z":
+            ok("ci95_total identifies its interval kind", q3["interval_kind"])
         else:
             bad("ci95_total kind", repr(q3["interval_kind"]))
         # it must be WIDER than the statistical half alone, or it is pointless
@@ -779,10 +883,10 @@ def t_sigma_run() -> None:
         else:
             bad("ci95_total width", "%.6e" % (hi - lo))
 
-    # sigma_run == 0.0 must NOT emit a second, worse-shaped copy of the BCa interval
+    # An observed zero run spread adds no second interval in this formula.
     q4 = stats_mod.combine_quadrature(1e-3, 0.0, mean=m)
     if q4["ci95_total"] is None and q4["se_total"] == 1e-3:
-        ok("sigma_run == 0 -> no ci95_total; BCa already is the total",
+        ok("observed sigma_run == 0 -> no additional ci95_total",
            q4["note"][-44:])
     else:
         bad("ci95_total at sigma_run=0", repr(q4["ci95_total"]))
@@ -799,6 +903,18 @@ def t_sigma_run() -> None:
            "se_total=%.9e" % q6["se_total"])
     else:
         bad("combine_quadrature back-compat", repr(q6))
+    zero = stats_mod.combine_quadrature(0.0, 0.0, mean=1.0)
+    nonzero_run = stats_mod.combine_quadrature(0.0, 0.1, mean=1.0)
+    if zero["ratio"] is None and zero["gate_ok"] and zero["se_total"] == 0.0:
+        ok("two zero spreads have undefined ratio, not an infinite run-noise alarm")
+    else:
+        bad("zero-spread gate", repr(zero))
+    if (nonzero_run["ratio"] is None and not nonzero_run["gate_ok"]
+            and nonzero_run["ci95_total"][0] < 1.0 < nonzero_run["ci95_total"][1]):
+        ok("zero statistical spread with positive run noise still trips gate")
+    else:
+        bad("positive run-only spread", repr(nonzero_run))
+    json.dumps([zero, nonzero_run], allow_nan=False)
 
 
 # ======================================================================== 7

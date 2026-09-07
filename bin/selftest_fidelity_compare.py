@@ -118,6 +118,37 @@ def main():
         check("N1  known-answer KLD (2 x 8, analytic) agrees to fp64 epsilon (<1e-15 rel)",
               worst < 1e-15, "worst relative delta = %.3e, backend=%s" % (worst, backend))
 
+        # The fallback must normalize after shifting even when the shared
+        # logit offset is too large to retain a small log-normalizer.
+        torch_available = dscompare._torch_available
+        try:
+            dscompare._torch_available = lambda: False
+            shifted = np.array([[1e308, 1e308]], dtype=np.float64)
+            uniform = np.zeros((1, 2), dtype=np.float64)
+            values, matches, _ = dscompare.token_kld(shifted, uniform)
+            check("N1b NumPy KLD is invariant to a huge finite common logit offset",
+                  abs(float(values[0])) < 1e-15 and matches == 1,
+                  repr(values.tolist()))
+        finally:
+            dscompare._torch_available = torch_available
+
+        # Finite inputs can overflow while forming log probabilities. Exercise
+        # real arithmetic on both estimators, not an injected NaN return value.
+        for backend_name, available in (("selected", torch_available),
+                                        ("numpy", lambda: False)):
+            try:
+                dscompare._torch_available = available
+                dscompare.token_kld(
+                    np.array([[1e308, -1e308]], dtype=np.float64),
+                    np.zeros((1, 2), dtype=np.float64))
+                check("N1c %s refuses nonfinite intermediates from finite inputs"
+                      % backend_name, False, "returned a score")
+            except dscompare.Refusal as exc:
+                check("N1c %s refuses nonfinite intermediates from finite inputs"
+                      % backend_name, exc.code == "non_finite", exc.code)
+            finally:
+                dscompare._torch_available = torch_available
+
         # -- N2 KL(x||x) -----------------------------------------------------
         values, matches, _ = dscompare.token_kld(p, p, "cpu")
         check("N2  KL(x||x) is exactly zero everywhere and top-1 agrees",
@@ -151,8 +182,36 @@ def main():
         check("N4  --force-compute agrees bitwise with the hash proof",
               forced["self_compare"]["force_compute_agreed"] is True
               and forced["metric"]["value"] == 0.0
+              and forced["comparator"]["short_circuited"] is False
               and forced["comparator"]["estimator_backend"] is not None,
               json.dumps(forced["self_compare"]))
+
+        real_compute = dscompare.compute
+        for corruption in ("nonzero", "negative_zero", "top1"):
+            def broken_compute(*compute_args, **compute_kwargs):
+                computed = real_compute(*compute_args, **compute_kwargs)
+                if corruption == "top1":
+                    computed["top1_agreement"] = 0.0
+                else:
+                    computed["tokenwise"][0] = -0.0 if corruption == "negative_zero" else 1e-6
+                return computed
+
+            rejected_out = os.path.join(tmp, "forced-corrupt-" + corruption)
+            dscompare.compute = broken_compute
+            try:
+                try:
+                    dscompare.compare(a, b, rejected_out, {
+                        "self_compare": True, "force_compute": True, "vocab_chunk": 8})
+                except dscompare.Refusal as exc:
+                    check("N4b forced computation rejects %s disagreement before publication"
+                          % corruption,
+                          exc.code == "self_compare_disagreement"
+                          and not os.path.exists(rejected_out))
+                else:
+                    check("N4b forced computation rejects %s disagreement before publication"
+                          % corruption, False)
+            finally:
+                dscompare.compute = real_compute
 
         # -- N5 the T1 constant ---------------------------------------------
         path = os.path.join(tmp, "tokenwise-51175.npy")
@@ -209,6 +268,37 @@ def main():
               and cross["comparability"]["bias"]["kind"] == "cross_stack_capture_replay",
               json.dumps(cross["comparability"]["bias"])[:120])
 
+        # Equal environment fingerprints cannot hide changed or missing
+        # sealed capture source identities.
+        for source_case, sources in (
+                ("changed", {"engines/tools/stream_score.py": F.sha256_hex("changed")}),
+                ("missing", {})):
+            source_root = os.path.join(tmp, "source-" + source_case)
+            shutil.copytree(c, source_root)
+            runtime_path = os.path.join(source_root, "runtime", "capture-runtime.json")
+            runtime_doc = F.read_json(runtime_path)
+            runtime_doc["source_files"] = sources
+            manifest = F.load_manifest(source_root)
+            _, runtime_sha = fixtures.dsmanifest.write_sub(
+                source_root, manifest["runtime"]["file"], F.seal_receipt(runtime_doc))
+            manifest["runtime"]["file_sha256"] = runtime_sha
+            capture_rel = manifest["capture"]["manifest_file"]
+            capture_doc = F.read_json(os.path.join(source_root, capture_rel))
+            capture_doc["runtime_manifest_sha256"] = runtime_sha
+            _, capture_sha = fixtures.dsmanifest.write_sub(
+                source_root, capture_rel, F.seal_receipt(capture_doc))
+            manifest["capture"]["manifest_file_sha256"] = capture_sha
+            fixtures.dsmanifest.finalize(source_root, manifest)
+            source_result = dscompare.compare(
+                a, source_root, os.path.join(tmp, "source-result-" + source_case),
+                {"vocab_chunk": 8})
+            check("N6d %s capture source identity cannot establish a same-stack floor"
+                  % source_case,
+                  source_result["estimator"]["stack_relation"] == "cross_stack"
+                  and source_result["comparability"]["usable_as_floor"] is False
+                  and source_result["comparability"]["bias"]["direction"] == "unknown"
+                  and source_result["metric"]["value"] == floor["metric"]["value"])
+
         # -- N7 vocab-chunk invariance, including a final partial chunk ------
         out4 = os.path.join(tmp, "chunk4")
         out7 = os.path.join(tmp, "chunk7")
@@ -264,8 +354,6 @@ def main():
                       exc.code == "bad_vocab_chunk"
                       and "positive integer" in exc.message,
                       exc.message[:90])
-        check("N8b fixed chunk 8192 may end with a partial GLM vocabulary block",
-              154880 % 8192 != 0)
 
         # -- N9 NaN -> hard refusal -----------------------------------------
         bad_p = p.copy()
@@ -274,9 +362,9 @@ def main():
             dscompare.token_kld(bad_p, q, "cpu")
             check("N9  a NaN in a capture is a hard refusal, never a clamp", False,
                   "no refusal")
-        except (dscompare.Refusal, Exception) as exc:
+        except dscompare.Refusal as exc:
             check("N9  a NaN in a capture is a hard refusal, never a clamp",
-                  "finite" in str(exc).lower(), str(exc)[:110])
+                  exc.code == "non_finite", str(exc)[:110])
 
         # -- N10 permuted head ----------------------------------------------
         ref = dscompare.load_dataset(a)
@@ -336,6 +424,22 @@ def main():
                   same_content and exc.code == "head_substitution_vacuous"
                   and exc.override is None,
                   "content_equal=%s code=%s" % (same_content, exc.code))
+        own_out = os.path.join(tmp, "headonly-own")
+        own = dscompare.compare(a, head_only, own_out, {"own_heads": True})
+        own_candidate = dscompare.load_dataset(head_only)
+        own_head = dscompare.load_tensor(own_candidate.head_path(), "lm_head.weight")
+        own_expected = []
+        for record in ref.records:
+            h = dscompare.load_tensor(ref.record_path(record), record["key"])
+            own_expected.extend(analytic_kl(
+                (h @ np.ascontiguousarray(head.T)).astype(np.float64).tolist(),
+                (h @ np.ascontiguousarray(own_head.T)).astype(np.float64).tolist()))
+        actual = np.load(os.path.join(own_out, "tokenwise-kld.npy"))
+        check("N12b identical hiddens with distinct own heads produce the nonzero head-only KL",
+              own["comparison_kind"] == "measurement"
+              and own["comparator"]["short_circuited"] is False
+              and own["metric"]["value"] > 0.0
+              and np.allclose(actual, own_expected, rtol=1e-12, atol=1e-12))
 
         # -- N13 PANEL-D6: the tokenizer is panel identity --------------------
         other_tok = os.path.join(tmp, "other-tokenizer")
@@ -385,10 +489,6 @@ def main():
                   exc.code == "panel_mismatch"
                   and "--tokenizer-id" in (exc.remedy or "")
                   and repr(declared) in (exc.remedy or ""),
-                  (exc.remedy or "")[:150])
-            check("N13b and it says plainly that the flag records a "
-                  "declaration rather than verifying one",
-                  "does not verify" in (exc.remedy or ""),
                   (exc.remedy or "")[:150])
         # N13c the override must NOT be offered when the disagreement is
         # evidence of a genuinely different tokenization. Suggesting it there
@@ -481,6 +581,25 @@ def main():
               == {measurement["reference"]["dataset_sha256"],
                   measurement["candidate"]["dataset_sha256"]},
               json.dumps(submission["evidence"])[:120])
+
+        import copy
+        sys.path.insert(0, os.path.join(REPO, "registry", "tools"))
+        import registry_add
+        import registry_lib
+        import registry_predicate
+        registry_context = registry_lib.load_registry(os.path.join(REPO, "registry", "data"))
+        ingested, _ = registry_add.submission_to_records(
+            submission, submission_path, F.sha256_file(submission_path), registry_context)
+        foreign_replay = copy.deepcopy(ingested)
+        foreign_replay["id"] = ingested["id"] + ".different-replay"
+        foreign_replay["estimator"]["replay_backend"] = "torch:cuda:float32"
+        registry_context["measurements"] = {
+            ingested["id"]: ingested, foreign_replay["id"]: foreign_replay}
+        verdict = registry_predicate.pair_predicate(
+            registry_context, ingested["id"], foreign_replay["id"])
+        check("N16e a conflicting replay declaration is vetoed after comparison/submission/ingest",
+              verdict["comparable"] == "false"
+              and verdict["secondary"]["replay_backend"]["status"] == "fail")
 
         # -- N17 a tampered tensor, resealed honestly, is caught by DEFAULT ----
         tampered = os.path.join(tmp, "tampered")

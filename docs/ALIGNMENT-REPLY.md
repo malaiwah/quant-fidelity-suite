@@ -1,7 +1,12 @@
 # Discord reply — paste-ready
 
-Ten messages, each under Discord's 2000-character limit, in order. Message 10 is
-optional (it is the licence question) and can be sent as a DM instead.
+**Historical draft, corrected 2026-09-07.** References to upstream files,
+test results and publication state describe the original inspected campaign,
+not a new external verification. Scientific corrections below supersede the
+old wording; this local edit is not a sent reply or Hub publication.
+
+Ten historical message drafts follow. Recheck platform length limits before
+any separately authorized posting; Message 10 is the optional licence question.
 
 Full working: `docs/PROTOCOL-ALIGNMENT.md` in
 `github.com/malaiwah/quant-fidelity-suite`.
@@ -43,41 +48,25 @@ your four `se_clustered_window` bit-identical and the fourth to one ULP
 through your own `kld_eval.analysis.stats` agrees to 7e-18, and your 16 unit
 tests pass unmodified on a fresh macOS venv.
 
-## Message 2 — the padded columns, bounded on your teacher
+## Message 2 — the padded-column study, corrected 2026-09-07
 
-You mask the 24 padded lm_head columns. We never have. Rather than guess, we
-measured it.
+The real final-0000 teacher tensor holds about 1.6e-8 probability mass in
+24 padded columns. The thirteen students in `bin/padded_column_study.py`
+are synthetic perturbations of reconstructed hidden states or head weights,
+not captures of our actual quantized models. Their observed masking deltas
+are small (including about 1e-10 for the studied shared-head perturbations
+and 5e-8 for the deliberately bad head), but this is not a universal bound.
 
-Downloaded your teacher window final-0000 (1.27 GB, sha256 verified). Straight
-about what's real: the teacher numbers come out of your tensor; the students
-don't. A real delta for K6 or FP8 needs their student logits on your panel, i.e.
-a GPU run we didn't do, so we reconstructed the hidden states by least squares
-against a real lm_head (rel. rms residual 1.6e-3) and built thirteen *synthetic*
-students on top, mean KLD 4.8e-5 to 1.0 nats, to stress it.
+Sharing a head does not imply equal hidden states, logits or padded masses.
+The exact formula in PROTOCOL-ALIGNMENT §3 depends on the student's padded
+mass and conditional distribution too. The former `e_q=e_p` argument and
+manufactured all-row "masked equivalents" are withdrawn. Actual masked
+full-panel values require the real student logits; none were measured here.
+Historical unmasked metrics and simulation receipts are preserved. Masking
+is an estimator-policy distinction to disclose, not silently re-seal away.
 
-The teacher side carries the answer. The padded rows aren't dead: norm ~0.4795 vs
-~1.21 for a typical real row, all 24 mutually cosine-0.999998 — one untrained
-direction repeated. They hold ~1.6e-8 of the probability mass. What that caps
-depends on the case, and the two cases are four orders apart: in general the
-delta is that mass times however many nats the student's padded logits are
-displaced, so ~1e-8, never past ~1e-7. Share the head and the displacement is
-zero and it collapses to KLD x mass — that's the 1e-10, and every row of ours on
-your panel is shared-head.
-
-The synthetic students agree: +7.2e-9 to +7.4e-9 relative across shared BF16, RTN
-per-row int8/int6/int4 and group-128 affine 6b/4b — including a deliberately
-awful global-scale int4 head displacing the padded logits +2.1 nats and blowing
-KLD to 0.183. Even there it moves 5e-8 nats.
-
-Every published number of ours moves at the 8th or 9th significant figure,
-nowhere earlier: K6 sealed 0.013723384665701147 -> 0.013723384767254605. No
-correction, no bias disclosure, just a field recording the convention. For scale:
-delta 1e-10, our sealed-vs-streaming bridge 8.5e-6, your SE 3.19e-3. We're
-adopting masking anyway — costs nothing, one less difference.
-
-That ran out of tree at first, results only, which by your standard isn't good
-enough. It's committed now — `bin/padded_column_study.py` + receipts. The
-load-bearing half needs only your window, no lm_head, 7 s.
+Script and receipts are committed under `docs/joint-standard/padded-column/`.
+The teacher-only reproduction needs the pinned teacher window, not a head.
 
 ## Message 3 — your contamination finding, reproduced, and what it does to our numbers
 
@@ -119,27 +108,18 @@ Dione Q4 have scalar-only receipts with no per-window array. Our fault, noted.
 
 ## Message 4 — did the conclusions survive, and one thing about your threshold
 
-Paired per-window, BCa on the differences, both scopes:
+**Correction, 2026-09-07.** The old window-level ranking language, cross-stack
+FP8/K6 ratios, domain quality spread and paired-interval tightness argument
+are withdrawn. Raw panel and clean-scope means remain historical evidence.
+Sealed K6 versus streaming K8 is mixed-lane; FP8 contrasts also change runtime.
+The same-lane K6stream−K8 means are 0.001331 (panel25) and 0.000847 (clean17),
+descriptive of these fixed positions.
 
-K8 better than K6 survives but weakens a lot. Panel scope the interval is
-[+0.000695, +0.002330] with sign test p=0.004. Clean scope it's
-[+0.000153, +0.001573], p=0.049. Still excludes zero, but it's sitting on the
-line and the gap shrinks about a third. We won't restate that claim without the
-scope attached.
-
-K6 better than FP8 gets stronger: 17/17 windows on the clean scope, ratio
-0.666 -> 0.626.
-
-Also worth noting because it's your point about ranking: the marginal CIs for K6
-and K8 overlap almost entirely on both scopes. Anyone eyeballing them calls it a
-tie. The paired interval is 4.2x tighter on the clean scope (1.42e-3 wide against
-5.93e-3 and 5.77e-3 for the two marginals) and 3.4x on the panel scope, and it
-doesn't call it a tie. Our data makes your argument better than our old paired
-t-interval did.
-
-Your per-domain non-uniformity reproduces on our artifacts too. Clean scope,
-FP8-over-K6 ratio: general 1.67x, legal 1.81x, code-agentic 1.30x. A 1.39x spread,
-and legal is the worst domain for us as it is for you.
+Panel25 contains four source documents; clean17 contains three, one per
+retained domain. Historical window sign p-values 0.0041/0.049 and BCa
+intervals pseudoreplicate those documents. Document sign p-values are
+0.125/0.25 under independent-sign assumptions, not population confidence for
+this selected panel. No interval repairs a failing comparison predicate.
 
 Now the one thing we'd push back on. Your 0.05 threshold is a bare literal in
 cli.py with no sensitivity analysis published, and it matters:
@@ -189,13 +169,12 @@ does suggest the disclosure field was pointed at the right thing.
 
 ## Message 6 — what we can put on the table
 
-- Measured BF16 floors and attributable error. You're on record against
-  subtraction in section 5.3, and this is our one real disagreement, so here's a
-  fact rather than an opinion: across the panel->clean scope change, the
-  cross-stack FP8 attributable error moves +1.44% while its two inputs move -9.5%
-  and -16.2%. The subtraction is the stable half. We'd still never publish it
-  without the raw row and the floor beside it, and our tooling refuses a floor
-  from a different lane or a different scope.
+- Measured BF16 controls and **descriptive excess over control**, not
+  "attributable error". The historical cross-stack FP8 difference moves +1.44%
+  between scopes while its inputs move −9.5% and −16.2%; that observed
+  cancellation neither proves causal isolation nor a universally stable
+  subtraction. Valid control matching and uncertainty assumptions are separate
+  requirements; unknown cross-stack bias does not supply a usable floor.
 - A schema-enforced registry with mechanical refusals rather than conventions.
   It caught a real mistake in this very work: our first clean-scope rows sat
   under the parent panel's comparability key and the validator refused them,
@@ -228,8 +207,9 @@ Ours first:
   the window design effect on this panel runs 21-29 for our rows and 74-105 for
   your 4bpw. (We never published a naive SE ourselves. We published nothing,
   which on your panel is worse.)
-- Our 2.52x attributable-error ratio is a panel-scope number. The clean-scope
-  version needs one re-measured streaming BF16 floor with per-window output.
+- The former 2.52x attributable-error ratio is withdrawn, not merely missing
+  a clean-scope counterpart. Scalar-only streaming-control evidence cannot
+  supply a clean17 residual or its uncertainty.
 
 Yours, same spirit:
 
@@ -276,10 +256,10 @@ publish two hashes.
     protocol_scoring_sha256  sha256 of a canonical JSON serialisation of only
                              the scoring-relevant blocks.
 
-Two receipts are comparable when the scoring hashes match. A file hash that moved
-while the scoring hash held is a provenance note, not an incomparability. Our
-selftest checks it both ways: an identity-only edit moves the file hash and holds
-the scoring hash; a scoring edit moves both.
+Matching scoring hashes is necessary for policy alignment, not sufficient for
+comparability. Panel, reference, lane, scope and source/replay provenance must
+also satisfy the actual pair predicate. File-hash-only changes remain visible
+as provenance changes rather than being discarded.
 
 ## Message 9 — two asks
 

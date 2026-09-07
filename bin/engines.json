@@ -409,9 +409,11 @@
         "exl3hf",
         "tr3-published",
         "dione",
-        "gguf"
+        "gguf",
+        "mlx",
+        "nvfp4"
       ],
-      "surfaces_note": "stream_score.py --source {checkpoint,payload-store,dione,native,exl3hf,tr3}. 'packed' needs the payload store published; 'native-bf16' needs only --inventory + --bf16; 'exl3hf' reads a stock-exllamav3 HF-sharded release (mul1/mcg codebook, full-scope quant incl. quantized lm_head) and needs --bf16 pointing at the tree exl3hf_surface.py materialize produced from the SAME snapshot; 'tr3-published' reads a SEALED TR3 release (exl3-mcg, routed experts ONLY, native BF16 head) via tr3_surface; 'dione' reads an UNSEALED 0xSero selective-EXL3 release (exl3-mcg, routed experts of layers 3-44 only, TP4-sliced storage, everything else retained at source precision incl. the head) via dione_surface. tr3-published and dione both need --bf16 pointing at the non-routed tree their own materializer wrote from the SAME snapshot: their non-routed tensors ARE the official ones, but they cannot serve transformers out of the artifact's shards (tr3 interleaves them with routed payloads; dione's retained shards also carry the 864 MTP expert tensors) and transformers keys its checkpoint load off the shard FILES. || M5: 'gguf' reads a community llama.cpp container (--source gguf) via gguf_surface, whose dequant kernels are bitwise equal to gguf-py 0.19.0. It is the odd one out in this list twice over. (1) SCOPE: a GGUF quantizes the whole forward -- token_embd, lm_head, attention/KDA/DSA, shared experts, dense MLPs AND the routed experts -- so every measured weight is decoded from the artifact and NOTHING is retained at source precision; --bf16 narrows to the official config/tokenizer plus the vision tower, which the main GGUF does not carry (it ships as a separate mmproj file the text-only panel never executes). (2) IDENTITY: the repo is a SHELF, not an artifact -- unsloth publishes twelve builds of GLM-5.3-Flash at one revision -- so a measurement names a build with --path and the receipt carries that build's file list with whole-file sha256, not just the repo revision.",
+      "surfaces_note": "stream_score.py --source {checkpoint,payload-store,dione,native,exl3hf,tr3}. 'packed' needs the payload store published; 'native-bf16' needs only --inventory + --bf16; 'exl3hf' reads a stock-exllamav3 HF-sharded release (mul1/mcg codebook, full-scope quant incl. quantized lm_head) and needs --bf16 pointing at the tree exl3hf_surface.py materialize produced from the SAME snapshot; 'tr3-published' reads a SEALED TR3 release (exl3-mcg, routed experts ONLY, native BF16 head) via tr3_surface; 'dione' reads an UNSEALED 0xSero selective-EXL3 release (exl3-mcg, routed experts of layers 3-44 only, TP4-sliced storage, everything else retained at source precision incl. the head) via dione_surface. tr3-published and dione both need --bf16 pointing at the non-routed tree their own materializer wrote from the SAME snapshot: their non-routed tensors ARE the official ones, but they cannot serve transformers out of the artifact's shards (tr3 interleaves them with routed payloads; dione's retained shards also carry the 864 MTP expert tensors) and transformers keys its checkpoint load off the shard FILES. || M5: 'gguf' reads a community llama.cpp container (--source gguf) via gguf_surface, whose dequant kernels are bitwise equal to gguf-py 0.19.0. It is the odd one out in this list twice over. (1) SCOPE: a GGUF quantizes the whole forward -- token_embd, lm_head, attention/KDA/DSA, shared experts, dense MLPs AND the routed experts -- so every measured weight is decoded from the artifact and NOTHING is retained at source precision; --bf16 narrows to the official config/tokenizer plus the vision tower, which the main GGUF does not carry (it ships as a separate mmproj file the text-only panel never executes). (2) IDENTITY: the repo is a SHELF, not an artifact -- unsloth publishes twelve builds of GLM-5.3-Flash at one revision -- so a measurement names a build with --path and the receipt carries that build's file list with whole-file sha256, not just the repo revision. ADDED 2026-09-07 (CC-08), probe-confirmed rather than assumed: stream_score.py's own --help lists mlx and nvfp4 in BOTH --source and --profile, and the engine enforces the source<->profile pairing itself, so 'mlx'->profile 'mlx' and 'nvfp4'->profile 'nvfp4' are the engine's rule and not an authored guess. Both use the wildcard '*' profile map for the same reason gguf does: the rate is not a bits table. nvfp4 is fixed at NVFP4_STUDENT_LABEL 'nvfp4-e2m1-gs16'; MLX derives its label PER ARTIFACT via mlx_surface.student_label(), because an MLX release overrides bits and group_size per tensor. Neither has been measured end to end on this lane yet -- the readers are bitwise-verified, the LANE run is new ground.",
       "profile_map_by_surface": {
         "dione": {
           "3.0": "dione-3.0bpw",
@@ -432,6 +434,12 @@
         },
         "gguf": {
           "*": "gguf"
+        },
+        "mlx": {
+          "*": "mlx"
+        },
+        "nvfp4": {
+          "*": "nvfp4"
         }
       },
       "profile_refusals_by_surface": {
@@ -711,17 +719,17 @@
       },
       "notes": [
         "This lane does not score a quant. It scores the UN-QUANTIZED BF16 experts through the",
-        "identical capture, so its panel mean is the FLOOR every quant measured on this lane",
-        "sits on top of. Subtract it (engines/tools/bf16_floor_summary.py) to state a quant's",
-        "quantization-attributable error.",
+        "matching capture. Its mean is an unquantized control, not an additive error floor.",
+        "Use bin/fidelity-stats on matched reports for a descriptive excess-over-control",
+        "contrast; it is not itself KL or automatically causal quantization error.",
         "It is the only stream_score source that needs NO packed root: --inventory (a sealed",
         "quant-pipeline.glm-release-inventory.v1) plus the --bf16 tree is the whole input.",
         "It is IO-bound, not decode-bound: 14.50 GB of routed BF16 per layer, 42 layers per",
         "window. Size the box by filesystem read bandwidth and by 47.1 GB of VRAM, not by",
         "matmul throughput.",
-        "Requires SM90-class or newer ONLY in the sense that the venv is pinned to torch",
-        "2.11.0+cu130; an instance whose driver predates CUDA 13 cannot run it at all",
-        "(observed on an A100-80GB image shipping driver 12080).",
+        "The pinned torch 2.11.0+cu130 environment requires a CUDA-13-compatible driver.",
+        "A driver requirement is not a compute-capability requirement; hardware still",
+        "needs the lane's own qualification evidence.",
         "The workspace symlink farm (/workspace/artifacts/...) must exist before the run: the",
         "sealed panel receipt declares those paths and the artifact identity check refuses",
         "symlinked FILES while requiring the directories to resolve."
@@ -731,5 +739,19 @@
       ],
       "surfaces_note": "The official BF16 release tree itself (config.json + model.safetensors.index.json + shards). Not a reader for a third-party quant."
     }
-  }
+  },
+  "profile_authoritative_flags": [
+    "capture_role",
+    "decode_cache_dir",
+    "ep_emulate",
+    "inventory",
+    "sample_seed",
+    "slab_experts",
+    "store_positions",
+    "unpack_device",
+    "vram_budget_gb",
+    "windows",
+    "work_dir"
+  ],
+  "profile_authoritative_note": "NUM-16, decided 2026-09-07. These flag_map keys are advertised by a lane and are NOT settable from a job document on the paid path: the AUTHORED PROFILE decides them. Before this, invoke_engine simply never filled them, so a job naming one was silently ignored -- the worst of the three possible behaviours, because the operator believes a value took effect and the receipt cannot show that it did not. The paid invoker now REFUSES such a job instead. The rule is deliberately narrow: no real job.json in this tree's run directories carries any of these keys (checked across the committed runs), so the refusal is inert for every existing job and fires only on the thing this decision forbids. Widening what a job may steer on a paid run is a separate decision and needs a concrete run that requires it -- every new override is another way two numbers can differ for a reason nobody recorded."
 }

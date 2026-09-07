@@ -1227,8 +1227,8 @@ def validate_safety_proof(path, bundle_manifest_sha256,
                 != campaign_ledger_coordinate_sha256(live_ledger_path)):
         raise SafetyProofError(
             "proof campaign ledger differs from configured durable coordinate")
+    from .campaign import CampaignLedger, CampaignLedgerError, CostQuote
     try:
-        from .campaign import CampaignLedger, CampaignLedgerError, CostQuote
         CampaignLedger._validate_document(ledger_document)
         live_ledger_document = CampaignLedger(
             str(live_ledger_path), "runpod", provider_account_id).snapshot()

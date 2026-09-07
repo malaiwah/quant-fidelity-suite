@@ -19,14 +19,14 @@ pooled mean, pooled median, and top-1 agreement.
 | windows won | 2 | **9** | |
 | shipped-store weight NMSE | 4.62e-4 | **3.50e-5** | K8 **13.2× tighter** |
 
-The K8 checkpoint is **not defective**, the scorer is **not at fault**, and **no re-encode is
-needed**. The single adverse window was an unlucky draw.
+These scoped checks found no evidence requiring re-encoding. The adverse window
+does not represent the paired 11-window average; it is not proof of a runtime defect.
 
 ## Why one window was not enough
 
-Per-window deltas have a standard deviation of **1.73e-3** against a true effect of
-**1.22e-3**. The noise is larger than the signal, so a single window has essentially no
-power to separate 6-bit from 8-bit.
+Per-window deltas have a standard deviation of **1.73e-3** against an observed
+11-window mean delta of **1.22e-3**. This is descriptive heterogeneity on a selected
+partial panel, not an estimated "true effect" or a power calculation.
 
 The reason is that per-position KLD is extremely heavy-tailed. Window medians across the
 panel range from 1.5e-5 to 1.2e-2, and single positions reach a KLD of 2.1 — so a window's
@@ -52,8 +52,10 @@ Per-window results:
 | 0009 | 0.006585 | 0.006155 | −0.000431 | K8 wins |
 | 0010 | 0.015075 | 0.016052 | +0.000977 | K8 loses |
 
-Sanity check: our 11-window pooled K6 mean (0.013873) sits within 1.5e-4 of the sealed
-25-window K6 number (0.013723), so the subsample is representative.
+The 11-window pooled K6 mean (0.013873) is within 1.5e-4 of the sealed
+25-window K6 number (0.013723). Closeness of one marginal mean does not prove
+representativeness of paired deltas or broader text. Full-panel means describe
+that finite panel; source-document uncertainty needs provenance and assumptions.
 
 ## The shipped artifact is sound
 

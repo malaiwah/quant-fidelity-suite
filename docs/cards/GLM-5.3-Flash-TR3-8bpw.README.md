@@ -144,11 +144,11 @@ x_fidelity:
     snapshot:
       data_sha256:
         models: 5b03d7bda928b9ef72ba8c3dc7307e3bc6aec3a87cf01b862d98f2d665188e05
-        artifacts: 6260462aea0196f6ca0cf64cb8132af4de5b538d10a07e92f9c4e7d1e8cc76e6
+        artifacts: b074edf39f1f0d63003096f1ee7bcbf8c6544b4b9bee73960fad3882010691a2
         panels: 4707baf7b5b8251c9b42bfd6e8bc0a5b9f7b23704133263e310c0db8251debcb
-        references: dbb42689e6867dc23828f961b1ffc7b354199837cab164f47ff98a0d89f1d3b6
-        pipelines: c46ef96f9ed4d37add26c6edae94a56a58a4737d6ac679113126503794c3648b
-        measurements: f309191b14a7ca1bcc119de5b180cffa5fda02ee83e4223a209d03c30ccba6bf
+        references: 6a28cff30710410dcf93b2f61246a13eb777f0979d4803ef4678ae768cc34599
+        pipelines: 065591e9667b5cb7676ca6b62b8f0faf90f905465aee7c0d7ec613edb8527260
+        measurements: 210567e485cc82c85a0999d3e45241c26b465df74a029e7bda8d9e1fccf21078
   scope_digest: attn.o=native:bf16@16|attn.other=native:mixed|attn.qkv=native:bf16@16|embed_tokens=native:bf16@16|lm_head=native:bf16@16|mlp.down=native:bf16@16|mlp.gate=native:bf16@16|mlp.up=native:bf16@16|moe.experts=quantized:exl3-mcg@8|moe.router=native:fp32@32|moe.shared_expert=native:bf16@16|mtp=quantized:exl3-mcg@8|norm=native:bf16@16|other=native:bf16@16|head=native|kv=bf16
   head:
     policy: native
@@ -228,7 +228,7 @@ x_fidelity:
 MTP layer quantized at K8 (128-word trellis, MCG `0xCBAC1FED`); everything else
 (KDA linear-attention layers, DSA indexer, hyper-connections, routers, norms,
 embeddings, lm_head) **bit-exact native BF16**. 331.4 GB — within 1% of the
-official FP8 release's footprint, at 1.66× lower divergence.
+official FP8 release's footprint. Fidelity values below retain their own lanes.
 
 ## Quality — SEALED, full panel, two bitwise-identical cold runs
 
@@ -261,11 +261,11 @@ official FP8 release's footprint, at 1.66× lower divergence.
 > | BF16 floor (cross-stack) | 0.012712 | 0.010648 | −16.24 % |
 > | brandonmusic 4bpw | 0.024555 | 0.024949 | **+1.61 %** |
 >
-> **The comparisons hold as descriptions of this panel.** K8 beats the
-> official FP8 on **17 of 17** clean windows, and the margin *widens*: 1.66× on
-> panel25 becomes **1.72×** on clean17. The K8-over-K6 result survives but
-> weakens — the paired BCa interval still excludes zero on clean17, with its
-> lower bound falling from +0.000695 to +0.000153.
+> **Correction, 2026-09-07.** The former 1.66×/1.72× FP8 quality ratios
+> are withdrawn: those rows change runtime/lane as well as weights. The
+> sealed-K6/streaming-K8 BCa contrast also mixes lanes. Same-lane
+> K6stream−K8 means are 0.001331 (panel25) and 0.000847 (clean17),
+> descriptive of the fixed panel, not general quantizer quality.
 >
 > **Statistical correction (2026-08-31, peer review P1-15).** This panel's 25
 > windows derive from only **four source documents** (clean17: three), so
@@ -293,21 +293,23 @@ official FP8 release's footprint, at 1.66× lower divergence.
 > [`reports/clean-scope-recompute.json`](https://huggingface.co/datasets/malaiwah/GLM-5.3-Flash-fidelity-suite-v1/blob/main/reports/clean-scope-recompute.json).
 > Working: [PROTOCOL-ALIGNMENT.md](https://github.com/malaiwah/quant-fidelity-suite/blob/main/docs/PROTOCOL-ALIGNMENT.md) §4.
 >
-> **One protocol note, not a correction.** His protocol masks the 24 padded
-> `lm_head` columns before the log-softmax; ours never has. Measured on his real
-> teacher window, the padded columns hold ~1.6e-8 of the probability mass, and
-> because this quant shares the teacher's native BF16 head the effect collapses
-> to `KLD × mass` — **1.0e-10 nats**, moving the value above at its *9th*
-> significant figure. For scale, our own sealed-vs-streaming bridge is 8.5e-6 and
-> the window-clustered SE on this panel is 3.19e-3. No correction and no bias
-> disclosure is warranted; we are adopting masking anyway. Script and receipts:
-> [`bin/padded_column_study.py`](https://github.com/malaiwah/quant-fidelity-suite/blob/main/bin/padded_column_study.py).
+> **Padding correction, 2026-09-07.** The teacher's ~1.6e-8 padded mass is
+> measured on real final-0000 logits; the ~1e-10 masking effect is from
+> synthetic students, not this quant's full-panel logits. Sharing head
+> weights does not imply equal hidden states or padded probability mass.
+> The former `KLD × mass` equality and ninth-digit "masked equivalent"
+> claim are withdrawn. Actual masked full-panel values remain unmeasured;
+> published unmasked metrics and historical study receipts are unchanged.
+> [`Study and correction`](https://github.com/malaiwah/quant-fidelity-suite/blob/main/docs/PROTOCOL-ALIGNMENT.md#3-divergence-1--the-padded-lm_head-columns).
 
 
 **Mean KLD(teacher ‖ K8) = 0.012384191023436866** over the full sealed panel
 (25 windows / 51,175 positions), **two cold runs producing identical means to
 the last digit** (`bitwise_deterministic: true`). Quality gate passed.
 Receipt: [`receipts/stream-k8-kld.json`](receipts/stream-k8-kld.json).
+
+These raw values are a **mixed-design inventory, not a ranking**. Equal panel
+identity is necessary; the actual pair predicate must also pass.
 
 | Model | Mean KLD (nats) | Size | Lane |
 |---|---:|---:|---|
@@ -317,13 +319,18 @@ Receipt: [`receipts/stream-k8-kld.json`](receipts/stream-k8-kld.json).
 | Official FP8 | 0.020615 | 328 GB | cross-stack |
 | brandonmusic 4bpw | 0.024555 | 176 GB | his stack |
 | 0xSero Dione Q4 | 0.027263 | 188 GB | [our measurement](https://huggingface.co/datasets/malaiwah/GLM-5.3-Flash-fidelity-suite-v1/blob/main/reports/dione-q4-packed-kld.json) |
+
+Historical single-window diagnostic, **not comparable to the panel means**:
+
+| Model | Mean KLD (nats) | Size | Lane |
+|---|---:|---:|---|
 | NVFP4 | 0.060535 | ~180 GB | his stack, 1 window |
 
-**At the same footprint as the official FP8 release (331 vs 328 GB), K8 is
-1.66× closer to the BF16 teacher** — and 1.11× closer than K6 at 30 % more
-bytes. Weight-space corroboration: with the intermediate-channel permutation
-undone, K8's shipped store is **13.2× tighter in NMSE** than K6's (3.505e-5 vs
-4.624e-4, better in 30 of 30 sampled matrices).
+**Correction, 2026-09-07.** The "1.66× closer" FP8 headline is withdrawn:
+its runtime differs. K8 is 331 GB versus FP8's 328 GB and K6's 254 GB.
+Separately, the sampled weight-space experiment found **13.2× lower NMSE**
+for K8 (3.505e-5 vs 4.624e-4, 30/30 sampled matrices with the permutation
+undone). Weight-space NMSE is not a serving-quality or whole-model proof.
 
 **Lane disclosure.** Measured on the single-GPU *streaming* lane (~$6/model),
 not the 8×H200 sealed lane. The lanes were bridged on this exact panel: K6
@@ -332,15 +339,14 @@ the worst single window differing by 2.9e-4. The streaming receipt sets
 `publishable_as_reproduction: false` because a different expert-combine order
 is an independent measurement that agrees closely, not a bitwise reproduction.
 
-**Methodology note worth stealing.** A single-window comparison of these two
-rates is *statistically meaningless*: on the sealed 25-window panel the
-per-window KLD scatter has sd 7.2e-3 (K6) / 6.9e-3 (K8), and even the paired
-per-window K6−K8 delta has sd 2.0e-3, against an effect of 1.33e-3. On one unlucky window (`window-0000`)
-K8 appeared *worse* than K6; over the full panel it wins decisively. Never
-quote a single-window KLD as a rate comparison —
-[full write-up](https://github.com/malaiwah/quant-fidelity-suite/blob/main/engines/K8-ANOMALY.md).
+**Single-window limitation.** On this panel, per-window KLD sd is 7.2e-3
+(K6) / 6.9e-3 (K8), and paired K6−K8 sd is 2.0e-3 versus mean 1.33e-3.
+The direction reversed on `window-0000`. A one-window result describes that
+window, not a full-panel or population rate comparison; the full-panel
+ordering is descriptive, not "decisive" independent-document inference.
+[Historical investigation](https://github.com/malaiwah/quant-fidelity-suite/blob/main/engines/K8-ANOMALY.md).
 
-### Excess over control (the floor removed)
+### Excess over control (descriptive subtraction)
 
 (Called "quantization-attributable error" before 2026-08-31; renamed per
 peer-review P1-05 — the difference estimates excess divergence over the
@@ -349,7 +355,7 @@ same-lane unquantized control and is **not** a causal attribution.)
 Scoring the **unquantized BF16 weights** against this teacher on this panel
 already costs **0.011506 nats** — the price of the comparison itself (teacher
 captured on a different runtime; bf16 addition is not associative across
-differing expert-combine orders). Two cold runs, identical means. Removing it:
+differing expert-combine orders). Two cold runs, identical means. Subtracting it:
 
 | | panel KLD | excess over control |
 |---|---:|---:|
@@ -375,6 +381,8 @@ floor named. Method, receipts and the ways this subtraction can be misused:
   his sealed core across 120 encodes / 624 MiB / 0 differing bytes
   ([evidence](https://github.com/malaiwah/quant-fidelity-suite/blob/main/engines/fallback/closure-comparison.json),
   [issue #1](https://github.com/brandonmmusic-max/glm-5.3-flash-exl3-4bpw/issues/1)).
+  This establishes sampled codec equivalence, not every historical campaign
+  matrix or native decode/forward equivalence.
 - **Serving runtime:** use
   [`malaiwah/glm52-exl3-vast`](https://github.com/malaiwah/glm52-exl3-vast)
   with `MODEL_PROFILE=glm53-k8`. The image pins the qualified Glm5Next vLLM,
@@ -394,6 +402,9 @@ floor named. Method, receipts and the ways this subtraction can be misused:
   per-choice payload stores are mix-and-matchable — a K6K8 multi-precision build
   (e.g. K8 on `down_proj`, K6 on gate/up) is **offline CPU assembly, no GPU
   re-encode**. The parts bin is published: [GLM-5.3-Flash-TR3-partsbin-v1](https://huggingface.co/datasets/malaiwah/GLM-5.3-Flash-TR3-partsbin-v1).
+  Assembly does not reproduce a fresh encode with down-projection Hessians
+  conditioned on the mixed gate/up choice; the mixed artifact needs its own
+  fidelity measurement.
 
 ## Provenance & disclosed deviations
 

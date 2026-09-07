@@ -148,21 +148,20 @@ class Dataset(object):
         )
 
     @functools.cached_property
-    def weights_decode(self) -> Optional[Dict[str, Any]]:
-        """The decode the capture applied to the checkpoint's bytes before the
-        forward, from the sealed runtime receipt (`capture_tool.weights_decode`,
-        written by `layer_outer.weights_decode_evidence`).  None for a native
-        checkpoint, for a runtime receipt that predates the field, and for a
-        dataset whose runtime file is absent.  The runtime file is inside
-        checksums.txt, so after gate 1 its content is as trusted as the manifest.
-        """
+    def _runtime_receipt(self) -> Dict[str, Any]:
+        """Runtime provenance covered by the dataset's verified checksums."""
         rel = (self.manifest.get("runtime") or {}).get("file")
         if not rel:
-            return None
+            return {}
         full = os.path.join(self.root, rel)
         if not os.path.isfile(full):
-            return None
-        tool = (F.read_json(full) or {}).get("capture_tool") or {}
+            return {}
+        return F.read_json(full) or {}
+
+    @functools.cached_property
+    def weights_decode(self) -> Optional[Dict[str, Any]]:
+        """The checkpoint decode declared in the sealed runtime receipt."""
+        tool = self._runtime_receipt.get("capture_tool") or {}
         decode = tool.get("weights_decode")
         return decode if isinstance(decode, dict) else None
 
@@ -430,19 +429,24 @@ def run_gates(reference: Dataset, candidate: Dataset, options: Dict[str, Any]
     same_dataset = bool(reference.manifest.get(F.SEAL_FIELD)
                         and reference.manifest.get(F.SEAL_FIELD)
                         == candidate.manifest.get(F.SEAL_FIELD))
-    same_stack = same_dataset or bool(la and lb and la == lb and sa and sb and sa == sb)
+    sources_a = reference._runtime_receipt.get("source_files") or {}
+    sources_b = candidate._runtime_receipt.get("source_files") or {}
+    same_sources = bool(sources_a and sources_b and sources_a == sources_b)
+    # The environment fingerprint alone does not bind the code that captured
+    # the tensors. Equal versions/hardware must not hide a changed forward.
+    same_stack = same_dataset or bool(
+        la and lb and la == lb and sa and sb and sa == sb and same_sources)
     findings["stack_relation"] = "same_stack" if same_stack else "cross_stack"
     gates["stack"] = _gate(True,
-                           "lane_identity %s / stack_fingerprint %s -> %s"
+                           "lane_identity %s / stack_fingerprint %s / source_files %s -> %s"
                            % ("equal" if la == lb else "differ",
                               "equal" if sa == sb else "differ",
+                              "equal" if same_sources else "differ or unrecorded",
                               findings["stack_relation"]))
     if not same_stack:
         findings["class"] = "advisory"
-        # Symmetric with BIAS-006.  The bias block below declares a residual of
-        # the 1e-2 class with direction `unknown`; a number carrying an unknown
-        # bias of that size is not a zero-point for anything, for exactly the
-        # reason a cross-lane number is not.
+        # A differing or unproven capture stack cannot establish a same-stack
+        # zero-point. Neither the sign nor the magnitude follows from identity.
         findings["usable_as_floor"] = False
         findings["bias"] = {
             # The registry's own enum value (measurement.schema.json); BIAS-001
@@ -451,11 +455,10 @@ def run_gates(reference: Dataset, candidate: Dataset, options: Dict[str, Any]
             "direction": "unknown",
             "estimated_magnitude": None,
             "floor_measurement_ref": None,
-            "detail": "the two captures were produced by different stacks; BIAS-001 requires "
-                      "this block, and a residual of the 1e-2 class is expected from a "
-                      "different kernel, GPU class or torch build alone. usable_as_floor is "
-                      "stamped false for the same reason BIAS-006 stamps it false across "
-                      "lanes: an unknown-direction residual of that size is not a zero-point.",
+            "detail": "the capture stacks differ or their code identity is unproven. "
+                      "The sign and magnitude of the cross-stack effect are unknown; "
+                      "a control measured on another artifact, panel or stack is not "
+                      "a transferable correction. usable_as_floor is false.",
         }
         # measurement.schema.json rule 4: a cross-stack row needs the bias block
         # AND a comparability-affecting disclosure naming it. The bias block alone
@@ -463,11 +466,12 @@ def run_gates(reference: Dataset, candidate: Dataset, options: Dict[str, Any]
         findings["disclosures"].append({
             "code": "cross_stack_capture", "severity": "caveat",
             "affects_comparability": True,
-            "detail": "the two captures were produced by different stacks "
-                      "(lane_identity %s, stack_fingerprint %s); the number carries a "
-                      "cross-stack residual of the 1e-2 class in an unknown direction."
+            "detail": "capture stack equality is not established "
+                      "(lane_identity %s, stack_fingerprint %s, source_files %s). "
+                      "The cross-stack effect has unknown sign and magnitude."
                       % ("differs" if la != lb else "equal on both sides, or unrecorded",
-                         "differs" if sa != sb else "equal on both sides, or unrecorded"),
+                         "differs" if sa != sb else "equal on both sides, or unrecorded",
+                         "equal" if same_sources else "differ or unrecorded"),
         })
 
     # --- 7. geometry --------------------------------------------------------
@@ -650,14 +654,15 @@ def _activation_detail(side: str, method: str, declared: List[str]) -> str:
                 "FP8 weights (%s); the checkpoint declares activation_scheme: "
                 "dynamic, so a served W8A8 deployment also quantizes activations "
                 "per token at runtime. That term is not in this number, which is "
-                "expected to understate the served divergence; it is not a "
-                "mathematical bound. The comparison is advisory." % (side, method))
+                "not a bound on served divergence: the omitted operation can interact "
+                "with other errors in either direction. The comparison is advisory."
+                % (side, method))
     return ("%s was captured from a bf16 materialisation of its weights (%s); the "
             "checkpoint declares activation quantization (%s) that a weights-only "
             "capture does not apply, so a served deployment also quantizes "
             "activations at runtime. That term is not in this number, which is "
-            "expected to understate the served divergence; it is not a "
-            "mathematical bound. The comparison is advisory."
+            "not a bound on served divergence: the omitted operation can interact "
+            "with other errors in either direction. The comparison is advisory."
             % (side, method, ", ".join(declared)))
 
 
@@ -696,17 +701,15 @@ def _reconstruction_detail(side: str, decode: Dict[str, Any],
                          "served-kernel activations unmeasured"
                          % (version, count, DECODER_PARITY_EVIDENCE))
         else:
-            # exllamav3's get_weight_tensor rounds to fp16 four times through
-            # its Hadamard path where this decoder rounds once; the stage the
-            # served GEMM consumes -- unpack, codebook, tile layout -- is the
-            # one proven bitwise, and the fp16 weight differs by at most the
-            # recorded max_abs_diff.
+            # Pre-Hadamard parity does not prove the complete decoded weights,
+            # nor the native forward. The recorded error is a sampled maximum.
             worst = max((float(m.get("max_abs_diff") or 0.0)
                          for m in parity.get("modules") or []), default=None)
             parts.append("trellis unpack + codebook + tile layout bitwise vs exllamav3 %s "
                          "exllamav3_ext.reconstruct on %s real module(s) (%s); the fp16 weight "
-                         "after exllamav3's own four-rounding Hadamard path differs by "
-                         "max_abs_diff <= %s; served-kernel activations unmeasured"
+                         "after exllamav3's own four-rounding Hadamard path has a sampled "
+                         "max_abs_diff of %s, not a universal bound; full decoded-weight "
+                         "and native-forward equivalence remain unproven"
                          % (version, count, DECODER_PARITY_EVIDENCE,
                             "%.3g" % worst if worst is not None else "unrecorded"))
     else:
@@ -788,15 +791,9 @@ def _head_gate(reference: Dataset, candidate: Dataset, options: Dict[str, Any],
 
     # hidden <-> hidden
     if options.get("own_heads"):
-        # HEAD-1d: each side is replayed through ITS OWN sealed head, which is
-        # HEAD-2 (logit form, native heads) computed offline from the shipped
-        # head payloads instead of in the capture. Nothing is substituted, so
-        # the candidate's head error is INSIDE the number, exactly as under
-        # HEAD-2; and nothing is erased when the heads happen to be equal, so
-        # the rule is the same procedure whether da == db or not. HEAD-1c is
-        # checked in compare(): bitwise-equal hiddens under differing heads
-        # would make classify() call this a reproduction, which own-head
-        # replay cannot honour, so it still refuses there.
+        # HEAD-1d includes each artifact's own head weights. It is still an
+        # offline replay transform, not the native capture head arithmetic.
+        # Identical hiddens under different heads are a head-only measurement.
         for label, dataset in (("reference", reference), ("candidate", candidate)):
             if dataset.form == "hidden" and not dataset.head_path():
                 gates["head"] = _gate(False, "%s ships no head payload to replay" % label)
@@ -810,8 +807,8 @@ def _head_gate(reference: Dataset, candidate: Dataset, options: Dict[str, Any],
         findings["disclosures"].append({
             "code": "native_head_replay", "severity": "info", "affects_comparability": False,
             "detail": "HEAD-1d: each side replayed through its own sealed head (reference %s, "
-                      "candidate %s); head error is inside the measurement, as under HEAD-2, "
-                      "and nothing is substituted. The heads %s."
+                      "candidate %s); head-weight differences are included, but replay "
+                      "arithmetic need not equal live/native head execution. The heads %s."
                       % (da[:12], db[:12],
                          "are content-identical" if da == db else "differ in content"),
         })
@@ -838,9 +835,10 @@ def _head_gate(reference: Dataset, candidate: Dataset, options: Dict[str, Any],
         raise Refusal(
             "head", "head_mismatch",
             "HEAD-1b: head content digests differ (%s vs %s). Replaying one artifact's hidden "
-            "states through the other's head erases its head-quantization error and flatters "
-            "it. Both datasets ship their own head: --own-heads replays each side through its "
-            "own (HEAD-1d, native_head, strict)." % (da[:12], db[:12]),
+            "states through the other's head removes its head-weight difference and changes "
+            "the estimand; the KLD can move in either direction. Both datasets ship their "
+            "own head: --own-heads replays each side through its own (HEAD-1d, native_head)."
+            % (da[:12], db[:12]),
             override="--own-heads (each side through its own sealed head) or "
                      "--disclose-head-substitution (one head, BLOCKING disclosure)")
     applied = options.get("head_content_sha256") or da
@@ -850,12 +848,12 @@ def _head_gate(reference: Dataset, candidate: Dataset, options: Dict[str, Any],
     findings["usable_as_floor"] = False
     findings["bias"] = {
         "kind": "other",
-        "direction": "downward",
+        "direction": "unknown",
         "estimated_magnitude": None,
         "floor_measurement_ref": None,
         "detail": "a single head was applied to hidden states captured under two different "
-                  "heads; the candidate's own head-quantization error is erased, biasing the "
-                  "number DOWNWARD (flattering the candidate).",
+                  "heads; the candidate's own head-weight difference is removed. The "
+                  "resulting change in KLD has no guaranteed direction.",
     }
     findings["disclosures"].append({
         "code": "head_substituted", "severity": "blocking", "affects_comparability": True,
@@ -989,11 +987,18 @@ def token_kld(reference_logits, candidate_logits, device: str = "cpu"):
     if not np.isfinite(a).all() or not np.isfinite(b).all():
         # Never a clamp.  A non-finite intermediate is a hard refusal.
         raise Refusal("compute", "non_finite", "logits must be finite")
-    a_logp = a - (a.max(axis=-1, keepdims=True)
-                  + np.log(np.exp(a - a.max(axis=-1, keepdims=True)).sum(axis=-1, keepdims=True)))
-    b_logp = b - (b.max(axis=-1, keepdims=True)
-                  + np.log(np.exp(b - b.max(axis=-1, keepdims=True)).sum(axis=-1, keepdims=True)))
+    # Shift before subtracting log(sum(exp)): adding a small normalizer to a
+    # huge finite maximum can round it away and cease to normalize at all.
+    with np.errstate(over="ignore", invalid="ignore"):
+        a_shift = a - a.max(axis=-1, keepdims=True)
+        b_shift = b - b.max(axis=-1, keepdims=True)
+        a_logp = a_shift - np.log(np.exp(a_shift).sum(axis=-1, keepdims=True))
+        b_logp = b_shift - np.log(np.exp(b_shift).sum(axis=-1, keepdims=True))
+    if not np.isfinite(a_logp).all() or not np.isfinite(b_logp).all():
+        raise Refusal("compute", "non_finite", "log-softmax produced a non-finite value")
     values = np.sum(np.exp(a_logp) * (a_logp - b_logp), axis=-1)
+    if not np.isfinite(values).all():
+        raise Refusal("compute", "non_finite", "KLD reduction produced a non-finite value")
     matches = int(np.count_nonzero(np.argmax(a, axis=-1) == np.argmax(b, axis=-1)))
     return values.astype(np.float64), matches, "numpy_fp64"
 
@@ -1208,11 +1213,10 @@ def _torch_replay_env(replay_device: str) -> Dict[str, Any]:
 class _TorchReplay(object):
     """The head, resident, plus the chunked matmul that consumes it.
 
-    Chunking is value-preserving BY CONSTRUCTION and that is the whole reason
-    it is allowed here: every output element of `hidden @ head.T` is an
-    independent dot product over the hidden axis, so splitting the POSITION
-    axis or the VOCABULARY axis partitions the output without touching any
-    reduction.  Splitting the hidden axis would not be, and is never done.
+    Chunking partitions the output without changing the mathematical dot
+    products. GEMM kernels may nevertheless choose a different accumulation
+    order for different shapes, so floating-point bitwise invariance is not
+    guaranteed. Splitting the hidden reduction axis is never done.
     """
 
     def __init__(self, head32_t, replay_device: str, replay_dtype: str,
@@ -1429,10 +1433,8 @@ def compute(reference: Dataset, candidate: Dataset, findings: Dict[str, Any],
             piece, matched, backend = token_kld(block_a, block_b, device)
             values[start:stop] = piece
             matches_total += matched
-        # Belt and braces on the poisoned buffer: token_kld already refuses non-finite
-        # logits on both the torch and numpy paths, and an fp64 log-softmax difference
-        # cannot make a non-finite KLD from finite inputs, so this can only fire on a
-        # genuinely unwritten slot.
+        # Estimator intermediates are checked separately. A poisoned slot
+        # still catches a genuinely incomplete position scan.
         if values.size and not np.isfinite(values).all():
             raise Refusal("compute", "incomplete_scan",
                           "position scan left %d of %d positions unwritten"
@@ -1761,8 +1763,9 @@ def build_receipt(reference: Dataset, candidate: Dataset, gates: Dict[str, Any],
             "vocab_chunk": result.get("vocab_chunk"),
             "stack_relation": findings.get("stack_relation", "same_stack"),
             "head_policy": head_policy,
-            "softmax_note": "full vocabulary, torch.log_softmax in float64; no truncation, no "
-                            "top-k, no clamp. A non-finite intermediate is a hard refusal.",
+            "softmax_note": "full-vocabulary log-softmax in float64; estimator_backend names "
+                            "the implementation. No truncation, top-k or clamp. A non-finite "
+                            "intermediate is a hard refusal.",
             "zero_handling": ("exact zero asserted, not rounded"
                               if comparison_kind == "reproduction_confirmation" else None),
         },
@@ -1902,19 +1905,18 @@ def compare(reference_root: str, candidate_root: str, out_dir: str,
         result = short_circuit_result(reference, candidate, findings)
         if options.get("force_compute"):
             computed = compute(reference, candidate, findings, options)
-            same = bool(np.array_equal(computed["tokenwise"], result["tokenwise"]))
+            same = bool(
+                computed["tokenwise"].dtype == result["tokenwise"].dtype
+                and np.array_equal(computed["tokenwise"].view(np.uint64),
+                                   result["tokenwise"].view(np.uint64))
+                and computed["top1_agreement"] == result["top1_agreement"])
             options["force_compute_agreed"] = same
             if not same:
                 raise Refusal("compute", "self_compare_disagreement",
                               "--force-compute produced a result that is not bitwise identical "
                               "to the hash proof; the estimator or the reader is broken")
-            result["estimator_backend"] = computed["estimator_backend"]
-            result["device"] = computed["device"]
-            result["vocab_chunk"] = computed["vocab_chunk"]
-            result["position_block"] = computed["position_block"]
-            for field in ("replay_backend", "replay_env", "replay_peak_device_bytes",
-                          "head_applied", "head_applied_reference", "head_applied_candidate"):
-                result[field] = computed.get(field)
+            result = computed
+            result["short_circuited"] = False
     else:
         result = compute(reference, candidate, findings, options)
 
@@ -2009,8 +2011,17 @@ _REGISTRY_NUMERIC_FORMAT = {"float32": "fp32", "float64": "fp64", "f32": "fp32",
                             "f16": "fp16", "float16": "fp16", "bfloat16": "bf16"}
 
 
-def _submission_estimator(estimator: Dict[str, Any]) -> Dict[str, Any]:
-    block = _project(estimator, _SUBMISSION_ESTIMATOR_FIELDS)
+def _submission_estimator(receipt: Dict[str, Any]) -> Dict[str, Any]:
+    block = _project(receipt["estimator"], _SUBMISSION_ESTIMATOR_FIELDS)
+    comparator = receipt.get("comparator") or {}
+    for field in ("replay_backend", "replay_env"):
+        if field in comparator:
+            block[field] = comparator[field]
+    forms = {receipt.get(side, {}).get("form") for side in ("reference", "candidate")}
+    if "hidden" in forms:
+        block["replay_applicable"] = True
+    elif forms == {"logit"}:
+        block["replay_applicable"] = False
     dtype = block.get("logits_dtype")
     if isinstance(dtype, str):
         block["logits_dtype"] = _REGISTRY_NUMERIC_FORMAT.get(dtype.lower(), dtype)
@@ -2120,7 +2131,7 @@ def emit_submission(receipt: Dict[str, Any], out_path: str, *,
             "units": receipt["metric"]["units"],
             "direction": receipt["metric"]["direction"],
         },
-        estimator=_submission_estimator(receipt["estimator"]),
+        estimator=_submission_estimator(receipt),
         determinism=_project(receipt["determinism"], _SUBMISSION_DETERMINISM_FIELDS),
         measurement_scope=_project(receipt["measurement_scope"], _SUBMISSION_SCOPE_FIELDS),
         produced_by=receipt_mod.produced_by_block(

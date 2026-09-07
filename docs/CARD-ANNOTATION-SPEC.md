@@ -99,9 +99,9 @@ x_fidelity:
   Say which you ran.
 - **`scope`** — "4 bpw" alone is not a scope. Whether you quantized the head,
   the attention path, or only routed experts changes what your number means.
-- **`head_bits`** — if your head is quantized, nobody may replay your hidden
-  states through someone else's head; doing so erases your head's error and
-  flatters the result. This field is what makes that checkable.
+- **`head_bits`** — shared-reference replay of a quantized head changes the
+  estimand; its KL bias is not universally downward. Own-head replay retains
+  each artifact's head contribution, subject to the other comparison gates.
 
 **Rules of the road.** Unknown top-level keys survive the Hub's validator
 (verified: `x_fidelity` returns HTTP 200), so this is additive and will not break
@@ -215,6 +215,7 @@ Layer 2 alone is invisible to every HF tool. Both, cross-checked against each ot
 | estimator / determinism / registry ids | `metrics[].args` | `units`, `higher_is_better`, `direction`, `estimator`, `accumulation_dtype`, `logits_dtype`, `head_policy`, `stack_relation`, `lane`, `run_count`, `population_stddev_of_run_means`, `determinism`, `measurement_id`, `comparability_key` |
 | registry row | `source: {name, url}` | `source.url` required when `source:` present; the dataset-viewer search URL is a real deep link |
 | floor-subtracted number | a **second** metric `kl_divergence_excess_over_control`, **same-lane result only** | carries `floor_measurement_id`, `floor_lane` and the non-additivity caveat; enforces **BIAS-006** structurally |
+| inference qualification | retain panel-specific provenance and assumptions in result metadata/prose | raw fixed-panel means are descriptive; missing source provenance is unknown, never independent windows by default |
 | top-1 | `top1_agreement` metric, `higher_is_better: true` | registry **STAT-005** wants it on every published KL row |
 
 Plus, top level: `base_model` + `base_model_relation: quantized`; `datasets:` listing the panel repo
@@ -385,8 +386,9 @@ model-index:
                    floor_value: 0.011505922619330299,
                    floor_measurement_id: measurement--glm53.bf16-stream-floor.brandonmusic-final25,
                    floor_lane: streaming,
-                   caveat: 'KL is not additive; this is an estimate, valid only against a floor
-                            measured on the same lane, same panel and same reference.'}
+                   caveat: 'KL is not additive: this is a signed descriptive excess, not causal
+                            quantization error. Same lane/panel/reference are necessary; the
+                            full control contract and usable_as_floor verdict must also pass.'}
           - {type: top1_agreement, value: 0.9656277479237909, args: {higher_is_better: true, lane: streaming}}
         source: {name: quant-fidelity-registry, url: '…k6-6bpw-stream…'}
 x_fidelity:
@@ -571,13 +573,12 @@ alongside the Festr conversation.
   only in `args` would cause two lanes' results to **silently collapse into one row** — precisely
   the lane mixing BIAS-006 forbids. Overloading `split` is the least-bad available slot, but an
   outsider will not guess it; XC-2 enforces `args.lane == dataset.split` so the two can never drift.
-* **Our K6/K8 cards cannot carry a non-null head content digest until the capture tool publishes
-  one.** `head-extraction.json` / `head-equality-fp8.json` publish the *file* digest `47eaf729…`;
-  `engines/hidden-replay-evidence/nonrouted-sparse-fetch.json` publishes the *content* digest
-  `aa21c427…` — which is the correct value, but it is a working-tree artifact and not yet published
-  as part of a sealed dataset. Until it is, the generator emits `replay_permitted: false` (GEN-8) and
-  the comparator refuses cross-artifact hidden replay against those cards (HEAD-4). This is the
-  intended behaviour, not a workaround.
+* **Legacy K6/K8 head metadata remains explicitly unbound.** Their original
+  annotation used file digests, not a sealed capture/head content binding.
+  The known `aa21c427…` tensor digest and newer published root datasets do
+  not automatically qualify those old cards for replay. Supply the exact
+  verified capture provenance before changing `replay_permitted`; never
+  fill the field merely because a familiar hash exists elsewhere.
 
 ---
 

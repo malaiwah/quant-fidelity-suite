@@ -9,22 +9,20 @@ sealed panel, fp64, streaming lane, **2 cold runs producing identical means**,
 
 Our K6 and K8 quants score 0.013715 and 0.012384 on this panel — only **1.11x
 apart** — while K8's shipped payload store is **13.2x tighter** than K6's in
-weight-space NMSE. Those two facts only reconcile if the KLD we measure is
-dominated by something that is NOT quantization error.
-
-It is. Scoring the BF16 weights themselves — no quantization at all — against
-the teacher still costs 0.011506 nats on this panel, because the teacher
-logits were captured on a different stack (brandonmusic's EP4 runtime) than the
-replay lane, and because bf16 arithmetic is not associative across differing
-expert-combine orders. That is the FLOOR: the price of the comparison itself.
+weight-space NMSE. These are different estimands and need not track one another.
+Scoring BF16 weights against the original teacher still measures 0.011506 nats
+on this panel. The original teacher used brandonmusic's EP4 runtime, unlike the
+replay lane. Different arithmetic/topology is a plausible contributor, not a
+proved additive decomposition. "Floor" is the historical name of this control,
+not a guaranteed lower bound on quantized KLD.
 
 ## Excess over control
 
 (Renamed from "quantization-attributable error" on 2026-08-31, peer-review
 P1-05: the difference `D(P‖Q_quant) − D(P‖Q_control)` is an estimate of the
 excess divergence over the unquantized control, not a causal attribution — it
-is not itself a divergence, can be negative, and isolates quantization only if
-the two paths differ by nothing else.)
+is not itself a divergence and can be negative. Even with only weights changed,
+subtracting KL values does not isolate a teacher-independent quantization loss.)
 
 | | panel KLD | minus floor | = excess over control |
 |---|---:|---:|---:|
@@ -32,13 +30,11 @@ the two paths differ by nothing else.)
 | K6 (6 bpw, 254 GB) | 0.013715 | -0.011506 | **0.002209** |
 | K8 (8 bpw, 331 GB) | 0.012384 | -0.011506 | **0.000878** |
 
-K8's residual is smaller than K6's — 0.000878 against 0.002209 nats — where
-the raw panel means sit only 1.11x apart. The floor is what hides that: it is
-common to both rows and dominates both. **The once-published ratio of the two
-residuals ("2.52x") is withdrawn**: a ratio of small residuals magnifies
-control error, and no uncertainty was ever attached to it. Read the two excess
-values beside their raw values, with the floor named — that is the honest form
-of the comparison, and it is still invisible if you read raw KLD alone.
+K8's descriptive excess is smaller than K6's: 0.000878 versus 0.002209 nats.
+The common control subtraction changes neither the paired raw difference nor
+its ordering. **The once-published residual ratio ("2.52x") is withdrawn**:
+small residuals amplify control error, with no uncertainty attached here.
+Read excess and raw values side by side, not as separable causes.
 
 ## How to use this (and how not to)
 
@@ -48,11 +44,11 @@ of the comparison, and it is still invisible if you read raw KLD alone.
   figure (0.020615) was captured cross-stack, and its matching cross-stack floor
   is 0.012712 — so FP8's excess over THAT control is ~0.0079, never computed
   against this one.
-- The subtraction is an approximation: KL is not additive, and it is meaningful
-  only because both terms are small and share the same reference.
-- A quant scoring AT the floor is not "perfect" — it means this panel can no
-  longer resolve its error, and a harder panel (or a same-stack teacher) is
-  needed to see further.
+- The subtraction is an exact descriptive contrast of recorded means, not an
+  approximation to an additive KL law. Small magnitudes do not create additivity.
+- Equal KL to the teacher for a quant and its BF16 control does not imply their
+  distributions are equal or that an error is below the panel's resolution.
+  A same-lane teacher changes the reference; it is not a causal correction.
 
 ## Cost, honestly
 

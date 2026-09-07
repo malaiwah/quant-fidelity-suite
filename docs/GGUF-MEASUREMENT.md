@@ -20,17 +20,15 @@ the difference is not a caveat you can put in a footnote and then rank across.
 
 ## The scope difference, which is the whole thing
 
-Every other third-party artifact this suite measures — turboderp's `exl3hf`
-releases, brandonmusic's sealed `tr3-published` release, 0xSero's `dione`
-conversion — quantizes the **routed experts** and leaves the rest of the model
-alone. Their non-routed tensors are the official release's tensors, byte for
-byte or dequantized back to them. When such a row says "0.1216 nats", the
-sentence it completes is: *given the reference's embeddings, attention, dense
-MLPs and lm_head, replacing the routed experts with this codec at this rate
-moves the output distribution this far.*
+**Scope correction, 2026-09-07.** Scope is artifact-specific, not a format
+property. The inspected TR3 K6/K8 and Dione rows retain the native backbone;
+stock `exl3hf` releases can quantize attention, dense/shared MLPs and the head
+as well. MLX and NVFP4 also require their own measured census. Dequantized
+storage dtype does not mean an originally quantized tensor was native or
+byte-equal to the reference.
 
-A GGUF quantizes **everything**. On `UD-Q4_K_XL`, read from the container's own
-1,412-tensor table:
+The inspected GGUF `UD-Q4_K_XL` quantizes the following broad classes, while
+routers and norms remain F32. Its 1,412-tensor table records:
 
 | tensor class | what the artifact stores | measured bits/weight |
 |---|---|---|
@@ -56,9 +54,10 @@ is better". Ranking a GGUF row against a routed-experts-only row at a nominal
 difference as codec quality. The registry refuses to let that happen silently:
 `registry_add._apply_gguf_provenance` **requires** the scope census on the
 receipt and turns it into a `quantization_scope_whole_model` disclosure, and
-refuses the row outright if the census is missing. The comparability key is
-computed over `scope_digest`, so a GGUF row and a TR3 row land in different
-groups and render in different tables.
+refuses the row outright if the census is missing. **Correction, 2026-09-07:**
+`scope_digest` is **not** a comparability-key input. GGUF and TR3 rows can
+share a key; scope compatibility must pass the actual `pair_predicate`
+before ranking. A group key or adjacent table placement is not permission.
 
 If you want the comparison anyway, the honest form of it is not a ranking. It
 is: *at ~5 bits/weight overall, a whole-model llama.cpp quantization costs X
@@ -378,7 +377,7 @@ Adding a surface means several files agreeing, and the refusal text in
 | `engines/tools/gguf_surface.py` | the reader, the dequant kernels, and `scope` — the per-class recipe measured from the container's own table |
 | `engines/tools/gguf_decode_bench.py` | the fill-rate harness and the `--verify` bitwise acceptance test between the two decode paths |
 | `engines/tools/stream_score.py` | `--source gguf` / `--profile gguf`, and the view materialization |
-| `engines/tools/k6_kld_report.py` | profile `gguf` → student label `gguf-llamacpp` (format-wide, not per-rate) |
+| `engines/tools/kld_report.py` | profile `gguf` → student label `gguf-llamacpp` (format-wide, not per-rate) |
 | `bin/fidelity/hfmeta.py` | the shelf: build grouping, `--path` selection, nominal rate from the name |
 | `bin/engines.json` | `surfaces` + `profile_map_by_surface["gguf"] = {"*": "gguf"}` |
 | `bin/invoke_engine.py` | the on-instance argv: every part, the inventory, the official skeleton |

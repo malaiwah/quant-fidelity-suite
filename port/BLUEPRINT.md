@@ -2,6 +2,15 @@
 
 > Produced 2026-08-27 by a 7-agent design workflow (blueprint -> draft -> parity harness -> adversarial review) against exllamav3 v1.4.4.
 
+> 2026-09-07 qualification: this is a historical design, not a completed native
+> port or whole-model parity receipt. "Identical" source math and estimated reuse
+> do not prove checkpoint loads, fused kernels, cache lifecycle or full forwarding.
+> The current harness requires requested native coverage and independent mHC load
+> identity; the draft uses explicit FLA capabilities, not a release-number guess.
+> Short fixture parity cannot retire the native reconstruction caveat: the latest
+> [15-module EXL3 receipt](../engines/tools/layer-outer-evidence/exl3-decoder-parity-vs-exllamav3.json)
+> has `all_bitwise=false`, `all_bitwise_pre_hadamard=true`.
+
 ## Summary
 
 PORT BLUEPRINT complete. Core finding: exllamav3 v1.4.4 already contains ~80% of what GLM-5.3-Flash needs — dsv4's mHC HyperConnection torch path is numerically identical to vLLM's mhc_pre/post_torch (verified line-by-line, incl. hardcoded post_mult 2.0 and Sinkhorn eps loop), the checkpoint's hc_attn_fn/_base/_scale naming matches dsv4's "{key}_fn" convention exactly, glm_moe_dsa provides the MLA+indexer+sigmoid-noaux_tc MoE skeleton, and GDN provides the conv-state/recurrent-cache machinery. New code: one KimiDeltaAttention module (KDA ≠ GDN: 6 split in-projections, per-KEY-CHANNEL safe gate g=-5·sigmoid(exp(A_log)·(f_b(f_a(x))+dt_bias)) vs GDN's scalar-per-head decay, sigmoid output gate vs silu, calls fla.ops.kda.chunk_kda/fused_recurrent_kda which exist upstream with initial_state support), a kpool-compressed indexer mode (cache ki+gate_score in a 256-wide idx plane, softmax-pool by 4, relu scoring, +tail), NoPE guards for rope_dim=0 through the MLA triton kernels, a 20-line mean ContractStreams (GLM has no learned hc_head), and a sigmoid option in GatedRMSNorm (fla upstream supports it; exl3's is silu-only). Keep BF16/fp16-unquantized: all mHC params, A_log/dt_bias/convs, b/f_a/f_b/g_a/g_b (~234 MB total), kv_b_proj, all indexer tensors except wq_b, norms, embed, routers. Validation: per-layer torch-oracle parity + decode-equals-prefill + selection-Jaccard on one RTX PRO 6000, chained-layer end-to-end (KL ≤ 5e-3, top-1 ≥ 99.5%). ~72 expert-hours + 12–20 h GPU conversion. 3 hardest: KDA state lifecycle, NoPE zero-width paths, kpool selection parity.

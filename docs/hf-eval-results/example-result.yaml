@@ -3,6 +3,8 @@
 # model author can close it if they dispute the score.
 #
 # This example is the real measured row for turboderp/GLM-5.3-Flash-exl3 @ 2a30229e.
+# Historical draft only: not an admitted/live benchmark or passing submission.
+# Scalar value remains unchanged; scope/lane alone do not authorize ranking.
 
 - dataset:
     id: malaiwah/glm53-flash-fidelity-panel        # the Benchmark (pending allow-list)
@@ -19,4 +21,6 @@
     scope=experts K4/attn K6/shared K6/dense-MLP K5/lm_head K6;
     head_bits=6; runs=2 cold, run means identical, one tokenwise sha256;
     reference=zai-org/GLM-5.3-Flash-BF16@a6c167b6; lower is better;
-    same-lane BF16 floor on this panel = 0.011505922619330299
+    historical streaming BF16 control=0.011505922619330299;
+    control applicability requires full pair/floor gates, not only same lane;
+    finite-panel descriptive result, not population confidence or causal cost

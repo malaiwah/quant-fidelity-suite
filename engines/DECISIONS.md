@@ -1,3 +1,9 @@
+> 2026-09-07 qualification: dated operator design inputs below are historical,
+> not current execution authorization. Topology-neutral stored tensors do not
+> imply EP/TP-invariant logits: reduction arithmetic belongs to the measurement
+> lane. Proposed sharing and fixture parity require their stated scoped evidence,
+> not extrapolation to native whole-model or all-artifact correctness.
+
 ## Operator design inputs (2026-08-27)
 1. K6K8 mixed precision: IMPLEMENT support in the pinned pipeline (operator
    directive) — prior art: operator's Qwen3.8-27B multi-K recipe + GLM-5.2

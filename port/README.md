@@ -6,13 +6,19 @@ first K6 trellis quant, scored on the fidelity suite in this repo). Produced
 implementation session. Status: **not yet implemented or GPU-tested** — this is
 the blueprint the K6 session starts from.
 
-Core finding: exllamav3 v1.4.4 already ships ~80% of what glm5_next needs
-(DeepSeek-V4 mHC hyper-connections verified numerically identical to vLLM's,
-`glm_moe_dsa` MLA/indexer/noaux_tc-MoE skeleton, GDN recurrent-cache
-machinery). New code required: a KimiDeltaAttention module (safe-gate KDA, not
-GDN), a kpool-compressed indexer mode, NoPE (rope_dim=0) guards, a ~20-line
-mean ContractStreams, and a sigmoid option in GatedRMSNorm. Estimate ~72
-expert-hours + 12–20 h GPU conversion.
+The design reuses DeepSeek-V4 mHC, `glm_moe_dsa` MLA/indexer/MoE structure
+and GDN cache machinery. Source-level similarity is not executed native parity.
+Required modules and cache/kernel integration remain unimplemented in this bundle.
+
+**2026-09-07 qualification:** the executable harness now fails native construction,
+load/forward errors and missing requested coverage. CPU/reference-only operation
+requires `--ref-only` and prints **UNQUALIFIED / NON-NATIVE**. mHC loaded values
+must equal independently read checkpoint tensors before numerical comparisons.
+The draft probes required installed FLA API parameters instead of a guessed
+version floor. Historical embedded source in the design notes is not the current
+executable; use `tests/glm5_layer_parity.py` and `glm5_next.py.draft`.
+Even all requested layer rows passing would not qualify whole-model serving,
+cache rewind, complete long-context behavior or native quant reconstruction.
 
 | File | What it is |
 |---|---|
@@ -22,7 +28,7 @@ expert-hours + 12–20 h GPU conversion.
 | [tests/glm5_layer_parity.py](tests/glm5_layer_parity.py) | Per-layer torch-oracle parity harness (KDA / NoPE-MLA / noaux_tc MoE / mHC), smoke-tested on a synthetic mini-checkpoint |
 | [tests/mini_ckpt_test.py](tests/mini_ckpt_test.py) | Builds the synthetic mini-checkpoint the harness self-checks against |
 | [PARITY.md](PARITY.md) | Harness design + measured self-check numbers |
-| [REVIEW.md](REVIEW.md) | Adversarial review — **read first**: one blocker (fla version floor can silently accept a fla without the SAFE gate), missing-module dependency list, harness defects |
+| [REVIEW.md](REVIEW.md) | Historical adversarial review, with dated resolution notes for harness refusal and FLA feature checks; missing modules remain prerequisites |
 
 Context: brandonmusic's 4bpw EXL3 (custom Transformers TP2 adapter +
 exllamav3 kernels) proves the quant path works today without this native port;

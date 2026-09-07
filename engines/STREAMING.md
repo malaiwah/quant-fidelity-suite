@@ -2,9 +2,9 @@
 
 `tools/stream_score.py` scores the sealed 25-window / 51,175-position fidelity
 panel on **one** GPU (or a 128 GB Mac, or CPU) instead of the 8× H200 box the
-sealed protocol used. It is not a re-implementation of the forward: it is the
-same `transformers` model, the same module classes, the same op order, the same
-dtypes, with one residency change.
+sealed protocol used. It uses the same `transformers` model and module classes,
+but changes residency and emulates the distributed expert combine. That combine
+does not reproduce every native NCCL rounding step; see the measured bridge below.
 
 ---
 
@@ -279,9 +279,9 @@ materialization pass).
 | **L1.d receipt schema** | the emitted `capture-receipt.json` shape is accepted by `quant_pipeline…glm53_logits.load_capture_receipt` |
 | **L1.e KLD estimator** | `kld_report._token_kld` vs closed-form fp64 KL: max abs **8.5e-16**; KL(p‖p) exactly **0.0**; the sealed `tokenwise-kld.npy` reshapes to (25, 2047) with per-window means matching the sealed report to **exactly 0.0** |
 
-**L1.c is the load-bearing result: the streaming machinery itself contributes
-zero error.** The filtered-index build, the slab binding and the plain-attribute
-expert weights reproduce stock `from_pretrained` bit for bit.
+**L1.c validates forward plumbing on the stated 0.1B fixture.** Its filtered-index
+build, slab binding and plain-attribute expert weights reproduce stock
+`from_pretrained` bit for bit there, not a whole-model or every-device proof.
 
 ### L2 single window on 485591 — **MEASURED**
 
@@ -420,24 +420,19 @@ layers compound it. This is also why the sealed protocol's five cold runs have
 population stddev **exactly 0.0** — same node, same NCCL topology, fully
 deterministic — while any change to the reduction lands elsewhere.
 
-**(b) NCCL's bf16 `all_reduce` is not a bf16 chain.** `ep8:fp32` — accumulate
-the eight per-rank bf16 partials in fp32 and round **once** — is **7× closer in
-rms, 4× closer in max-abs, and 40–200× closer in mean KLD** than any bf16-chain
-order, and agrees with the sealed argmax on **99.80 %** of positions (4 of 2047
-disagree) versus ~95 % for the chains. On an 8× H200 NVSwitch node NCCL
-up-converts for the reduction (in-switch NVLS / SHARP reduce in higher
-precision). `--reduce-order fp32` is therefore the **default**, chosen by
-measurement rather than by assumption.
+**(b) The tested bf16 chains fit the sealed outputs less well than `ep8:fp32`.**
+Accumulating the eight per-rank bf16 partials in fp32 and rounding once is
+**7× closer in rms, 4× closer in max-abs, and 40–200× closer in mean KLD** than
+the tested chains, agreeing on **99.80 %** of argmaxes (4 of 2047 disagree).
+This motivates the `--reduce-order fp32` default, but does not uniquely identify
+NCCL's internal arithmetic or prove native reduction equivalence.
 
-**The residual.** With the right combine model, window `final-0000` lands
-**1.5e-5** from the sealed mean — still 15× above the 1e-6 acceptance, with
-rms 0.0381 in the logits. Since `fp32` accumulation is order-independent, the
-residual is *not* reduction order. The leading candidate is `torch._grouped_mm`
-tiling: this tool hands the kernel a 36-expert **view** into a 288-expert slab
-(`slab[36r : 36r+36]`), whereas each sealed rank held a standalone 36-expert
-DTensor with its own base pointer and alignment. `--slab-experts 36` makes every
-EP group a base-aligned standalone tensor and is the direct test; results are in
-§7.3.
+**The residual.** Under the closest tested combine model, window `final-0000`
+lands **1.5e-5** from the sealed mean, still above the 1e-6 acceptance, with
+rms 0.0381 in the logits. fp32 summation is **not order-independent** in general;
+reduction-order effects have not been eliminated. The proposed
+`torch._grouped_mm` slab-view versus standalone layout explanation was tested
+in §7.3.
 
 ⇒ Under the best available model of the sealed reduction, `|Δ mean_kld| ≤ 1e-6`
 is **still not met**, and it is very likely unsatisfiable by construction for any
@@ -465,17 +460,14 @@ Two conclusions:
 * The `torch._grouped_mm` tiling/alignment hypothesis for the residual is
   **refuted by measurement** — a 36-expert view and a standalone 36-expert
   tensor produce bit-identical output.
-* **The memory schedule is numerically free.** Choosing the low-memory schedule
-  to fit a 48 GB card costs 44 % more decode time and changes **no bit** of the
-  result. `--vram-budget-gb` is therefore safe to use without a parity caveat.
+* **The tested schedules matched bitwise on this input and lane.** The low-memory
+  schedule cost 44 % more decode time. This is not a guarantee for arbitrary
+  kernels, hardware, inputs or `--vram-budget-gb` settings.
 
-The residual 1.5e-5 / rms 0.0381 therefore remains attributable to the combine
-itself: it is **1/3 of one bf16 ULP** at the logit scale (one ULP at |logit|max
-29.375 is 0.1147) in rms, with a max of 2.0 on a handful of positions — i.e. a
-few surviving routing flips. It is bounded, characterised, and its two leading
-alternative explanations (reduction order, kernel layout) have been measured and
-eliminated. It is **not** explained down to the bit, and this document does not
-claim it is.
+The residual 1.5e-5 / rms 0.0381 remains unexplained down to bits. The scoped
+slab-layout comparison rules out that specific hypothesis, not every reduction
+order or kernel difference. It does not identify a causal source or portable
+error bound; the K6 bridge is specific to its artifact, panel and lane.
 
 ### 7.4 Disclosure language for cards
 
@@ -645,23 +637,21 @@ same teacher, the same fp64 KLD estimator, the same non-routed view + slab
 build, the same `--ep-emulate 8` partition, the same `--reduce-order fp32`
 combine, the same `grouped_mm` kernel, the same fp32 logit storage, the same
 receipt schema family. **The only difference from a K6/K8 run is where the
-expert weights come from**, which is exactly what makes the number subtractable.
+expert weights come from**, permitting a descriptive excess-over-control comparison.
 
 ### Why it is worth a rental
 
 A quant's panel mean is not its quantization error:
 
 ```
-KLD(teacher || our stack running the quant)  =  floor  +  quantization-attributable error
+excess over control := KLD(teacher || quant on this stack) - KLD(teacher || BF16 on this stack)
 ```
 
-The floor is what it costs to compare our stack's forward against *someone
-else's* teacher logits with no quantization at all — a different process
-topology, a different expert-combine order, a different box. K6 and K8 sit
-1.11x apart on the raw panel mean while K8's store is 13.2x tighter in
-weight-space NMSE; that is not a contradiction once you know how much of both
-numbers is the floor. See `engines/BF16-FLOOR.md` for the measured value and each
-quant's floor-subtracted error.
+The historical "floor" is an unquantized cross-stack **control**, not a lower
+bound: excess may be negative and KL has no additive causal decomposition.
+The common subtraction preserves a raw quant-vs-quant delta algebraically,
+not under changes of teacher or lane. See `engines/BF16-FLOOR.md` for the
+measured control and descriptive excess values.
 
 ### Provenance, without a contract
 
@@ -677,10 +667,10 @@ The receipt records `student_label: native-bf16`,
 `capture_role: native_bf16_student`, `bits: null`, `no_decode: true` and a
 `native_routed_layout` census of every routed tensor and shard.
 
-Shard *bytes* are not re-hashed by this tool. Neither are they on the packed
-lane, whose non-routed tensors come from the same shards — the inventory's
-`index_sha256` is what binds them, and `inventory-shards-verified.json` is the
-separate step that hashes them.
+Shard *bytes* are not re-hashed by this tool. The inventory's `index_sha256`
+binds names and locations, not shard payload contents. Full content integrity
+requires the separate `inventory-shards-verified.json` step and its actual
+coverage/result; presence or sampled checks do not substitute for it.
 
 ### Fail-closed behaviour
 
@@ -714,23 +704,29 @@ of the layout — it is the layout.
 $PY $ROOT/tools/stream_score_selftest.py     --packed-root $ROOT/out-k6     --fixture $ROOT/fixture/GLM-5.3-Flash-0.1B-A0.1B     --require a,b,c,d,e,f --pipeline-root $ROOT/pipeline --json /tmp/selftest.json
 ```
 
-### Running it
+### Reading a new control measurement
+
+Use the current capture/controller instructions rather than the historical
+rental filesystem and symlink commands. Keep the reference, panel, capture
+lane and estimator configuration matched. From the suite checkout, existing
+control/candidate reports can be analyzed without another GPU run:
 
 ```bash
-ROOT=/home/jl_fs/glm53-k6
-PY=$ROOT/venv/bin/python
-# the workspace symlink farm is required: the sealed panel receipt declares
-# /workspace/... paths and the artifact identity check refuses symlinked FILES
-mkdir -p /workspace/artifacts/dataset /workspace/artifacts/evaluation
-ln -sfn $ROOT/calibration    /workspace/artifacts/dataset/calibration
-ln -sfn $ROOT/teacher-final  /workspace/artifacts/evaluation/glm53-teacher-final-ep4
-
-$PY $ROOT/tools/stream_score.py     --source native --profile native-bf16     --inventory $ROOT/out-k6/inventory.json     --bf16 /home/jl_fs/models/bf16 --teacher $ROOT/teacher-final     --token-panel $ROOT/calibration/panel-v1/panel.receipt.json     --out /home/glm53-floor/runs/floor-run1 --cold-run 1     --device cuda:0 --ep-emulate 8 --reduce-order fp32     --decode-cache ram --decode-threads $(nproc)     --work-dir /home/glm53-floor/work --pipeline-root $ROOT/pipeline
-
-$PY $ROOT/tools/k6_kld_report.py --profile native-bf16     --teacher $ROOT/teacher-final --runs <run1> <run2>     --device cuda:0 --out /home/glm53-floor/native-bf16-kld.json
-
-$PY $ROOT/tools/bf16_floor_summary.py     --floor-kld /home/glm53-floor/native-bf16-kld.json     --floor-run <run1> --floor-run <run2>     --quant k6:$ROOT/receipts/stream-k6-kld.json:<k6 run1 kld-report.json>     --quant k8:$ROOT/receipts/stream-k8-kld.json:<k8 run1 kld-report.json>     --out-json engines/BF16-FLOOR.json --out-md engines/BF16-FLOOR.md
+bin/fidelity-stats attributable \
+    --quant-summary "<candidate-summary.json>" \
+    --floor-summary "<native-bf16-summary.json>" \
+    --out "<new-excess-over-control.json>"
+bin/fidelity-stats paired-delta \
+    --report-a "<control-run/kld-report.json>" \
+    --report-b "<candidate-run/kld-report.json>" \
+    --out "<new-paired-contrast.json>"
 ```
+
+The unused `bf16_floor_summary.py` producer was retired: it regenerated causal
+attribution and residual ratios without the required evidence. Its historical
+`BF16-FLOOR.json` remains unchanged. New analyses use the guarded stats command
+and source-document qualifications, never overwrite the historical receipt,
+and do not claim a causal decomposition or a residual-ratio ranking.
 
 ### Default behaviour is unchanged — checked, not asserted
 
@@ -1014,7 +1010,7 @@ $PY $ROOT/tools/stream_score.py --source nvfp4 --profile nvfp4 \
     --pipeline-root $ROOT/pipeline --dry-run
 
 # 4. the run itself (drop --dry-run), twice, then the fp64 report
-$PY $ROOT/tools/k6_kld_report.py --profile nvfp4 \
+$PY $ROOT/tools/kld_report.py --profile nvfp4 \
     --teacher $ROOT/teacher-final --runs <run1> <run2> \
     --device cuda:0 --out $ROOT/receipts/nvfp4-kld.json
 ```
@@ -1209,7 +1205,7 @@ python3 engines/tools/stream_score.py --source gguf --profile gguf \
   --cold-run 1 --out <run1>
 
 # 4. aggregate
-python3 engines/tools/k6_kld_report.py --profile gguf --teacher <teacher> \
+python3 engines/tools/kld_report.py --profile gguf --teacher <teacher> \
   --runs <run1> <run2> <run3> --out gguf-packed-kld.json
 ```
 
@@ -1285,3 +1281,19 @@ proves the receipt shape is unchanged).
 
 ---
 
+## 2026-09-07 evidence qualification
+
+All historical run receipts and numbers above are retained. Reference-forward
+fidelity is not native-serving qualification. In
+[`tools/layer-outer-evidence/exl3-decoder-parity-vs-exllamav3.json`](tools/layer-outer-evidence/exl3-decoder-parity-vs-exllamav3.json),
+the 2026-09-06 comparison of 15 modules reports `all_bitwise=false` and
+`all_bitwise_pre_hadamard=true`: matching unpack/LUT values precedes differing
+full reconstruction rounding (native fp16 stages versus reference fp32).
+The native reconstruction caveat cannot be retired on pre-Hadamard parity.
+No surface reconstruction math or historical metric is changed by this correction.
+
+The hidden-replay staging evidence separately records 98,878 present/nonempty
+files, but `hidden-replay-evidence/packed-content-verify.txt` hashes only
+400/61,711 objects (1,277,972,480 bytes) with zero mismatches, and
+`hidden-replay-evidence/stage-timing.txt` records verification `rc=1`.
+These are presence and sampled-integrity evidence, not full passing verification.

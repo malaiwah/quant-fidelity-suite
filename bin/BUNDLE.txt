@@ -122,8 +122,7 @@ engines/tools/dione-evidence/m2-layer45-unexpected-keys.json
 engines/tools/dione_surface.py
 engines/tools/selftest_dione_offline.py
 engines/tools/selftest_dione_stream_offline.py
-# The streaming lane. NOT in this checkout at time of writing -- see
-# bin/engines.json, lane "streaming". Listed so it uploads the moment it lands.
+# The streaming lane entrypoint declared in bin/engines.json.
 engines/tools/stream_score.py
 # The stock-exllamav3 (exl3hf) surface: BOTH the `materialize` stage and the
 # capture import it. Its offline selftest ships too -- the mcg-parity rung

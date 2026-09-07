@@ -99,17 +99,22 @@ paid-engine admission or starts a rented instance.
 - A RunPod API key in an owner-only mode-0600 file, default
   `~/.config/runpod/api_key` (`--runpod-key-file` otherwise). Never argv or
   environment.
-- A Hugging Face token in an owner-only mode-0600 file; the recipes below
-  pass it as `--hf-token-file ~/.hf_token` (default
-  `~/.cache/huggingface/token`). It publishes from this machine and, unless
-  you pass a separate read-only `--hf-download-token-file`, authenticates the
-  target download on the pod.
+- A separate read-only Hugging Face token in an owner-only mode-0600 file,
+  explicitly passed as `--hf-download-token-file ~/.hf_read_token`.
+  This is the credential transported to the pod for target fetch.
+- For optional publication, a different HF write token in
+  `--hf-token-file ~/.hf_token`; it stays on the controller. Missing download
+  credentials and identical publisher/download token bytes are refused, even
+  when copied into different files. File checks do not certify Hub scope:
+  create the download token with read-only privileges.
 - `~/.ssh/id_ed25519.pub`, accepted by RunPod at create.
 - A `systemd --user` session that survives logout:
   `loginctl enable-linger $USER`.
 
 ```bash
-chmod 600 ~/.config/runpod/api_key ~/.hf_token
+chmod 600 ~/.config/runpod/api_key ~/.hf_read_token
+# Only if publishing:
+chmod 600 ~/.hf_token
 test -f ~/.ssh/id_ed25519.pub
 bin/fidelity-doctor
 ```
@@ -140,13 +145,13 @@ bin/measure-cloud --provider runpod --role root \
     --model zai-org/GLM-5.3-BF16 --revision 304b8051cfb2b260b61ce0cbe330e02a98e73639 \
     --panel-dir engines/panels/panel--glm53.malaiwah.corpus5x5-v1 \
     --dataset-id fidelity--glm53.malaiwah.root.bf16 --publish-root-to malaiwah/glm53-fidelity-root-v1 \
-    --hf-token-file ~/.hf_token --measurer malaiwah --runpod-datacenter US-NC-1 \
+    --hf-token-file ~/.hf_token --hf-download-token-file ~/.hf_read_token --measurer malaiwah --runpod-datacenter US-NC-1 \
     --max-cost 65 --max-runtime 7h30m --retrieval-delete-reserve 14400 \
     --out ~/fidelity-runs/glm53-root --dry-run
 ```
 
-Replace `--dataset-id`, `--publish-root-to`, `--measurer`, `--hf-token-file`
-and `--out` with your own identities. Because the hidden-form dataset
+Replace `--dataset-id`, `--publish-root-to`, `--measurer`, both token-file
+paths and `--out` with your own identities. Because the hidden-form dataset
 redistributes the checkpoint's native output-head weights, the dry-run
 validates the exact pinned `LICENSE` bytes anonymously and records
 `license: other`.
@@ -225,7 +230,7 @@ bin/measure-cloud --provider runpod --role root \
     --model malaiwah/GLM-5.2-SIQ-Fruit-bf16 --revision ef68013aa6e16453cf52b5b77647f72fbe258c3c \
     --panel-dir engines/panels/panel--fruit.malaiwah.heldout-v1 \
     --dataset-id fidelity--fruit.<your-hf-handle>.root.bf16 \
-    --measurer <your-hf-handle> \
+    --measurer <your-hf-handle> --hf-download-token-file ~/.hf_read_token \
     --max-cost 5 --max-runtime 1h --out ~/fidelity-runs/fruit-root --dry-run
 ```
 
@@ -321,7 +326,7 @@ bin/measure-cloud --provider runpod --role root \
     --candidate-scope engines/scopes/scope--wrld-exl3.json --candidate-codec exl3-mcg --candidate-bits 4 \
     --reference-dataset malaiwah/glm53-fidelity-root-v1@9c4a29ee10f393ed2fdbdb9262c1192ddb1507b4 \
     --gpu H200 --runpod-datacenter US-NC-1 \
-    --hf-token-file ~/.hf_token --measurer malaiwah \
+    --hf-token-file ~/.hf_token --hf-download-token-file ~/.hf_read_token --measurer malaiwah \
     --max-cost 45 --max-runtime 3h30m --retrieval-delete-reserve 14400 \
     --out ~/fidelity-runs/my-quant --dry-run
 ```
@@ -512,18 +517,26 @@ this project actually makes:
   `produced_by` block with `entrypoint_sha256` (HARN-001), your own handle in
   `measurer` — the complete bounce list is
   [CONTRIBUTING §5](../registry/CONTRIBUTING.md).
-* Outside measurements enter as class `advisory` (that is about provenance,
-  not trust), shown in the same tables when the comparability key matches.
-  The flag worth chasing afterwards is `independently_verified: true` — a
-  different party reproducing your number on the same panel and reference.
+* Outside measurements enter as class `advisory` (a provenance classification).
+  Equal comparability keys are necessary, not sufficient, for ranking:
+  `pair_predicate` must also permit the pair. `independently_verified: true`
+  means another party reproduced the number on the required panel/reference
+  and measurement configuration; it is not conferred by submission alone.
 
 ## If your target is not measurable
 
-The refusal will name why for $0.00: no panel you can fetch (Qwen3.8-27B is
-closed to outside measurement today — panels are private), no reader for the
-surface on any lane (MLX / NVFP4 / AWQ / GPTQ), or no profile at that rate.
-Those are the real boundaries of the system today; the
-[support matrix](../README.md#before-you-rent-what-is-measurable-today) is
-the authoritative statement of them, and
-[CONTRIBUTING §6](../registry/CONTRIBUTING.md) is the path for proposing a
-new panel or model.
+The refusal identifies the **specific route's** missing prerequisite before
+spend: a fetchable/bindable panel, supported architecture/reader, exact
+surface/profile or authored admission evidence. MLX/NVFP4/AWQ/GPTQ adapter or
+native-loader existence is not blanket paid support, but it is also wrong to
+say no such readers exist.
+
+Qwen3.8-27B has a recorded published root, and its shard0 panel was recovered
+byte-exactly from the public suite ([M1 learning 14](M1-QWEN38-ROOT-LEARNINGS.md#method)).
+Some registry panel entries still say `private` with no URI: that can block
+automatic planning without making all underlying bytes private. Public bytes,
+current registry routing, verified panel binding and exact paid admission are
+distinct requirements; no newly verified live availability is claimed here.
+Use the [support matrix](../README.md#before-you-rent-what-is-measurable-today)
+and the exact dry-run refusal. [CONTRIBUTING §6](../registry/CONTRIBUTING.md)
+describes proposing a panel or model.

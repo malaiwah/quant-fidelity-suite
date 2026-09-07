@@ -1,5 +1,16 @@
 # Synthetic digests used in the worked examples
 
+**Historical-example correction, 2026-09-07.** These JSON/YAML examples mix
+real scalar measurements with synthetic identities, illustrative scope and
+tail statistics. They are not runnable captures, qualified comparisons, or
+proof of current registry admission. In particular the K6 comparison example
+claims same lane/stack while its operands name sealed-ep8 and streaming with
+different identities; the K6 dataset's illustrative attention/dense scope
+is not the published routed-experts-only K6 scope. The root example's
+"any residual ... attributable" sentence is superseded: deterministic repeats
+do not causally isolate quantization. Preserve example seals/bytes as historical
+illustrations; follow the current dataset spec and generated registry instead.
+
 Every value below is `sha256("synthetic:" + label)`. They exist so the example
 manifests are schema-valid and genuinely self-sealing. Reproduce any of them with:
 

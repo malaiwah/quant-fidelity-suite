@@ -651,6 +651,33 @@ def validate_job(document: dict) -> None:
         "planned_at", "pre_create_safety", "prepared_create", "remote_root",
         "provider_terminate_after", "storage_layout", "workload_deadline_utc",
     }
+    publication = document.get("publication_preflight")
+    if publication is not None or "publication_preflight" in attempt:
+        from .common import verify_seal
+        attempt_receipt = "publication_preflight" in attempt
+        if attempt_receipt:
+            fields.add("publication_preflight")
+        # Archived job.v2 documents hashed the entire sealed preflight at the
+        # top level. Keep those exact identities verifiable; new authors put
+        # the sealed observation in execution_attempt instead.
+        receipt = attempt.get("publication_preflight") if attempt_receipt else publication
+        if (not isinstance(publication, dict)
+                or not isinstance(receipt, dict)
+                or receipt.get("schema")
+                != "fidelity.hf-publish-create-preflight.v1"
+                or not verify_seal(receipt)
+                or re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z",
+                                str(receipt.get("checked_at", ""))) is None
+                or (attempt_receipt and publication != {
+                    key: value for key, value in receipt.items()
+                    if key not in ("checked_at", "receipt_sha256")})):
+            raise JobContractError(
+                "publication preflight receipt differs from authorization identity")
+        if (document["role"] == "root"
+                and publication.get("repository")
+                != document["capture"].get("publish_root_to")):
+            raise JobContractError(
+                "publication preflight destination differs from root capture")
     if set(attempt) != fields:
         raise JobContractError("runpod-ssh execution_attempt fields differ")
     attempt_id = attempt["attempt_id"]

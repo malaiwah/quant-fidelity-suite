@@ -2,6 +2,18 @@
 
 > Produced 2026-08-27 by a 7-agent design workflow (blueprint -> draft -> parity harness -> adversarial review) against exllamav3 v1.4.4.
 
+> 2026-09-07 correction: the embedded code below is the preserved historical
+> draft, not the current executable source. Use [`glm5_next.py.draft`](glm5_next.py.draft).
+> Its `check_compat` now inspects installed FLA parameter capabilities and rejects
+> missing or uninspectable signatures, including APIs exposing only `**kwargs`.
+> Verified upstream APIs: [chunk KDA](https://github.com/fla-org/flash-linear-attention/blob/main/fla/ops/kda/chunk.py)
+> exposes `safe_gate`/`lower_bound`; [recurrent KDA](https://github.com/fla-org/flash-linear-attention/blob/main/fla/ops/kda/fused_recurrent.py)
+> selects the bounded gate with `lower_bound`/`use_gate_in_kernel` (not `safe_gate`);
+> [gated norm](https://github.com/fla-org/flash-linear-attention/blob/main/fla/modules/fused_norm_gate.py)
+> exposes `activation` and implements sigmoid. These checks establish API
+> availability, not kernel correctness. No native model implementation or GPU
+> qualification is established by the historical syntax check or local paths below.
+
 ## Summary
 
 First draft of exllamav3/architecture/glm5_next.py written and syntax-checked (py_compile OK). Follows glm_moe_dsa (MLA/DSA/MoE tails), qwen3_next (recurrent prepare_inputs + fla check_compat), deepseek_v4 (mHC wiring), glm4v_moe (text_config-> reads, model.language_model prefix). All tensor keys and config values verified against refs/st_index.json and refs/hf_config.json. PORT-CHECK tags mark: KimiDeltaAttention constructor signature (module not yet written), MLAttention kpool-mode kwargs (index_kpool, shared+kpool untested), ContractStreams (new module), fla minimum version pin, chat template. Working copy at /private/tmp/claude-501/-Users-mbelleau-Projects-GLM/c1546622-1c41-4561-ba68-92b6b9cb9811/scratchpad/glm5_next_draft.py.

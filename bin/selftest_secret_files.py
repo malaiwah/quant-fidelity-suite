@@ -28,6 +28,8 @@ No network, no provider, no real token.
 """
 import importlib.util
 import os
+import shutil
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -62,23 +64,31 @@ def load_measure_cloud():
 
 
 class StubJL:
-    """Records every remote operation, in order."""
+    """Execute transport shell commands locally; never contact a provider."""
 
     def __init__(self, fail_upload=False, events=None):
         self.ops = []
         self.fail_upload = fail_upload
         self.events = events if events is not None else []
+        self.upload_modes = []
 
     def exec(self, machine_id, command, **kw):
         self.ops.append(("exec", command))
         self.events.append(("exec", command))
-        return {"exit_code": 0, "stdout": "", "stderr": ""}
+        result = subprocess.run(
+            ["sh", "-c", command], check=True, capture_output=True, text=True)
+        return {"exit_code": result.returncode,
+                "stdout": result.stdout, "stderr": result.stderr}
 
     def upload(self, machine_id, local, remote):
         self.ops.append(("upload", local, remote))
         self.events.append(("upload", remote))
         if self.fail_upload:
             raise RuntimeError("upload failed (stub)")
+        self.upload_modes.append((
+            mode(local), mode(Path(local).parent), mode(Path(remote).parent),
+            not (Path(remote).parent / "hf_token").exists()))
+        shutil.copyfile(local, remote)
         return {"ok": True}
 
 
@@ -92,6 +102,7 @@ def main():
     try:
         with tempfile.TemporaryDirectory() as td:
             td = Path(td)
+            StubTD.fs_root = str(td / "remote")
 
             # S1
             dest = td / "sec" / "hf_token"
@@ -144,42 +155,70 @@ def main():
             check("S4d loose or missing download token refuses before transport",
                   bad_mode_refused and missing_refused)
 
+            # Omitted or duplicated publication credentials refuse before any
+            # remote operation; a separate explicit read credential can fetch.
+            publication_token = td / "publish-token"
+            write_secret_file(str(publication_token), TOKEN)
+            copied_token = td / "copied-publish-token"
+            write_secret_file(str(copied_token), TOKEN)
+            credential_args = mc.build_parser().parse_args([
+                "--provider", "runpod", "--role", "root",
+                "--hf-token-file", str(publication_token),
+                "--publish-root-to", "selftest/new-root"])
+            mc._apply_runpod_defaults(credential_args)
+            check("S4e publication token is not a pod download default",
+                  credential_args.hf_download_token_file is None)
+            for token_path in (None, str(publication_token), str(copied_token)):
+                credential_args.hf_download_token_file = token_path
+                provider = StubJL()
+                refused = False
+                try:
+                    remote_token = mc._load_runpod_download_token(credential_args)
+                    mc._transport_hf_token(
+                        provider, 7, str(td / "must-not-upload"),
+                        td / "refused-upload", remote_token)
+                except mc.Refusal as exc:
+                    refused = TOKEN not in str(exc)
+                check("S4f omitted/reused publication credential never reaches pod",
+                      refused and not provider.ops)
+            read_token = td / "read-token"
+            read_value = "hf_selftest_distinct_read_credential_22222"
+            write_secret_file(str(read_token), read_value)
+            credential_args.hf_download_token_file = str(read_token)
+            provider = StubJL()
+            mc._transport_hf_token(
+                provider, 7, str(td / "explicit-read"), td / "read-upload",
+                mc._load_runpod_download_token(credential_args))
+            check("S4g only the explicit separate credential reaches the pod",
+                  (td / "explicit-read/.secrets/hf_token").read_text() == read_value
+                  and publication_token.read_text() == TOKEN)
+
             check("S4 shred removes the file", not loose.exists())
             shred_secret_file(str(td / "never-existed"))
 
-            # S5/S6: the controller's remote transport, against a stub.
+            # S5/S6: run transport commands against a local temporary filesystem.
             jl = StubJL()
             outdir = td / "out"
             outdir.mkdir()
             mc._transport_hf_token(
                 jl, StubTD.machine_id, StubTD.fs_root, outdir, TOKEN)
-            kinds = [op[0] for op in jl.ops]
-            check("S5a exactly exec, upload, exec", kinds == ["exec", "upload", "exec"],
-                  jl.ops)
-            first = jl.ops[0][1]
-            # `mkdir -p -m 700` after `test ! -e` is still an exclusive create
-            # (the existence test refuses first), and the command now ALSO
-            # reads the mode back (`stat -c %a` = 700) before anything is
-            # uploaded; the rung asserts that whole sequence, in order.
-            check("S5b the directory is exclusively created 0700 before upload",
-                  "test ! -e /fs/.secrets" in first
-                  and "test ! -L /fs/.secrets" in first
-                  and ("mkdir -m 700 -- /fs/.secrets" in first
-                       or "mkdir -p -m 700 -- /fs/.secrets" in first)
-                  and 'test "$(stat -c %a -- /fs/.secrets)" = 700' in first
-                  and first.index("test ! -e /fs/.secrets") < first.index("mkdir")
-                  < first.index("stat -c %a -- /fs/.secrets"),
-                  first)
-            up_remote = jl.ops[1][2]
-            check("S5c the upload lands on a unique temporary name, not the "
-                  "final path",
-                  up_remote.startswith("/fs/.secrets/") and
-                  up_remote != "/fs/.secrets/hf_token", up_remote)
-            last = jl.ops[2][1]
-            check("S5d chmod 600 the temp, then rename it into place",
-                  ("chmod 600 -- %s" % up_remote) in last
-                  and ("mv -- %s /fs/.secrets/hf_token" % up_remote) in last
-                  and last.index("chmod 600") < last.index("mv --"), last)
+            remote_token_path = Path(StubTD.fs_root) / ".secrets/hf_token"
+            check("S5a upload starts with private staging and remote directory",
+                  jl.upload_modes == [("0o600", "0o700", "0o700", True)])
+            check("S5b transport leaves only the private complete token",
+                  remote_token_path.read_text() == TOKEN
+                  and mode(remote_token_path) == "0o600"
+                  and list(remote_token_path.parent.iterdir()) == [remote_token_path])
+            blocked = StubJL()
+            try:
+                mc._transport_hf_token(
+                    blocked, 7, StubTD.fs_root, td / "occupied", TOKEN)
+            except RuntimeError:
+                pass
+            else:
+                raise AssertionError("occupied remote secret directory accepted")
+            check("S5c occupied secret directory refuses without overwrite",
+                  not blocked.upload_modes and remote_token_path.read_text() == TOKEN)
             check("S5e the local staging copy is gone afterwards",
                   not (outdir / ".secrets-local" / "hf_token").exists())
             check("S5f the local staging directory was 0700",
@@ -195,7 +234,7 @@ def main():
             raised = False
             try:
                 mc._transport_hf_token(
-                    jl2, StubTD.machine_id, StubTD.fs_root, outdir2, TOKEN)
+                    jl2, StubTD.machine_id, str(td / "upload-failure"), outdir2, TOKEN)
             except RuntimeError:
                 raised = True
             check("S7 a failed upload still shreds the local copy (and "
@@ -207,48 +246,45 @@ def main():
             events = []
             runpod = StubJL(events=events)
             original_stage = mc._runpod_stage
-            # The transport and the cleanup are now given the SAME secrets
-            # directory explicitly, which is the property the paid path
-            # enforces: a cleanup that derived its own path could aim at a
-            # directory the transport never used.
-            secrets_dir = "%s/.secrets" % StubTD.fs_root
+            runpod_root = str(td / "runpod")
+            secrets_dir = "%s/.secrets" % runpod_root
+            fetch_credentials = []
             try:
-                mc._runpod_stage = lambda *_a, **_kw: events.append(
-                    ("stage", "fetch_target"))
+                def fetch_stage(*_args, **_kwargs):
+                    fetch_credentials.append(
+                        (Path(secrets_dir) / "hf_token").read_text())
+                mc._runpod_stage = fetch_stage
                 mc._transport_hf_token(
-                    runpod, StubTD.machine_id, StubTD.fs_root,
+                    runpod, StubTD.machine_id, runpod_root,
                     td / "runpod-success", TOKEN, secrets_dir=secrets_dir)
                 cleanup = mc._paid_fetch_target_and_remove_token(
-                    runpod, StubTD.machine_id, StubTD.fs_root, "/engine",
+                    runpod, StubTD.machine_id, runpod_root, "/engine",
                     1.0, "image@sha256:" + "a" * 64, secrets_dir)
                 check("S7a RunPod authenticates only fetch_target, then confirms "
                       "remote cleanup",
                       cleanup.get("confirmed") is True
-                      and [kind for kind, _value in events]
-                          == ["exec", "upload", "exec", "stage", "exec"]
-                      and "shred -u" in events[-1][1],
-                      events)
+                      and fetch_credentials == [TOKEN]
+                      and not Path(secrets_dir).exists())
 
                 events.clear()
                 def fail_stage(*_args, **_kwargs):
-                    events.append(("stage", "fetch_target"))
+                    fetch_stage()
                     raise RuntimeError("fetch failed")
                 mc._runpod_stage = fail_stage
                 failed = False
                 try:
                     mc._transport_hf_token(
-                        runpod, StubTD.machine_id, StubTD.fs_root,
+                        runpod, StubTD.machine_id, runpod_root,
                         td / "runpod-failure", TOKEN,
                         secrets_dir=secrets_dir)
                     mc._paid_fetch_target_and_remove_token(
-                        runpod, StubTD.machine_id, StubTD.fs_root, "/engine",
+                        runpod, StubTD.machine_id, runpod_root, "/engine",
                         1.0, "image@sha256:" + "a" * 64, secrets_dir)
                 except RuntimeError as exc:
                     failed = str(exc) == "fetch failed"
                 check("S7b failed RunPod fetch still removes the remote token",
-                      failed and events[-1][0] == "exec"
-                      and "shred -u" in events[-1][1],
-                      events)
+                      failed and fetch_credentials == [TOKEN, TOKEN]
+                      and not Path(secrets_dir).exists())
             finally:
                 mc._runpod_stage = original_stage
 

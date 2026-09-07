@@ -322,6 +322,13 @@ def build(entry, source_root, collections, S):
     h = docs["harness"]
     cpu = (c["comparator"].get("replay_env") or {}).get("cpu_model")
     require(cpu, "comparison must record the actual replay CPU model")
+    lane_disclosure = S.disc("non_sealed_lane", "caveat",
+        "Local CPU fixture lane; this exact same-lane reproduction is not a measured offset "
+        "against a production sealed GPU lane.", affects=True, sources=sources, provenance=True)
+    lane_bias = {"kind": "other", "direction": "unknown", "floor_measurement_ref": None,
+                 "estimated_magnitude": None,
+                 "detail": "This is the fixture's local CPU reproduction floor. Its offset against "
+                           "a production GPU lane was not measured; no cross-lane equivalence is claimed."}
     pipeline = S.pipeline(pid, "Synthetic fixture capture/compare, CPU " + cpu,
                           ["capture", "replay", "scorer"], h["repository"]["url"], h["repository"]["commit"],
                           c["comparator"]["tool"]["entrypoint"], S.MAL("toolchain-author"), disclosure,
@@ -341,8 +348,8 @@ def build(entry, source_root, collections, S):
                         runs=2, cold=True, identical=True, evidence_kind="hidden_state_tensor_sha256",
                         evidence_hashes=[d["capture"]["capture_content_digest"]],
                         det_note="Qualification verifies two fresh processes; evidence is tensor content, not receipt-file hashes.",
-                        sources=sources, receipt_schema=c["schema"], cls="strict",
-                        disclosures=disclosure + [S.disc("reduced_run_count", "caveat", "Two qualified cold runs, not five.")])
+                        sources=sources, receipt_schema=c["schema"], cls="advisory", bias=lane_bias,
+                        disclosures=disclosure + [lane_disclosure, S.disc("reduced_run_count", "caveat", "Two qualified cold runs, not five.")])
     row["harness"] = h
     row["comparability"]["usable_as_floor"] = True
     row["measurement_scope"]["positions_per_context"] = c["measurement_scope"]["positions_per_context"]
@@ -411,13 +418,23 @@ def _apply_variants(root, collections, S, roots):
                 "Unquantized floating-point format control; base storage kind does not make it "
                 "the model's canonical root. The canonical_weights pointer remains the native BF16 source.",
                 sources=sources, provenance=True))
+        projected_scope = S._g53_dataset_scope(d)
+        numeric_formats = {"ct-mxfp4": "mxfp4", "ct-nvfp4": "nvfp4",
+                           "modelopt-nvfp4": "nvfp4", "fp8-ue8m0": "fp8_e4m3",
+                           "modelopt-fp8-block": "fp8_e4m3", "modelopt-fp8-tensor": "fp8_e4m3"}
+        for assignment in projected_scope["assignments"]:
+            original_format = assignment["format"]
+            if original_format in numeric_formats:
+                assignment["format"] = numeric_formats[original_format]
+                assignment["note"] = (assignment.get("note") or "") + " Stored reader dialect: " + original_format + "."
+        projected_scope["policy"] = S.derived_scope_policy(projected_scope["assignments"])
         record = S.artifact(
             aid, model_id, item["name"], "base" if control else "quant",
             S.hf(item["model_repository"], item["model_revision"], "reported_by_author"),
             item["container"], item["format"], sum(f["size"] for f in item["weight_files"]),
             S.codec(item["codec"], None if control else item["bits"],
                     tool=None if control else "QFS CPU RTN format fixture; optimizer-not-run"),
-            S._g53_dataset_scope(d), S.MAL("artifact-author"), sources, disclosures,
+            projected_scope, S.MAL("model-publisher"), sources, disclosures,
             derived_from_artifact_ref=model["canonical_weights"]["artifact_ref"],
             weights_extra={"size_basis": "repo_weight_files", "shard_count": len(item["weight_files"]),
                            "shard_sha256": {f["name"]: f["sha256"] for f in item["weight_files"]},

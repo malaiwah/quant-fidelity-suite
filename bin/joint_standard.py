@@ -91,6 +91,13 @@ def load_per_window(path: str) -> List[Dict[str, Any]]:
 
     # our kld-report.json:  per_window[] = {window_id, domain, summary{...}}
     pw = doc.get("per_window")
+    if isinstance(pw, list):
+        seen = set()
+        for row in pw:
+            wid = row.get("window_id") if isinstance(row, dict) else None
+            if not isinstance(wid, str) or not wid.strip() or wid in seen:
+                raise ValueError("per_window window IDs must be nonempty and unique")
+            seen.add(wid)
     if isinstance(pw, list) and pw and isinstance(pw[0], dict) and "summary" in pw[0]:
         out = []
         for w in pw:
@@ -172,10 +179,10 @@ def load_report_contract(path: str) -> Dict[str, Any]:
     whatever it was handed: the headline K6-vs-K8 receipt paired the SEALED K6
     against the STREAMING K8, and three of the five published pairings crossed
     lanes or stacks, with nothing in the receipt recording that it had happened.
-    A paired analysis is a claim that two series differ only in the artifact;
-    every recorded contract field that differs makes that claim false. Fields
-    the report does not declare are carried as None -- unrecorded is unrecorded,
-    and only RECORDED mismatches refuse.
+    A same-lane artifact interpretation needs compatible measurement contracts;
+    pairing itself neither establishes that control nor isolates a codec effect.
+    Undeclared fields remain None; this interface carries unknown provenance
+    explicitly rather than assuming it from a window name.
     """
     with open(path, "r", encoding="utf-8") as fh:
         doc = json.load(fh)
@@ -199,24 +206,50 @@ def load_document_map(path: Optional[str],
     (per_window[].{window_id, document_id}) or a bare {window_id: document_id}
     mapping; falls back to document_id fields on the per-window rows.
     """
+    supplied = None
     if path:
         with open(path, "r", encoding="utf-8") as fh:
             doc = json.load(fh)
-        pw = doc.get("per_window")
-        if isinstance(pw, list):
-            out = {w["window_id"]: w.get("document_id") for w in pw
-                   if isinstance(w, dict) and w.get("window_id")}
-            out = {k: v for k, v in out.items() if v}
-            if out:
-                return out
-        if isinstance(doc, dict) and doc and all(
-                isinstance(v, str) for v in doc.values()):
-            return dict(doc)
-        raise SystemExit("no window->document mapping found in %s" % path)
-    from_rows = {w["window_id"]: w.get("document_id") for w in per_window_rows}
-    if from_rows and all(from_rows.values()):
-        return from_rows
-    return None
+        if not isinstance(doc, dict) or not doc:
+            raise ValueError("document map must be a nonempty object")
+        if "per_window" in doc:
+            if not isinstance(doc["per_window"], list) or not doc["per_window"]:
+                raise ValueError("document map per_window must be a nonempty list")
+            supplied = {}
+            for row in doc["per_window"]:
+                if not isinstance(row, dict):
+                    raise ValueError("document map rows must be objects")
+                wid, did = row.get("window_id"), row.get("document_id")
+                if not isinstance(wid, str) or not wid.strip() or wid in supplied:
+                    raise ValueError("document map window IDs must be nonempty and unique")
+                supplied[wid] = did
+        else:
+            supplied = dict(doc)
+        if any(not isinstance(w, str) or not w.strip() or
+               not isinstance(d, str) or not d.strip() for w, d in supplied.items()):
+            raise ValueError("document map needs nonempty window and source-document identities")
+    declared = {}
+    missing = False
+    for row in per_window_rows:
+        wid, did = row["window_id"], row.get("document_id")
+        if supplied is not None:
+            if wid not in supplied:
+                raise ValueError("document map does not cover window %s" % wid)
+            if did is not None and did != supplied[wid]:
+                raise ValueError("document map conflicts with report provenance for %s" % wid)
+        elif did is None:
+            missing = True
+        else:
+            if not isinstance(did, str) or not did.strip():
+                raise ValueError("source-document identities must be nonempty strings")
+            if wid in declared and declared[wid] != did:
+                raise ValueError("reports disagree on source document for %s" % wid)
+            declared[wid] = did
+    if supplied is not None:
+        return supplied
+    if declared and missing:
+        raise ValueError("incomplete source-document provenance across paired reports")
+    return declared or None
 
 
 # ------------------------------------------------------------------- verbs
@@ -593,14 +626,14 @@ def cmd_paired(args: argparse.Namespace) -> int:
     if lanes_differ and not args.bridge:
         sys.stderr.write(
             "REFUSED: mixed-lane contrast. %s declares lane %r, %s declares lane %r. "
-            "Lanes are not interchangeable -- a paired analysis across them carries a "
-            "lane term on top of the artifact difference. If a MEASURED bridge exists "
+            "Lanes are not interchangeable -- this contrast cannot separate lane "
+            "effects from artifact differences. If a MEASURED bridge exists "
             "for this exact contrast, restate it with --bridge '<what and where>'; the "
             "receipt will carry it verbatim, and the analysis stays descriptive of the "
             "mixed design either way (P1-16).\n"
             % (args.label_a, contract_a["lane"], args.label_b, contract_b["lane"]))
         return EXIT_REFUSED
-    documents = load_document_map(args.document_map, rows_a)
+    documents = load_document_map(args.document_map, rows_a + rows_b)
     keep = load_scope(args.scope_file, args.scope)
     if keep:
         ks = set(keep)
@@ -633,6 +666,9 @@ def cmd_paired(args: argparse.Namespace) -> int:
                if dropped_scope else "",
                scope_name))
         return EXIT_REFUSED
+    if args.allow_partial:
+        a = {k: v for k, v in a.items() if k in common}
+        b = {k: v for k, v in b.items() if k in common}
 
     res = stats_mod.paired_windows(a, b, args.label_a, args.label_b,
                                    boot_b=args.bootstrap_b, seed=args.seed,
@@ -805,6 +841,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         return int(args.fn(args))
     except protocol_mod.ProtocolError as exc:
         sys.stderr.write("PROTOCOL REFUSAL: %s\n" % exc)
+        return EXIT_REFUSED
+    except ValueError as exc:
+        sys.stderr.write("REFUSED: %s\n" % exc)
         return EXIT_REFUSED
 
 

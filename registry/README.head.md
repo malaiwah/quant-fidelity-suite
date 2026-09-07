@@ -60,6 +60,11 @@ has cited. What changed is the claim made about it, plus a machine-readable pred
 `comparable: true/false/unknown` with reasons, in `index.json`, recomputed by the validator
 (`CMP-007`) so a hand-edited predicate is rejected exactly like a forged key.)
 
+The secondary check also reads declared replay backend/environment and stack evidence.
+Missing evidence stays **unknown**; a backend or stack mismatch is not erased by a shared
+pipeline name. A metric-covering harness match certifies the recorded code closure;
+different harness IDs alone do not prove different numerics and remain unknown.
+
 A bare `kld: 0.027` is worse than nothing. A KL divergence is only meaningful relative to a specific
 set of tokens, measured against a specific teacher capture, in a specific direction, at a specific
 accumulator precision, through a specific stack relation, with a specific head policy. Change any one
@@ -74,7 +79,7 @@ comparability.key = "cmp--" + sha256("|".join([
     metric_name,         # mean_tokenwise_kld, mean_of_run_means_tokenwise_kld, ...
     direction,           # reference_to_candidate (KL(P_teacher || Q_student)) or the reverse
     accumulation_dtype,  # float64 vs float32 over 10M positions is a different estimator
-    stack_relation,      # same_stack, or cross_stack (which carries a known upward bias)
+    stack_relation,      # same_stack or cross_stack; the latter's bias direction may be unknown
     head_policy,         # the candidate's own lm_head, or one shared head applied to both sides
 ]))[:16]
 ```
@@ -85,7 +90,7 @@ mismatch (`CMP-001`). A hand-written key cannot move a number into a table where
 committed README differs from what the data renders. **The tables below are a pure function of
 `data/*.jsonl`.** They were never typed by hand and cannot drift.
 
-### A worked example: one valid comparison and one invalid one
+### A worked example: descriptive values and an invalid cross-key ranking
 
 Five numbers, all for GLM-5.3-Flash, all on brandonmusic's sealed 25-window / 51,175-position panel,
 all against the same stored fp32 teacher logits, all KL(teacher || student) in nats, all accumulated
@@ -93,9 +98,9 @@ in float64. They are printed as **two tables, not one**, because they are two qu
 skims tables rather than paragraphs should be stopped by the layout, not only by the prose underneath
 it:
 
-**Group `cmp--202b717f3219c414`** -- sealed-lane same-stack capture, five cold runs each. These three may
-be ranked against one another. (This group holds five rows today; the other two came off a different
-measurement *lane* and are the subject of the section after next.)
+**Group `cmp--202b717f3219c414`** -- sealed-lane same-stack capture, five cold runs each.
+These are historical panel values, not a certificate of like-for-like ranking: apply
+the pair predicate, including pipeline and provenance evidence, before ranking them.
 
 | | value | metric | stack_relation |
 |---|---:|---|---|
@@ -104,36 +109,35 @@ measurement *lane* and are the subject of the section after next.)
 | 0xSero EXL3 Q4 (Dione), 187.6 GB | 0.027262784814670614 | `mean_of_run_means_tokenwise_kld` | `same_stack` |
 
 **Group `cmp--4a8630bdcadab97f`** -- **a different quantity, not a continuation of the table above.**
-Single-pass cross-stack replay against that same stored teacher. These two may be ranked against each
-other and against nothing above them.
+Single-pass cross-stack replay against that same stored teacher. The unquantized
+control contextualizes the FP8 value; it is not a competing quantization result.
 
 | | value | metric | stack_relation |
 |---|---:|---|---|
 | BF16 replay (the floor) | 0.012711599817250710 | `mean_tokenwise_kld` | `cross_stack` |
 | official FP8 (our replay) | 0.020615254540417995 | `mean_tokenwise_kld` | `cross_stack` |
 
-Note the sizes in the first table. K6 leads it, and K6 is also the largest artifact in it by 66 GB.
-Rank within a comparability group is a fidelity ordering, not a value judgement: fidelity is bought
-with bits, and a table sorted by fidelity alone will usually put the biggest quant on top. The
-question worth asking of these three is not which is first, it is what the 4bpw pair cost relative to
-each other -- 0.024555 against 0.027263 at 175.6 GB against 187.6 GB.
+Note the sizes in the first table. K6 has the smallest reported value and is also the
+largest artifact in it by 66 GB. The 4bpw pair reports 0.024555 and 0.027263 at
+175.6 GB and 187.6 GB. These are descriptive observations on the recorded panel;
+equal keys or similar nominal bit rates alone do not certify a fidelity ranking.
 
-**VALID:** *"On brandonmusic's 25-window panel, our K6 (0.013723) is closer to the BF16 teacher than
-his 4bpw (0.024555), which is in turn closer than the Dione Q4 (0.027263)."*
-Same key. Same tokens, same teacher, same estimator, same surface. The comparison is exactly what the
-numbers are for. (One of the three is his own measurement on his own stack, so the row is marked
-`advisory` and the table says so -- but the panel and the teacher are provably identical, because his
-receipt's `token_panel_receipt_sha256` and `teacher_receipt_sha256` are byte-identical to ours.)
+**DESCRIPTIVE:** *"On this recorded panel the K6 row reports 0.013723,
+the brandonmusic 4bpw row 0.024555, and the Dione Q4 row 0.027263."*
+The teacher and token receipts match. That establishes shared inputs, not shared
+candidate pipelines, replay arithmetic or runtime evidence. The pair predicate is
+required before turning these values into a like-for-like quantizer ranking.
 
 **INVALID:** *"The official FP8 release (0.020615) beats his 4bpw (0.024555) and loses to our K6."*
 Different key -- and it differs on two axes at once. The FP8 number came from replaying the model through **our** vLLM stack and scoring it
-against a teacher captured on **his** transformers/eager stack. That is a `cross_stack` measurement and
-it carries a stack-difference term on top of the quantization error. We know how big that term is,
-because we measured it on the same panel: replaying the reference's own **unquantized BF16 weights**
-through our stack scores **0.012712** against those same teacher logits. So 0.020615 is an upper bound,
-not a result. The naive difference is 0.007904 -- an *estimate*, not an identity, because KL is not
-additive. **This registry does not subtract floors and publish the remainder.** It puts the floor in
-the table, in bold, labelled, immediately above the biased row.
+against a teacher captured on **his** transformers/eager stack. That is a `cross_stack`
+measurement, conflating runtime and quantization perturbations. Replaying the reference's
+own **unquantized BF16 weights** through our stack scores **0.012712** against those
+same teacher logits. This control does not determine the sign of the stack contribution
+to the FP8 value: KL is not additive and perturbations can cancel. **0.020615 is a
+descriptive cross-stack result, not an upper bound on quantization-only error.**
+The scalar difference 0.007904 does not isolate that error. The control is labelled
+separately, never used as a mathematical lower bound or a quantization correction.
 
 ### And one comparison the key alone does not stop
 
@@ -161,19 +165,15 @@ The streaming lane also carries its own floor: the reference's own **unquantized
 scored through this SAME streaming harness rather than the cross-stack replay pipeline. It reads
 **0.011506** nats -- the cost of comparing across capture stacks plus bf16 non-associativity, with
 zero quantization involved -- and it is emphatically NOT the cross-stack floor above (0.012712,
-a different pipeline, a different lane, a different comparability key). Unlike the cross-stack case,
-this registry DOES publish the netted-out number here, as an *Excess over control (nats)* column in
-the lane's own sub-table (named *Attributable (nats)* until 2026-08-31; renamed per peer-review
-P1-05, because the difference is not a causal attribution): K6-stream nets to 0.002209, K8-stream
-to 0.000878. No ratio of those two residuals is published -- the old "2.52x" headline is withdrawn,
-because a ratio of small residuals magnifies control error and carried no uncertainty. It is still
-an estimate, not an identity -- KL is not additive -- but both
-terms are small, share the same reference, and now also share the same lane, which the cross-stack
-pair does not. `BIAS-006` is what keeps the two floors from ever crossing: a floor's
-`floor_measurement_ref` must have been measured on the SAME lane as the row naming it, so the
-cross-stack floor can never be subtracted from a streaming-lane row, nor this one from a
-cross-stack row, even on the rare occasion the two share a comparability key. See
-`engines/BF16-FLOOR.md` for the full analysis.
+a different pipeline, a different lane, a different comparability key). The historical
+*Excess over control (nats)* column (formerly *Attributable*) is a descriptive scalar
+difference: K6-stream gives 0.002209 and K8-stream 0.000878. It does not identify a
+causal quantization effect, even when both inputs share a lane. No ratio of those
+residuals is warranted by these scalars; the old "2.52x" headline is withdrawn.
+`BIAS-006` keeps floor references on the same lane, but passing that identity guard
+does not make KL additive. A value below an unquantized control is flagged for
+inspection, not rejected solely on that basis: cancellation can produce it legitimately.
+See `engines/BF16-FLOOR.md` for the full analysis.
 
 The second differing axis is the metric itself: the K6 / 4bpw / Dione rows are
 `mean_of_run_means_tokenwise_kld` over five cold runs, while the cross-stack rows are a single
@@ -199,6 +199,10 @@ measurement--glm53.bf16-replay-floor.brandonmusic-final25 (value 0.0127115998172
 is NOT sanctioned by this registry: the floor is context, not a correction.
 ```
 
+That historical row's `upward` declaration is retained as historical metadata, not
+a theorem. New cross-stack submissions may honestly declare `direction: unknown`
+with `usable_as_floor: false`; downstream floor use is then explicitly refused.
+
 A third case worth stating outright, because it is the one most likely to mislead: the MLX builds are
 measured against the official FP8 release **dequantized to BF16**, not against a BF16 teacher. Their
 6-bit reads `0.0063`, which is numerically smaller than our K6's `0.013723`. It is not better. It is a
@@ -206,6 +210,8 @@ different quantity -- the reference itself is quantized, so the FP8 error sits i
 in the student. Those rows carry `reference_kind: dequantized_from_quant`, a mandatory
 `different_reference_kind` disclosure, and a panel marked `undisclosed`. They will never appear in a
 table with a `native_bf16` row.
+No systematic ordering relative to a native-BF16 teacher follows: a quantized proxy
+can make KL either smaller or larger, depending on the candidate and reference.
 
 ---
 

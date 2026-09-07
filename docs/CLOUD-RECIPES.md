@@ -11,7 +11,8 @@ this document explains the boundary.
 
 ## What is always enforced
 
-These four hold on every paid run. Nothing else is required to start one.
+These four safety mechanisms apply to every paid run, alongside the target,
+credential, panel and resource preflight gates.
 
 **Cost cap — `--max-cost`.** Before anything is created the controller
 computes the all-in maximum liability: the live GPU rate for the whole
@@ -22,6 +23,12 @@ the plan — 13818 s for a 5 GB archive). If that exceeds `--max-cost` the run
 is refused, together with every other arithmetic finding of the same plan
 (timing bound, publication destination, unresolved leases) in one report. There is no default cap; a cap the
 tool picked would turn a legitimate run into a refusal you cannot attribute.
+
+This is a preflight liability calculation, not a provider-guaranteed spending
+limit. It assumes the quoted rates/storage tariff and successful cleanup by
+the deadline. The reaper requires a functioning user-systemd host, credentials,
+network and provider API; a host/control-plane outage can defeat timely
+deletion. RunPod's timer has failed in real observations and is only a hint.
 
 **Absolute deadline — `--max-runtime`.** The workload deadline is written into
 the durable lease (the reaper destroys the pod at it), the on-pod watchdog and
@@ -67,7 +74,7 @@ bin/measure-cloud --provider runpod --role root \
     --model zai-org/GLM-5.3-BF16 --revision <40-hex> \
     --panel-dir engines/panels/<panel> \
     --dataset-id fidelity--<id> --publish-root-to <owner>/<repo> \
-    --hf-token-file ~/.hf_token --measurer <hub-handle> \
+    --hf-token-file ~/.hf_token --hf-download-token-file ~/.hf_read_token --measurer <hub-handle> \
     --max-cost 65 --max-runtime 7h30m --retrieval-delete-reserve 14400 \
     --out ~/fidelity-runs/<name> --dry-run
 ```
@@ -92,8 +99,9 @@ create POST. `--yes` skips the prompt.
 
 Required: `--provider`, `--model`, `--revision` (for a paid run;
 `--dry-run` resolves and prints `main`'s commit when it is omitted),
-`--panel-dir`, `--dataset-id`, `--measurer`, `--max-cost`, `--out`, and
-`--max-runtime` unless the target has an authored timing row. `--role` defaults to `quant`; a root capture and the candidate route
+`--panel-dir`, `--dataset-id`, `--measurer`, `--max-cost`, `--out`,
+`--hf-download-token-file`, and `--max-runtime` unless the target has an
+authored timing row. `--role` defaults to `quant`; a root capture and the candidate route
 below both pass `--role root`. `--publish-root-to` and `--hf-token-file`
 are only needed when the dataset is to be published from this machine after
 teardown; without them the sealed dataset stays under `--out`
@@ -118,7 +126,7 @@ bin/measure-cloud --provider runpod --role root \
     --candidate-scope engines/scopes/scope--<slug>.json --candidate-codec exl3-mcg --candidate-bits 3.25 \
     --reference-dataset malaiwah/glm53-fidelity-root-v1@9c4a29ee10f393ed2fdbdb9262c1192ddb1507b4 \
     --gpu H200 --runpod-datacenter US-NC-1 \
-    --hf-token-file ~/.hf_token --measurer <hub-handle> \
+    --hf-token-file ~/.hf_token --hf-download-token-file ~/.hf_read_token --measurer <hub-handle> \
     --max-cost 45 --max-runtime 3h30m --retrieval-delete-reserve 14400 \
     --out ~/fidelity-runs/<name> --dry-run
 ```
@@ -144,8 +152,7 @@ cold captures (`--storage`); host vCPU and memory minima from the model bytes
 unexpected-tensor allowlist from the authored evidence for the target, else
 from its index census; `--max-runtime` from the authored bound and
 `--retrieval-delete-reserve` from the retrieval contract; the
-download token from `--hf-token-file` (`--hf-download-token-file` to ship a
-separate read-only token to the pod); the RunPod key from
+RunPod key from
 `~/.config/runpod/api_key` (`--runpod-key-file`); on-demand, secure cloud and
 fail-on-preempt. Every derived value is printed in the dry-run plan.
 
@@ -231,10 +238,12 @@ the image. The `:ssh` tag is amd64 only; pin the digest, never the tag.
   (`--runpod-key-file`). They never appear in argv, logs, receipts or
   bundles.
 - Target identity is resolved anonymously from `https://huggingface.co`. The
-  target download on the pod uses the read token from
-  `--hf-download-token-file` (default: `--hf-token-file`), transported as a
-  0600 file in a 0700 directory and shredded right after `fetch_target`.
-  Panels remain anonymous.
+  pod download requires an explicit `--hf-download-token-file`, transported
+  as a mode-0600 file in a mode-0700 directory and erased after `fetch_target`.
+  There is **no fallback** to `--hf-token-file`. When publishing, identical
+  publisher/download token bytes are refused even if held in different files.
+  The operator must create a separate read-only download token; local file
+  and equality checks cannot certify its Hub privileges. Panels remain anonymous.
 - An ED25519 public key must exist locally before create. The controller
   reads the fresh pod's ED25519 fingerprint from RunPod's authenticated
   container-log stream, compares it to the network keyscan, and connects
@@ -291,7 +300,9 @@ and the reaper closes it (`reconciled: true`) on a sweep after the hour plus
 
 ## Vast + container: Fruit transport rehearsal (2026-09-05)
 
-Not an admitted paid measurement path — transport rehearsal only. The image
+Not an admitted paid measurement path — transport rehearsal only. The commands
+below are **archival**, not a recipe to execute against an account; use the
+admitted SSH route above. The image
 (`ghcr.io/malaiwah/quant-fidelity-measure:main`, pin
 `sha256:9434d971ec8de52b73316f162461374b818057f9e6cd866bcef2282dafa1e0d5`)
 was launched on a Vast Tesla T4 (Nevada, cuda_max 13.0, driver 580.126.09,

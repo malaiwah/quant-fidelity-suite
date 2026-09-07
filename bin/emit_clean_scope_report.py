@@ -23,9 +23,8 @@ are answers to different questions and must never be differenced.  The registry
 enforces that structurally: clean17 is its own derived panel with its own
 comparability key, so a clean17-vs-panel25 table cannot be built by accident.
 
-The one result worth reading twice is in `attributable`: FP8 falls 9.46% and the
-BF16 floor falls 16.24% between the scopes, but FP8 MINUS the floor rises 1.44%.
-The subtraction is the stable quantity; the raw means are the unstable ones.
+Scope deltas and FP8-minus-BF16 differences are descriptive arithmetic, not a
+causal decomposition or evidence that subtraction is stable across populations.
 
 Sources, all committed and all re-derivable:
   registry/protocol/per-window/*.json                 six per-window series
@@ -44,6 +43,7 @@ import json
 import math
 import os
 import sys
+import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -95,6 +95,73 @@ def scope_mean(per_window, keep=None):
     return math.fsum(w["mean"] for w in rows) / len(rows), len(rows), counts.pop()
 
 
+def atomic_text(path, text):
+    """Publish a complete file; interruptions never truncate an existing report."""
+    directory = os.path.dirname(os.path.abspath(path))
+    fd, tmp = tempfile.mkstemp(dir=directory, prefix=".clean-scope-", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(text)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.chmod(tmp, 0o644)
+        os.replace(tmp, path)
+    finally:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+
+
+def analysis_with_source(path, root):
+    with open(path, "rb") as handle:
+        raw = handle.read()
+    return json.loads(raw), {
+        "path": os.path.relpath(path, root).replace(os.sep, "/"),
+        "sha256": hashlib.sha256(raw).hexdigest(),
+    }
+
+
+def portable_locations(value):
+    """Retain distinct producer-local identities without publishing host paths."""
+    if isinstance(value, dict):
+        return {key: portable_locations(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [portable_locations(item) for item in value]
+    if isinstance(value, str) and value.startswith(("/", "file://")):
+        return "producer-local-path-sha256:" + hashlib.sha256(value.encode("utf-8")).hexdigest()
+    return value
+
+
+def disclosures(source):
+    """Carry scientific qualifications intact, including future nested fields."""
+    keys = ("document_level", "document_map_source", "inference_unit",
+            "window_stats_are", "cross_lane", "contract_a", "contract_b",
+            "not_submittable", "scope_complete", "degenerate_note", "source_analysis")
+    result = {k: source[k] for k in keys if k in source}
+    result.setdefault("inference_unit", "unknown")
+    result.setdefault("window_stats_are",
+                      "Descriptive of this fixed panel only; source-document "
+                      "sampling provenance and assumptions are not established.")
+    return result
+
+def render_disclosures(source, depth=0):
+    """Readable nested qualifications without dropping assumptions or provenance."""
+    lines = []
+    for key, value in source.items():
+        prefix = "  " * depth + "- **%s**:" % key.replace("_", " ")
+        if isinstance(value, dict):
+            lines.append(prefix)
+            lines.extend(render_disclosures(value, depth + 1))
+        elif isinstance(value, list) and any(isinstance(v, dict) for v in value):
+            lines.append(prefix)
+            for index, item in enumerate(value, 1):
+                lines.extend(render_disclosures({str(index): item}, depth + 1))
+        else:
+            lines.append(prefix + " " + (json.dumps(value) if not isinstance(value, str)
+                                        else value))
+    return lines
+
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--root", default=ROOT)
@@ -113,7 +180,8 @@ def main():
     clean = set(sel["selected_windows"])
 
     doc = {
-        "schema": "malaiwah.glm53-clean-scope-recompute/1",
+        "schema": "malaiwah.glm53-clean-scope-recompute/2",
+        "supersedes_schema": "malaiwah.glm53-clean-scope-recompute/1",
         "title": "GLM-5.3-Flash fidelity: brandonmusic's calibration-clean scope, "
                  "recomputed from published per-window data",
         "generated_by": "bin/emit_clean_scope_report.py",
@@ -126,10 +194,9 @@ def main():
             "calibration-clean scope. Every malaiwah number published on that panel "
             "used all 25 windows and therefore carries the same contamination. This "
             "report recomputes all six series on his clean scope from our own "
-            "published per-window arrays. Five of the six fall (-9.5% to -16.2%); "
-            "his 4bpw artifact rises (+1.6%). The FP8-minus-floor attributable "
-            "error rises 1.44% while both of its inputs fall, which is the "
-            "measured argument for reporting subtracted numbers."),
+            "published per-window arrays. Scope movements describe these two "
+            "finite panels only. FP8-minus-BF16 is a descriptive contrast, not "
+            "identified quantization error; mixed-lane results do not rank codecs."),
     }
 
     # ---------------------------------------------------------------- provenance
@@ -195,10 +262,12 @@ def main():
             entry = {"mean_kld_nats": m, "windows": n, "scored_positions": n * per}
             ap_ = os.path.join(an_dir, "%s.%s.json" % (key, suffix))
             if os.path.exists(ap_):
-                a = load(ap_)
+                a, analysis_source = analysis_with_source(ap_, R)
                 if abs(a["summary"]["mean"] - m) > 1e-15:
                     raise SystemExit("%s/%s: the emitted analysis disagrees with the "
                                      "recomputed mean" % (key, scope))
+                entry.update(disclosures(a))
+                entry["source_analysis"] = analysis_source
                 entry["se_clustered_window"] = a["summary"]["se_clustered_window"]
                 entry["ci95_bca"] = a["bootstrap"]["ci95_bca"]
                 entry["ci95_percentile"] = a["bootstrap"]["ci95_percentile"]
@@ -218,7 +287,7 @@ def main():
                 # a key called ci95_bca holding a Student-t interval would be the
                 # same class of mislabel the reseed was done to remove.
                 entry["by_domain"] = [
-                    {"domain": d["domain"], "windows": d["n_clusters_window"],
+                    {**d, "domain": d["domain"], "windows": d["n_clusters_window"],
                      "scored_positions": d["n"], "mean_kld_nats": d["mean"],
                      "se_clustered_window": d.get("se_clustered_window"),
                      "interval_method": d.get("interval_method"),
@@ -239,10 +308,9 @@ def main():
         "five_of_six_fall": [r["label"] for r in rows
                              if r["scope_delta"]["direction"] == "down"],
         "rises": [r["label"] for r in rows if r["scope_delta"]["direction"] == "up"],
-        "note": ("His artifact rising while ours fall is not a paradox: the "
-                 "excluded windows are ones his quant happens to score well on "
-                 "and ours score badly on, which is exactly why a contaminated "
-                 "scope flatters some codecs and not others."),
+        "note": ("Scope selection changes the finite-panel estimand. Opposite "
+                 "movements do not identify a causal contamination effect or "
+                 "establish a population ordering."),
     }
 
     # ------------------------------------------------------------- attributable
@@ -251,30 +319,28 @@ def main():
         f = means[("fp8-crossstack", scope)]
         b = means[("bf16-floor-crossstack", scope)]
         att[scope] = {"fp8": f, "same_lane_floor": b,
-                      "attributable_nats": f - b, "ratio": f / b}
-    a_p, a_c = att["panel25"]["attributable_nats"], att["clean17"]["attributable_nats"]
-    doc["attributable"] = {
-        "lane": "cross_stack (both sides)",
+                      "difference_nats": f - b}
+    a_p, a_c = att["panel25"]["difference_nats"], att["clean17"]["difference_nats"]
+    doc["descriptive_fp8_bf16_contrast"] = {
+        "lane": "cross_stack (both sides; not sufficient for causal subtraction)",
         "by_scope": att,
-        "attributable_move_pct": (a_c - a_p) / a_p * 100.0,
+        "difference_move_pct": (a_c - a_p) / a_p * 100.0,
         "fp8_move_pct": ((means[("fp8-crossstack", "clean17")]
                           - means[("fp8-crossstack", "panel25")])
                          / means[("fp8-crossstack", "panel25")] * 100.0),
         "floor_move_pct": ((means[("bf16-floor-crossstack", "clean17")]
                             - means[("bf16-floor-crossstack", "panel25")])
                            / means[("bf16-floor-crossstack", "panel25")] * 100.0),
-        "reading": ("Both inputs move by 9-16% between scopes and their "
-                    "difference moves by 1.4%. The subtraction is the stable "
-                    "quantity. This is a measured answer to the objection that "
-                    "subtracted numbers should not be published."),
+        "reading": ("Both inputs move by 9-16% between these scopes and their "
+                    "difference moves by 1.4%. This is descriptive arithmetic "
+                    "on two fixed panels, not evidence of stable subtraction "
+                    "or an additive, causal quantization-error component."),
         "what_cannot_be_recomputed": (
-            "The same-lane K6/K8 attributable table has no clean-scope form: its "
-            "floor is the STREAMING BF16 floor, whose receipt is scalar-only (run "
-            "means and a tokenwise digest, no per-window array). Substituting the "
-            "cross-stack floor would be the cross-lane subtraction invariant "
-            "BIAS-006 refuses, so it is not done. The published panel25 "
-            "attributable ratio (K6 0.002209 / K8 0.000878 = 2.52x) stands as a "
-            "panel25 number only."),
+            "The same-lane K6/K8 floor has a scalar-only receipt, so it cannot "
+            "be recomputed on clean17. The historical 2.52x residual ratio "
+            "remains withdrawn: uncertainty of the small control residuals "
+            "was not established. A signed control contrast is not itself KL "
+            "or automatically causal quantization error. No cross-lane floor is substituted."),
     }
 
     # -------------------------------------------------------------------- paired
@@ -285,36 +351,39 @@ def main():
             p = os.path.join(an_dir, "%s.%s.json" % (stem, suffix))
             if not os.path.exists(p):
                 continue
-            d = load(p)
+            d, analysis_source = analysis_with_source(p, R)
             r = d.get("paired") or d
             keep = ("label_a", "label_b", "mean_a", "mean_b", "mean_diff",
-                    "mean_diff_se", "ratio_a_over_b", "ci95_diff_bca",
-                    "ci95_diff_percentile", "ci95_ratio_percentile",
-                    "bca_excludes_zero", "n_windows", "windows_a_better",
-                    # STAT-02: windows_tied and sign_test_n are the reason a reader can
-                    # reproduce sign_test_p. Without them the published table showed
-                    # "9/25" beside p=0.424, and binom(9,25) is 0.2295 -- the number and
-                    # the denominator printed next to it did not agree.
-                    "windows_b_better", "windows_tied", "sign_test_n",
-                    "sign_test_p", "bootstrap_b", "seed")
-            missing = [k for k in ("mean_a", "mean_b", "ratio_a_over_b",
-                                   "ci95_diff_bca", "sign_test_p") if k not in r]
+                    "mean_diff_se", "n_windows", "windows_a_better",
+                    "windows_b_better", "windows_tied", "sign_test_n")
+            missing = [k for k in ("mean_a", "mean_b", "mean_diff") if k not in r]
             if missing:
                 raise SystemExit(
                     "%s: paired receipt is missing %s. Emitting a paired block "
                     "with silently absent fields is how an incomplete table gets "
                     "published." % (os.path.basename(p), ", ".join(missing)))
             entry["scopes"][scope] = {k: r[k] for k in keep if k in r}
+            entry["scopes"][scope].update(disclosures({**d, **r}))
+            entry["scopes"][scope]["source_analysis"] = analysis_source
+            entry["scopes"][scope]["interpretation"] = (
+                "Descriptive mixed-design contrast; not a codec ranking."
+                if entry["scopes"][scope].get("cross_lane", {}).get("mixed") else
+                "Descriptive finite-panel contrast; a ranking requires the "
+                "registry's actual pair predicate, not shared windows alone.")
+            # Preserve historical diagnostics under an explicitly non-inferential
+            # namespace, but do not republish ratios across measurement designs.
+            entry["scopes"][scope]["descriptive_window_diagnostics"] = {
+                k: r[k] for k in ("ci95_diff_bca", "ci95_diff_percentile",
+                                 "sign_test_p", "bootstrap_b", "seed") if k in r}
             mc = r.get("mcnemar")
             if mc:
                 entry["scopes"][scope]["mcnemar"] = mc
         if entry["scopes"]:
             paired.append(entry)
     doc["paired"] = {
-        "method": "paired per-window differences, BCa on the differences, "
-                  "B=5000, seed 20260829; ranking by paired differences rather "
-                  "than by eyeballing overlapping marginal intervals is "
-                  "brandonmusic's rule and it is adopted here",
+        "method": "Finite-panel paired differences are descriptive. Document-level "
+                  "summaries retain their provenance, weighting and assumptions; "
+                  "no unconditional significance or codec ranking is inferred.",
         "comparisons": paired,
     }
 
@@ -333,28 +402,20 @@ def main():
                  "scored_positions": dom["k6-sealed"][d]["n"]}
             for key in dom:
                 e[key] = dom[key][d]["mean"]
-            e["fp8_over_k6"] = dom["fp8-crossstack"][d]["mean"] / dom["k6-sealed"][d]["mean"]
-            e["fp8_over_floor_same_lane"] = (dom["fp8-crossstack"][d]["mean"]
-                                             / dom["bf16-floor-crossstack"][d]["mean"])
             table.append(e)
-        rr = {e["domain"]: e["fp8_over_k6"] for e in table}
         doc["per_domain_clean17"] = {
             "table": table,
-            "spread": max(rr.values()) / min(rr.values()),
-            "worst_domain": max(rr, key=rr.get),
-            "reading": (
-                "He measured NVFP4-over-EXL3 ratios of 1.50x general / 1.97x legal "
-                "/ 1.65x code-agentic and concluded that a single-corpus mean hides "
-                "where a codec hurts. Same test on our artifacts reproduces the "
-                "shape: legal is the worst domain here as it is on his data. A "
-                "per-domain table is therefore not decoration -- one number cannot "
-                "carry this."),
+            "reading": "Finite-panel domain means only. Cross-lane ratios, their "
+                       "spread and a worst-codec/domain ranking are not identified "
+                       "by this mixed measurement design.",
         }
 
-    with open(args.out, "w", encoding="utf-8") as fh:
-        json.dump(doc, fh, indent=1, ensure_ascii=False)
-        fh.write("\n")
-    print("wrote %s" % args.out)
+    doc["producer_path_policy"] = (
+        "Producer-local absolute path labels are replaced by distinct opaque hashes. "
+        "source_analysis names the original committed analysis by portable path and "
+        "file digest; no replacement path is guessed to contain the old bytes.")
+    doc = portable_locations(doc)
+
 
     if args.markdown:
         # Rendered FROM the emitted document, never typed alongside it, so the
@@ -366,6 +427,7 @@ def main():
         A("Generated by `%s` from committed per-window data. No GPU, no "
           "re-measurement. **This is not a correction**: the panel25 values "
           "remain correct for panel25.\n" % doc["generated_by"])
+        A(doc["producer_path_policy"] + "\n")
         A("## Scope\n")
         A("| scope | windows | scored positions |")
         A("|---|---:|---:|")
@@ -382,7 +444,7 @@ def main():
                                         e["shared_ngram_fraction"]))
         A("")
         A("## Means, both scopes\n")
-        A("| row | lane | panel25 | clean17 | move | clean17 BCa 95% |")
+        A("| row | lane | panel25 | clean17 | move | descriptive window BCa 95% |")
         A("|---|---|---:|---:|---:|---|")
         for r in doc["rows"]:
             c = r["scopes"]["clean17"]
@@ -392,56 +454,60 @@ def main():
                  c["mean_kld_nats"], r["scope_delta"]["relative_pct"],
                  ("[%.6f, %.6f]" % (ci[0], ci[1])) if ci else "--"))
         A("")
-        A("## Attributable error (cross-stack: FP8 minus the same-lane BF16 floor)\n")
-        A("| scope | FP8 | floor | attributable | ratio |")
-        A("|---|---:|---:|---:|---:|")
+        A("Window intervals above describe fixed-panel window variation, not "
+          "independent-document or domain-population uncertainty.\n")
+        for r in doc["rows"]:
+            for scope, entry in r["scopes"].items():
+                A("### %s / %s: scientific qualifications\n" % (r["label"], scope))
+                L.extend(render_disclosures(disclosures(entry)))
+                A("")
+        A("## Descriptive FP8 minus BF16 contrast (not causal attribution)\n")
+        A("| scope | FP8 | BF16 context | difference |")
+        A("|---|---:|---:|---:|")
+        contrast = doc["descriptive_fp8_bf16_contrast"]
         for k in ("panel25", "clean17"):
-            a = doc["attributable"]["by_scope"][k]
-            A("| `%s` | %.9f | %.9f | **%.9f** | %.4f |"
-              % (k, a["fp8"], a["same_lane_floor"], a["attributable_nats"], a["ratio"]))
+            a = contrast["by_scope"][k]
+            A("| `%s` | %.9f | %.9f | %.9f |"
+              % (k, a["fp8"], a["same_lane_floor"], a["difference_nats"]))
         A("")
-        A("FP8 moves **%+.2f %%** and the floor moves **%+.2f %%** between scopes, "
-          "but their difference moves **%+.2f %%**. The subtraction is the stable "
-          "quantity.\n" % (doc["attributable"]["fp8_move_pct"],
-                           doc["attributable"]["floor_move_pct"],
-                           doc["attributable"]["attributable_move_pct"]))
+        A(contrast["reading"] + "\n")
+        A(contrast["what_cannot_be_recomputed"] + "\n")
         if "per_domain_clean17" in doc:
             pdm = doc["per_domain_clean17"]
             A("## Per-domain, clean scope\n")
-            A("| domain | windows | K6 | K8 | FP8 | BF16 floor | FP8/K6 | FP8/floor |")
-            A("|---|---:|---:|---:|---:|---:|---:|---:|")
+            A("| domain | windows | K6 | K8 | FP8 | BF16 context |")
+            A("|---|---:|---:|---:|---:|---:|")
             for e in pdm["table"]:
-                A("| %s | %d | %.9f | %.9f | %.9f | %.9f | %.3f | %.3f |"
+                A("| %s | %d | %.9f | %.9f | %.9f | %.9f |"
                   % (e["domain"], e["windows"], e["k6-sealed"], e["k8-streaming"],
-                     e["fp8-crossstack"], e["bf16-floor-crossstack"],
-                     e["fp8_over_k6"], e["fp8_over_floor_same_lane"]))
+                     e["fp8-crossstack"], e["bf16-floor-crossstack"]))
             A("")
-            A("Spread across domains: **%.2fx**; worst domain: **%s**. %s\n"
-              % (pdm["spread"], pdm["worst_domain"], pdm["reading"]))
+            A(pdm["reading"] + "\n")
         A("## Paired comparisons\n")
-        A("| comparison | scope | ratio | 95% CI of A-B (BCa) | A better in | sign p |")
-        A("|---|---|---:|---|---:|---:|")
+        A(doc["paired"]["method"] + "\n")
         for c in doc["paired"]["comparisons"]:
             for scope in ("panel25", "clean17"):
                 v = c["scopes"].get(scope)
                 if not v:
                     continue
-                # The sign test's own denominator, not n_windows: ties carry no sign and
-                # are excluded from both. A None p means every window tied exactly.
-                _sn = v.get("sign_test_n", v["n_windows"])
-                _tied = v.get("windows_tied") or 0
-                _p = v.get("sign_test_p")
-                A("| %s | `%s` | %.3f | [%+.6f, %+.6f] | %d/%d%s | %s |"
-                  % (c["comparison"], scope, v["ratio_a_over_b"],
-                     v["ci95_diff_bca"][0], v["ci95_diff_bca"][1],
-                     v["windows_a_better"], _sn,
-                     (" (%d tied)" % _tied) if _tied else "",
-                     ("%.1e" % _p) if _p is not None else "n/a (all tied)"))
+                A("### %s / %s\n" % (c["comparison"], scope))
+                A(v["interpretation"] + "\n")
+                A("A %.9f; B %.9f; descriptive A-B %+.9f nats.\n"
+                  % (v["mean_a"], v["mean_b"], v["mean_diff"]))
+                # Render the complete qualification block, not a handpicked p or
+                # interval stripped of its weighting and sampling assumptions.
+                L.extend(render_disclosures(disclosures(v)))
+                A("")
         A("")
         A("## Credit\n")
         A(doc["provenance"]["credit"] + "\n")
-        with open(args.markdown, "w", encoding="utf-8") as fh:
-            fh.write("\n".join(L) + "\n")
+        markdown = "\n".join(L) + "\n"
+    # Finish both serializations before publishing either file.
+    encoded = json.dumps(doc, indent=1, ensure_ascii=False, allow_nan=False) + "\n"
+    atomic_text(args.out, encoded)
+    print("wrote %s" % args.out)
+    if args.markdown:
+        atomic_text(args.markdown, markdown)
         print("wrote %s" % args.markdown)
     print("  %d series x 2 scopes; %d paired comparisons; %d domains"
           % (len(rows), len(paired), len(table)))
