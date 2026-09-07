@@ -90,13 +90,17 @@ def row(path, root):
     return {"path": path.relative_to(root).as_posix(), "bytes": path.stat().st_size, "sha256": digest(path)}
 
 
-def tree(root):
+def tree(root, *, live=False):
     for directory, directories, files in os.walk(root, followlinks=False):
         for name in directories:
             if (Path(directory) / name).is_symlink():
                 raise ValueError("symlink directory is not an evidence artifact")
         for name in sorted(files):
-            yield regular(Path(directory) / name)
+            try:
+                yield regular(Path(directory) / name)
+            except FileNotFoundError:
+                if not live:
+                    raise
 
 
 def require_no_credentials():
@@ -283,6 +287,15 @@ class Runner:
         self.commands = []
         self.maximum = plan["limits"]["max_output_bytes"]
         self.environment = dict(os.environ, OMP_NUM_THREADS="2", MKL_NUM_THREADS="2", OPENBLAS_NUM_THREADS="2", NUMEXPR_NUM_THREADS="2", VECLIB_MAXIMUM_THREADS="2", TOKENIZERS_PARALLELISM="false", HF_HUB_DISABLE_IMPLICIT_TOKEN="1", HF_HOME="/tmp/qfs-worker-hf", PYTHONDONTWRITEBYTECODE="1", STACKPRINT_IMAGE_PIN=plan["image"], FIDELITY_IMAGE_REFERENCE=plan["image"])
+        threads = min(32, len(os.sched_getaffinity(0))) if hasattr(os, "sched_getaffinity") else 2
+        try:
+            quota, period = Path("/sys/fs/cgroup/cpu.max").read_text().split()
+            if quota != "max":
+                threads = min(threads, max(1, math.ceil(int(quota) / int(period))))
+        except (OSError, ValueError, ZeroDivisionError):
+            threads = min(threads, 2)
+        for key in ("OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS", "NUMEXPR_NUM_THREADS", "VECLIB_MAXIMUM_THREADS"):
+            self.environment[key] = str(threads)
         self.environment.pop("PYTHONPATH", None)
         self.environment.pop("PYTHONHOME", None)
         if not plan["runtime"].get("trusted_code"):
@@ -291,8 +304,16 @@ class Runner:
     def bound(self):
         if time.monotonic() >= self.deadline:
             raise TimeoutError("plan runtime deadline exceeded")
-        if sum(p.stat().st_size for p in tree(self.out)) > self.maximum:
-            raise ValueError("plan output byte bound exceeded; partial evidence retained")
+        total = 0
+        for path in tree(self.out, live=True):
+            try:
+                total += path.stat().st_size
+            except FileNotFoundError:
+                # Atomic writers can replace a temporary file during live accounting.
+                # The final evidence inventory remains strict once all writers exit.
+                continue
+            if total > self.maximum:
+                raise ValueError("plan output byte bound exceeded; partial evidence retained")
 
     def run(self, name, arguments, *, allowed=(0,)):
         self.bound()
