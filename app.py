@@ -5,18 +5,20 @@ import html
 from pathlib import Path
 import os
 import re
-from urllib.parse import quote
+from functools import lru_cache
+from urllib.parse import parse_qs, quote
 
 import gradio as gr
 from starlette.middleware import Middleware
 from starlette.responses import PlainTextResponse
 
 from explorer.data import ExplorerRegistry
-from explorer import costs, contribute
+from explorer import costs, contribute, links, snippets
 
 SPACE_ID = os.environ.get("SPACE_ID", "malaiwah/qfs-explorer")
 SOURCE_URL = "https://github.com/malaiwah/quant-fidelity-suite"
 REGISTRY_URL = "https://huggingface.co/datasets/malaiwah/quant-fidelity-registry"
+EXPLORER_BASE = links.explorer_base(os.environ.get("SPACE_HOST"))
 CSS = """
 .gradio-container {width: 100% !important; min-width: 0 !important; max-width: 1240px !important; box-sizing: border-box; margin: auto;}
 #hero {padding: 30px 32px; border-radius: 18px; background: #102b36; color: #f5fafb; margin-bottom: 12px;}
@@ -30,7 +32,7 @@ CSS = """
 #comparison-status {border-left: 4px solid #16826e; padding-left: 18px; margin: 10px 0;}
 #footer {font-size: 12px; opacity: .8; padding: 20px 0; border-top: 1px solid #b8cbd2;}
 button.primary {font-weight: 650 !important;}
-@media(max-width: 640px) {#hero {padding: 22px 18px;} #hero h1 {font-size: 29px;} .stat {min-width: 100px;}}
+@media(max-width: 640px) {#hero {padding: 22px 18px;} #hero h1 {font-size: 29px;} .stat {min-width: 100px;} [role="tab"] {padding-inline: 8px !important;}}
 """
 
 
@@ -43,9 +45,24 @@ class ReadOnlyTransport:
     async def __call__(self, scope, receive, send):
         path = scope.get("path", "")
         endpoint = path.split("/gradio_api/", 1)[-1]
-        if scope["type"] == "http" and "/gradio_api/" in path and endpoint.startswith(("upload", "file=", "file/", "stream/")):
-            await PlainTextResponse("File transport is disabled in this read-only Explorer.", status_code=403)(scope, receive, send)
-            return
+        if scope["type"] == "http":
+            try:
+                query = parse_qs(scope.get("query_string", b"").decode("utf-8", "replace"),
+                                 keep_blank_values=True, max_num_fields=64)
+            except ValueError:
+                await PlainTextResponse("Too many URL parameters.", status_code=400)(scope, receive, send)
+                return
+            if any(key in links.QUERY_FIELDS and len(values) != 1 for key, values in query.items()):
+                await PlainTextResponse("Repeated QFS evidence parameters are ambiguous.", status_code=400)(scope, receive, send)
+                return
+            if "deep_link" in query:
+                await PlainTextResponse("Use QFS measurement links with registry_revision; saved Gradio sessions are not evidence snapshots.",
+                                        status_code=400)(scope, receive, send)
+                return
+            if "/gradio_api/" in path and endpoint.startswith(("upload", "file=", "file/", "stream/", "deep_link")):
+                await PlainTextResponse("File and saved-session transport is disabled in this read-only Explorer.",
+                                        status_code=403)(scope, receive, send)
+                return
         await self.app(scope, receive, send)
 
 
@@ -122,9 +139,41 @@ def group_view(registry, group_id):
     return description, row_table(rows), gr.Dropdown(choices=choices, value=first), registry.detail(first) if first else {}, group.get("context", {})
 
 
+def snapshot_markup(overview):
+    return '<div id="stats">%s</div>' % "".join(
+        '<div class="stat"><strong>%s</strong><span>%s</span></div>' % (html.escape(str(value)), label)
+        for value, label in [(overview["measurement_count"], "published measurements"),
+                             (overview["model_count"], "model families"),
+                             (overview["group_count"], "comparison groups"),
+                             ("$0", "Explorer GPU spend")])
+
+
+def snapshot_footer(overview):
+    return ("**Registry snapshot:** %s · %s\n\n%s\n\n"
+            "[Source code](%s) · [Registry dataset](%s) · [Annotation standard](%s/blob/main/docs/CARD-ANNOTATION-SPEC.md)\n\n"
+            "Shared evidence links pin this snapshot. Dataset-viewer searches use live data. Prices are dated, not quotes."
+            % (md(overview.get("revision") or overview["snapshot"]), md(overview["origin"]),
+               md(" ".join(overview.get("notes", []))), SOURCE_URL, REGISTRY_URL, SOURCE_URL))
+
+
 def create_app():
     registry = ExplorerRegistry()
     overview = registry.overview()
+    initial_revision = overview.get("revision") or "bundled"
+
+    @lru_cache(maxsize=8)
+    def registry_for(revision):
+        if revision == initial_revision:
+            return registry
+        if not isinstance(revision, str) or not links.SHA.fullmatch(revision):
+            raise ValueError("No valid registry snapshot is selected. Open the Explorer without the invalid evidence link.")
+        return ExplorerRegistry(revision=revision)
+
+    @lru_cache(maxsize=8)
+    def card_choices(revision):
+        current = registry_for(revision)
+        rows = {row["id"]: row for _, gid in current.groups("") for row in current.group(gid)["rows"]}
+        return receipt_choices([rows[mid] for mid in sorted(rows)])
     models = registry.models()
     first_model = models[0][1] if models else ""
     initial_groups = registry.groups(first_model)
@@ -134,12 +183,14 @@ def create_app():
     offer_choices = [(o["label"], o["id"]) for o in offers]
     first_offer = next((o["id"] for o in offers if o["id"] == "hf-jobs-l4"), offers[0]["id"] if offers else None)
 
-    def select_model(model_id):
+    def select_model(model_id, revision):
+        registry = registry_for(revision)
         choices = registry.groups(model_id or "")
         selected = choices[0][1] if choices else None
         return (gr.Dropdown(choices=choices, value=selected), *group_view(registry, selected))
 
-    def open_comparison(group_id):
+    def open_comparison(group_id, revision):
+        registry = registry_for(revision)
         if not group_id:
             raise gr.Error("Check a model first, then choose one of its comparison groups.")
         rows = registry.group(group_id)["rows"]
@@ -147,7 +198,8 @@ def create_app():
         return (gr.Dropdown(value=model_id), gr.Dropdown(choices=registry.groups(model_id), value=group_id),
                 *group_view(registry, group_id))
 
-    def lookup(target):
+    def lookup(target, revision):
+        registry = registry_for(revision)
         try:
             result = registry.lookup(target)
         except ValueError as exc:
@@ -191,18 +243,104 @@ def create_app():
                 summary += "\n\n" + label.capitalize() + ":\n" + "\n".join("- " + str(v) for v in result[label])
         return summary, result.get("details", {}), result.get("next_steps", "")
 
+    def share_evidence(data):
+        if not data:
+            return "Select a measurement to inspect its evidence.", "", {}
+        snapshot = data.get("snapshot") or {}
+        mid = (data.get("measurement") or {}).get("id")
+        urls = links.evidence_links(EXPLORER_BASE, mid, snapshot.get("revision"))
+        return evidence_summary(data), urls.get("explorer", "No permanent link: this is an unpinned bundled snapshot."), urls
+
+    def generate_card(measurement_ids, existing_card, revision):
+        try:
+            current = registry_for(revision)
+            if current.overview().get("notes"):
+                raise ValueError("Card generation requires a public snapshot without loading or integrity warnings.")
+            data = current.registry_data()
+            links.enrich_root_reference(data, measurement_ids or [])
+            result = snippets.generate_snippet(data, measurement_ids or [], explorer_base=EXPLORER_BASE,
+                                               registry_revision=current.overview().get("revision") or "",
+                                               existing_card=existing_card or "")
+        except ValueError as exc:
+            return "Cannot generate this card: " + str(exc), "", "", "", {}
+        validation = result.get("validation") or {}
+        status = ("Ready to copy — existing QFS checks and local HF parser roundtrip passed."
+                  if validation.get("ok") else "Not ready to paste — resolve these provenance or validation findings.")
+        if result.get("model_repository"):
+            status = "Target model: %s · Role: %s\n\n%s" % (result["model_repository"], result.get("role", "unknown"), status)
+        findings = validation.get("errors") or []
+        warnings = result.get("warnings") or []
+        status += "\n\n" + "\n".join(str(item) for item in findings + warnings)
+        return status, result.get("metadata_yaml", ""), result.get("markdown_snippet", ""), result.get("merged_card", ""), {
+            "validation": validation, "links": result.get("links", {}),
+            "role": result.get("role"), "model_repository": result.get("model_repository")}
+
+    def use_selected_for_card(mid, revision):
+        registry_for(revision).detail(mid)
+        return gr.Tabs(selected="cards"), gr.Dropdown(choices=card_choices(revision), value=[mid])
+
+    def load_link(request: gr.Request):
+        try:
+            params = links.parse_query(request.query_params or {})
+            if not params:
+                return tuple(gr.skip() for _ in linked_outputs)
+            revision = params["registry_revision"] if "registry_revision" in params else initial_revision
+            current = registry_for(revision)
+            mid, gid, model_id = params.get("measurement"), params.get("group"), params.get("model")
+            if mid:
+                record = current.detail(mid)
+                gid, model_id = record["group_id"], record["measurement"]["model_ref"]
+            elif gid:
+                rows = current.group(gid)["rows"]
+                if not rows:
+                    raise ValueError("This group contains no published evidence.")
+                mid = rows[0]["id"]
+                model_id = current.detail(mid)["measurement"]["model_ref"]
+            else:
+                model_id = model_id or current.models()[0][1]
+                choices = current.groups(model_id)
+                gid = choices[0][1] if choices else None
+            view = group_view(current, gid)
+            if not mid and view[3]:
+                mid = view[3]["measurement"]["id"]
+            if mid:
+                view = (view[0], view[1], gr.Dropdown(choices=receipt_choices(current.group(gid)["rows"]), value=mid),
+                        current.detail(mid), view[4])
+            result = {
+                snapshot_state: revision, tabs: gr.Tabs(selected=params.get("tab", "explore")),
+                model: gr.Dropdown(choices=current.models(), value=model_id),
+                group: gr.Dropdown(choices=current.groups(model_id), value=gid),
+                group_status: view[0], table: view[1], detail_id: view[2], detail: view[3], context: view[4],
+                cards_measurements: gr.Dropdown(choices=card_choices(revision),
+                    value=[mid] if mid and any(key in params for key in ("measurement", "model", "group")) else []),
+                stats: snapshot_markup(current.overview()), footer: snapshot_footer(current.overview()),
+                link_notice: "**Opened linked evidence** from registry `%s`. The model, group and receipt are selected below."
+                             % md(current.overview().get("revision") or current.overview()["snapshot"]),
+            }
+            if params.get("target"):
+                looked_up = lookup(params["target"], revision)
+                result.update({target: params["target"], lookup_status: looked_up[0], lookup_rows: looked_up[1],
+                               matched_group: looked_up[2], target_json: looked_up[3]})
+            return result
+        except (ValueError, KeyError) as exc:
+            return {
+                snapshot_state: None, link_notice: "**Cannot open this evidence link.** " + md(exc) + "\n\nNo different snapshot or measurement was substituted.",
+                model: gr.Dropdown(choices=[], value=None), group: gr.Dropdown(choices=[], value=None),
+                group_status: "No linked evidence loaded.", table: [], detail_id: gr.Dropdown(choices=[], value=None),
+                detail: {}, context: {}, cards_measurements: gr.Dropdown(choices=[], value=[]),
+                stats: "<p>Requested evidence unavailable.</p>", footer: "Open the Explorer without query parameters to browse the current snapshot.",
+                lookup_rows: [], matched_group: gr.Dropdown(choices=[], value=None), target_json: {},
+            }
+
     with gr.Blocks(title="QFS Explorer") as demo:
+        snapshot_state = gr.State(initial_revision)
         gr.HTML('<div id="hero"><div class="eyebrow">QUANT FIDELITY SUITE</div>'
                 '<h1>Find the evidence behind a quant.</h1>'
                 '<p>Check what has already been measured, compare only like-for-like results, '
                 'and plan your next measurement—with receipts, not guesswork.</p></div>')
-        gr.HTML('<div id="stats">%s</div>' % "".join(
-            '<div class="stat"><strong>%s</strong><span>%s</span></div>' % (html.escape(str(value)), label)
-            for value, label in [(overview["measurement_count"], "published measurements"),
-                                 (overview["model_count"], "model families"),
-                                 (overview["group_count"], "comparison groups"),
-                                 ("$0", "Explorer GPU spend")]))
+        stats = gr.HTML(snapshot_markup(overview))
         gr.Markdown("**No GPU required. No credentials requested. This app never rents hardware or submits on your behalf.**")
+        link_notice = gr.Markdown("")
         with gr.Tabs() as tabs:
             with gr.Tab("Explore", id="explore"):
                 gr.Markdown("## Is your quant already measured?\nPaste a Hugging Face model link or `owner/model`. We check the revision—not just the name.")
@@ -232,6 +370,11 @@ def create_app():
                                         value=registry.group(first_group)["rows"][0]["id"] if first_group and registry.group(first_group)["rows"] else None,
                                         label="3 · Inspect a measurement and its receipts")
                 evidence = gr.Markdown(evidence_summary(initial[3]))
+                initial_share = share_evidence(initial[3])
+                share_url = gr.Textbox(value=initial_share[1], label="Permanent link to this exact evidence", interactive=False, buttons=["copy"])
+                card_selected = gr.Button("Create model-card snippet for this result", variant="primary")
+                with gr.Accordion("Dataset links and immutable registry source", open=False):
+                    share_sources = gr.JSON(value=initial_share[2])
                 with gr.Accordion("Original records and machine-readable provenance", open=False):
                     detail = gr.JSON(value=initial[3], label="Complete evidence", open=False)
                 with gr.Accordion("New to KL and QFS? Read this first", open=False):
@@ -241,14 +384,14 @@ def create_app():
                                 "A weights-only capture cannot tell you everything about a production serving kernel. A small preview cannot rank quantization rates. "
                                 "[Read the measurement contract](%s/blob/main/WHAT-WE-MEASURE.md)." % SOURCE_URL)
                 lookup_outputs = [lookup_status, lookup_rows, matched_group, target_json]
-                search.click(lookup, [target], lookup_outputs, api_name="lookup", concurrency_limit=2)
-                target.submit(lookup, [target], lookup_outputs, api_name=False, concurrency_limit=2)
-                model.input(select_model, [model], [group, group_status, table, detail_id, detail, context], api_name=False)
-                group.input(lambda g: group_view(registry, g), [group], [group_status, table, detail_id, detail, context], api_name="comparison_group")
-                open_group.click(open_comparison, [matched_group],
+                search.click(lookup, [target, snapshot_state], lookup_outputs, api_name="lookup", concurrency_limit=2)
+                target.submit(lookup, [target, snapshot_state], lookup_outputs, api_name=False, concurrency_limit=2)
+                model.input(select_model, [model, snapshot_state], [group, group_status, table, detail_id, detail, context], api_name=False)
+                group.input(lambda g, rev: group_view(registry_for(rev), g), [group, snapshot_state], [group_status, table, detail_id, detail, context], api_name="comparison_group")
+                open_group.click(open_comparison, [matched_group, snapshot_state],
                                  [model, group, group_status, table, detail_id, detail, context], api_name=False)
-                detail_id.change(lambda key: registry.detail(key) if key else {}, [detail_id], [detail], api_name="measurement")
-                detail.change(evidence_summary, [detail], [evidence], api_name=False)
+                detail_id.change(lambda key, rev: registry_for(rev).detail(key) if key else {}, [detail_id, snapshot_state], [detail], api_name="measurement")
+                detail.change(share_evidence, [detail], [evidence, share_url, share_sources], api_name=False)
             with gr.Tab("Costs", id="costs"):
                 gr.Markdown("## Find a sensible place to run\nCompare **hardware cost**, then check model fit and QFS compatibility. A cheaper GPU-hour is not necessarily a cheaper finished measurement.")
                 with gr.Row():
@@ -269,6 +412,32 @@ def create_app():
                                  interactive=False, wrap=True, label="Dated prices—not live availability")
                 with gr.Accordion("Billing differences, QFS compatibility and pricing sources", open=False):
                     gr.Markdown(costs.guidance())
+            with gr.Tab("Cards", id="cards"):
+                gr.Markdown("## Put traceable fidelity evidence on your model card\n"
+                            "**1. Select your measurements → 2. Generate → 3. Copy the YAML and evidence paragraph.**\n\n"
+                            "Uses Hugging Face `model-index` plus QFS `x_fidelity`, not a new annotation format. "
+                            "Select only measurements of the same artifact. Nothing is posted or changed on the Hub.")
+                cards_measurements = gr.Dropdown(choices=card_choices(initial_revision), value=[],
+                                                multiselect=True, label="Published measurements for this model card")
+                with gr.Accordion("Optional: merge into your existing card", open=False):
+                    gr.Markdown("Paste the complete README to preserve its existing metadata and body. Do not paste secrets or private material into this public app; use a private duplicate for private cards.")
+                    existing_card = gr.Code(language="markdown", label="Existing model card (optional, maximum 128 KiB)", lines=8, max_lines=16)
+                generate_button = gr.Button("Generate model-card snippets", variant="primary")
+                card_status = gr.Textbox(label="Provenance and validation", interactive=False, lines=5, max_lines=12)
+                metadata_yaml = gr.Code(language="yaml", label="YAML — merge these keys into your existing front matter", interactive=False, lines=12, max_lines=22)
+                markdown_snippet = gr.Code(language="markdown", label="Evidence paragraph — paste into the card body", interactive=False, lines=8, max_lines=16)
+                with gr.Accordion("Complete merged card", open=False):
+                    merged_card = gr.Code(language="markdown", label="Preserved card with generated annotations", interactive=False, lines=10, max_lines=24)
+                with gr.Accordion("Validation details and source links", open=False):
+                    card_validation = gr.JSON()
+                gr.Markdown("**About paper-style annotations:** HF extracts `arxiv:<id>` from real paper links. "
+                            "QFS has receipt/specification links, not an invented paper identifier or HF verification badge. "
+                            "The newer `.eval_results` format needs a registered evaluation task; this generator does not pretend QFS has one. "
+                            "[Read the existing QFS annotation specification](%s/blob/main/docs/CARD-ANNOTATION-SPEC.md)." % SOURCE_URL)
+                generate_button.click(generate_card, [cards_measurements, existing_card, snapshot_state],
+                                      [card_status, metadata_yaml, markdown_snippet, merged_card, card_validation],
+                                      api_name="generate_card_snippet", concurrency_limit=2)
+                card_selected.click(use_selected_for_card, [detail_id, snapshot_state], [tabs, cards_measurements], api_name=False)
             with gr.Tab("Contribute", id="contribute"):
                 gr.Markdown("## Your workspace, your budget\n**1. Make a private copy → 2. Measure with your own resources outside this app → 3. Bring back the receipt for review.**\n\n"
                             "CPU Basic copies have no hourly compute charge. Paid hardware/storage is billed to the copy's owner. Secrets are not copied. "
@@ -291,11 +460,11 @@ def create_app():
                     lambda: ((Path(__file__).parent / "registry/docs/examples/dione-q4.submission.json").read_text(encoding="utf-8"),
                              "Published Dione Q4 example loaded. Click Inspect receipt to run the offline checks.", {}, ""),
                     outputs=[receipt_text, inspection, inspection_json, next_steps], api_name=False)
-        notes = " ".join(overview.get("notes", []))
-        gr.Markdown("**Registry snapshot:** %s · %s\n\n%s\n\n"
-                    "[Source code](%s) · [Registry dataset](%s) · [Measurement guide](%s/blob/main/docs/THIRD-PARTY-QUICKSTART.md)\n\n"
-                    "Prices are dated reference information, not booking quotes. This CPU app does not execute measurements."
-                    % (md(overview["snapshot"]), md(overview["origin"]), md(notes), SOURCE_URL, REGISTRY_URL, SOURCE_URL), elem_id="footer")
+        footer = gr.Markdown(snapshot_footer(overview), elem_id="footer")
+        linked_outputs = [snapshot_state, tabs, model, group, group_status, table, detail_id, detail, context,
+                          cards_measurements, stats, footer, link_notice, target, lookup_status, lookup_rows,
+                          matched_group, target_json]
+        demo.load(load_link, outputs=linked_outputs, api_name=False)
     return demo
 
 
