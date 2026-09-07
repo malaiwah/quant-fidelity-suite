@@ -112,7 +112,7 @@ import struct
 import sys
 import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
@@ -147,12 +147,13 @@ _REVISION = re.compile(r"[0-9a-f]{40}")
 class GgufArch:
     """Everything this adapter knows about one llama.cpp architecture, as DATA.
 
-    Two entries exist: ``glm5next`` (GLM-5.3-Flash, the original streaming
-    lane) and ``glm-dsa`` (the GLM-5.3 flagship, `GlmMoeDsaForCausalLM`).  Every
-    number here was read from the artifact headers and the official config and
-    then PROVEN against the official BF16 tensors (module docstring;
-    gguf-evidence/glmdsa-layout-audit.json for the flagship).  A GGUF whose
-    ``general.architecture`` is not one of these keys is refused by name.
+    The two production templates are ``glm5next`` (GLM-5.3-Flash) and
+    ``glm-dsa`` (GlmMoeDsaForCausalLM). Their maps and dtype policies are
+    audited against official BF16 tensors (gguf-evidence/glmdsa-layout-audit.json
+    for the flagship). ``arch_from_container`` derives GLM-DSA dimensions from
+    each artifact's headers, including smaller zero-MTP checkpoints; templates
+    are not geometry defaults for those artifacts. Other architecture names
+    are refused rather than interpreted using GLM tensor semantics.
     """
 
     key: str                                  # general.architecture
@@ -171,10 +172,20 @@ class GgufArch:
     geometry_gate: Mapping[str, int]          # <arch>.<key> KV values that must match
     official_f32_suffixes: Tuple[str, ...]    # official-tree float32 tensors (passthrough)
     indexer_shared_copies: bool               # glm-dsa: GGUF ships indexer copies on shared layers
+    nextn_predict_layers: int = 1
+
+    @property
+    def decoder_layers(self) -> int:
+        return self.block_count - self.nextn_predict_layers
+
+    @property
+    def mtp_layers(self) -> Tuple[int, ...]:
+        return tuple(range(self.decoder_layers, self.block_count))
 
     @property
     def mtp_layer(self) -> int:
-        return self.block_count - 1
+        """First MTP index; equals block_count (an absent-layer sentinel) without MTP."""
+        return self.decoder_layers
 
     @property
     def routed_layers(self) -> Tuple[int, ...]:
@@ -283,6 +294,91 @@ def arch_for(architecture: str) -> GgufArch:
     return arch
 
 
+def arch_from_container(container: "GgufContainer", config: Any = None) -> GgufArch:
+    """Read GLM-DSA geometry from headers, cross-checking an optional HF config.
+
+    Architecture name maps and official dtype policy remain production-derived.
+    GLM5NEXT retains its audited fixed geometry; GLM-DSA supports zero or one
+    MTP block and a contiguous leading-dense schedule. Missing/contradictory
+    geometry is refused, never replaced with flagship dimensions.
+    """
+    template = arch_for(container.architecture)
+    if config is not None and not isinstance(config, Mapping):
+        config = config.to_dict()
+    if config is not None and isinstance(config.get("text_config"), Mapping):
+        text = config["text_config"]
+        conflicts = [k for k in text if k in config and config[k] != text[k]
+                     and k not in ("model_type", "architectures", "dtype")]
+        if conflicts:
+            raise _fail(f"top-level/text_config geometry conflicts: {conflicts}")
+        config = text
+
+    def integer(key: str, minimum: int = 1) -> int:
+        values = [f.kv[f"{container.architecture}.{key}"] for f in container.files
+                  if f"{container.architecture}.{key}" in f.kv]
+        if not values or any(type(v) is not int or v < minimum for v in values):
+            raise _fail(f"geometry {key}: missing or invalid integer {values}")
+        if len(set(values)) != 1:
+            raise _fail(f"geometry {key}: split headers disagree: {values}")
+        return values[0]
+
+    if template.key != "glm-dsa":
+        for key, want in template.geometry_gate.items():
+            got = integer(key, 0 if key == "nextn_predict_layers" else 1)
+            if got != want:
+                raise _fail(f"geometry gate: {key} is {got}, expected {want}")
+        return template
+    gate = {key: integer(key, 0 if key in ("nextn_predict_layers",
+                                         "leading_dense_block_count") else 1)
+            for key in template.geometry_gate}
+    gate["rope.dimension_count"] = integer("rope.dimension_count")
+    mtp = gate["nextn_predict_layers"]
+    if mtp not in (0, 1):
+        raise _fail("only zero or one MTP block is supported")
+    decoder_layers = gate["block_count"] - mtp
+    dense = gate["leading_dense_block_count"]
+    nope = gate["attention.key_length_mla"] - gate["rope.dimension_count"]
+    if decoder_layers < 1 or not 0 <= dense < decoder_layers or nope < 1:
+        raise _fail("invalid decoder/dense/MLA non-RoPE geometry")
+    if gate["expert_used_count"] > gate["expert_count"]:
+        raise _fail("expert_used_count exceeds expert_count")
+    if config is not None:
+        if config.get("model_type") != "glm_moe_dsa":
+            raise _fail("glm-dsa container requires a glm_moe_dsa HF config")
+        checks = {
+            "num_hidden_layers": decoder_layers, "num_nextn_predict_layers": mtp,
+            "first_k_dense_replace": dense, "hidden_size": gate["embedding_length"],
+            "moe_intermediate_size": gate["expert_feed_forward_length"],
+            "n_routed_experts": gate["expert_count"],
+            "num_experts_per_tok": gate["expert_used_count"],
+            "vocab_size": gate["vocab_size"], "q_lora_rank": gate["attention.q_lora_rank"],
+            "kv_lora_rank": gate["attention.kv_lora_rank"],
+            "num_attention_heads": gate["attention.head_count"],
+            "qk_nope_head_dim": nope, "qk_rope_head_dim": gate["rope.dimension_count"],
+            "v_head_dim": gate["attention.value_length_mla"],
+            "index_n_heads": gate["attention.indexer.head_count"],
+            "index_head_dim": gate["attention.indexer.key_length"],
+        }
+        for key, want in checks.items():
+            # Absent MTP is an established HF default; other geometry is required.
+            got = config.get(key, 0 if key == "num_nextn_predict_layers" else None)
+            if type(got) is not int or got != want:
+                raise _fail(f"config.{key} is {got!r}, container requires {want}")
+        expected_mlp = ["dense"] * dense + ["sparse"] * (decoder_layers - dense)
+        if config.get("mlp_layer_types", expected_mlp) != expected_mlp:
+            raise _fail("config.mlp_layer_types is not the header's leading-dense schedule")
+    hidden, intermediate = gate["embedding_length"], gate["expert_feed_forward_length"]
+    return replace(template, block_count=gate["block_count"],
+                   dense_layers=tuple(range(dense)), num_experts=gate["expert_count"],
+                   projection_shape={"gate_proj": (intermediate, hidden),
+                                     "up_proj": (intermediate, hidden),
+                                     "down_proj": (hidden, intermediate)},
+                   mla_heads=gate["attention.head_count"],
+                   mla_kv_lora_rank=gate["attention.kv_lora_rank"], mla_k_nope=nope,
+                   mla_v_dim=gate["attention.value_length_mla"], geometry_gate=gate,
+                   nextn_predict_layers=mtp)
+
+
 # glm5next spellings, kept as module constants: the Flash streaming lane
 # (stream_score.py, gguf_decode_bench.py, the offline selftest) addresses them.
 MAIN_ROUTED_LAYERS = GLM5NEXT.routed_layers
@@ -309,9 +405,10 @@ BLOCK_TRAITS = {"F32": (1, 4), "F16": (1, 2), "BF16": (1, 2), "Q8_0": (32, 34),
                 "MXFP4": (32, 17)}
 # Decode support: the types the unsloth Q8_0/UD-Q*_K_XL builds use (Flash and
 # the GLM-5.3 flagship UD-Q4_K_XL), plus the four IQ/K types the flagship
-# UD-Q3_K_XL and UD-IQ4_XS builds mix in.  Every kernel below is bitwise-equal
-# to gguf-py 0.19.0 (selftest-proven on real ranged-fetched blocks).
-SUPPORTED_TYPES = ("F32", "F16", "BF16", "Q8_0", "Q4_K", "Q5_K", "Q6_K",
+# UD-Q3_K_XL and UD-IQ4_XS builds mix in. Their kernels have committed
+# gguf-py 0.19.0 ranged-block goldens. Q4_0 additionally uses the standard
+# block32 signed-scale/nibble layout, not the block256 Q4_K kernel.
+SUPPORTED_TYPES = ("F32", "F16", "BF16", "Q8_0", "Q4_0", "Q4_K", "Q5_K", "Q6_K",
                    "Q3_K", "IQ4_XS", "IQ3_XXS", "IQ3_S")
 
 # Tensors the OFFICIAL BF16 tree stores as float32 (measured: 291 of 38,770,
@@ -385,6 +482,16 @@ def dequant_q8_0(blocks):
     d = _f16cast(blocks[:, :2])
     x = blocks[:, 2:].contiguous().view(torch.int8).to(torch.float32)
     return x * d
+
+
+def dequant_q4_0(blocks):
+    """uint8 [nb,18] -> fp32 [nb,32]; f16 d, low-half then high-half nibbles."""
+    import torch
+
+    d = _f16cast(blocks[:, :2])
+    packed = blocks[:, 2:]
+    q = torch.cat((packed & 15, packed >> 4), dim=1).to(torch.float32) - 8
+    return d * q
 
 
 def _get_scale_min(scales):
@@ -709,6 +816,8 @@ def dequant_bytes(ggml_type: str, raw: bytes, n_elements: int, device=None):
     blocks = buf.reshape(-1, block_bytes)
     if ggml_type == "Q8_0":
         return dequant_q8_0(blocks).reshape(-1)
+    if ggml_type == "Q4_0":
+        return dequant_q4_0(blocks).reshape(-1)
     if ggml_type == "Q4_K":
         return dequant_q4_k(blocks).reshape(-1)
     if ggml_type == "Q5_K":
@@ -1190,6 +1299,8 @@ def classify_tensor(gguf_name: str, arch: GgufArch = GLM5NEXT) -> Tuple[str, ...
     if match is None:
         return ("unmapped",)
     layer, suffix = int(match.group(1)), match.group(2)
+    if not 0 <= layer < arch.block_count:
+        raise _fail(f"{gguf_name}: layer outside declared block_count {arch.block_count}")
     if suffix in _LAYER_DIRECT:
         return ("direct", layer, arch.layer_name(layer, _LAYER_DIRECT[suffix]))
     if suffix in _ROUTED:
@@ -1284,7 +1395,7 @@ def indexer_full_layers_from_config(config: Any, arch: GgufArch) -> Optional[Tup
         raise _fail(f"config.indexer_types carries an unknown entry: {sorted(set(types))}")
     if types[0] != "full":
         raise _fail("config.indexer_types: layer 0 must be 'full' (a shared layer needs a parent)")
-    return tuple(i for i, t in enumerate(types) if t == "full") + (arch.mtp_layer,)
+    return tuple(i for i, t in enumerate(types) if t == "full") + arch.mtp_layers
 
 
 def build_census(container: GgufContainer, arch: Optional[GgufArch] = None,
@@ -1299,7 +1410,7 @@ def build_census(container: GgufContainer, arch: Optional[GgufArch] = None,
     ``verify_shared_indexer_copies`` before a run.
     """
     if arch is None:
-        arch = arch_for(container.architecture)
+        arch = arch_from_container(container)
     if arch.indexer_shared_copies and indexer_full_layers is None:
         raise _fail(
             f"{arch.key}: the census needs the official config's indexer_types "
@@ -1363,7 +1474,7 @@ def build_census(container: GgufContainer, arch: Optional[GgufArch] = None,
         )
     # closure: routed tensors for every routed layer AND the MTP block, all
     # three projections
-    expected_routed_layers = arch.routed_layers + (arch.mtp_layer,)
+    expected_routed_layers = arch.routed_layers + arch.mtp_layers
     missing_routed = [
         routed_tensor_name(layer, projection)
         for layer in expected_routed_layers
@@ -1463,7 +1574,7 @@ def verify_nonrouted_bijection(census: GgufCensus, official_names) -> Dict[str, 
     official = set(official_names)
     routed_official = {
         official_expert_name(layer, expert, projection, arch)
-        for layer in arch.routed_layers + (arch.mtp_layer,)
+        for layer in arch.routed_layers + arch.mtp_layers
         for expert in range(arch.num_experts)
         for projection in PROJECTIONS
     }
@@ -1710,20 +1821,21 @@ def measured_scope(surface: "GgufSurface") -> Dict[str, Any]:
     # one `other` slot, so the absence is stated in the note rather than as a
     # second entry with the same tensor_class -- which would double-count the
     # class in scope_digest and read as a contradiction.
-    vision = ("The vision tower (model.visual.*) is ALSO `other` and is NOT in "
-              "this container -- llama.cpp ships it as a separate mmproj file. "
-              "The streaming lane copies it from the official BF16 tree so the "
-              "model can be constructed at all; the text-only sealed panel never "
-              "executes it, so no vision weight is inside the measured function.")
-    other = next((a for a in assignments if a["tensor_class"] == "other"), None)
-    if other is None:
-        assignments.append({
-            "tensor_class": "other", "treatment": "not_present",
-            "format": "unknown", "bits_per_weight": None, "layer_range": "all",
-            "note": vision,
-        })
-    else:
-        other["note"] += " " + vision
+    if surface.arch.layer_prefix == GLM5NEXT.layer_prefix:
+        vision = ("The vision tower (model.visual.*) is ALSO `other` and is NOT in "
+                  "this container -- llama.cpp ships it as a separate mmproj file. "
+                  "The streaming lane copies it from the official BF16 tree so the "
+                  "model can be constructed at all; the text-only sealed panel never "
+                  "executes it, so no vision weight is inside the measured function.")
+        other = next((a for a in assignments if a["tensor_class"] == "other"), None)
+        if other is None:
+            assignments.append({
+                "tensor_class": "other", "treatment": "not_present",
+                "format": "unknown", "bits_per_weight": None, "layer_range": "all",
+                "note": vision,
+            })
+        else:
+            other["note"] += " " + vision
     quantized = {(a["format"], a["bits_per_weight"]) for a in assignments
                  if a["treatment"] == "quantized"}
     policy = "none" if not quantized else ("uniform" if len(quantized) == 1 else "mixed")
@@ -1791,6 +1903,7 @@ def load_gguf_surface(
     revision: Optional[str] = None,
     require_file_hashes: bool = True,
     indexer_full_layers: Optional[Sequence[int]] = None,
+    config: Any = None,
 ) -> GgufSurface:
     """Open every file of one artifact, gate its geometry and census it.
 
@@ -1800,13 +1913,16 @@ def load_gguf_surface(
     """
     files = [GgufFile(location) for location in locations]
     container = GgufContainer(files)
-    arch = arch_for(container.architecture)
-    for key, want in arch.geometry_gate.items():
-        got = container.geometry_value(key)
-        if got is None or int(got) != want:
-            raise _fail(
-                f"geometry gate: {container.architecture}.{key} is {got!r}, expected {want}"
-            )
+    arch = arch_from_container(container, config)
+    if config is not None:
+        resolved_config = config if isinstance(config, Mapping) else config.to_dict()
+        resolved_config = resolved_config.get("text_config", resolved_config)
+        derived_full = indexer_full_layers_from_config(resolved_config, arch)
+        if indexer_full_layers is not None and derived_full is not None \
+                and tuple(indexer_full_layers) != derived_full:
+            raise _fail("explicit indexer_full_layers disagrees with config.indexer_types")
+        if derived_full is not None:
+            indexer_full_layers = derived_full
     census = build_census(container, arch, indexer_full_layers=indexer_full_layers)
     if revision is not None and _REVISION.fullmatch(revision) is None:
         raise _fail("--gguf-revision must be the immutable 40-hex repo commit")
@@ -2155,7 +2271,7 @@ class GgufExpertSource:
             for layer in layers:
                 row = self.surface.container.tensors[self.surface.census.routed[
                     (layer, projection)]]
-                size = expert_slice_range(row, 0)[1]
+                size = expert_slice_range(row, 0, arch)[1]
                 sizes[row["type"]] = size
                 streamed_bytes += size * arch.num_experts
             per_expert[projection] = {"bytes_by_ggml_type": dict(sorted(sizes.items()))}
@@ -2167,9 +2283,9 @@ class GgufExpertSource:
             "per_expert_bytes": per_expert,
             "streamed_routed_bytes_total": streamed_bytes,
             "types": sorted({row["type"] for row in rows}),
-            "mtp_layer_%d_fused_tensors_present_not_streamed" % arch.mtp_layer: all(
+            **({"mtp_layer_%d_fused_tensors_present_not_streamed" % arch.mtp_layer: all(
                 (arch.mtp_layer, p) in self.surface.census.routed for p in PROJECTIONS
-            ),
+            )} if arch.mtp_layers else {}),
         }
 
     def load(self, *, layer: int, expert: int, projection: str):
@@ -2309,8 +2425,8 @@ def materialize_plan(surface: GgufSurface) -> Dict[str, Any]:
         "architecture": arch.key,
         "family": arch.family,
         "layer_prefix": arch.layer_prefix,
-        "decoder_layers": arch.mtp_layer,
-        "mtp_layer": arch.mtp_layer,
+        "decoder_layers": arch.decoder_layers,
+        "mtp_layer": arch.mtp_layer if arch.mtp_layers else None,
         "layers_with_tensors": sorted(l for l in partition if l != RESIDENT_LAYER),
         "resident_tensors": [census.direct_map[n] for n in partition.get(RESIDENT_LAYER, [])],
         "routed_layers": list(arch.routed_layers),
@@ -2637,8 +2753,9 @@ def surface_summary(surface: GgufSurface) -> Dict[str, Any]:
         "scope_policy": surface.scope_policy,
         "streamed_routed_modules": (len(surface.arch.routed_layers) * surface.arch.num_experts
                                     * len(PROJECTIONS)),
-        "mtp_layer_%d_experts" % surface.arch.mtp_layer:
-            "present_in_artifact_identity_never_streamed_or_executed",
+        **({"mtp_layer_%d_experts" % surface.arch.mtp_layer:
+            "present_in_artifact_identity_never_streamed_or_executed"}
+           if surface.arch.mtp_layers else {}),
         "shared_indexer_copies_not_loaded": len(surface.census.shared_indexer_copies),
         "mla_reconstructed_layers": list(surface.census.mla_layers),
         "mla_kv_b_arrangement": MLA_KV_B_ARRANGEMENT,

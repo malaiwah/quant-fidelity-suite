@@ -10,6 +10,88 @@ What is always enforced, and what strict campaign mode adds on top, is in
 [`CLOUD-RECIPES.md`](CLOUD-RECIPES.md). `bin/measure-cloud --help` is the
 ground truth for every flag.
 
+## Local capture without renting hardware
+
+This route runs on **your measurement machine**, not inside the read-only Explorer
+Space. Listing/preparing is stdlib-only; execution needs the selected fixture's
+published, pinned CPU environment (the new fixtures use Python 3.12,
+Transformers 5.16.1 and Torch 2.11.0+cpu). For production GPU runs, establish the
+appropriate device-specific reference and floor; CPU fixture success is not a
+GPU-kernel qualification.
+
+```bash
+python bin/fidelity_dataset.py architectures list
+python bin/fidelity_dataset.py architectures show minimax-m2
+python bin/fidelity_dataset.py architectures prepare --help
+```
+
+`engines/coverage.json` names actual public checkpoint/evidence revisions and
+original-format limitations. MiniMax M2/M3 and Kimi K2 use native classes. Kimi K3,
+DeepSeek V4's corrected runtime, Spark-X2.5 and IFM K2-Horizon require an explicitly
+reviewed code pin. IFM K2-Horizon is not Moonshot Kimi despite its name. MiniMax M3's
+video-generation task is not measured by next-token text KL.
+
+For example, download the complete public MiniMax M2 fixture and its existing panel
+into fresh directories on your machine:
+
+```bash
+hf download malaiwah/minimax-m2-tiny-random-bf16 \
+  --revision d4825603496f1c636385af403e891aaf20e9afe6 --local-dir "$MODEL_DIR"
+hf download malaiwah/minimax-m2-tiny-cpu-repro-v1 --repo-type dataset \
+  --revision fb59d421b5fdc9fbd58ed00ac0d740eaa2a5e6b3 \
+  --include 'panel/**' --local-dir "$EVIDENCE_DIR"
+python bin/fidelity_dataset.py architectures prepare \
+  --architecture minimax-m2 --model-dir "$MODEL_DIR" \
+  --model-repository malaiwah/minimax-m2-tiny-random-bf16 \
+  --model-revision d4825603496f1c636385af403e891aaf20e9afe6 \
+  --panel "$EVIDENCE_DIR/panel" --author "$AUTHOR" \
+  --dataset-repository "$AUTHOR/my-minimax-capture" \
+  --dataset-id "fidelity--minimax-m2.$AUTHOR.cpu-control" \
+  --out "$NEW_WORKFLOW_DIR"
+```
+
+Set the directory variables and `AUTHOR` to your actual HF handle first. The
+dataset repository is an attribution field, not an instruction to create/upload it.
+Preparation reads local config, token-panel and license bytes, refuses overwrite,
+and writes `workflow.json`, a SHA-bound panel binding, and `run.sh`. Inspect them,
+then execute `bash "$NEW_WORKFLOW_DIR/run.sh"` in the pinned environment.
+Root mode performs two separate captures, verifies tensor content, and forces
+numerical self-comparison. The same generated workflow was exercised end to end.
+
+For **your quantized model**, select `--role quant`, its real immutable model pin,
+`--scope-file` describing the actual intervention, `--reference` naming the sealed
+reference dataset, and the correct `--codec`/`--bits` if applicable. It captures the
+candidate and compares with `--own-heads`. Retain the original config, weights and
+tokenizer identity; do not label a quant with the root's model revision. Bind the
+panel to the root tokenizer with `--tokenizer-root` where appropriate. The recipe
+does not invent common ancestry, a representative evaluation panel, a usable floor,
+or a registry submission. Its shell stops on nonzero results, including advisory
+warnings: inspect the receipt rather than suppressing the return code.
+
+Custom runtimes additionally require all three flags:
+`--trust-remote-code --code-repository OWNER/REPO --code-revision FULL_COMMIT`.
+Use the catalog's tested code pin only after reviewing its code and licenses.
+Code and transitive Python imports are verified before execution; verification is
+**provenance, not a sandbox**. A code pin controls dispatch, never replacement model
+dimensions. Original FP4/FP8/MXFP4 exports can still require a different decoder:
+the BF16 architecture fixture is not evidence that every original format runs.
+
+The layer-outer path reconstructs admitted packed matrices a module at a time.
+Standalone complete safetensors files need no invented shard index; overlapping
+downloads require an exhaustive index and an explicit header-admission barrier.
+Packed component omissions and unknown constituents refuse rather than passing
+integer/FP8 storage through as native weights. Captures retain decoded-module counts,
+reader hashes, original checkpoint identity and activation-quantization omissions.
+
+Canonical dense Qwen35 GGUF captures retain the original wrapper config and an
+explicit derived **text-only model view** in the receipt. No vision weights are
+borrowed or synthesized. A converter/layout attestation is required because a
+historical fused-QKVZ export cannot safely be inferred from the architecture label.
+Qwen4-Exp and Qwen35-MoE GGUF are explicitly outside this bridge.
+
+The paid route below remains independently gated; none of these additions grants
+paid-engine admission or starts a rented instance.
+
 ## 1. Prerequisites
 
 - Stock Python 3.9 or newer; `bin/` needs no local install.

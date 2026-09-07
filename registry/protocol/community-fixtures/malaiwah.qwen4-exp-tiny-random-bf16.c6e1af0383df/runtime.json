@@ -1,0 +1,250 @@
+{
+  "capture_tool": {
+    "expert_fill": {
+      "bytes_filled": 196608,
+      "declined": {},
+      "decoded_slices": 0,
+      "identity": "a byte copy into the fused parameter's slice; bin/selftest_layer_outer.py L4/L6 assert equality with from_pretrained and with the converter path",
+      "layers_filled": 4,
+      "mode": "direct",
+      "reference": "transformers.core_model_loading.MergeModulelist(dim=0) + Concatenate(dim=1)",
+      "slices_filled": 48,
+      "staged_slices": 48,
+      "staging": "pageable",
+      "targets_filled": 8
+    },
+    "file": "engines/tools/hf_capture.py",
+    "head_module_path": "lm_head",
+    "head_resolution": "lm_head",
+    "layer_residency": "stream",
+    "mechanism": "transformers forward pass, layer-outer/window-inner schedule: for each decoder layer the model's own forward is run once per window with the layers below replaying their memoised output and the layers above suspending, so each layer's weights are materialised once for the whole panel. Windows are pushed through sequentially, never batched. Forward pre-hook on model.get_output_embeddings(), fired by the model's own epilogue after the last layer",
+    "model_view": null,
+    "parallel_plan_dropped": false,
+    "resolved_classes": {
+      "config": "transformers.models.qwen4_exp.configuration_qwen4_exp.Qwen4ExpConfig",
+      "model": "transformers.models.qwen4_exp.modeling_qwen4_exp.Qwen4ExpForConditionalGeneration"
+    },
+    "resolved_panel_binding": {
+      "binding": {
+        "content": {
+          "archive": {
+            "algorithm": "sha256(ustar: sorted regular files; mode=0644; uid=gid=mtime=0)",
+            "bytes": 20480,
+            "compression": "none",
+            "format": "ustar",
+            "sha256": "00b9e1a4b443bfdc63d07fdc6a8dde4894fba8556f58db9980ef71448561d93c"
+          },
+          "manifest": [
+            {
+              "bytes": 192,
+              "path": "arrays/causal-mask-64.npy",
+              "sha256": "a38fba8bfd9cd25a81b0e37fa144e8e13e84f769ae7f609ceebc94a64f4f5d02"
+            },
+            {
+              "bytes": 384,
+              "path": "arrays/final-0000.tokens.npy",
+              "sha256": "205530c1886b9885ea555fe4858d2c3c388071678f1ab2ef8f4aa52928903139"
+            },
+            {
+              "bytes": 384,
+              "path": "arrays/final-0001.tokens.npy",
+              "sha256": "8ead0e95a8ad763b7c7ee2fea7ec909d3852cb5b419da02c74a8bfd84ed68947"
+            },
+            {
+              "bytes": 384,
+              "path": "arrays/final-0002.tokens.npy",
+              "sha256": "f1538f0b601b507234d206cdd8729218adc15ba3606d7a3463d843d0555c46b0"
+            },
+            {
+              "bytes": 384,
+              "path": "arrays/final-0003.tokens.npy",
+              "sha256": "3cb4927829ef7e402591b5a82d5162dd82ed16ce82b807c9474a6fa518615781"
+            },
+            {
+              "bytes": 4191,
+              "path": "panel.json",
+              "sha256": "81db1b132dcca90f69a6b2cb54336271ce8786c7b3a22f353802df20388611a1"
+            },
+            {
+              "bytes": 7800,
+              "path": "panel.receipt.json",
+              "sha256": "9233bbc829663568c2c3dac06e0a85a44480df9eafea5e1a7a1bbfc2ee2e7cfd"
+            }
+          ],
+          "manifest_sha256": "f1efad205381c6036ea9885f7832fc3080fbe1843087f04b242d807999475695"
+        },
+        "panel": {
+          "bytes": 4191,
+          "context_length": 64,
+          "contexts": 4,
+          "file": "panel.json",
+          "id": "panel--qwen4-exp-tiny.malaiwah.cpu-smoke-v1",
+          "name": "Tiny random-init Qwen4-Exp synthetic CPU smoke (not a benchmark)",
+          "positions_per_context": 63,
+          "role": "final",
+          "scored_positions_total": 252,
+          "sha256": "81db1b132dcca90f69a6b2cb54336271ce8786c7b3a22f353802df20388611a1",
+          "suite_token_hash_sha256": "d0ae96d07d4a9888d03573ea01b56f774d8854dd7229a675d7ba0f37b0168d9d"
+        },
+        "receipt": {
+          "bytes": 7800,
+          "declared_receipt_sha256": "6eacabd9015f3a395cb8a78aec40544e58c2147c3ec5dace3597513cb5a11773",
+          "file": "panel.receipt.json",
+          "receipt_file_sha256": "9233bbc829663568c2c3dac06e0a85a44480df9eafea5e1a7a1bbfc2ee2e7cfd",
+          "receipt_seal_mode": "self-blank"
+        },
+        "schema": "malaiwah.resolved-panel.v1",
+        "tokenizer": {
+          "files": [
+            {
+              "bytes": 2570,
+              "name": "config.json",
+              "sha256": "e205718d15ca6188eaff9f62d2d15e0615714cfbe18f83b0bcff0d568782a6dc"
+            },
+            {
+              "bytes": 216,
+              "name": "generation_config.json",
+              "sha256": "1d59e0fb61ca550ea84bd37a6bdf553ab364bc2689b17ba69f6a1adbc9d61e34"
+            },
+            {
+              "bytes": 7591,
+              "name": "tokenizer.json",
+              "sha256": "2d1ad04802d16634faa7f5cc8244a55e7a0fe86622c5d237fd4c62474b2f1588"
+            },
+            {
+              "bytes": 340,
+              "name": "tokenizer_config.json",
+              "sha256": "4e462f0abce0d49ffd5cf5fdd558a1a3459b11db8745f5940d3beb6522520cfa"
+            }
+          ],
+          "files_verified": true,
+          "id": "malaiwah/qwen4-exp-tiny-random-bf16",
+          "identity_sha256": "794b742c3c89df76a92fe34292d540ccaa75a8a08f9cbfaf2c8e02d013735f26",
+          "maximum_token_id_exclusive": 264,
+          "receipt": null,
+          "repository": "malaiwah/qwen4-exp-tiny-random-bf16",
+          "revision": "ae3f6ab374b103aabc71418aefebf44579d0685e",
+          "vocab_size": 264
+        }
+      },
+      "binding_file": "panel-binding.json",
+      "binding_file_sha256": "f9cbfdc18520fb908df7aaf6a0e9692b0f68351ebb2eb8f50329e7dcf5a52acf",
+      "tokenizer_equivalences": []
+    },
+    "schedule": "layer-outer",
+    "sha256": "21ef72f4bb73ae52e232d63733494f0dece81009435af1c6a73052815d211c78",
+    "unexpected_tensor_allowlist": null,
+    "verified_code": null,
+    "version": "hf_capture/1",
+    "weights_decode": null,
+    "weights_license": {
+      "bytes": 1071,
+      "dataset_path": "LICENSE",
+      "sha256": "6456969dd395bff476628945088b4cbd9d9c761b01a64e281c07b09daf9f94c3",
+      "source_file": "LICENSE"
+    },
+    "wraps": []
+  },
+  "container": {
+    "image_digest": null,
+    "image_reference": null,
+    "image_repository_digest": null
+  },
+  "format_version": 1,
+  "lane": "other",
+  "lane_identity_inputs": [
+    "torch_version",
+    "cuda_runtime_version",
+    "device_name",
+    "grouped_mm_kernel",
+    "numeric_policy",
+    "attention_backend",
+    "experts_implementation",
+    "parallelism",
+    "ep_emulate",
+    "reduce_order"
+  ],
+  "lane_identity_sha256": "34f640ff350d24093734d97a81c1048ce0443d8b3c7bda0953f8283b8ea9269f",
+  "lane_inferred": false,
+  "receipt_sha256": "4c48d07ff198b1bc8c377b01962876d112cce0f5b59b23cf42b825753a989776",
+  "resources": {
+    "bytes": {
+      "checkpoint_read": 684512,
+      "hidden_d2h": 36624,
+      "weights_h2d": null
+    },
+    "checkpoint_bytes": 708634,
+    "checkpoint_files": 2,
+    "device_name": null,
+    "forward_timing": "wall-clock",
+    "note": "provenance, not identity: peaks and stage seconds this run measured; forward_sum is device time under cuda-events, wall time otherwise; seal covers head serialisation up to this block's assembly",
+    "peak_cuda_allocated_bytes": null,
+    "peak_cuda_reserved_bytes": null,
+    "peak_resident_weight_bytes": 306104,
+    "peak_rss_bytes": 376119296,
+    "rss_units_source": "Linux ru_maxrss",
+    "seconds": {
+      "decode_sum": null,
+      "elapsed": 4.586,
+      "fill_sum": 0.005,
+      "forward_sum": 0.567,
+      "identity": 0.005,
+      "layer_load_max": 0.021,
+      "layer_load_sum": 0.072,
+      "layer_loads": 4,
+      "resident_load": 3.329,
+      "seal": 0.006
+    }
+  },
+  "runtime_environment": {
+    "cold_run": "fidelity--qwen4-exp.community-root-first",
+    "numeric_policy_observed": {
+      "NVIDIA_TF32_OVERRIDE": null,
+      "allow_tf32_cudnn": true,
+      "allow_tf32_matmul": false,
+      "deviates_from_default": false,
+      "float32_matmul_precision": "highest",
+      "observed_at": "seal time, after the forward"
+    },
+    "python": "3.12.14"
+  },
+  "schema": "malaiwah.fidelity-capture-runtime.v1",
+  "source_files": {
+    "bin/fidelity/codepin.py": "ce2a2c04d64adf7a268978a7ffe163c7d4cb5b675d5dc8e156f8a26a3b7bb5fd",
+    "bin/fidelity/panel.py": "0bf78fca76289920e0dc10d58082f42f24f4f2db6e0ecde61daefa4c22de286d",
+    "engines/tools/hf_capture.py": "21ef72f4bb73ae52e232d63733494f0dece81009435af1c6a73052815d211c78",
+    "engines/tools/layer_outer.py": "e3ea5715112663b1b60cf596eeffc2140e49b399809ece89a174bce41a969274"
+  },
+  "stack_fingerprint": {
+    "attention_backend": "model default",
+    "cuda_runtime_version": null,
+    "device": "cpu",
+    "device_name": null,
+    "engine": "transformers-eager",
+    "numeric_policy": "default torch matmul precision; no TF32 override applied",
+    "schema": "malaiwah.stack-fingerprint.v1",
+    "torch_version": "2.11.0+cpu",
+    "transformers_version": "5.16.1"
+  },
+  "stack_fingerprint_sha256": "a83c4de13e06b8727c3a05959e470708b1fa396b0fcbd78c2f9deac666fea6cd",
+  "upstream_receipts": [],
+  "weights": {
+    "checkpoint_files": [
+      {
+        "name": "config.json",
+        "sha256": "e205718d15ca6188eaff9f62d2d15e0615714cfbe18f83b0bcff0d568782a6dc",
+        "size": 2570
+      },
+      {
+        "name": "model.safetensors",
+        "sha256": "d4e68baa72275b3cf509602542c4d5c56a4a9229a13f396dfb451dc59d2af536",
+        "size": 706064
+      }
+    ],
+    "checkpoint_identity_algorithm": "sha256 over the canonical JSON {\"algorithm\": <this string>, \"files\": [{\"name\", \"size\", \"sha256\"}, ...]} of every *.safetensors shard plus config.json in the checkpoint directory, sorted by name; for a llama.cpp GGUF tree the shards are every *.gguf of the one build directory (name = <build>/<file>) and config.json is the official release's copy beside it",
+    "checkpoint_identity_sha256": "3ae4d9c9f4142513f77509f9e9b98487d7ac4711838974dca7978a0caba3248f",
+    "model_revision": "90fcdd52d45a200a1b6d446886638af14957117c",
+    "repository": "malaiwah/qwen4-exp-tiny-random-bf16",
+    "revision": "90fcdd52d45a200a1b6d446886638af14957117c"
+  }
+}

@@ -1,0 +1,292 @@
+{
+  "capture_tool": {
+    "expert_fill": {
+      "bytes_filled": 0,
+      "declined": {
+        "model.layers.0.mlp.experts.down_proj": "model.layers.0.ffn.experts.0.w2.weight routes here but is not an expert slice",
+        "model.layers.0.mlp.experts.gate_up_proj": "model.layers.0.ffn.experts.0.w1.weight routes here but is not an expert slice",
+        "model.layers.1.mlp.experts.down_proj": "model.layers.1.ffn.experts.0.w2.weight routes here but is not an expert slice",
+        "model.layers.1.mlp.experts.gate_up_proj": "model.layers.1.ffn.experts.0.w1.weight routes here but is not an expert slice",
+        "model.layers.2.mlp.experts.down_proj": "model.layers.2.ffn.experts.0.w2.weight routes here but is not an expert slice",
+        "model.layers.2.mlp.experts.gate_up_proj": "model.layers.2.ffn.experts.0.w1.weight routes here but is not an expert slice",
+        "model.layers.3.mlp.experts.down_proj": "model.layers.3.ffn.experts.0.w2.weight routes here but is not an expert slice",
+        "model.layers.3.mlp.experts.gate_up_proj": "model.layers.3.ffn.experts.0.w1.weight routes here but is not an expert slice"
+      },
+      "decoded_slices": 0,
+      "identity": "a byte copy into the fused parameter's slice; bin/selftest_layer_outer.py L4/L6 assert equality with from_pretrained and with the converter path",
+      "layers_filled": 0,
+      "mode": "direct",
+      "reference": "transformers.core_model_loading.MergeModulelist(dim=0) + Concatenate(dim=1)",
+      "slices_filled": 0,
+      "staged_slices": 0,
+      "staging": "pageable",
+      "targets_filled": 0
+    },
+    "file": "engines/tools/hf_capture.py",
+    "head_module_path": "lm_head",
+    "head_resolution": "lm_head",
+    "layer_residency": "stream",
+    "mechanism": "transformers forward pass, layer-outer/window-inner schedule: for each decoder layer the model's own forward is run once per window with the layers below replaying their memoised output and the layers above suspending, so each layer's weights are materialised once for the whole panel. Windows are pushed through sequentially, never batched. Forward pre-hook on model.get_output_embeddings(), fired by the model's own epilogue after the last layer",
+    "model_view": null,
+    "parallel_plan_dropped": false,
+    "resolved_classes": {
+      "config": "qfs_verified_dc9f4c0076f3e7e938bbf2f8aaa91797af22127fbe26c317b3c833cbccb102cc.deepseek_v4_qfs.QFSDeepseekV4Config",
+      "model": "qfs_verified_dc9f4c0076f3e7e938bbf2f8aaa91797af22127fbe26c317b3c833cbccb102cc.deepseek_v4_qfs.QFSDeepseekV4ForCausalLM"
+    },
+    "resolved_panel_binding": {
+      "binding": {
+        "content": {
+          "archive": {
+            "algorithm": "sha256(ustar: sorted regular files; mode=0644; uid=gid=mtime=0)",
+            "bytes": 20480,
+            "compression": "none",
+            "format": "ustar",
+            "sha256": "fa7a95f847c6029c2a2df73ea42f89866880dfa2833b40577ea303ec04ee656b"
+          },
+          "manifest": [
+            {
+              "bytes": 192,
+              "path": "arrays/causal-mask-64.npy",
+              "sha256": "a38fba8bfd9cd25a81b0e37fa144e8e13e84f769ae7f609ceebc94a64f4f5d02"
+            },
+            {
+              "bytes": 384,
+              "path": "arrays/final-0000.tokens.npy",
+              "sha256": "d60234f4b3b6044fb21eca18f7df82de9822f388e4d93d19d8a4eb69d6d490af"
+            },
+            {
+              "bytes": 384,
+              "path": "arrays/final-0001.tokens.npy",
+              "sha256": "20188213e4dfaaed04b1396a4ec46a5a2a6236c87d870c64d7102568d585ceea"
+            },
+            {
+              "bytes": 384,
+              "path": "arrays/final-0002.tokens.npy",
+              "sha256": "00341b323c286034a1c3a80ae66318cb6ce67153c08b1eedf6990b7a0310662c"
+            },
+            {
+              "bytes": 384,
+              "path": "arrays/final-0003.tokens.npy",
+              "sha256": "a13ec9b40a39027396ec752ee8595e0613569b78e27ef25d254f4f9a82d8775a"
+            },
+            {
+              "bytes": 4200,
+              "path": "panel.json",
+              "sha256": "e3310e1f06847d27401153a624bc3f39e60de270a0630b2f52f035ac1daeaf41"
+            },
+            {
+              "bytes": 7813,
+              "path": "panel.receipt.json",
+              "sha256": "c51a1071d9073da0e44d036cf337cdec337f72b601ccc6c04a49e18780b1d462"
+            }
+          ],
+          "manifest_sha256": "a127f243bf80e091fc2a11a2b41b9919e534d319d845b46b7cda4606e221adf9"
+        },
+        "panel": {
+          "bytes": 4200,
+          "context_length": 64,
+          "contexts": 4,
+          "file": "panel.json",
+          "id": "panel--deepseek-v4-tiny.malaiwah.cpu-smoke-v1",
+          "name": "Tiny random-init DeepSeek-V4 text synthetic CPU smoke (not a benchmark)",
+          "positions_per_context": 63,
+          "role": "final",
+          "scored_positions_total": 252,
+          "sha256": "e3310e1f06847d27401153a624bc3f39e60de270a0630b2f52f035ac1daeaf41",
+          "suite_token_hash_sha256": "525cb6c625096ddb0ab19771a252e83223de98cc984733ef7da25a5eb076db36"
+        },
+        "receipt": {
+          "bytes": 7813,
+          "declared_receipt_sha256": "db3b3912f062ff834acbd2b5384b5242f727757e1dbcc487411781aded5ee038",
+          "file": "panel.receipt.json",
+          "receipt_file_sha256": "c51a1071d9073da0e44d036cf337cdec337f72b601ccc6c04a49e18780b1d462",
+          "receipt_seal_mode": "self-blank"
+        },
+        "schema": "malaiwah.resolved-panel.v1",
+        "tokenizer": {
+          "files": [
+            {
+              "bytes": 2023,
+              "name": "config.json",
+              "sha256": "93e0925c4eb97d80a1f5832fe957cd101cd106610a3bc9650fc37679037ae111"
+            },
+            {
+              "bytes": 216,
+              "name": "generation_config.json",
+              "sha256": "1d59e0fb61ca550ea84bd37a6bdf553ab364bc2689b17ba69f6a1adbc9d61e34"
+            },
+            {
+              "bytes": 9367,
+              "name": "tokenizer.json",
+              "sha256": "48e5691e1cb5f5680d917f22f96e57553fcb08d0c3b819f82de272ee4fac3a6f"
+            },
+            {
+              "bytes": 532,
+              "name": "tokenizer_config.json",
+              "sha256": "a4c0a82de638188cb726a5db59668659369934b3af475154b5f3cbe4ecf5295d"
+            }
+          ],
+          "files_verified": true,
+          "id": "malaiwah/deepseek-v4-tiny-random-bf16",
+          "identity_sha256": "02f2483ec7af3d1462525009ddb6b88a77de9a652423cd5844898b677ade4298",
+          "maximum_token_id_exclusive": 272,
+          "receipt": null,
+          "repository": "malaiwah/deepseek-v4-tiny-random-bf16",
+          "revision": "4f9dcfcbabdbe336f5f83e836dd8fac7138dda23",
+          "vocab_size": 272
+        }
+      },
+      "binding_file": "panel-binding.json",
+      "binding_file_sha256": "434f18780ab22ea57d86d6551ccb35c32a7ce5107ac89d66c3181b80d2e63ffd",
+      "tokenizer_equivalences": []
+    },
+    "schedule": "layer-outer",
+    "sha256": "21ef72f4bb73ae52e232d63733494f0dece81009435af1c6a73052815d211c78",
+    "unexpected_tensor_allowlist": null,
+    "verified_code": {
+      "closure_policy": "auto-map-static-relative-imports-and-package-initializers",
+      "closure_sha256": "dc9f4c0076f3e7e938bbf2f8aaa91797af22127fbe26c317b3c833cbccb102cc",
+      "files": [
+        {
+          "git_blob_sha1": "014ff5a8c8c38e644593cb367ebbae8b76d13ca2",
+          "path": "deepseek_v4_qfs.py",
+          "sha256": "82c9af18f8a68dac3a6fee763a55ee6c9a33a49d6f9dfdc196155a34d63d862e",
+          "size": 3368
+        }
+      ],
+      "imported_files": {
+        "deepseek_v4_qfs.py": "82c9af18f8a68dac3a6fee763a55ee6c9a33a49d6f9dfdc196155a34d63d862e"
+      },
+      "mapping_source": null,
+      "repository": "malaiwah/deepseek-v4-tiny-random-bf16",
+      "resolved_classes": {
+        "deepseek_v4_qfs.QFSDeepseekV4Config": "qfs_verified_dc9f4c0076f3e7e938bbf2f8aaa91797af22127fbe26c317b3c833cbccb102cc.deepseek_v4_qfs.QFSDeepseekV4Config",
+        "deepseek_v4_qfs.QFSDeepseekV4ForCausalLM": "qfs_verified_dc9f4c0076f3e7e938bbf2f8aaa91797af22127fbe26c317b3c833cbccb102cc.deepseek_v4_qfs.QFSDeepseekV4ForCausalLM"
+      },
+      "revision": "4f9dcfcbabdbe336f5f83e836dd8fac7138dda23",
+      "schema": "malaiwah.verified-code.v1",
+      "security_scope": "explicitly trusted code; provenance verification is not a sandbox",
+      "verification": "Hub immutable tree plus Git blob/LFS SHA-256; private verified source loader"
+    },
+    "version": "hf_capture/1",
+    "weights_decode": null,
+    "weights_license": {
+      "bytes": 1071,
+      "dataset_path": "LICENSE",
+      "sha256": "6456969dd395bff476628945088b4cbd9d9c761b01a64e281c07b09daf9f94c3",
+      "source_file": "LICENSE"
+    },
+    "wraps": []
+  },
+  "container": {
+    "image_digest": null,
+    "image_reference": null,
+    "image_repository_digest": null
+  },
+  "format_version": 1,
+  "lane": "other",
+  "lane_identity_inputs": [
+    "torch_version",
+    "cuda_runtime_version",
+    "device_name",
+    "grouped_mm_kernel",
+    "numeric_policy",
+    "attention_backend",
+    "experts_implementation",
+    "parallelism",
+    "ep_emulate",
+    "reduce_order"
+  ],
+  "lane_identity_sha256": "34f640ff350d24093734d97a81c1048ce0443d8b3c7bda0953f8283b8ea9269f",
+  "lane_inferred": false,
+  "receipt_sha256": "3c6a55549cf2a4da2f196714b66ff28f18af6ea94b0e87ef24604909801648cf",
+  "resources": {
+    "bytes": {
+      "checkpoint_read": 794516,
+      "hidden_d2h": 36640,
+      "weights_h2d": null
+    },
+    "checkpoint_bytes": 816683,
+    "checkpoint_files": 2,
+    "device_name": null,
+    "forward_timing": "wall-clock",
+    "note": "provenance, not identity: peaks and stage seconds this run measured; forward_sum is device time under cuda-events, wall time otherwise; seal covers head serialisation up to this block's assembly",
+    "peak_cuda_allocated_bytes": null,
+    "peak_cuda_reserved_bytes": null,
+    "peak_resident_weight_bytes": 276892,
+    "peak_rss_bytes": 376623104,
+    "rss_units_source": "Linux ru_maxrss",
+    "seconds": {
+      "decode_sum": null,
+      "elapsed": 4.311,
+      "fill_sum": null,
+      "forward_sum": 0.318,
+      "identity": 0.006,
+      "layer_load_max": 0.031,
+      "layer_load_sum": 0.113,
+      "layer_loads": 4,
+      "resident_load": 3.242,
+      "seal": 0.008
+    }
+  },
+  "runtime_environment": {
+    "cold_run": "fidelity--deepseek-v4.community-root-first",
+    "numeric_policy_observed": {
+      "NVIDIA_TF32_OVERRIDE": null,
+      "allow_tf32_cudnn": true,
+      "allow_tf32_matmul": false,
+      "deviates_from_default": false,
+      "float32_matmul_precision": "highest",
+      "observed_at": "seal time, after the forward"
+    },
+    "python": "3.12.14"
+  },
+  "schema": "malaiwah.fidelity-capture-runtime.v1",
+  "source_files": {
+    "bin/fidelity/codepin.py": "ce2a2c04d64adf7a268978a7ffe163c7d4cb5b675d5dc8e156f8a26a3b7bb5fd",
+    "bin/fidelity/panel.py": "0bf78fca76289920e0dc10d58082f42f24f4f2db6e0ecde61daefa4c22de286d",
+    "engines/tools/hf_capture.py": "21ef72f4bb73ae52e232d63733494f0dece81009435af1c6a73052815d211c78",
+    "engines/tools/layer_outer.py": "e3ea5715112663b1b60cf596eeffc2140e49b399809ece89a174bce41a969274"
+  },
+  "stack_fingerprint": {
+    "attention_backend": "model default",
+    "cuda_runtime_version": null,
+    "device": "cpu",
+    "device_name": null,
+    "engine": "transformers-eager",
+    "numeric_policy": "default torch matmul precision; no TF32 override applied",
+    "schema": "malaiwah.stack-fingerprint.v1",
+    "torch_version": "2.11.0+cpu",
+    "transformers_version": "5.16.1",
+    "verified_code": {
+      "closure_sha256": "dc9f4c0076f3e7e938bbf2f8aaa91797af22127fbe26c317b3c833cbccb102cc",
+      "repository": "malaiwah/deepseek-v4-tiny-random-bf16",
+      "resolved_classes": {
+        "config": "qfs_verified_dc9f4c0076f3e7e938bbf2f8aaa91797af22127fbe26c317b3c833cbccb102cc.deepseek_v4_qfs.QFSDeepseekV4Config",
+        "model": "qfs_verified_dc9f4c0076f3e7e938bbf2f8aaa91797af22127fbe26c317b3c833cbccb102cc.deepseek_v4_qfs.QFSDeepseekV4ForCausalLM"
+      },
+      "revision": "4f9dcfcbabdbe336f5f83e836dd8fac7138dda23"
+    }
+  },
+  "stack_fingerprint_sha256": "d4de1239e0d02e893fc23558cf4807b395712dc4d3eefa8d267a36a31fa5e468",
+  "upstream_receipts": [],
+  "weights": {
+    "checkpoint_files": [
+      {
+        "name": "config.json",
+        "sha256": "93e0925c4eb97d80a1f5832fe957cd101cd106610a3bc9650fc37679037ae111",
+        "size": 2023
+      },
+      {
+        "name": "model.safetensors",
+        "sha256": "07c036238e208cf1e51b430e315592c8161bafc2ebd5c7b73ae0975f21a72558",
+        "size": 814660
+      }
+    ],
+    "checkpoint_identity_algorithm": "sha256 over the canonical JSON {\"algorithm\": <this string>, \"files\": [{\"name\", \"size\", \"sha256\"}, ...]} of every *.safetensors shard plus config.json in the checkpoint directory, sorted by name; for a llama.cpp GGUF tree the shards are every *.gguf of the one build directory (name = <build>/<file>) and config.json is the official release's copy beside it",
+    "checkpoint_identity_sha256": "fc23543a91706d18ac96a8ebfb06e934c582f3ca7f4511b3d51a2cc8e83ecae9",
+    "model_revision": "185723bec10ee57db86e8c269b3c6a811122a0ca",
+    "repository": "malaiwah/deepseek-v4-tiny-random-bf16",
+    "revision": "185723bec10ee57db86e8c269b3c6a811122a0ca"
+  }
+}

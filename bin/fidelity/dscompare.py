@@ -611,13 +611,18 @@ def _decode_gate(reference: Dataset, candidate: Dataset, gates: Dict[str, Any],
             continue
         method = str(decode.get("method") or "")
         summary.append("%s %s" % (side, method or "unnamed"))
-        if method.startswith("exl3-trellis-"):
+        if method.startswith("exl3-trellis-") or method in {
+                "affine-weight-reconstruction", "microfloat-weight-reconstruction",
+                "fp8-block-dequant-to-bf16", "nvfp4-modelopt-dequant-to-bf16",
+                "gguf-dequant-to-bf16"} or decode.get("scope") == "weights_reconstructed":
             reconstructed.append((side, decode))
         schemes = {
             (block.get("quantization_config") or {}).get("activation_scheme")
             for block in (decode, decode.get("mixed_fp8") or {})
             if isinstance(block, dict)}
         declared = sorted(str(s) for s in schemes if s not in (None, "", "none"))
+        if decode.get("activation_quantization"):
+            declared.append("reader-declared activation quantization; see sealed decode evidence")
         if declared:
             activation.append((side, method, declared))
     if reconstructed:
@@ -660,6 +665,12 @@ def _reconstruction_detail(side: str, decode: Dict[str, Any],
                            parity: Optional[Dict[str, Any]]) -> str:
     method = str(decode.get("method"))
     modules = decode.get("modules_decoded")
+    if not method.startswith("exl3-trellis-"):
+        return ("%s was captured from a WEIGHTS-ONLY RECONSTRUCTION (%s, output %s). "
+                "The stored weights were decoded before the model forward; native "
+                "quantized GEMM and serving activation arithmetic are not measured. "
+                "Decoder provenance is in the sealed runtime receipt. The comparison "
+                "is advisory." % (side, method, decode.get("output_dtype", "unspecified")))
     histogram = decode.get("k_histogram") or {}
     parts = ["%s was captured from a WEIGHTS-ONLY RECONSTRUCTION: %s trellis payload "
              "group(s) were decoded to bf16 by engines/tools/exl3hf_surface.py:"
@@ -1901,7 +1912,8 @@ def compare(reference_root: str, candidate_root: str, out_dir: str,
             result["device"] = computed["device"]
             result["vocab_chunk"] = computed["vocab_chunk"]
             result["position_block"] = computed["position_block"]
-            for field in ("replay_backend", "replay_env", "replay_peak_device_bytes"):
+            for field in ("replay_backend", "replay_env", "replay_peak_device_bytes",
+                          "head_applied", "head_applied_reference", "head_applied_candidate"):
                 result[field] = computed.get(field)
     else:
         result = compute(reference, candidate, findings, options)

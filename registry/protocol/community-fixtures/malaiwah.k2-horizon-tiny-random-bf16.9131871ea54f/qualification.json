@@ -1,0 +1,587 @@
+{
+  "canonical_job_sha256": "234a4a2345af527eed5303599101caf569e092156a13b253fc581b6059e40c17",
+  "captures": {
+    "canonical": {
+      "capture_content_digest": "f70d4beaf1f6d766cfd4003ee2c8639ef393b4d0cd3a5ca830ce022b480765f1",
+      "capture_dtype": "BF16",
+      "capture_form": "hidden",
+      "capture_manifest": "capture/manifest.json",
+      "capture_manifest_sha256": "93a1a3b8be9943140c3d1fd2b22dd28487d9335d21ceaea7e2269cbf5ef9bfbc",
+      "capture_schedule": "layer-outer",
+      "capture_tool_file": "engines/tools/hf_capture.py",
+      "dataset_author": "malaiwah",
+      "dataset_id": "fidelity--k2-horizon.community-root",
+      "dataset_license": "other",
+      "dataset_manifest_file_sha256": "17ffcb82bbd8a7dadb1994c1b251f65b4c8407fd5f993dabc9b2e59b2c43bdf5",
+      "dataset_name": "k2-horizon random CPU fixture root",
+      "dataset_repository": "malaiwah/k2-horizon-tiny-fidelity-root-v1",
+      "dataset_sha256": "baeeb09002899e7babeee7248cf447171f72e127edf57515aef3eaa01b909f12",
+      "determinism_run_count": 1,
+      "lane_identity_sha256": "34f640ff350d24093734d97a81c1048ce0443d8b3c7bda0953f8283b8ea9269f",
+      "panel": {
+        "panel_id": "panel--k2-horizon-tiny.malaiwah.cpu-smoke-v1",
+        "panel_receipt_sha256": "ffd15e34a999e513aeb6134dfc16474bee605cf07c7ab6a7833d7a8f86540991",
+        "resolved_binding_evidence": {
+          "binding": {
+            "content": {
+              "archive": {
+                "algorithm": "sha256(ustar: sorted regular files; mode=0644; uid=gid=mtime=0)",
+                "bytes": 20480,
+                "compression": "none",
+                "format": "ustar",
+                "sha256": "90ab2c9bee0e1b346799fe46658cfc088de83b984fdce58b0fb53fcf669233cc"
+              },
+              "manifest": [
+                {
+                  "bytes": 192,
+                  "path": "arrays/causal-mask-64.npy",
+                  "sha256": "a38fba8bfd9cd25a81b0e37fa144e8e13e84f769ae7f609ceebc94a64f4f5d02"
+                },
+                {
+                  "bytes": 384,
+                  "path": "arrays/final-0000.tokens.npy",
+                  "sha256": "d60234f4b3b6044fb21eca18f7df82de9822f388e4d93d19d8a4eb69d6d490af"
+                },
+                {
+                  "bytes": 384,
+                  "path": "arrays/final-0001.tokens.npy",
+                  "sha256": "20188213e4dfaaed04b1396a4ec46a5a2a6236c87d870c64d7102568d585ceea"
+                },
+                {
+                  "bytes": 384,
+                  "path": "arrays/final-0002.tokens.npy",
+                  "sha256": "00341b323c286034a1c3a80ae66318cb6ce67153c08b1eedf6990b7a0310662c"
+                },
+                {
+                  "bytes": 384,
+                  "path": "arrays/final-0003.tokens.npy",
+                  "sha256": "a13ec9b40a39027396ec752ee8595e0613569b78e27ef25d254f4f9a82d8775a"
+                },
+                {
+                  "bytes": 4198,
+                  "path": "panel.json",
+                  "sha256": "ec237a21ba3a617924f78d3e694ebdc25502dd0ac008733390f7ce1163e1c6d1"
+                },
+                {
+                  "bytes": 7809,
+                  "path": "panel.receipt.json",
+                  "sha256": "410bc745e0607fe82f4b29992c1d4dfc5230dc98c14867345a9d2b3738cab922"
+                }
+              ],
+              "manifest_sha256": "5f28f8f70d89cebe35e55f3c80f594f0bc9fbfc951440178412bd6efee32982a"
+            },
+            "panel": {
+              "bytes": 4198,
+              "context_length": 64,
+              "contexts": 4,
+              "file": "panel.json",
+              "id": "panel--k2-horizon-tiny.malaiwah.cpu-smoke-v1",
+              "name": "Tiny random-init K2-Horizon MoVA synthetic CPU smoke (not a benchmark)",
+              "positions_per_context": 63,
+              "role": "final",
+              "scored_positions_total": 252,
+              "sha256": "ec237a21ba3a617924f78d3e694ebdc25502dd0ac008733390f7ce1163e1c6d1",
+              "suite_token_hash_sha256": "525cb6c625096ddb0ab19771a252e83223de98cc984733ef7da25a5eb076db36"
+            },
+            "receipt": {
+              "bytes": 7809,
+              "declared_receipt_sha256": "ffd15e34a999e513aeb6134dfc16474bee605cf07c7ab6a7833d7a8f86540991",
+              "file": "panel.receipt.json",
+              "receipt_file_sha256": "410bc745e0607fe82f4b29992c1d4dfc5230dc98c14867345a9d2b3738cab922",
+              "receipt_seal_mode": "self-blank"
+            },
+            "schema": "malaiwah.resolved-panel.v1",
+            "tokenizer": {
+              "files": [
+                {
+                  "bytes": 1488,
+                  "name": "config.json",
+                  "sha256": "8fa78c70b4e29d824ab8780ef4e2836b329cb54e793a50b5e86e93181bc1257b"
+                },
+                {
+                  "bytes": 216,
+                  "name": "generation_config.json",
+                  "sha256": "1d59e0fb61ca550ea84bd37a6bdf553ab364bc2689b17ba69f6a1adbc9d61e34"
+                },
+                {
+                  "bytes": 9367,
+                  "name": "tokenizer.json",
+                  "sha256": "48e5691e1cb5f5680d917f22f96e57553fcb08d0c3b819f82de272ee4fac3a6f"
+                },
+                {
+                  "bytes": 532,
+                  "name": "tokenizer_config.json",
+                  "sha256": "a4c0a82de638188cb726a5db59668659369934b3af475154b5f3cbe4ecf5295d"
+                }
+              ],
+              "files_verified": true,
+              "id": "malaiwah/k2-horizon-tiny-random-bf16",
+              "identity_sha256": "167823a792bc8db1d9904ba872f6b9bd9f6877852447227271f467a1712e956e",
+              "maximum_token_id_exclusive": 272,
+              "receipt": null,
+              "repository": "malaiwah/k2-horizon-tiny-random-bf16",
+              "revision": "953fbee42d1503202daf18328aa08d8e4e29c9de",
+              "vocab_size": 272
+            }
+          },
+          "binding_file": "panel-binding.json",
+          "binding_file_sha256": "3dd48e8f539328a6ff05a94f6b16da4b1c62d35aeaff519d1e237fd46cee324b",
+          "tokenizer_equivalences": []
+        },
+        "suite_token_hash_sha256": "525cb6c625096ddb0ab19771a252e83223de98cc984733ef7da25a5eb076db36",
+        "tokenizer": {
+          "files": [
+            {
+              "bytes": 1488,
+              "name": "config.json",
+              "sha256": "8fa78c70b4e29d824ab8780ef4e2836b329cb54e793a50b5e86e93181bc1257b"
+            },
+            {
+              "bytes": 216,
+              "name": "generation_config.json",
+              "sha256": "1d59e0fb61ca550ea84bd37a6bdf553ab364bc2689b17ba69f6a1adbc9d61e34"
+            },
+            {
+              "bytes": 9367,
+              "name": "tokenizer.json",
+              "sha256": "48e5691e1cb5f5680d917f22f96e57553fcb08d0c3b819f82de272ee4fac3a6f"
+            },
+            {
+              "bytes": 532,
+              "name": "tokenizer_config.json",
+              "sha256": "a4c0a82de638188cb726a5db59668659369934b3af475154b5f3cbe4ecf5295d"
+            }
+          ],
+          "files_verified": true,
+          "id": "malaiwah/k2-horizon-tiny-random-bf16",
+          "identity_sha256": "167823a792bc8db1d9904ba872f6b9bd9f6877852447227271f467a1712e956e",
+          "maximum_token_id_exclusive": 272,
+          "receipt": null,
+          "repository": "malaiwah/k2-horizon-tiny-random-bf16",
+          "revision": "953fbee42d1503202daf18328aa08d8e4e29c9de",
+          "vocab_size": 272
+        }
+      },
+      "process_label": "fidelity--k2-horizon.community-root-first",
+      "runtime_container": {
+        "image_digest": null,
+        "image_reference": null,
+        "image_repository_digest": null
+      },
+      "runtime_device": "cpu",
+      "runtime_engine": "transformers-eager",
+      "runtime_lane": "other",
+      "runtime_manifest": "runtime/capture-runtime.json",
+      "runtime_manifest_sha256": "61c673b10a291025bc62b728b283b03af2e3132cfa3ce54db53799373ee30b93",
+      "stack_fingerprint_sha256": "8bd02b3ba14484190b96b5bd006dabdc7b9ba1975ca67c625857477a0da423ed",
+      "unexpected_tensor_allowlist": null,
+      "weights_license": {
+        "bytes": 11358,
+        "dataset_path": "LICENSE",
+        "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+        "source_file": "LICENSE"
+      },
+      "weights_license_file_bytes": 11358,
+      "weights_license_file_sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "weights_repository": "malaiwah/k2-horizon-tiny-random-bf16",
+      "weights_revision": "50627d8f2166ee04a172f4a5144dc0b3385b9ee9"
+    },
+    "repeat": {
+      "capture_content_digest": "f70d4beaf1f6d766cfd4003ee2c8639ef393b4d0cd3a5ca830ce022b480765f1",
+      "capture_dtype": "BF16",
+      "capture_form": "hidden",
+      "capture_manifest": "capture/manifest.json",
+      "capture_manifest_sha256": "b90148ede693f61e2cbf4722c6fd4221a93905d735f4e84c71bb13675741f0a0",
+      "capture_schedule": "layer-outer",
+      "capture_tool_file": "engines/tools/hf_capture.py",
+      "dataset_author": "malaiwah",
+      "dataset_id": "fidelity--k2-horizon.community-root",
+      "dataset_license": "other",
+      "dataset_manifest_file_sha256": "6592eb7c321a61098b12522de46f849c79c2c9fcc576a28a3cbbe19997999f8c",
+      "dataset_name": "k2-horizon random CPU fixture root",
+      "dataset_repository": "malaiwah/k2-horizon-tiny-fidelity-root-v1",
+      "dataset_sha256": "fab7596ce49f6bec87bf5fa523340029decf09a525d29f969eee2dfa48e8c550",
+      "determinism_run_count": 1,
+      "lane_identity_sha256": "34f640ff350d24093734d97a81c1048ce0443d8b3c7bda0953f8283b8ea9269f",
+      "panel": {
+        "panel_id": "panel--k2-horizon-tiny.malaiwah.cpu-smoke-v1",
+        "panel_receipt_sha256": "ffd15e34a999e513aeb6134dfc16474bee605cf07c7ab6a7833d7a8f86540991",
+        "resolved_binding_evidence": {
+          "binding": {
+            "content": {
+              "archive": {
+                "algorithm": "sha256(ustar: sorted regular files; mode=0644; uid=gid=mtime=0)",
+                "bytes": 20480,
+                "compression": "none",
+                "format": "ustar",
+                "sha256": "90ab2c9bee0e1b346799fe46658cfc088de83b984fdce58b0fb53fcf669233cc"
+              },
+              "manifest": [
+                {
+                  "bytes": 192,
+                  "path": "arrays/causal-mask-64.npy",
+                  "sha256": "a38fba8bfd9cd25a81b0e37fa144e8e13e84f769ae7f609ceebc94a64f4f5d02"
+                },
+                {
+                  "bytes": 384,
+                  "path": "arrays/final-0000.tokens.npy",
+                  "sha256": "d60234f4b3b6044fb21eca18f7df82de9822f388e4d93d19d8a4eb69d6d490af"
+                },
+                {
+                  "bytes": 384,
+                  "path": "arrays/final-0001.tokens.npy",
+                  "sha256": "20188213e4dfaaed04b1396a4ec46a5a2a6236c87d870c64d7102568d585ceea"
+                },
+                {
+                  "bytes": 384,
+                  "path": "arrays/final-0002.tokens.npy",
+                  "sha256": "00341b323c286034a1c3a80ae66318cb6ce67153c08b1eedf6990b7a0310662c"
+                },
+                {
+                  "bytes": 384,
+                  "path": "arrays/final-0003.tokens.npy",
+                  "sha256": "a13ec9b40a39027396ec752ee8595e0613569b78e27ef25d254f4f9a82d8775a"
+                },
+                {
+                  "bytes": 4198,
+                  "path": "panel.json",
+                  "sha256": "ec237a21ba3a617924f78d3e694ebdc25502dd0ac008733390f7ce1163e1c6d1"
+                },
+                {
+                  "bytes": 7809,
+                  "path": "panel.receipt.json",
+                  "sha256": "410bc745e0607fe82f4b29992c1d4dfc5230dc98c14867345a9d2b3738cab922"
+                }
+              ],
+              "manifest_sha256": "5f28f8f70d89cebe35e55f3c80f594f0bc9fbfc951440178412bd6efee32982a"
+            },
+            "panel": {
+              "bytes": 4198,
+              "context_length": 64,
+              "contexts": 4,
+              "file": "panel.json",
+              "id": "panel--k2-horizon-tiny.malaiwah.cpu-smoke-v1",
+              "name": "Tiny random-init K2-Horizon MoVA synthetic CPU smoke (not a benchmark)",
+              "positions_per_context": 63,
+              "role": "final",
+              "scored_positions_total": 252,
+              "sha256": "ec237a21ba3a617924f78d3e694ebdc25502dd0ac008733390f7ce1163e1c6d1",
+              "suite_token_hash_sha256": "525cb6c625096ddb0ab19771a252e83223de98cc984733ef7da25a5eb076db36"
+            },
+            "receipt": {
+              "bytes": 7809,
+              "declared_receipt_sha256": "ffd15e34a999e513aeb6134dfc16474bee605cf07c7ab6a7833d7a8f86540991",
+              "file": "panel.receipt.json",
+              "receipt_file_sha256": "410bc745e0607fe82f4b29992c1d4dfc5230dc98c14867345a9d2b3738cab922",
+              "receipt_seal_mode": "self-blank"
+            },
+            "schema": "malaiwah.resolved-panel.v1",
+            "tokenizer": {
+              "files": [
+                {
+                  "bytes": 1488,
+                  "name": "config.json",
+                  "sha256": "8fa78c70b4e29d824ab8780ef4e2836b329cb54e793a50b5e86e93181bc1257b"
+                },
+                {
+                  "bytes": 216,
+                  "name": "generation_config.json",
+                  "sha256": "1d59e0fb61ca550ea84bd37a6bdf553ab364bc2689b17ba69f6a1adbc9d61e34"
+                },
+                {
+                  "bytes": 9367,
+                  "name": "tokenizer.json",
+                  "sha256": "48e5691e1cb5f5680d917f22f96e57553fcb08d0c3b819f82de272ee4fac3a6f"
+                },
+                {
+                  "bytes": 532,
+                  "name": "tokenizer_config.json",
+                  "sha256": "a4c0a82de638188cb726a5db59668659369934b3af475154b5f3cbe4ecf5295d"
+                }
+              ],
+              "files_verified": true,
+              "id": "malaiwah/k2-horizon-tiny-random-bf16",
+              "identity_sha256": "167823a792bc8db1d9904ba872f6b9bd9f6877852447227271f467a1712e956e",
+              "maximum_token_id_exclusive": 272,
+              "receipt": null,
+              "repository": "malaiwah/k2-horizon-tiny-random-bf16",
+              "revision": "953fbee42d1503202daf18328aa08d8e4e29c9de",
+              "vocab_size": 272
+            }
+          },
+          "binding_file": "panel-binding.json",
+          "binding_file_sha256": "3dd48e8f539328a6ff05a94f6b16da4b1c62d35aeaff519d1e237fd46cee324b",
+          "tokenizer_equivalences": []
+        },
+        "suite_token_hash_sha256": "525cb6c625096ddb0ab19771a252e83223de98cc984733ef7da25a5eb076db36",
+        "tokenizer": {
+          "files": [
+            {
+              "bytes": 1488,
+              "name": "config.json",
+              "sha256": "8fa78c70b4e29d824ab8780ef4e2836b329cb54e793a50b5e86e93181bc1257b"
+            },
+            {
+              "bytes": 216,
+              "name": "generation_config.json",
+              "sha256": "1d59e0fb61ca550ea84bd37a6bdf553ab364bc2689b17ba69f6a1adbc9d61e34"
+            },
+            {
+              "bytes": 9367,
+              "name": "tokenizer.json",
+              "sha256": "48e5691e1cb5f5680d917f22f96e57553fcb08d0c3b819f82de272ee4fac3a6f"
+            },
+            {
+              "bytes": 532,
+              "name": "tokenizer_config.json",
+              "sha256": "a4c0a82de638188cb726a5db59668659369934b3af475154b5f3cbe4ecf5295d"
+            }
+          ],
+          "files_verified": true,
+          "id": "malaiwah/k2-horizon-tiny-random-bf16",
+          "identity_sha256": "167823a792bc8db1d9904ba872f6b9bd9f6877852447227271f467a1712e956e",
+          "maximum_token_id_exclusive": 272,
+          "receipt": null,
+          "repository": "malaiwah/k2-horizon-tiny-random-bf16",
+          "revision": "953fbee42d1503202daf18328aa08d8e4e29c9de",
+          "vocab_size": 272
+        }
+      },
+      "process_label": "fidelity--k2-horizon.community-root-repeat",
+      "runtime_container": {
+        "image_digest": null,
+        "image_reference": null,
+        "image_repository_digest": null
+      },
+      "runtime_device": "cpu",
+      "runtime_engine": "transformers-eager",
+      "runtime_lane": "other",
+      "runtime_manifest": "runtime/capture-runtime.json",
+      "runtime_manifest_sha256": "28f4ea49efa3652e642a6754d7373b01ce8cbff58fd5badcc46dcc0f6693f484",
+      "stack_fingerprint_sha256": "8bd02b3ba14484190b96b5bd006dabdc7b9ba1975ca67c625857477a0da423ed",
+      "unexpected_tensor_allowlist": null,
+      "weights_license": {
+        "bytes": 11358,
+        "dataset_path": "LICENSE",
+        "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+        "source_file": "LICENSE"
+      },
+      "weights_license_file_bytes": 11358,
+      "weights_license_file_sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "weights_repository": "malaiwah/k2-horizon-tiny-random-bf16",
+      "weights_revision": "50627d8f2166ee04a172f4a5144dc0b3385b9ee9"
+    }
+  },
+  "comparator": {
+    "accumulation_dtype": "float64",
+    "device": "cpu",
+    "estimator_backend": "numpy_fp64",
+    "force_compute_agreed": true,
+    "replay_backend": "numpy:cpu:float32",
+    "requested_replay_device": "numpy",
+    "requested_replay_dtype": "float32",
+    "requested_vocab_chunk": 8192,
+    "vocab_chunk": 8192
+  },
+  "comparison": {
+    "comparison_kind": "reproduction_confirmation",
+    "file_sha256": "27c2d1923fd0e66a7d1eafbcd56b90feea2f7042b47e168e65c5ebb4183ab871",
+    "max_kld": 0.0,
+    "mean_kld": 0.0,
+    "path": "comparison-receipt.json",
+    "receipt_sha256": "bb50aed4c5b1f1570b93e92f9a4569a08bc47c4df923561f1ea986a10196ce07",
+    "top1_agreement": 1.0
+  },
+  "dataset_repository": "malaiwah/k2-horizon-tiny-fidelity-root-v1",
+  "destination_repository": "malaiwah/k2-horizon-tiny-fidelity-root-v1",
+  "job_contract": {
+    "author": "malaiwah",
+    "candidate": null,
+    "container_image_digest": null,
+    "container_image_reference": null,
+    "dataset_id": "fidelity--k2-horizon.community-root",
+    "dataset_license": "other",
+    "dataset_name": "k2-horizon random CPU fixture root",
+    "dataset_repository": "malaiwah/k2-horizon-tiny-fidelity-root-v1",
+    "device": "cpu",
+    "dtype": "bfloat16",
+    "engine": "hf-transformers",
+    "execution_kind": "local",
+    "form": "hidden",
+    "lane": "other",
+    "panel_binding_file_sha256": "3dd48e8f539328a6ff05a94f6b16da4b1c62d35aeaff519d1e237fd46cee324b",
+    "panel_binding_path": "panel-binding.json",
+    "panel_id": "panel--k2-horizon-tiny.malaiwah.cpu-smoke-v1",
+    "panel_receipt_file_bytes": 7809,
+    "panel_receipt_file_sha256": "410bc745e0607fe82f4b29992c1d4dfc5230dc98c14867345a9d2b3738cab922",
+    "panel_receipt_seal_mode": "self-blank",
+    "panel_receipt_sha256": "ffd15e34a999e513aeb6134dfc16474bee605cf07c7ab6a7833d7a8f86540991",
+    "panel_resolved_binding": {
+      "content": {
+        "archive": {
+          "algorithm": "sha256(ustar: sorted regular files; mode=0644; uid=gid=mtime=0)",
+          "bytes": 20480,
+          "compression": "none",
+          "format": "ustar",
+          "sha256": "90ab2c9bee0e1b346799fe46658cfc088de83b984fdce58b0fb53fcf669233cc"
+        },
+        "manifest": [
+          {
+            "bytes": 192,
+            "path": "arrays/causal-mask-64.npy",
+            "sha256": "a38fba8bfd9cd25a81b0e37fa144e8e13e84f769ae7f609ceebc94a64f4f5d02"
+          },
+          {
+            "bytes": 384,
+            "path": "arrays/final-0000.tokens.npy",
+            "sha256": "d60234f4b3b6044fb21eca18f7df82de9822f388e4d93d19d8a4eb69d6d490af"
+          },
+          {
+            "bytes": 384,
+            "path": "arrays/final-0001.tokens.npy",
+            "sha256": "20188213e4dfaaed04b1396a4ec46a5a2a6236c87d870c64d7102568d585ceea"
+          },
+          {
+            "bytes": 384,
+            "path": "arrays/final-0002.tokens.npy",
+            "sha256": "00341b323c286034a1c3a80ae66318cb6ce67153c08b1eedf6990b7a0310662c"
+          },
+          {
+            "bytes": 384,
+            "path": "arrays/final-0003.tokens.npy",
+            "sha256": "a13ec9b40a39027396ec752ee8595e0613569b78e27ef25d254f4f9a82d8775a"
+          },
+          {
+            "bytes": 4198,
+            "path": "panel.json",
+            "sha256": "ec237a21ba3a617924f78d3e694ebdc25502dd0ac008733390f7ce1163e1c6d1"
+          },
+          {
+            "bytes": 7809,
+            "path": "panel.receipt.json",
+            "sha256": "410bc745e0607fe82f4b29992c1d4dfc5230dc98c14867345a9d2b3738cab922"
+          }
+        ],
+        "manifest_sha256": "5f28f8f70d89cebe35e55f3c80f594f0bc9fbfc951440178412bd6efee32982a"
+      },
+      "panel": {
+        "bytes": 4198,
+        "context_length": 64,
+        "contexts": 4,
+        "file": "panel.json",
+        "id": "panel--k2-horizon-tiny.malaiwah.cpu-smoke-v1",
+        "name": "Tiny random-init K2-Horizon MoVA synthetic CPU smoke (not a benchmark)",
+        "positions_per_context": 63,
+        "role": "final",
+        "scored_positions_total": 252,
+        "sha256": "ec237a21ba3a617924f78d3e694ebdc25502dd0ac008733390f7ce1163e1c6d1",
+        "suite_token_hash_sha256": "525cb6c625096ddb0ab19771a252e83223de98cc984733ef7da25a5eb076db36"
+      },
+      "receipt": {
+        "bytes": 7809,
+        "declared_receipt_sha256": "ffd15e34a999e513aeb6134dfc16474bee605cf07c7ab6a7833d7a8f86540991",
+        "file": "panel.receipt.json",
+        "receipt_file_sha256": "410bc745e0607fe82f4b29992c1d4dfc5230dc98c14867345a9d2b3738cab922",
+        "receipt_seal_mode": "self-blank"
+      },
+      "schema": "malaiwah.resolved-panel.v1",
+      "tokenizer": {
+        "files": [
+          {
+            "bytes": 1488,
+            "name": "config.json",
+            "sha256": "8fa78c70b4e29d824ab8780ef4e2836b329cb54e793a50b5e86e93181bc1257b"
+          },
+          {
+            "bytes": 216,
+            "name": "generation_config.json",
+            "sha256": "1d59e0fb61ca550ea84bd37a6bdf553ab364bc2689b17ba69f6a1adbc9d61e34"
+          },
+          {
+            "bytes": 9367,
+            "name": "tokenizer.json",
+            "sha256": "48e5691e1cb5f5680d917f22f96e57553fcb08d0c3b819f82de272ee4fac3a6f"
+          },
+          {
+            "bytes": 532,
+            "name": "tokenizer_config.json",
+            "sha256": "a4c0a82de638188cb726a5db59668659369934b3af475154b5f3cbe4ecf5295d"
+          }
+        ],
+        "files_verified": true,
+        "id": "malaiwah/k2-horizon-tiny-random-bf16",
+        "identity_sha256": "167823a792bc8db1d9904ba872f6b9bd9f6877852447227271f467a1712e956e",
+        "maximum_token_id_exclusive": 272,
+        "receipt": null,
+        "repository": "malaiwah/k2-horizon-tiny-random-bf16",
+        "revision": "953fbee42d1503202daf18328aa08d8e4e29c9de",
+        "vocab_size": 272
+      }
+    },
+    "panel_suite_token_hash_sha256": "525cb6c625096ddb0ab19771a252e83223de98cc984733ef7da25a5eb076db36",
+    "profile": {
+      "compute_dtype": "bfloat16",
+      "device": "cpu",
+      "engine": "hf-transformers",
+      "form": "hidden",
+      "lane": "root",
+      "profile_id": "root-hf-transformers-bf16",
+      "schedule": "two-fresh-process-qualification",
+      "source": "native",
+      "surface": "native-bf16"
+    },
+    "publish_root_to": "malaiwah/k2-horizon-tiny-fidelity-root-v1",
+    "resume_capture": null,
+    "schedule": "layer-outer",
+    "target": {
+      "bits": 16,
+      "codec": "bf16",
+      "path": null,
+      "repo_id": "malaiwah/k2-horizon-tiny-random-bf16",
+      "revision": "50627d8f2166ee04a172f4a5144dc0b3385b9ee9",
+      "surface": "native-bf16"
+    },
+    "tokenizer_identity_sha256": "167823a792bc8db1d9904ba872f6b9bd9f6877852447227271f467a1712e956e",
+    "unexpected_tensor_allowlist": null,
+    "weights_license": {
+      "bytes": 11358,
+      "dataset_path": "LICENSE",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "source_path": "LICENSE"
+    },
+    "weights_repository": "malaiwah/k2-horizon-tiny-random-bf16",
+    "weights_revision": "50627d8f2166ee04a172f4a5144dc0b3385b9ee9"
+  },
+  "job_file_sha256": "92ff2379c80d075b0eb826003ce40d852bb2007b8c6dfa62db0789939bf13b73",
+  "local_execution": {
+    "capture_dataset_bytes": 270792,
+    "cuda_runtime_version": null,
+    "device": "cpu",
+    "device_name": null,
+    "note": "captured on hardware the author controls; there is no provider, no pod attestation, no container pin and no paid meter. resource_requirements are admission minima, not measurements: null means not applicable to an already completed local run; CPU capture uses zero GPUs and zero VRAM. capture_dataset_bytes is the observed combined size of the two sealed datasets.",
+    "pod_attestation": null,
+    "python": "3.12.14",
+    "torch_version": "2.11.0+cpu",
+    "transformers_version": "5.16.1"
+  },
+  "qualified_at": "2026-09-07T18:01:14Z",
+  "receipt_sha256": "0c9f8a733d68eea548658d66830ccbe5814e511b0a309dd5ce235c7f2ac5a387",
+  "reproduction_confirmation": {
+    "both_independently_verified": true,
+    "canonical_dataset_only": true,
+    "distinct_dataset_roots": true,
+    "exact_zero_comparison": true,
+    "two_fresh_processes": true
+  },
+  "schema": "fidelity.root-qualification-receipt.v1",
+  "verification": {
+    "canonical": {
+      "file_sha256": "cf37b0b525c4b44047a47d44a69ded3466072ce6b9dd33a236f1f1e81f044dd3",
+      "receipt_sha256": "9ad137c79f41b035545e3010f54a57eed82da599b83ad05ff4975c1ed32bb75a"
+    },
+    "repeat": {
+      "file_sha256": "121087dfb2af8e28b288737412e9a79245212a5341929000b924b8a6ae62e588",
+      "receipt_sha256": "58000a91201eb92265dd3f67cca85f6cadabb4ed00071b490872453206e9bfe1"
+    }
+  }
+}

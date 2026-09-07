@@ -96,9 +96,38 @@ Complete CPU fixtures and reproduction evidence are published separately:
 | Qwen3.8-27B's Qwen3.5 hybrid | [qwen3-5-tiny-random-bf16](https://huggingface.co/malaiwah/qwen3-5-tiny-random-bf16) | [CPU proof](https://huggingface.co/datasets/malaiwah/qwen3-5-tiny-cpu-repro-v1) |
 | GLM-5.3-Flash's GLM5-Next | [glm5-next-tiny-random-bf16](https://huggingface.co/malaiwah/glm5-next-tiny-random-bf16) | [CPU proof](https://huggingface.co/datasets/malaiwah/glm5-next-tiny-cpu-repro-v1) |
 | Qwen3.8-Flash-Next's Qwen4-Exp | [qwen4-exp-tiny-random-bf16](https://huggingface.co/malaiwah/qwen4-exp-tiny-random-bf16) | [CPU proof](https://huggingface.co/datasets/malaiwah/qwen4-exp-tiny-cpu-repro-v1) |
+| MiniMax M2 / M2.7 | [minimax-m2-tiny-random-bf16](https://huggingface.co/malaiwah/minimax-m2-tiny-random-bf16) | [CPU proof](https://huggingface.co/datasets/malaiwah/minimax-m2-tiny-cpu-repro-v1) |
+| MiniMax M3 autoregressive text path | [minimax-m3-tiny-random-bf16](https://huggingface.co/malaiwah/minimax-m3-tiny-random-bf16) | [CPU proof](https://huggingface.co/datasets/malaiwah/minimax-m3-tiny-cpu-repro-v1) |
+| Kimi K2.5 / K2.7 family | [kimi-k25-tiny-random-bf16](https://huggingface.co/malaiwah/kimi-k25-tiny-random-bf16) | [CPU proof](https://huggingface.co/datasets/malaiwah/kimi-k25-tiny-cpu-repro-v1) |
+| Kimi K3 | [kimi-k3-tiny-random-bf16](https://huggingface.co/malaiwah/kimi-k3-tiny-random-bf16) | [CPU proof](https://huggingface.co/datasets/malaiwah/kimi-k3-tiny-cpu-repro-v1) |
+| DeepSeek V4 text path | [deepseek-v4-tiny-random-bf16](https://huggingface.co/malaiwah/deepseek-v4-tiny-random-bf16) | [CPU proof](https://huggingface.co/datasets/malaiwah/deepseek-v4-tiny-cpu-repro-v1) |
+| Spark-X2.5 | [spark2-5-tiny-random-bf16](https://huggingface.co/malaiwah/spark2-5-tiny-random-bf16) | [CPU proof](https://huggingface.co/datasets/malaiwah/spark2-5-tiny-cpu-repro-v1) |
+| IFM K2-Horizon MoVA | [k2-horizon-tiny-random-bf16](https://huggingface.co/malaiwah/k2-horizon-tiny-random-bf16) | [CPU proof](https://huggingface.co/datasets/malaiwah/k2-horizon-tiny-cpu-repro-v1) |
 
 These are random-init text-path tests, not production model-quality measurements.
 They do not add a capture/rental action to this read-only app or create registry rows.
+
+The [machine-readable coverage catalog](engines/coverage.json) separates native
+architecture proofs, decoded storage formats, and original-release limitations.
+`python bin/fidelity_dataset.py architectures list` discovers the fixtures;
+`architectures show NAME` gives immutable pins, licenses and runtime restrictions.
+`architectures prepare --help` prepares bound local capture/compare commands without
+executing a model, downloading weights, renting hardware or publishing.
+See the [local capture workflow](docs/THIRD-PARTY-QUICKSTART.md#local-capture-without-renting-hardware).
+
+The new packed readers cover GPTQ v1/v2 INT4, AWQ GEMM INT4, compressed-tensors
+INT4/INT8, MLX affine 4/8-bit, CT MXFP4/NVFP4, ModelOpt NVFP4 and supported explicit
+mixed NVFP4/FP8 constituents, and block FP8 with UE8M0 scales. Canonical dense Qwen35
+GGUF adds a separately disclosed native text-only view; it is not Qwen4-Exp,
+Qwen35-MoE, historical fused-QKVZ, vision, MTP or llama.cpp serving support.
+Reconstructed-weight results remain **advisory**, with actual own-head replay and
+activation omissions recorded. RTN **format fixtures are not optimizer-quality
+benchmarks**. Existing EXL3 and flagship decode contracts remain separate.
+
+The [frozen quantized-repository survey](engines/quant-coverage-audit.json) retains
+all 100 sampled repositories and classification rules. Forty-seven had insufficient
+format metadata; a family name or `quantized` tag does not prove an executable
+architecture/layout combination. Fixture-matrix coverage is not global Hub coverage.
 
 Run locally, without changing the CLI's dependency contract:
 

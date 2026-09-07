@@ -1011,9 +1011,9 @@ def _body(work):
     plans = LO.checkpoint_decode_plans(_Config(real_config), nv_dir, lambda **kw: events.append(kw))
     nv_plan = plans[4]
     check("L17a a modelopt NVFP4 config over a full-census index plans the nvfp4 decode "
-          "and nothing else (6-tuple: fp8/trellis/gguf None)",
-          len(plans) == 6 and plans[0] is None and plans[1] is None and plans[2] is None
-          and plans[5] is None
+          "and nothing else",
+          len(plans) == 7 and plans[0] is None and plans[1] is None and plans[2] is None
+          and plans[5] is None and plans[6] is None
           and nv_plan is not None and nv_plan["quant_method"] == "modelopt"
           and nv_plan["quant_algo"] == "NVFP4" and nv_plan["group_size"] == 16
           and nv_plan["activation_scheme"] == "static-nvfp4-not-applied"

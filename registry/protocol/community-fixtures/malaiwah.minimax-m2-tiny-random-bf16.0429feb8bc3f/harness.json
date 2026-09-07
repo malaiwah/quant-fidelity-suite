@@ -1,0 +1,97 @@
+{
+  "harness_id": "harness--89df8965fe821f7b",
+  "recorded": true,
+  "boundary": "estimator_closure/v1",
+  "covers": [
+    "auxiliary_metrics",
+    "determinism",
+    "metric.value"
+  ],
+  "repository": {
+    "url": "https://github.com/malaiwah/quant-fidelity-suite",
+    "commit": "c8c354e54217c47fc7d04c4f0308baa5da5553d1",
+    "commit_role": "parent",
+    "dirty": true
+  },
+  "code_digests": [
+    {
+      "role": "capture_reference",
+      "path": "engines/tools/hf_capture.py",
+      "sha256": "21ef72f4bb73ae52e232d63733494f0dece81009435af1c6a73052815d211c78"
+    },
+    {
+      "role": "capture_repeat",
+      "path": "engines/tools/hf_capture.py",
+      "sha256": "21ef72f4bb73ae52e232d63733494f0dece81009435af1c6a73052815d211c78"
+    },
+    {
+      "role": "common",
+      "path": "bin/fidelity/common.py",
+      "sha256": "b7e25fa16325440eb7f57e0c051d9473bb3e6ac5970fc1d9085673ebeb93f31a"
+    },
+    {
+      "role": "comparator",
+      "path": "bin/fidelity/dscompare.py",
+      "sha256": "c2dfa4dd73dd7baba77b2bef34e74f125e0eb8f4ec78fe1f9df6935d97ff23ce"
+    },
+    {
+      "role": "estimator",
+      "path": "engines/tools/kld_report.py",
+      "sha256": "63d218bf254a261c34f99444580345c4e7b2bd600dedff511198a186c9dfdfb2"
+    },
+    {
+      "role": "format",
+      "path": "bin/fidelity/dsformat.py",
+      "sha256": "7a3d41066b55e16b9b440e0dcd836d4253cd18d13bc28a2e9209d77be5cc4424"
+    },
+    {
+      "role": "front_end",
+      "path": "bin/fidelity_dataset.py",
+      "sha256": "05ee98877e7c299e696af4d46bc30f95233ac7c9e9e8fbe7032c11e692507b3e"
+    },
+    {
+      "role": "manifest",
+      "path": "bin/fidelity/dsmanifest.py",
+      "sha256": "f70e2ffc9c1ca2352c31fd51acddf50870e19dae4ef56ad6c95a308bb96ca096"
+    },
+    {
+      "role": "model_code_binding",
+      "path": "bin/fidelity/codepin.py",
+      "sha256": "ce2a2c04d64adf7a268978a7ffe163c7d4cb5b675d5dc8e156f8a26a3b7bb5fd"
+    },
+    {
+      "role": "packed_admission",
+      "path": "engines/tools/quant_stream.py",
+      "sha256": "7c6cc4cbe399d066eaff80ccf1e3d3190185f194644f738a404d3c537ad8e1ab"
+    },
+    {
+      "role": "panel",
+      "path": "bin/fidelity/panel.py",
+      "sha256": "0bf78fca76289920e0dc10d58082f42f24f4f2db6e0ecde61daefa4c22de286d"
+    },
+    {
+      "role": "schedule_reference",
+      "path": "engines/tools/layer_outer.py",
+      "sha256": "e3ea5715112663b1b60cf596eeffc2140e49b399809ece89a174bce41a969274"
+    },
+    {
+      "role": "schedule_repeat",
+      "path": "engines/tools/layer_outer.py",
+      "sha256": "e3ea5715112663b1b60cf596eeffc2140e49b399809ece89a174bce41a969274"
+    }
+  ],
+  "tool_versions": {
+    "capture_huggingface_hub": "1.30.0",
+    "capture_numpy": "2.5.3",
+    "capture_python": "3.12.14",
+    "capture_safetensors": "0.8.0",
+    "capture_tokenizers": "0.23.2",
+    "capture_torch": "2.11.0+cpu",
+    "capture_transformers": "5.16.1",
+    "comparison_backend": "numpy_fp64",
+    "comparison_torch": "not installed",
+    "numpy": "2.5.3",
+    "python": "3.12.14"
+  },
+  "note": "Native Torch CPU captures; the actual final comparison uses the existing Torch-free NumPy fp64 estimator. All capture source digests match retained runtime evidence. Torch float64 exp intermittently hit SIGILL on this old CPU; failed logs remain local and no failed numeric result was promoted."
+}

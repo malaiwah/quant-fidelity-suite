@@ -19,6 +19,8 @@ ALLOW_PATTERNS = [
     "registry/tools/*.py", "registry/data/*.jsonl", "registry/index.json",
     "registry/schema/*.json", "docs/schema/*.json",
     "docs/CARD-ANNOTATION-SPEC.md",
+    "docs/THIRD-PARTY-QUICKSTART.md",
+    "engines/coverage.json", "engines/quant-coverage-audit.json",
     "registry/docs/examples/dione-q4.submission.json",
 ]
 

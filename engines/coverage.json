@@ -1,0 +1,1648 @@
+{
+  "schema": "qfs.coverage-catalog.v1",
+  "date": "2026-09-07",
+  "meaning": "Architecture CPU fixture proofs, format readers and actual whole-model captures are distinct coverage levels. This catalog does not admit paid jobs.",
+  "architectures": [
+    {
+      "id": "glm_moe_dsa",
+      "model_types": [
+        "glm_moe_dsa"
+      ],
+      "runtime_mode": "native",
+      "fixture": {
+        "repository": "malaiwah/glm-moe-dsa-tiny-random-bf16",
+        "revision": "a1a973330e4e912678adbd8ea41e8b86b1c9dccb"
+      },
+      "evidence": {
+        "repository": "malaiwah/glm-moe-dsa-tiny-cpu-repro-v1",
+        "revision": "36076635672659f399705cfc61074a312938866a"
+      },
+      "scope": "Native text MLA/MoE/DSA CPU reproduction; no MTP or production quantizer claim.",
+      "release_status": "public_anonymously_byte_verified"
+    },
+    {
+      "id": "qwen3_5",
+      "model_types": [
+        "qwen3_5",
+        "qwen3_5_text"
+      ],
+      "runtime_mode": "native",
+      "fixture": {
+        "repository": "malaiwah/qwen3-5-tiny-random-bf16",
+        "revision": "a430e41d5814ba5e7bfa5ee29d86935aac56d95d"
+      },
+      "evidence": {
+        "repository": "malaiwah/qwen3-5-tiny-cpu-repro-v1",
+        "revision": "5ac290d96a959b2bbeaab1f37f0bb2f427edc3f6"
+      },
+      "scope": "Dense hybrid GatedDeltaNet/full-attention text path; actual small vision weights, text-only proof.",
+      "release_status": "public_anonymously_byte_verified"
+    },
+    {
+      "id": "glm5_next",
+      "model_types": [
+        "glm5_next",
+        "glm5_next_text"
+      ],
+      "runtime_mode": "native",
+      "fixture": {
+        "repository": "malaiwah/glm5-next-tiny-random-bf16",
+        "revision": "4c31348e3beb1a8a6bd73d055464362953d768ea"
+      },
+      "evidence": {
+        "repository": "malaiwah/glm5-next-tiny-cpu-repro-v1",
+        "revision": "b88f025e1e4de0288b8a5934b8f3435f474b53c1"
+      },
+      "scope": "KDA/DSA, mHC, pooled sparse text attention; text-only proof.",
+      "release_status": "public_anonymously_byte_verified"
+    },
+    {
+      "id": "qwen4_exp",
+      "model_types": [
+        "qwen4_exp",
+        "qwen4_exp_text"
+      ],
+      "runtime_mode": "native",
+      "fixture": {
+        "repository": "malaiwah/qwen4-exp-tiny-random-bf16",
+        "revision": "90fcdd52d45a200a1b6d446886638af14957117c"
+      },
+      "evidence": {
+        "repository": "malaiwah/qwen4-exp-tiny-cpu-repro-v1",
+        "revision": "00a3c353351ceb996d4b2c5d96e758bc145e0d66"
+      },
+      "scope": "QSA, gated residuals, MoE and real n-gram/PLE; text-only proof.",
+      "release_status": "public_anonymously_byte_verified"
+    },
+    {
+      "id": "minimax-m2",
+      "model_types": [
+        "minimax_m2"
+      ],
+      "runtime_mode": "native",
+      "fixture": {
+        "repository": "malaiwah/minimax-m2-tiny-random-bf16",
+        "revision": "d4825603496f1c636385af403e891aaf20e9afe6",
+        "capture_revision": "1a1e14a0861757924b84078efa98dfa6332614c0",
+        "parameters": 55024
+      },
+      "evidence": {
+        "repository": "malaiwah/minimax-m2-tiny-cpu-repro-v1",
+        "revision": "fb59d421b5fdc9fbd58ed00ac0d740eaa2a5e6b3"
+      },
+      "release_status": "public_anonymously_byte_verified",
+      "scope": {
+        "dispatch_note": "Native MiniMaxM2ForCausalLM; trust_remote_code is not needed.",
+        "model_type": "minimax_m2",
+        "native_class": "MiniMaxM2ForCausalLM",
+        "upstream_architecture": "MiniMaxM2ForCausalLM"
+      },
+      "upstream": {
+        "card": "upstream-card.txt",
+        "config": "upstream-config.json",
+        "license": "LICENSE",
+        "repository": "MiniMaxAI/MiniMax-M2.7",
+        "revision": "d494266a4affc0d2995ba1fa35c8481cbd84294b"
+      },
+      "tested_runtime": {
+        "classification_rule": "Release status is passed only after generator parity, strict native/QFS load, runtime probes, two cold captures, strict validate/verify and actual 252 positive float64 zeros all succeed. Do not classify from this support file alone.",
+        "required_reports": [
+          "native-verification.json",
+          "regeneration-verification.json",
+          "evidence-summary.json",
+          "hub-checkpoint-verification.json"
+        ],
+        "status": "not_executed_by_fixture_agent; release requires measured proof"
+      },
+      "prerequisites": {
+        "additional_dependencies": [],
+        "capture_network": "offline; staging and anonymous download verification use HF network",
+        "cpu_threads": 2,
+        "numpy": "2.5.3",
+        "python": "3.12",
+        "remote_code": false,
+        "requirements_file": "requirements-cpu.txt",
+        "runtime_patches": [],
+        "safetensors": "0.8.0",
+        "tokenizers": "0.23.2",
+        "torch": "2.11.0+cpu",
+        "transformers": "5.16.1"
+      },
+      "original_format_limits": "Official config requests dynamic FP8 e4m3fn with 128x128 blocks (router gate/correction bias/head exclusions), despite nominal dtype BF16. Native CPU random BF16 fixture does not exercise FP8 loading, dequantization or kernels. Original capture requires already-downloaded licensed weights and a supported sufficiently provisioned FP8 runtime, normally CUDA; no production hardware fit or performance claim. Original config advertises use_mtp=true, three MTP modules/one transformer layer; the native M2 causal LM has no MTP implementation. Never add dummy MTP state. Unexpected source MTP tensors must remain a strict refusal unless an exact reviewed tensor-name inventory is independently pinned with QFS existing unexpected-tensor allowlist; no broad missing/mismatch flags are permitted.",
+      "licensing": {
+        "fixture_repository_license": "Exact upstream LICENSE retained conservatively; independently generated random weights, no upstream weights copied. Native Transformers runtime separately Apache-2.0. No vendored runtime Python.",
+        "summary": "MiniMax-M2.7 pinned NON-COMMERCIAL LICENSE: personal/noncommercial uses permitted; any commercial use requires prior written MiniMax authorization and Built with MiniMax M2.7 attribution. Exact upstream terms retained; no claim that the upstream release is MIT."
+      },
+      "cpu_reproduction": {
+        "status": "passed",
+        "evidence_file": "evidence-summary.json",
+        "claims": "two independent cold captures; full-vocabulary forced numerical replay; random architecture path, not trained quality"
+      }
+    },
+    {
+      "id": "minimax-m3",
+      "model_types": [
+        "minimax_m3_vl"
+      ],
+      "runtime_mode": "native",
+      "fixture": {
+        "repository": "malaiwah/minimax-m3-tiny-random-bf16",
+        "revision": "ca904dff2941004a3f5bd5af62064fcfb34da8b9",
+        "capture_revision": "2776fc0ce078f3ba5ca9a81efec304f6fa7a89f4",
+        "parameters": 72000
+      },
+      "evidence": {
+        "repository": "malaiwah/minimax-m3-tiny-cpu-repro-v1",
+        "revision": "bdd143167eaf86bdd87ba45f36b74036dcb2a17d"
+      },
+      "release_status": "public_anonymously_byte_verified",
+      "scope": {
+        "dispatch_note": "Native5.16.1 exports the official MiniMaxM3SparseForConditionalGeneration spelling, NOT MiniMaxM3VLForConditionalGeneration. Nested native text class is MiniMaxM3VLForCausalLM, whereas official text_config.architectures names MiniMaxM3SparseForCausalLM.",
+        "model_type": "minimax_m3_vl",
+        "native_class": "MiniMaxM3SparseForConditionalGeneration",
+        "upstream_architecture": "MiniMaxM3SparseForConditionalGeneration"
+      },
+      "upstream": {
+        "card": "upstream-card.txt",
+        "config": "upstream-config.json",
+        "license": "LICENSE",
+        "repository": "MiniMaxAI/MiniMax-M3",
+        "revision": "f0e1c1e04d40177e4673a22097036854f536e9c0"
+      },
+      "tested_runtime": {
+        "classification_rule": "Release status is passed only after generator parity, strict native/QFS load, runtime probes, two cold captures, strict validate/verify and actual 252 positive float64 zeros all succeed. Do not classify from this support file alone.",
+        "required_reports": [
+          "native-verification.json",
+          "regeneration-verification.json",
+          "evidence-summary.json",
+          "hub-checkpoint-verification.json"
+        ],
+        "status": "not_executed_by_fixture_agent; release requires measured proof"
+      },
+      "prerequisites": {
+        "additional_dependencies": [],
+        "capture_network": "offline; staging and anonymous download verification use HF network",
+        "cpu_threads": 2,
+        "numpy": "2.5.3",
+        "python": "3.12",
+        "remote_code": false,
+        "requirements_file": "requirements-cpu.txt",
+        "runtime_patches": [],
+        "safetensors": "0.8.0",
+        "tokenizers": "0.23.2",
+        "torch": "2.11.0+cpu",
+        "transformers": "5.16.1"
+      },
+      "original_format_limits": "Official checkpoint is BF16 (no quantization_config); full model is approximately 428B parameters and is not a tiny-CPU workload. Native eager/SDPA implements learned sparse selection using a dense materialized mask, not the production MSA sparse kernel. Official text config advertises seven MTP modules/one next-token predictor; native class intentionally omits MTP and has a narrow upstream unexpected-key rule (^|\\.)mtp\\..*. Tiny checkpoint contains no MTP keys. Existing QFS layer_outer mapping handles source language_model.model.layers.N -> native model.language_model.layers.N; this fixture does not duplicate that conversion. No original-scale, MSA-kernel, video, left-padding equivalence or original-quality measurement is claimed.",
+      "licensing": {
+        "fixture_repository_license": "Exact upstream LICENSE retained conservatively; independently generated random weights, no upstream weights copied. Native Transformers runtime separately Apache-2.0. No vendored runtime Python.",
+        "summary": "MiniMax-M3 pinned MINIMAX COMMUNITY LICENSE: commercial use requires Built with MiniMax M3 attribution and one-time email notice; products/services exceeding US$20M annual revenue require prior written authorization. Prohibited-use appendix applies. Exact upstream terms retained; no claim that upstream is MIT."
+      },
+      "cpu_reproduction": {
+        "status": "passed",
+        "evidence_file": "evidence-summary.json",
+        "claims": "two independent cold captures; full-vocabulary forced numerical replay; random architecture path, not trained quality"
+      }
+    },
+    {
+      "id": "kimi-k25",
+      "model_types": [
+        "kimi_k25"
+      ],
+      "runtime_mode": "native",
+      "fixture": {
+        "repository": "malaiwah/kimi-k25-tiny-random-bf16",
+        "revision": "721c97dd956f23b6b5c1040d633539a162a19094",
+        "capture_revision": "07fec4f0e008a5947066b80cc7cb7c8058e5cfe0",
+        "parameters": 238656
+      },
+      "evidence": {
+        "repository": "malaiwah/kimi-k25-tiny-cpu-repro-v1",
+        "revision": "38c777c0440a75c05df14584b3497ec8aa646d03"
+      },
+      "release_status": "public_anonymously_byte_verified",
+      "scope": "Complete Kimi_K25ForConditionalGeneration native wrapper with real 1-layer MoonViT, 4-layer DeepseekV3 MLA text (one dense + three MoE layers), 4 routed/top2 + 1 shared expert, q/KV low-rank projections and full untied vocabulary head.",
+      "upstream": {
+        "repository": "moonshotai/Kimi-K2.7-Code",
+        "revision": "74797c9c62378b951a1f6fcf5c4631024e9b8bef"
+      },
+      "tested_runtime": {
+        "cpu_threads": 2,
+        "model_class": "Kimi_K25ForConditionalGeneration",
+        "model_pin": "07fec4f0e008a5947066b80cc7cb7c8058e5cfe0",
+        "proof": {
+          "captures": "evidence-summary.json",
+          "native": "native-verification.json",
+          "regeneration": "regeneration-verification.json",
+          "zero_kl": {
+            "direction": "reference_to_candidate",
+            "direction_label": "KL(reference || candidate)",
+            "higher_is_better": false,
+            "name": "mean_tokenwise_kld",
+            "units": "nats",
+            "value": 0.0
+          }
+        },
+        "status": "passed",
+        "torch": "2.11.0+cpu",
+        "transformers": "5.16.1"
+      },
+      "prerequisites": [
+        "Pinned CPU environment in requirements-cpu.txt",
+        "Reviewed QFS checkout with native ImageTextToText fallback and optional explicit pinned custom-code support",
+        "HF write token for private stage; no publication without --publish",
+        "No extra Python dependencies required by runtime fork; no FLA/einops/causal-conv1d/triton imports required"
+      ],
+      "original_format_limits": "Published source is nested compressed-tensors pack-quantized symmetric INT4 group32. BF16 random fixture is not a dequantization or test of those tensors. Native 5.16.1 Kimi_K25Config does not hoist nested quantization_config; direct packed loading is unverified and may fail strict missing/unexpected key checks. Original upstream serving stack recommends Transformers >=4.57.1,<5.0.0 with compatible vLLM/SGLang/KTransformers and compressed-tensors INT4 kernels. For QFS CPU use a complete independently verified standard BF16/FP32 checkpoint retaining original config/format provenance; do not strip quantization metadata to load packed tensors.",
+      "licensing": "Upstream Modified MIT retained with Kimi K2.7 Code attribution threshold; native Transformers implementation Apache-2.0. Independently generated random weights; no upstream tensors copied.",
+      "cpu_reproduction": {
+        "status": "passed",
+        "evidence_file": "evidence-summary.json",
+        "claims": "two independent cold captures; full-vocabulary forced numerical replay; random architecture path, not trained quality"
+      }
+    },
+    {
+      "id": "kimi-k3",
+      "model_types": [
+        "kimi_k3"
+      ],
+      "runtime_mode": "pinned_code",
+      "fixture": {
+        "repository": "malaiwah/kimi-k3-tiny-random-bf16",
+        "revision": "3c1e2f22e5ccfe37addc9906bfb0fdea6ad00e16",
+        "capture_revision": "3a12212e4692e70b531f541e20f6237efb79637e",
+        "parameters": 269688
+      },
+      "evidence": {
+        "repository": "malaiwah/kimi-k3-tiny-cpu-repro-v1",
+        "revision": "b04b508851c12cfa3c1d2cb53c0728670582ded5"
+      },
+      "release_status": "public_anonymously_byte_verified",
+      "scope": "Complete upstream KimiK3ForConditionalGeneration wrapper with real 1-layer MoonViT-V2 and patchmergerv2; 4-layer KimiLinear text, 3 KDA + 1 gated full MLA, attention-residual block size2 (crosses block boundary), SITU(beta4,linear_beta25), latent MoE dimension32 with normalization/down/up projections, 4 routed/top2 and 2 shared experts, complete untied head. No GLM substitution.",
+      "upstream": {
+        "repository": "moonshotai/Kimi-K3",
+        "revision": "f831ab66814297da540d832a5235f8e904f29d06"
+      },
+      "tested_runtime": {
+        "cpu_threads": 2,
+        "model_class": "KimiK3ForConditionalGeneration",
+        "model_pin": "3a12212e4692e70b531f541e20f6237efb79637e",
+        "proof": {
+          "captures": "evidence-summary.json",
+          "native": "native-verification.json",
+          "regeneration": "regeneration-verification.json",
+          "zero_kl": {
+            "direction": "reference_to_candidate",
+            "direction_label": "KL(reference || candidate)",
+            "higher_is_better": false,
+            "name": "mean_tokenwise_kld",
+            "units": "nats",
+            "value": 0.0
+          }
+        },
+        "status": "passed",
+        "torch": "2.11.0+cpu",
+        "transformers": "5.16.1"
+      },
+      "prerequisites": [
+        "Pinned CPU environment in requirements-cpu.txt",
+        "Reviewed QFS checkout with native ImageTextToText fallback and optional explicit pinned custom-code support",
+        "HF write token for private stage; no publication without --publish",
+        "No extra Python dependencies required by runtime fork; no FLA/einops/causal-conv1d/triton imports required",
+        "Before claiming memory-bounded layer-outer support, measure actual K3 stream/window parity with attn_res_block_size enabled. Kimi layers return (prefix_sum, block_residual); both must survive proxies, and the original model must apply _apply_output_attn_res before final norm/head. Existing layer-outer proxies reportedly preserve entire outputs and the original outer loop; this authored workflow only measures window-outer until a separate parity report exists."
+      ],
+      "original_format_limits": "Published source uses compressed-tensors mxfp4-pack-quantized weight format, floating4 group32 with uint8 scales; advertised serving includes MXFP8 activations. Original runtime needs a compressed-tensors version with MXFP4 pack support and matching supported accelerator kernels/serving engine; neither installed CPU Torch nor this BF16 reference fork implements packed MXFP4 or MXFP8. Fork preserves config/weight names for ordinary unquantized checkpoints only. Do not delete quantization metadata or reinterpret packed arrays as BF16; obtain an explicitly complete standard BF16/FP32 checkpoint for CPU capture.",
+      "licensing": "Retain Kimi K3 License (commercial Model-as-a-Service >$20M aggregate12-month revenue requires separate agreement; UI attribution thresholds apply), Apache-2.0 adapted DeepSeek/Transformers portions, MIT FLA reference code. Random independent weights do not relicense copied runtime code.",
+      "code_pin": {
+        "repository": "malaiwah/kimi-k3-tiny-random-bf16",
+        "revision": "3a12212e4692e70b531f541e20f6237efb79637e"
+      },
+      "cpu_reproduction": {
+        "status": "passed",
+        "evidence_file": "evidence-summary.json",
+        "claims": "two independent cold captures; full-vocabulary forced numerical replay; random architecture path, not trained quality"
+      }
+    },
+    {
+      "id": "deepseek-v4",
+      "model_types": [
+        "deepseek_v4"
+      ],
+      "runtime_mode": "pinned_code",
+      "fixture": {
+        "repository": "malaiwah/deepseek-v4-tiny-random-bf16",
+        "revision": "185723bec10ee57db86e8c269b3c6a811122a0ca",
+        "capture_revision": "4f9dcfcbabdbe336f5f83e836dd8fac7138dda23",
+        "parameters": 339037
+      },
+      "evidence": {
+        "repository": "malaiwah/deepseek-v4-tiny-cpu-repro-v1",
+        "revision": "6b750c0e06573009e25bf6c70028c362c37138d9"
+      },
+      "release_status": "public_anonymously_byte_verified",
+      "scope": {
+        "corrected_config_class": "deepseek_v4_qfs.QFSDeepseekV4Config",
+        "corrected_runtime_class": "deepseek_v4_qfs.QFSDeepseekV4ForCausalLM",
+        "declared_shrinks": [
+          "HCA compression rate128 ->16; legacy selector128 still selects the HCA class",
+          "sliding window128 ->8",
+          "four text layers and small head/expert geometry",
+          "index topk512 ->2 to exercise sparse selection at64 tokens",
+          "default short-context RoPE, not original million-token YaRN scaling"
+        ],
+        "fixture_geometry": {
+          "compress_rates": {
+            "compressed_sparse_attention": 4,
+            "heavily_compressed_attention": 16
+          },
+          "compress_ratio_selectors": [
+            0,
+            0,
+            4,
+            128
+          ],
+          "hc_mult": 4,
+          "hc_sinkhorn_iters": 20,
+          "head_dim": 16,
+          "hidden_size": 64,
+          "index_head_dim": 16,
+          "index_n_heads": 2,
+          "index_topk": 2,
+          "layer_types": [
+            "sliding_attention",
+            "sliding_attention",
+            "compressed_sparse_attention",
+            "heavily_compressed_attention"
+          ],
+          "mlp_layer_types": [
+            "hash_moe",
+            "hash_moe",
+            "hash_moe",
+            "moe"
+          ],
+          "moe_intermediate_size": 32,
+          "n_routed_experts": 8,
+          "n_shared_experts": 1,
+          "num_attention_heads": 4,
+          "num_experts_per_tok": 2,
+          "num_hidden_layers": 4,
+          "num_key_value_heads": 1,
+          "num_nextn_predict_layers": 0,
+          "o_groups": 2,
+          "o_lora_rank": 8,
+          "q_lora_rank": 16,
+          "sliding_window": 8,
+          "swiglu_limit": 10.0,
+          "vocab_size": 272
+        },
+        "model_type": "deepseek_v4",
+        "native_class": "DeepseekV4ForCausalLM",
+        "native_text_features": [
+          "mHC4 with20 Sinkhorn iterations and hyperhead collapse",
+          "shared K=V MQA with attention sinks",
+          "sliding attention",
+          "CSA overlapping compression and causal Lightning Indexer top-k",
+          "HCA non-overlapping compression",
+          "hash routing and learned sqrt-softplus top-k MoE plus shared expert",
+          "grouped low-rank output",
+          "clipped SwiGLU gate/up activation",
+          "partial interleaved RoPE",
+          "dynamic mixed sliding/CSA/HCA cache"
+        ],
+        "not_native_or_not_exercised": {
+          "dspark": "Both upstream configs declare block_size5, noise_token128799, target_layer_ids[40,41,42], markov_rank256. No native DSpark forward/speculative execution in this fixture.",
+          "mtp": "Native config documents num_nextn_predict_layers as upstream metadata not instantiated; native loader ignores mtp keys. Flash-0731 declares1, Vision-Exp declares3. Fixture explicitly0, contains no MTP tensors.",
+          "production_alignment": "No full-size numerical alignment, native/reference cross-runtime equivalence, original FP8/FP4 capture, long-context or speculative-decoding claim. Native code includes its own eager attention stabilization and BF16 retention policies.",
+          "vision": "Native class does not instantiate flat vision_n_layers=32, vision_dim=1024, vision_n_heads=16, vision_inter_dim=2816, vision_patch_size=14, vision_downsample_ratio=3, vision_max_n_token=384, vision_min_pixels=147456, vision_max_wh_ratio=8 or its encoder/aligner. No image/video capture, preprocessing or multimodal quality claim."
+        },
+        "runtime": "transformers==5.16.1",
+        "runtime_correction": {
+          "change": "Per-instance RMSNorm replacement computes weighted normalization in FP32, then casts complete output to input activation dtype. Changes rounding boundary; not bit-identical native execution.",
+          "dtype_boundary_audit": "HyperConnection/HyperHead cast final outputs; sinks compute promoted score math then cast to values; compression bias promotes gate math then softmax casts to KV; correction bias only selects expert indices. Weighted RMSNorm alone lacks final cast.",
+          "failure_observed_by_main": "Native FP32-retained RMSNorm weight promotes BF16 activation output to FP32; next BF16Linear raises float != BFloat16.",
+          "license": "Apache-2.0",
+          "source": "Transformers5.16.1 modeling_deepseek_v4.DeepseekV4RMSNorm",
+          "unchanged": "All parameter names, values, dtype-retention policies and other native primitives. No global/library patch, autocast, guard disabling or output-correcting hooks."
+        },
+        "scope": "Complete native-primitives text class with explicit pinned reviewed RMSNorm arithmetic correction; not unmodified native Transformers or either full upstream release."
+      },
+      "upstream": {
+        "config_url": "https://huggingface.co/deepseek-ai/DeepSeek-V4-Flash-0731/resolve/7872f01b1d1fe23eabc4c98b48bffcef5a386062/config.json",
+        "license_url": "https://huggingface.co/deepseek-ai/DeepSeek-V4-Flash-0731/resolve/7872f01b1d1fe23eabc4c98b48bffcef5a386062/LICENSE",
+        "repository": "deepseek-ai/DeepSeek-V4-Flash-0731",
+        "revision": "7872f01b1d1fe23eabc4c98b48bffcef5a386062"
+      },
+      "tested_runtime": {
+        "capture_report_sha256": "8fb2427383dbd497e3091385b39941ad62983f4833a6af6274523c2af41bf233",
+        "code_repository": "malaiwah/deepseek-v4-tiny-random-bf16",
+        "code_revision": "4f9dcfcbabdbe336f5f83e836dd8fac7138dda23",
+        "comparison": {
+          "comparator": {
+            "accumulation_dtype": "float64",
+            "bf16_reduced_precision_reduction": false,
+            "cublas_workspace_config": null,
+            "deterministic_algorithms": true,
+            "device": "cpu",
+            "estimator_backend": "torch:k6_kld_report._token_kld",
+            "head_applied_candidate_tensor_content_sha256": "5c5d4b4405a5209284d8ce4512c873872a967aebb2c8c3be578d2381d4a7c701",
+            "head_applied_reference_tensor_content_sha256": "5c5d4b4405a5209284d8ce4512c873872a967aebb2c8c3be578d2381d4a7c701",
+            "head_applied_tensor_content_sha256": "5c5d4b4405a5209284d8ce4512c873872a967aebb2c8c3be578d2381d4a7c701",
+            "logprob_dtype": "float64",
+            "position_block": 128,
+            "replay_backend": "numpy:cpu:float32",
+            "replay_env": {
+              "blas_configuration": "OpenBLAS 0.3.34.106.0  USE64BITINT DYNAMIC_ARCH NO_AFFINITY Haswell MAX_THREADS=64",
+              "blas_name": "scipy-openblas",
+              "blas_threads": 2,
+              "blas_threads_source": "ctypes:scipy_openblas_get_num_threads64_",
+              "blas_version": "0.3.34.106.0",
+              "cpu_model": "Intel(R) Xeon(R) CPU           X5570  @ 2.93GHz",
+              "library": "numpy",
+              "numpy_version": "2.5.3",
+              "replay_dtype": "float32"
+            },
+            "replay_peak_device_bytes": null,
+            "short_circuited": true,
+            "source_file_hashes_verified": true,
+            "tensor_content_digests_verified": true,
+            "tf32": false,
+            "tool": {
+              "entrypoint": "bin/fidelity-dataset compare",
+              "note": "the fp64 estimator is k6_kld_report._token_kld, imported not copied, whenever torch is importable; estimator_backend records which path ran."
+            },
+            "two_pass": true,
+            "vocab_chunk": 8192
+          },
+          "comparison_kind": "reproduction_confirmation",
+          "kl": {
+            "max": 0.0,
+            "mean": 0.0,
+            "median": 0.0,
+            "p95": 0.0,
+            "p99": 0.0,
+            "p99_9": 0.0
+          },
+          "measurement_scope": {
+            "contexts": 4,
+            "covers_full_panel": true,
+            "position_filter": "all",
+            "positions_per_context": 63,
+            "scored_positions": 252,
+            "subset_detail": null
+          },
+          "metric": {
+            "direction": "reference_to_candidate",
+            "direction_label": "KL(reference || candidate)",
+            "higher_is_better": false,
+            "name": "mean_tokenwise_kld",
+            "units": "nats",
+            "value": 0.0
+          },
+          "note": "QFS retains its hash-proof result and top-1 value for reproduction confirmations; --force-compute independently runs the estimator and requires its tokenwise KL array to agree exactly. short_circuited=true therefore does not mean replay was skipped.",
+          "receipt": "comparison/comparison-receipt.json",
+          "receipt_sha256": "133f49204e58c4530590d46b7c95e70a4499e257dad1fbbdccb4e99133996d20",
+          "self_compare": {
+            "asserted_exact_zero": true,
+            "capture_content_digest_equal": true,
+            "expected_tokenwise_bytes": 2144,
+            "expected_tokenwise_sha256": "896ad5b6b732dce1588636c3af3a8a93af8eb1250df72809f6e26fc29914f65d",
+            "force_compute_agreed": true,
+            "head_digest_equal": true,
+            "weights_identity_equal": true
+          },
+          "tokenwise": {
+            "bytes": 2144,
+            "path": "tokenwise-kld.npy",
+            "sha256": "896ad5b6b732dce1588636c3af3a8a93af8eb1250df72809f6e26fc29914f65d"
+          },
+          "top1_agreement": 1.0
+        },
+        "measurement_scope": "Random BF16 text fixture using native primitives with explicit reviewed RMSNorm correction; not unmodified native arithmetic or published FP8/FP4, DSpark or vision.",
+        "model_pin": "4f9dcfcbabdbe336f5f83e836dd8fac7138dda23",
+        "native_class": "QFSDeepseekV4ForCausalLM",
+        "native_report_sha256": "8a02ac9672dd0a1f29c096f128d974b35afbafbbbce68b8785b01e3e9887af34",
+        "runtime_correction": {
+          "change": "RMSNorm weighted normalization in FP32 with final output cast to input dtype; unchanged tensor names/values/dtypes and all other native primitives.",
+          "code_file": "deepseek_v4_qfs.py",
+          "dtype_boundary_audit": "Native HyperConnection/HyperHead explicitly cast final stream outputs; attention sink promotes score math then casts to value dtype; compressor position bias promotes gates then softmax casts to KV dtype; router correction bias affects selection only. Only weighted RMSNorm lacks final activation dtype restoration.",
+          "license": "Apache-2.0",
+          "replaced_modules": [
+            "model.layers.0.self_attn.q_a_norm",
+            "model.layers.0.self_attn.kv_norm",
+            "model.layers.0.input_layernorm",
+            "model.layers.0.post_attention_layernorm",
+            "model.layers.1.self_attn.q_a_norm",
+            "model.layers.1.self_attn.kv_norm",
+            "model.layers.1.input_layernorm",
+            "model.layers.1.post_attention_layernorm",
+            "model.layers.2.self_attn.q_a_norm",
+            "model.layers.2.self_attn.kv_norm",
+            "model.layers.2.self_attn.compressor.kv_norm",
+            "model.layers.2.self_attn.compressor.indexer.kv_norm",
+            "model.layers.2.input_layernorm",
+            "model.layers.2.post_attention_layernorm",
+            "model.layers.3.self_attn.q_a_norm",
+            "model.layers.3.self_attn.kv_norm",
+            "model.layers.3.self_attn.compressor.kv_norm",
+            "model.layers.3.input_layernorm",
+            "model.layers.3.post_attention_layernorm",
+            "model.norm"
+          ],
+          "sha256": "82c9af18f8a68dac3a6fee763a55ee6c9a33a49d6f9dfdc196155a34d63d862e",
+          "upstream_failure": "Native retained FP32 norm weights promote BF16 activations to FP32 before BF16 linear projection."
+        },
+        "status": "measured_passed",
+        "versions": {
+          "safetensors": "0.8.0",
+          "tokenizers": "0.23.2",
+          "torch": "2.11.0+cpu",
+          "transformers": "5.16.1"
+        }
+      },
+      "prerequisites": [
+        "Pinned Python3.12 CPU requirements-cpu.txt; no new dependencies",
+        "QFS verified custom-code support including explicit code_repository pinned-config auto_map fallback when unchanged original config has no auto_map",
+        "Explicit --trust-remote-code --code-repository malaiwah/deepseek-v4-tiny-random-bf16 --code-revision FULL40SHA",
+        "Native eager primitives with reviewed per-instance RMSNorm correction and window-outer capture",
+        "Actual BF16 loader preserves FP32-retained weights; no blanket .to(bfloat16)",
+        "HF network for immutable code verification; weights/tokenizer local",
+        "Private immutable model/code pin before QFS native probe or captures; explicit publish after passed unchanged stage",
+        "Third-party complete BF16 text checkpoint, real immutable weight repository pin, its own tokenizer-bound sealed panel and explicit author"
+      ],
+      "original_format_limits": {
+        "forbidden_workaround": "Never remove quantization_config/expert_dtype from real original-format checkpoint bytes, suppress conversion errors, or allow random initialization/mismatched tensors to obtain a nominal pass.",
+        "native_bf16_route": "Use explicit pinned corrected-runtime override for complete BF16 text checkpoints; unmodified native5.16.1 fails at FP32-retained RMSNorm/BF16Linear. For an original config without auto_map, selected code repository supplies authenticated auto_map ONLY; original config/quantization/weight bytes remain unchanged. A BF16 derivative must retain converter/version/input/output hashes and is not original-format execution proof.",
+        "native_source_coverage": "Installed finegrained_fp8 integration includes packed FP4 and FP8 experts/linear dispatch through CUDA DeepGEMM or Triton; this CPU BF16 workflow does not measure those paths.",
+        "published_storage": {
+          "activation_scheme": "dynamic",
+          "expert_dtype": "fp4",
+          "fmt": "e4m3",
+          "quant_method": "fp8",
+          "scale_fmt": "ue8m0",
+          "weight_block_size": [
+            128,
+            128
+          ]
+        },
+        "qualification_required": "Actual pinned full-checkpoint loading without missing/mismatched/conversion errors, exact scope for unused speculative/vision tensors, supported original-format GPU kernels and independent captured evidence. No original large weights are downloaded or rented compute used here.",
+        "quantizer_plan_bug": "hf_capture --drop-parallel-plan neutralizes unused single-process TP/EP plans to bypass the HF5.16.1 quantizer plan rewrite defect. This changes in-memory plans, not checkpoint quantization metadata/bytes, and is recorded by QFS."
+      },
+      "licensing": {
+        "fixture_weights_and_workflow": "MIT",
+        "native_runtime": "Transformers5.16.1, Apache-2.0 dependency; native config/model source SHA256 recorded during build. Derived deepseek_v4_qfs.py retains Apache notices and LICENSE-APACHE-2.0, not MIT.",
+        "remote_code": "Fixture captures explicitly opt in to reviewed deepseek_v4_qfs.py from model repository at immutable code SHA; code closure verified by QFS before execution. Generator may import the reviewed local wrapper directly. Weights/tokenizer remain local; HF network permitted for pinned code verification, not entirely offline capture.",
+        "synthetic_panel": "MIT; authored text, no upstream training data",
+        "upstream_text_and_vision": "MIT; Copyright (c)2023 DeepSeek; pinned originals retained at stage as lineage-LICENSE and vision-lineage-LICENSE"
+      },
+      "code_pin": {
+        "repository": "malaiwah/deepseek-v4-tiny-random-bf16",
+        "revision": "4f9dcfcbabdbe336f5f83e836dd8fac7138dda23"
+      },
+      "cpu_reproduction": {
+        "status": "passed",
+        "evidence_file": "evidence-summary.json",
+        "claims": "two independent cold captures; full-vocabulary forced numerical replay; random architecture path, not trained quality"
+      }
+    },
+    {
+      "id": "spark2-5",
+      "model_types": [
+        "spark2_5"
+      ],
+      "runtime_mode": "pinned_code",
+      "fixture": {
+        "repository": "malaiwah/spark2-5-tiny-random-bf16",
+        "revision": "c0a57b037007d475ede719e78f4a6ce24f211da0",
+        "capture_revision": "dd4b081b0a6b042771cbfdaedf82ef345e59f5e9",
+        "parameters": 157504
+      },
+      "evidence": {
+        "repository": "malaiwah/spark2-5-tiny-cpu-repro-v1",
+        "revision": "b64423abc0bffb235f7f671de4dac7b7ef5e3ec5"
+      },
+      "release_status": "public_anonymously_byte_verified",
+      "scope": {
+        "class": "Spark2_5ForCausalLM",
+        "fixture": {
+          "context_limit": 256,
+          "gate_attn_act_mode": "sigmoid",
+          "head_dim": 16,
+          "headwise_attn_output_gate": true,
+          "hidden_act": "gelu",
+          "hidden_size": 64,
+          "intermediate_size": 128,
+          "layer_types": [
+            "sliding_attention",
+            "sliding_attention",
+            "sliding_attention",
+            "full_attention"
+          ],
+          "num_attention_heads": 4,
+          "num_hidden_layers": 4,
+          "num_key_value_heads": 1,
+          "partial_rotary_dimensions": {
+            "full_attention": 4,
+            "sliding_attention": 16
+          },
+          "sliding_window": 32,
+          "tie_word_embeddings": true,
+          "vocab_size": 260
+        },
+        "installed_native_class": false,
+        "model_type": "spark2_5",
+        "scope": "Complete text causal LM; no multimodal or MTP scope"
+      },
+      "upstream": {
+        "repository": "XHToken/Spark-X2.5-4B",
+        "revision": "5e10fcc0286756aebf7c41dc52c1e42d95c70281"
+      },
+      "tested_runtime": {
+        "code_repository": "malaiwah/spark2-5-tiny-random-bf16",
+        "code_revision": "dd4b081b0a6b042771cbfdaedf82ef345e59f5e9",
+        "comparison": {
+          "comparator": {
+            "accumulation_dtype": "float64",
+            "bf16_reduced_precision_reduction": false,
+            "cublas_workspace_config": null,
+            "deterministic_algorithms": true,
+            "device": "cpu",
+            "estimator_backend": "torch:k6_kld_report._token_kld",
+            "head_applied_candidate_tensor_content_sha256": "90323a1776a8b913101cea3fa71a8b5f66a60d6f5a73b32038a2c01f0ed3fe2d",
+            "head_applied_reference_tensor_content_sha256": "90323a1776a8b913101cea3fa71a8b5f66a60d6f5a73b32038a2c01f0ed3fe2d",
+            "head_applied_tensor_content_sha256": "90323a1776a8b913101cea3fa71a8b5f66a60d6f5a73b32038a2c01f0ed3fe2d",
+            "logprob_dtype": "float64",
+            "position_block": 128,
+            "replay_backend": "numpy:cpu:float32",
+            "replay_env": {
+              "blas_configuration": "OpenBLAS 0.3.34.106.0  USE64BITINT DYNAMIC_ARCH NO_AFFINITY Haswell MAX_THREADS=64",
+              "blas_name": "scipy-openblas",
+              "blas_threads": 2,
+              "blas_threads_source": "ctypes:scipy_openblas_get_num_threads64_",
+              "blas_version": "0.3.34.106.0",
+              "cpu_model": "Intel(R) Xeon(R) CPU           X5570  @ 2.93GHz",
+              "library": "numpy",
+              "numpy_version": "2.5.3",
+              "replay_dtype": "float32"
+            },
+            "replay_peak_device_bytes": null,
+            "short_circuited": true,
+            "source_file_hashes_verified": true,
+            "tensor_content_digests_verified": true,
+            "tf32": false,
+            "tool": {
+              "entrypoint": "bin/fidelity-dataset compare",
+              "note": "the fp64 estimator is k6_kld_report._token_kld, imported not copied, whenever torch is importable; estimator_backend records which path ran."
+            },
+            "two_pass": true,
+            "vocab_chunk": 8192
+          },
+          "comparison_kind": "reproduction_confirmation",
+          "kl": {
+            "max": 0.0,
+            "mean": 0.0,
+            "median": 0.0,
+            "p95": 0.0,
+            "p99": 0.0,
+            "p99_9": 0.0
+          },
+          "measurement_scope": {
+            "contexts": 4,
+            "covers_full_panel": true,
+            "position_filter": "all",
+            "positions_per_context": 63,
+            "scored_positions": 252,
+            "subset_detail": null
+          },
+          "metric": {
+            "direction": "reference_to_candidate",
+            "direction_label": "KL(reference || candidate)",
+            "higher_is_better": false,
+            "name": "mean_tokenwise_kld",
+            "units": "nats",
+            "value": 0.0
+          },
+          "note": "QFS retains its hash-proof result and top-1 value for reproduction confirmations; --force-compute independently runs the estimator and requires its tokenwise KL array to agree exactly. short_circuited=true therefore does not mean replay was skipped.",
+          "receipt": "comparison/comparison-receipt.json",
+          "receipt_sha256": "19048f92026f9d3643c1bc855b06b9952d206a86d31e3635c0246d747937d715",
+          "self_compare": {
+            "asserted_exact_zero": true,
+            "capture_content_digest_equal": true,
+            "expected_tokenwise_bytes": 2144,
+            "expected_tokenwise_sha256": "896ad5b6b732dce1588636c3af3a8a93af8eb1250df72809f6e26fc29914f65d",
+            "force_compute_agreed": true,
+            "head_digest_equal": true,
+            "weights_identity_equal": true
+          },
+          "tokenwise": {
+            "bytes": 2144,
+            "path": "tokenwise-kld.npy",
+            "sha256": "896ad5b6b732dce1588636c3af3a8a93af8eb1250df72809f6e26fc29914f65d"
+          },
+          "top1_agreement": 1.0
+        },
+        "cpu_report_sha256": "9f2119f50b3d6e7b7d8dd8af8772fd373d1ce3c5b598fc33d83c21d006c2bce2",
+        "cpu_threads": 2,
+        "device": "cpu",
+        "evidence_repository": "malaiwah/spark2-5-tiny-cpu-repro-v1",
+        "model_class": "Spark2_5ForCausalLM",
+        "native_report_sha256": "73f21cdbac7ca5e301de182342de59d2242f08f94376d3f7c18d8e9f7b202d41",
+        "scope": "Complete text-only Spark2_5ForCausalLM; 3 sliding/1 full attention, partial RoPE dimensions 16/4, headwise sigmoid gates, GELU gated MLP, tied vocabulary head. Random BF16 only; no learned capabilities, million-token context, accelerator, training, quantized-format, or production-size evidence.",
+        "status": "passed",
+        "torch": "2.11.0+cpu",
+        "transformers": "5.16.1",
+        "weights_revision": "dd4b081b0a6b042771cbfdaedf82ef345e59f5e9"
+      },
+      "prerequisites": {
+        "additional_dependencies": [],
+        "code_consent": "--trust-remote-code required; --code-revision full40-hex immutable commit; --code-repository selects audited fork without changing weights/config bytes",
+        "device": "cpu",
+        "network": "Local model weights, online immutable Hub code verification permitted; not entirely offline",
+        "python": "3.12",
+        "requirements": "requirements-cpu.txt",
+        "schedule": "window-outer",
+        "threads": 2,
+        "torch": "2.11.0+cpu",
+        "transformers": "5.16.1"
+      },
+      "original_format_limits": {
+        "measured_original_weights": false,
+        "not_proven": [
+          "production-size inference",
+          "million-token context",
+          "GPU/NPU kernels",
+          "FP8/MXFP4/quantized formats",
+          "training",
+          "arbitrary batched/offset position_ids",
+          "quality or accuracy",
+          "cross-hardware identity"
+        ],
+        "upstream_context": 1048576,
+        "upstream_dtype": "bfloat16",
+        "upstream_parameters": 4112079360
+      },
+      "licensing": {
+        "fixture_weights": "Apache-2.0; independently randomly initialized",
+        "reviewed_runtime": "Apache-2.0; source notices retained",
+        "upstream_weights": "Apache-2.0",
+        "workflow_attribution": "Inherited MIT notice retained in NOTICE"
+      },
+      "code_pin": {
+        "repository": "malaiwah/spark2-5-tiny-random-bf16",
+        "revision": "dd4b081b0a6b042771cbfdaedf82ef345e59f5e9"
+      },
+      "cpu_reproduction": {
+        "status": "passed",
+        "evidence_file": "evidence-summary.json",
+        "claims": "two independent cold captures; full-vocabulary forced numerical replay; random architecture path, not trained quality"
+      }
+    },
+    {
+      "id": "k2-horizon",
+      "model_types": [
+        "k2_horizon"
+      ],
+      "runtime_mode": "pinned_code",
+      "fixture": {
+        "repository": "malaiwah/k2-horizon-tiny-random-bf16",
+        "revision": "50627d8f2166ee04a172f4a5144dc0b3385b9ee9",
+        "capture_revision": "953fbee42d1503202daf18328aa08d8e4e29c9de",
+        "parameters": 265936
+      },
+      "evidence": {
+        "repository": "malaiwah/k2-horizon-tiny-cpu-repro-v1",
+        "revision": "b7eef034abb6828d7fb95ae628f5b3703e731f95"
+      },
+      "release_status": "public_anonymously_byte_verified",
+      "scope": {
+        "attention_gate": "softplus beta=log(2)",
+        "attention_heads": 4,
+        "cache": "DynamicCache KV including actual routed MoVA values",
+        "class": "K2HorizonForCausalLM",
+        "dense_intermediate": 128,
+        "dense_prefix_layers": 3,
+        "head_dim": 16,
+        "hidden_size": 64,
+        "kv_heads": 2,
+        "layernorm_groups": 2,
+        "max_position_embeddings": 256,
+        "moe_experts": 4,
+        "moe_intermediate": 32,
+        "moe_top_k": 2,
+        "mova_experts": 4,
+        "mova_moe_layers": 2,
+        "mova_top_k": 2,
+        "mova_value_activation": "silu",
+        "query_key_norm": false,
+        "rope_dim": 16,
+        "rope_theta": 10000000.0,
+        "router_bias": "selection only, not mixture weights",
+        "router_scaling": 2.5,
+        "router_score": "sigmoid",
+        "scope": "Complete autoregressive text model; no MTP or modalities",
+        "shared_experts": 1,
+        "untied_full_head": true,
+        "vocab_size": 272
+      },
+      "upstream": {
+        "architectures": [
+          "K2HorizonForCausalLM"
+        ],
+        "custom_code": true,
+        "model_type": "k2_horizon",
+        "repository": "IFM/K2-Horizon-MoVA-36B-A4B",
+        "revision": "05cab0a4d7150c1c460a000b37ff40cc1af2feaa",
+        "source_audit": "source-audit.json"
+      },
+      "tested_runtime": {
+        "capture_report": "evidence-summary.json",
+        "comparison": {
+          "comparator": {
+            "accumulation_dtype": "float64",
+            "bf16_reduced_precision_reduction": false,
+            "cublas_workspace_config": null,
+            "deterministic_algorithms": true,
+            "device": "cpu",
+            "estimator_backend": "torch:k6_kld_report._token_kld",
+            "head_applied_candidate_tensor_content_sha256": "41ab818257080025edebd550a7f45ba39ac4d43cd1b623bd3544c7b5fd1e20dc",
+            "head_applied_reference_tensor_content_sha256": "41ab818257080025edebd550a7f45ba39ac4d43cd1b623bd3544c7b5fd1e20dc",
+            "head_applied_tensor_content_sha256": "41ab818257080025edebd550a7f45ba39ac4d43cd1b623bd3544c7b5fd1e20dc",
+            "logprob_dtype": "float64",
+            "position_block": 128,
+            "replay_backend": "numpy:cpu:float32",
+            "replay_env": {
+              "blas_configuration": "OpenBLAS 0.3.34.106.0  USE64BITINT DYNAMIC_ARCH NO_AFFINITY Haswell MAX_THREADS=64",
+              "blas_name": "scipy-openblas",
+              "blas_threads": 2,
+              "blas_threads_source": "ctypes:scipy_openblas_get_num_threads64_",
+              "blas_version": "0.3.34.106.0",
+              "cpu_model": "Intel(R) Xeon(R) CPU           X5570  @ 2.93GHz",
+              "library": "numpy",
+              "numpy_version": "2.5.3",
+              "replay_dtype": "float32"
+            },
+            "replay_peak_device_bytes": null,
+            "short_circuited": true,
+            "source_file_hashes_verified": true,
+            "tensor_content_digests_verified": true,
+            "tf32": false,
+            "tool": {
+              "entrypoint": "bin/fidelity-dataset compare",
+              "note": "the fp64 estimator is k6_kld_report._token_kld, imported not copied, whenever torch is importable; estimator_backend records which path ran."
+            },
+            "two_pass": true,
+            "vocab_chunk": 8192
+          },
+          "comparison_kind": "reproduction_confirmation",
+          "kl": {
+            "max": 0.0,
+            "mean": 0.0,
+            "median": 0.0,
+            "p95": 0.0,
+            "p99": 0.0,
+            "p99_9": 0.0
+          },
+          "measurement_scope": {
+            "contexts": 4,
+            "covers_full_panel": true,
+            "position_filter": "all",
+            "positions_per_context": 63,
+            "scored_positions": 252,
+            "subset_detail": null
+          },
+          "metric": {
+            "direction": "reference_to_candidate",
+            "direction_label": "KL(reference || candidate)",
+            "higher_is_better": false,
+            "name": "mean_tokenwise_kld",
+            "units": "nats",
+            "value": 0.0
+          },
+          "note": "QFS retains its hash-proof result and top-1 value for reproduction confirmations; --force-compute independently runs the estimator and requires its tokenwise KL array to agree exactly. short_circuited=true therefore does not mean replay was skipped.",
+          "receipt": "comparison/comparison-receipt.json",
+          "receipt_sha256": "17b195817e8df6b54fff184de57fa75021e1a6bf2ea6fc7c86ad2ae017cf9399",
+          "self_compare": {
+            "asserted_exact_zero": true,
+            "capture_content_digest_equal": true,
+            "expected_tokenwise_bytes": 2144,
+            "expected_tokenwise_sha256": "896ad5b6b732dce1588636c3af3a8a93af8eb1250df72809f6e26fc29914f65d",
+            "force_compute_agreed": true,
+            "head_digest_equal": true,
+            "weights_identity_equal": true
+          },
+          "tokenwise": {
+            "bytes": 2144,
+            "path": "tokenwise-kld.npy",
+            "sha256": "896ad5b6b732dce1588636c3af3a8a93af8eb1250df72809f6e26fc29914f65d"
+          },
+          "top1_agreement": 1.0
+        },
+        "model_and_code_revision": "953fbee42d1503202daf18328aa08d8e4e29c9de",
+        "native_report": "native-verification.json",
+        "native_status": "passed",
+        "network_policy": "HF access for pinned code verification; weights local; comparison offline",
+        "regeneration_inventory_equal": true,
+        "status": "passed"
+      },
+      "prerequisites": {
+        "additional_dependencies": [],
+        "network": "Build local reviewed source and panel use local files. Native/QFS captures allow HF network for immutable code metadata verification; model weights local. Private stage requires authenticated HF write and code-read access. Comparison offline and code-independent.",
+        "python": "3.12",
+        "qfs": "hf_capture.py with explicit --trust-remote-code --code-revision --code-repository and codepin.py",
+        "requirements": "requirements-cpu.txt",
+        "source_changes": "patch-manifest.json: no source changes identified by static 5.13-config to 5.16.1 API review; execution remains a release gate",
+        "versions": {
+          "numpy": "2.5.3",
+          "safetensors": "0.8.0",
+          "tokenizers": "0.23.2",
+          "torch": "2.11.0+cpu",
+          "transformers": "5.16.1"
+        }
+      },
+      "original_format_limits": {
+        "fp8_or_mxfp4_claim": false,
+        "full_upstream_weights_downloaded_or_executed": false,
+        "limits": "Full model requires at least about 74.9 GB just for BF16 parameters, plus cache/activations/runtime overhead. Tiny BF16 results do not establish full-model quality, GPU compatibility, long-context accuracy or original-weight runtime. No paid hardware provisioned.",
+        "metadata_parameter_count": 37444792020,
+        "minimum_parameter_bytes": 74889584040,
+        "public_format": "BF16 safetensors",
+        "quantization_config": null
+      },
+      "licensing": {
+        "adapted_workflow_scripts": "MIT; WORKFLOW-LICENSE retained",
+        "files": [
+          "LICENSE",
+          "NOTICE",
+          "WORKFLOW-LICENSE"
+        ],
+        "fixture_weights_and_tokenizer": "Apache-2.0; independently generated seeded random weights and byte tokenizer",
+        "runtime": "Apache-2.0; retained Qwen/Alibaba/HuggingFace copyright headers and IFM pinned source",
+        "upstream_weights": "Apache-2.0 per pinned model card; no standalone LICENSE in pinned repo"
+      },
+      "code_pin": {
+        "repository": "malaiwah/k2-horizon-tiny-random-bf16",
+        "revision": "953fbee42d1503202daf18328aa08d8e4e29c9de"
+      },
+      "cpu_reproduction": {
+        "status": "passed",
+        "evidence_file": "evidence-summary.json",
+        "claims": "two independent cold captures; full-vocabulary forced numerical replay; random architecture path, not trained quality"
+      }
+    }
+  ],
+  "quantizers": [
+    {
+      "id": "affine--gptq-v1-g32",
+      "format": "gptq-v1-g32; RTN packing, optimizer-not-run",
+      "classification": "lossy",
+      "fixture": {
+        "repository": "malaiwah/qwen3-5-tiny-random-gptq-v1-g32-rtn-format",
+        "revision": "143b652b954d296a9c81ad45947fa5812bd719a4"
+      },
+      "evidence": {
+        "repository": "malaiwah/qfs-affine-tiny-cpu-format-v1",
+        "revision": "2a1f5fb39eedbe038eb66e851ef3d19b0daa4493",
+        "comparison_path": "raw/candidates/gptq-v1-g32/evidence/comparison/comparison-receipt.json"
+      },
+      "source": {
+        "repository": "malaiwah/qwen3-5-tiny-random-bf16",
+        "revision": "a430e41d5814ba5e7bfa5ee29d86935aac56d95d"
+      },
+      "mean_tokenwise_kld_nats": 2.4019247011949657e-05,
+      "scored_positions": 252,
+      "head_policy": "native_head",
+      "comparability": "advisory",
+      "restrictions": [
+        "Dense Qwen3.5 hybrid; all 12 text MLP matrices, other weights native; not every architecture/export"
+      ],
+      "activation_omissions": [
+        "Native BF16 forward; no activation quantization or serving kernels exercised"
+      ],
+      "optimizer": "not-run",
+      "release_status": "public_anonymously_byte_verified"
+    },
+    {
+      "id": "affine--gptq-v2-desc-g64",
+      "format": "gptq-v2-desc-g64; RTN packing, optimizer-not-run",
+      "classification": "lossy",
+      "fixture": {
+        "repository": "malaiwah/qwen3-5-tiny-random-gptq-v2-desc-g64-rtn-format",
+        "revision": "8e4cf325e62aed0c111f22785e75a1b890d59f77"
+      },
+      "evidence": {
+        "repository": "malaiwah/qfs-affine-tiny-cpu-format-v1",
+        "revision": "2a1f5fb39eedbe038eb66e851ef3d19b0daa4493",
+        "comparison_path": "raw/candidates/gptq-v2-desc-g64/evidence/comparison/comparison-receipt.json"
+      },
+      "source": {
+        "repository": "malaiwah/qwen3-5-tiny-random-bf16",
+        "revision": "a430e41d5814ba5e7bfa5ee29d86935aac56d95d"
+      },
+      "mean_tokenwise_kld_nats": 2.5985354253636692e-05,
+      "scored_positions": 252,
+      "head_policy": "native_head",
+      "comparability": "advisory",
+      "restrictions": [
+        "Dense Qwen3.5 hybrid; all 12 text MLP matrices, other weights native; not every architecture/export"
+      ],
+      "activation_omissions": [
+        "Native BF16 forward; no activation quantization or serving kernels exercised"
+      ],
+      "optimizer": "not-run",
+      "release_status": "public_anonymously_byte_verified"
+    },
+    {
+      "id": "affine--awq-gemm-g32",
+      "format": "awq-gemm-g32; RTN packing, optimizer-not-run",
+      "classification": "lossy",
+      "fixture": {
+        "repository": "malaiwah/qwen3-5-tiny-random-awq-gemm-g32-rtn-format",
+        "revision": "50e3ae8d2999bd381ccefad3662e264b450a43ca"
+      },
+      "evidence": {
+        "repository": "malaiwah/qfs-affine-tiny-cpu-format-v1",
+        "revision": "2a1f5fb39eedbe038eb66e851ef3d19b0daa4493",
+        "comparison_path": "raw/candidates/awq-gemm-g32/evidence/comparison/comparison-receipt.json"
+      },
+      "source": {
+        "repository": "malaiwah/qwen3-5-tiny-random-bf16",
+        "revision": "a430e41d5814ba5e7bfa5ee29d86935aac56d95d"
+      },
+      "mean_tokenwise_kld_nats": 2.4019247011949657e-05,
+      "scored_positions": 252,
+      "head_policy": "native_head",
+      "comparability": "advisory",
+      "restrictions": [
+        "Dense Qwen3.5 hybrid; all 12 text MLP matrices, other weights native; not every architecture/export"
+      ],
+      "activation_omissions": [
+        "Native BF16 forward; no activation quantization or serving kernels exercised"
+      ],
+      "optimizer": "not-run",
+      "release_status": "public_anonymously_byte_verified"
+    },
+    {
+      "id": "affine--ct-symmetric-g64",
+      "format": "ct-symmetric-g64; RTN packing, optimizer-not-run",
+      "classification": "lossy",
+      "fixture": {
+        "repository": "malaiwah/qwen3-5-tiny-random-ct-symmetric-g64-rtn-format",
+        "revision": "22f25d5075c9afbb44bed9568d379bfcde79638e"
+      },
+      "evidence": {
+        "repository": "malaiwah/qfs-affine-tiny-cpu-format-v1",
+        "revision": "2a1f5fb39eedbe038eb66e851ef3d19b0daa4493",
+        "comparison_path": "raw/candidates/ct-symmetric-g64/evidence/comparison/comparison-receipt.json"
+      },
+      "source": {
+        "repository": "malaiwah/qwen3-5-tiny-random-bf16",
+        "revision": "a430e41d5814ba5e7bfa5ee29d86935aac56d95d"
+      },
+      "mean_tokenwise_kld_nats": 3.897277134833976e-05,
+      "scored_positions": 252,
+      "head_policy": "native_head",
+      "comparability": "advisory",
+      "restrictions": [
+        "Dense Qwen3.5 hybrid; all 12 text MLP matrices, other weights native; not every architecture/export"
+      ],
+      "activation_omissions": [
+        "Native BF16 forward; no activation quantization or serving kernels exercised"
+      ],
+      "optimizer": "not-run",
+      "release_status": "public_anonymously_byte_verified"
+    },
+    {
+      "id": "affine--ct-asymmetric-g32",
+      "format": "ct-asymmetric-g32; RTN packing, optimizer-not-run",
+      "classification": "lossy",
+      "fixture": {
+        "repository": "malaiwah/qwen3-5-tiny-random-ct-asymmetric-g32-rtn-format",
+        "revision": "35882a286c17e1959ccb936618490d3fef4e3d3e"
+      },
+      "evidence": {
+        "repository": "malaiwah/qfs-affine-tiny-cpu-format-v1",
+        "revision": "2a1f5fb39eedbe038eb66e851ef3d19b0daa4493",
+        "comparison_path": "raw/candidates/ct-asymmetric-g32/evidence/comparison/comparison-receipt.json"
+      },
+      "source": {
+        "repository": "malaiwah/qwen3-5-tiny-random-bf16",
+        "revision": "a430e41d5814ba5e7bfa5ee29d86935aac56d95d"
+      },
+      "mean_tokenwise_kld_nats": 2.4019247011949657e-05,
+      "scored_positions": 252,
+      "head_policy": "native_head",
+      "comparability": "advisory",
+      "restrictions": [
+        "Dense Qwen3.5 hybrid; all 12 text MLP matrices, other weights native; not every architecture/export"
+      ],
+      "activation_omissions": [
+        "Native BF16 forward; no activation quantization or serving kernels exercised"
+      ],
+      "optimizer": "not-run",
+      "release_status": "public_anonymously_byte_verified"
+    },
+    {
+      "id": "affine--ct-int8-symmetric-g64",
+      "format": "ct-int8-symmetric-g64; RTN packing, optimizer-not-run",
+      "classification": "lossy",
+      "fixture": {
+        "repository": "malaiwah/qwen3-5-tiny-random-ct-int8-symmetric-g64-rtn-format",
+        "revision": "7f59af6246a3a5d4a3684357b8612e292eed2ff0"
+      },
+      "evidence": {
+        "repository": "malaiwah/qfs-affine-tiny-cpu-format-v1",
+        "revision": "2a1f5fb39eedbe038eb66e851ef3d19b0daa4493",
+        "comparison_path": "raw/candidates/ct-int8-symmetric-g64/evidence/comparison/comparison-receipt.json"
+      },
+      "source": {
+        "repository": "malaiwah/qwen3-5-tiny-random-bf16",
+        "revision": "a430e41d5814ba5e7bfa5ee29d86935aac56d95d"
+      },
+      "mean_tokenwise_kld_nats": 6.012985887331892e-07,
+      "scored_positions": 252,
+      "head_policy": "native_head",
+      "comparability": "advisory",
+      "restrictions": [
+        "Dense Qwen3.5 hybrid; all 12 text MLP matrices, other weights native; not every architecture/export"
+      ],
+      "activation_omissions": [
+        "Native BF16 forward; no activation quantization or serving kernels exercised"
+      ],
+      "optimizer": "not-run",
+      "release_status": "public_anonymously_byte_verified"
+    },
+    {
+      "id": "affine--mlx4-g32",
+      "format": "mlx4-g32; RTN packing, optimizer-not-run",
+      "classification": "lossy",
+      "fixture": {
+        "repository": "malaiwah/qwen3-5-tiny-random-mlx4-g32-rtn-format",
+        "revision": "7e124e9a5672de3770272cbc754b39b8d9b6d508"
+      },
+      "evidence": {
+        "repository": "malaiwah/qfs-affine-tiny-cpu-format-v1",
+        "revision": "2a1f5fb39eedbe038eb66e851ef3d19b0daa4493",
+        "comparison_path": "raw/candidates/mlx4-g32/evidence/comparison/comparison-receipt.json"
+      },
+      "source": {
+        "repository": "malaiwah/qwen3-5-tiny-random-bf16",
+        "revision": "a430e41d5814ba5e7bfa5ee29d86935aac56d95d"
+      },
+      "mean_tokenwise_kld_nats": 2.0444951905470148e-05,
+      "scored_positions": 252,
+      "head_policy": "native_head",
+      "comparability": "advisory",
+      "restrictions": [
+        "Dense Qwen3.5 hybrid; all 12 text MLP matrices, other weights native; not every architecture/export"
+      ],
+      "activation_omissions": [
+        "Native BF16 forward; no activation quantization or serving kernels exercised"
+      ],
+      "optimizer": "not-run",
+      "release_status": "public_anonymously_byte_verified"
+    },
+    {
+      "id": "affine--mlx8-g64",
+      "format": "mlx8-g64; RTN packing, optimizer-not-run",
+      "classification": "lossy",
+      "fixture": {
+        "repository": "malaiwah/qwen3-5-tiny-random-mlx8-g64-rtn-format",
+        "revision": "f6a62fe2495dd9da2eec403105b626b3cb598a32"
+      },
+      "evidence": {
+        "repository": "malaiwah/qfs-affine-tiny-cpu-format-v1",
+        "revision": "2a1f5fb39eedbe038eb66e851ef3d19b0daa4493",
+        "comparison_path": "raw/candidates/mlx8-g64/evidence/comparison/comparison-receipt.json"
+      },
+      "source": {
+        "repository": "malaiwah/qwen3-5-tiny-random-bf16",
+        "revision": "a430e41d5814ba5e7bfa5ee29d86935aac56d95d"
+      },
+      "mean_tokenwise_kld_nats": 5.94411359692853e-07,
+      "scored_positions": 252,
+      "head_policy": "native_head",
+      "comparability": "advisory",
+      "restrictions": [
+        "Dense Qwen3.5 hybrid; all 12 text MLP matrices, other weights native; not every architecture/export"
+      ],
+      "activation_omissions": [
+        "Native BF16 forward; no activation quantization or serving kernels exercised"
+      ],
+      "optimizer": "not-run",
+      "release_status": "public_anonymously_byte_verified"
+    },
+    {
+      "id": "microfloat--ct-mxfp4",
+      "format": "ct-mxfp4; CPU RTN format fixture",
+      "classification": "lossy",
+      "fixture": {
+        "repository": "malaiwah/glm-moe-dsa-tiny-random-ct-mxfp4-rtn-format",
+        "revision": "4f3287b3b0d9a34b1d2b56eaf15273a36ed2f0a0"
+      },
+      "evidence": {
+        "repository": "malaiwah/qfs-microfloat-tiny-cpu-format-v1",
+        "revision": "b1690c1b72beafc812f2286ec6a8fe2ced338edc",
+        "comparison_path": "raw/candidates/ct-mxfp4/evidence/comparison/comparison-receipt.json"
+      },
+      "source": {
+        "repository": "malaiwah/glm-moe-dsa-tiny-random-bf16",
+        "revision": "a1a973330e4e912678adbd8ea41e8b86b1c9dccb"
+      },
+      "mean_tokenwise_kld_nats": 0.000866341033772075,
+      "scored_positions": 252,
+      "head_policy": "native_head",
+      "comparability": "advisory",
+      "restrictions": [
+        "GLM MoE DSA, dense and routed expert matrices; decoded BF16 execution, not full original quantized release"
+      ],
+      "activation_omissions": [
+        "Reconstructed weights only; no activation quantization, QAT, calibration or GPU kernel validation"
+      ],
+      "optimizer": "not-run",
+      "release_status": "public_anonymously_byte_verified"
+    },
+    {
+      "id": "microfloat--ct-nvfp4",
+      "format": "ct-nvfp4; CPU RTN format fixture",
+      "classification": "lossy",
+      "fixture": {
+        "repository": "malaiwah/glm-moe-dsa-tiny-random-ct-nvfp4-rtn-format",
+        "revision": "f6056d80c8a421eb2f347b1f9837634c19c09e7f"
+      },
+      "evidence": {
+        "repository": "malaiwah/qfs-microfloat-tiny-cpu-format-v1",
+        "revision": "b1690c1b72beafc812f2286ec6a8fe2ced338edc",
+        "comparison_path": "raw/candidates/ct-nvfp4/evidence/comparison/comparison-receipt.json"
+      },
+      "source": {
+        "repository": "malaiwah/glm-moe-dsa-tiny-random-bf16",
+        "revision": "a1a973330e4e912678adbd8ea41e8b86b1c9dccb"
+      },
+      "mean_tokenwise_kld_nats": 0.0007752665823432193,
+      "scored_positions": 252,
+      "head_policy": "native_head",
+      "comparability": "advisory",
+      "restrictions": [
+        "GLM MoE DSA, dense and routed expert matrices; decoded BF16 execution, not full original quantized release"
+      ],
+      "activation_omissions": [
+        "Reconstructed weights only; no activation quantization, QAT, calibration or GPU kernel validation"
+      ],
+      "optimizer": "not-run",
+      "release_status": "public_anonymously_byte_verified"
+    },
+    {
+      "id": "microfloat--modelopt-nvfp4",
+      "format": "modelopt-nvfp4; CPU RTN format fixture",
+      "classification": "lossy",
+      "fixture": {
+        "repository": "malaiwah/glm-moe-dsa-tiny-random-modelopt-nvfp4-rtn-format",
+        "revision": "c795b911ff87882db3b5f0e8c795258e6c1f1d5b"
+      },
+      "evidence": {
+        "repository": "malaiwah/qfs-microfloat-tiny-cpu-format-v1",
+        "revision": "b1690c1b72beafc812f2286ec6a8fe2ced338edc",
+        "comparison_path": "raw/candidates/modelopt-nvfp4/evidence/comparison/comparison-receipt.json"
+      },
+      "source": {
+        "repository": "malaiwah/glm-moe-dsa-tiny-random-bf16",
+        "revision": "a1a973330e4e912678adbd8ea41e8b86b1c9dccb"
+      },
+      "mean_tokenwise_kld_nats": 0.0007775931894536412,
+      "scored_positions": 252,
+      "head_policy": "native_head",
+      "comparability": "advisory",
+      "restrictions": [
+        "GLM MoE DSA, dense and routed expert matrices; decoded BF16 execution, not full original quantized release"
+      ],
+      "activation_omissions": [
+        "Reconstructed weights only; no activation quantization, QAT, calibration or GPU kernel validation"
+      ],
+      "optimizer": "not-run",
+      "release_status": "public_anonymously_byte_verified"
+    },
+    {
+      "id": "microfloat--fp8-ue8m0",
+      "format": "fp8-ue8m0; CPU RTN format fixture",
+      "classification": "lossy",
+      "fixture": {
+        "repository": "malaiwah/glm-moe-dsa-tiny-random-fp8-ue8m0-rtn-format",
+        "revision": "b35a3365ea79b5b5e72f778819ee2dc7610975ec"
+      },
+      "evidence": {
+        "repository": "malaiwah/qfs-microfloat-tiny-cpu-format-v1",
+        "revision": "b1690c1b72beafc812f2286ec6a8fe2ced338edc",
+        "comparison_path": "raw/candidates/fp8-ue8m0/evidence/comparison/comparison-receipt.json"
+      },
+      "source": {
+        "repository": "malaiwah/glm-moe-dsa-tiny-random-bf16",
+        "revision": "a1a973330e4e912678adbd8ea41e8b86b1c9dccb"
+      },
+      "mean_tokenwise_kld_nats": 0.00020246177849756768,
+      "scored_positions": 252,
+      "head_policy": "native_head",
+      "comparability": "advisory",
+      "restrictions": [
+        "GLM MoE DSA, dense and routed expert matrices; decoded BF16 execution, not full original quantized release"
+      ],
+      "activation_omissions": [
+        "Reconstructed weights only; no activation quantization, QAT, calibration or GPU kernel validation"
+      ],
+      "optimizer": "not-run",
+      "release_status": "public_anonymously_byte_verified"
+    },
+    {
+      "id": "microfloat--modelopt-mixed",
+      "format": "modelopt-mixed; CPU RTN format fixture",
+      "classification": "lossy",
+      "fixture": {
+        "repository": "malaiwah/glm-moe-dsa-tiny-random-modelopt-mixed-rtn-format",
+        "revision": "dc77e2001b92d4f610f7091cfe06b13e5545512e"
+      },
+      "evidence": {
+        "repository": "malaiwah/qfs-microfloat-tiny-cpu-format-v1",
+        "revision": "b1690c1b72beafc812f2286ec6a8fe2ced338edc",
+        "comparison_path": "raw/candidates/modelopt-mixed/evidence/comparison/comparison-receipt.json"
+      },
+      "source": {
+        "repository": "malaiwah/glm-moe-dsa-tiny-random-bf16",
+        "revision": "a1a973330e4e912678adbd8ea41e8b86b1c9dccb"
+      },
+      "mean_tokenwise_kld_nats": 0.0005261778079916031,
+      "scored_positions": 252,
+      "head_policy": "native_head",
+      "comparability": "advisory",
+      "restrictions": [
+        "GLM MoE DSA, dense and routed expert matrices; decoded BF16 execution, not full original quantized release"
+      ],
+      "activation_omissions": [
+        "Reconstructed weights only; no activation quantization, QAT, calibration or GPU kernel validation"
+      ],
+      "optimizer": "not-run",
+      "release_status": "public_anonymously_byte_verified"
+    },
+    {
+      "id": "existing--q8_0",
+      "format": "q8_0; random FORMAT fixture",
+      "classification": "lossy",
+      "fixture": {
+        "repository": "malaiwah/glm-moe-dsa-tiny-random-q8_0-rtn-format",
+        "revision": "057550276019fa2ee503d175c415a093f07f0ba9"
+      },
+      "evidence": {
+        "repository": "malaiwah/qfs-existing-tiny-cpu-format-v1",
+        "revision": "2b5c947281a92d1f104ee17fdcc44a0104768a45",
+        "comparison_path": "raw/candidates/q8_0/evidence/comparison-q8_0/comparison-receipt.json"
+      },
+      "source": {
+        "repository": "malaiwah/glm-moe-dsa-tiny-random-bf16",
+        "revision": "45563636ef723acfb826755493447dc40c7a0c37"
+      },
+      "mean_tokenwise_kld_nats": 8.811746477603488e-05,
+      "scored_positions": 252,
+      "head_policy": "native_head",
+      "comparability": "advisory",
+      "restrictions": [
+        "GLM MoE DSA; full random tiny checkpoint; header-derived GGUF geometry; not all GGUF architectures"
+      ],
+      "activation_omissions": [
+        "Weights reconstructed to BF16; dynamic FP8 activation quantization not captured; no serving-kernel parity claim"
+      ],
+      "optimizer": "not-run",
+      "release_status": "public_anonymously_byte_verified"
+    },
+    {
+      "id": "existing--q4_0",
+      "format": "q4_0; random FORMAT fixture",
+      "classification": "lossy",
+      "fixture": {
+        "repository": "malaiwah/glm-moe-dsa-tiny-random-q4_0-rtn-format",
+        "revision": "c0e73b84e074c800ea906f46d1d9cf3d04bcf88c"
+      },
+      "evidence": {
+        "repository": "malaiwah/qfs-existing-tiny-cpu-format-v1",
+        "revision": "2b5c947281a92d1f104ee17fdcc44a0104768a45",
+        "comparison_path": "raw/candidates/q4_0/evidence/comparison-q4_0/comparison-receipt.json"
+      },
+      "source": {
+        "repository": "malaiwah/glm-moe-dsa-tiny-random-bf16",
+        "revision": "45563636ef723acfb826755493447dc40c7a0c37"
+      },
+      "mean_tokenwise_kld_nats": 0.0010913297999425055,
+      "scored_positions": 252,
+      "head_policy": "native_head",
+      "comparability": "advisory",
+      "restrictions": [
+        "GLM MoE DSA; full random tiny checkpoint; header-derived GGUF geometry; not all GGUF architectures"
+      ],
+      "activation_omissions": [
+        "Weights reconstructed to BF16; dynamic FP8 activation quantization not captured; no serving-kernel parity claim"
+      ],
+      "optimizer": "not-run",
+      "release_status": "public_anonymously_byte_verified"
+    },
+    {
+      "id": "existing--fp8-block32",
+      "format": "fp8-block32; random FORMAT fixture",
+      "classification": "lossy",
+      "fixture": {
+        "repository": "malaiwah/glm-moe-dsa-tiny-random-fp8-block32-rtn-format",
+        "revision": "6ada7f419a5a5cca2ad651f140e13d21a8057a7b"
+      },
+      "evidence": {
+        "repository": "malaiwah/qfs-existing-tiny-cpu-format-v1",
+        "revision": "2b5c947281a92d1f104ee17fdcc44a0104768a45",
+        "comparison_path": "raw/candidates/fp8-block32/evidence/comparison-fp8-block32/comparison-receipt.json"
+      },
+      "source": {
+        "repository": "malaiwah/glm-moe-dsa-tiny-random-bf16",
+        "revision": "45563636ef723acfb826755493447dc40c7a0c37"
+      },
+      "mean_tokenwise_kld_nats": 0.00019925521791425689,
+      "scored_positions": 252,
+      "head_policy": "native_head",
+      "comparability": "advisory",
+      "restrictions": [
+        "GLM MoE DSA; full random tiny checkpoint; header-derived GGUF geometry; not all GGUF architectures"
+      ],
+      "activation_omissions": [
+        "Weights reconstructed to BF16; dynamic FP8 activation quantization not captured; no serving-kernel parity claim"
+      ],
+      "optimizer": "not-run",
+      "release_status": "public_anonymously_byte_verified"
+    },
+    {
+      "id": "qwen-gguf--f32",
+      "format": "canonical dense Qwen35 GGUF f32",
+      "classification": "exact-control",
+      "fixture": {
+        "repository": "malaiwah/qwen3-5-tiny-random-gguf-f32-format",
+        "revision": "27678e2b2c3a95235e4dad9a2ac9a24d2b257408"
+      },
+      "evidence": {
+        "repository": "malaiwah/qfs-qwen-gguf-tiny-cpu-format-v1",
+        "revision": "7cb03a8be6ae3ebb1791c11b625718435308ddc5",
+        "comparison_path": "raw/candidates/f32/evidence/comparison-f32/comparison-receipt.json"
+      },
+      "source": {
+        "repository": "malaiwah/qwen3-5-gguf-tiny-random-bf16",
+        "revision": "490767e58441a55c5a9f6375ea0e31e2cdc9da76"
+      },
+      "mean_tokenwise_kld_nats": 0.0,
+      "scored_positions": 252,
+      "head_policy": "native_head",
+      "comparability": "advisory",
+      "restrictions": [
+        "Canonical dense Qwen35 split-QKV/Z; key heads 2/value heads 6; text-only view with own head; no Qwen35-MoE, Qwen4-Exp, historical fused layout, vision or MTP"
+      ],
+      "activation_omissions": [
+        "Native BF16 forward; no llama.cpp serving-kernel or activation quantization validation"
+      ],
+      "optimizer": "not-run",
+      "release_status": "public_anonymously_byte_verified"
+    },
+    {
+      "id": "qwen-gguf--f16",
+      "format": "canonical dense Qwen35 GGUF f16",
+      "classification": "near-control",
+      "fixture": {
+        "repository": "malaiwah/qwen3-5-tiny-random-gguf-f16-format",
+        "revision": "95d3fe871df7afb89891cabe2841cd32f5788964"
+      },
+      "evidence": {
+        "repository": "malaiwah/qfs-qwen-gguf-tiny-cpu-format-v1",
+        "revision": "7cb03a8be6ae3ebb1791c11b625718435308ddc5",
+        "comparison_path": "raw/candidates/f16/evidence/comparison-f16/comparison-receipt.json"
+      },
+      "source": {
+        "repository": "malaiwah/qwen3-5-gguf-tiny-random-bf16",
+        "revision": "490767e58441a55c5a9f6375ea0e31e2cdc9da76"
+      },
+      "mean_tokenwise_kld_nats": 1.3000787260864616e-08,
+      "scored_positions": 252,
+      "head_policy": "native_head",
+      "comparability": "advisory",
+      "restrictions": [
+        "Canonical dense Qwen35 split-QKV/Z; key heads 2/value heads 6; text-only view with own head; no Qwen35-MoE, Qwen4-Exp, historical fused layout, vision or MTP"
+      ],
+      "activation_omissions": [
+        "Native BF16 forward; no llama.cpp serving-kernel or activation quantization validation"
+      ],
+      "optimizer": "not-run",
+      "release_status": "public_anonymously_byte_verified"
+    },
+    {
+      "id": "qwen-gguf--q8_0",
+      "format": "canonical dense Qwen35 GGUF q8_0",
+      "classification": "lossy",
+      "fixture": {
+        "repository": "malaiwah/qwen3-5-tiny-random-gguf-q8_0-format",
+        "revision": "775bd7604f838e983a23ef00606fa0f592a38932"
+      },
+      "evidence": {
+        "repository": "malaiwah/qfs-qwen-gguf-tiny-cpu-format-v1",
+        "revision": "7cb03a8be6ae3ebb1791c11b625718435308ddc5",
+        "comparison_path": "raw/candidates/q8_0/evidence/comparison-q8_0/comparison-receipt.json"
+      },
+      "source": {
+        "repository": "malaiwah/qwen3-5-gguf-tiny-random-bf16",
+        "revision": "490767e58441a55c5a9f6375ea0e31e2cdc9da76"
+      },
+      "mean_tokenwise_kld_nats": 2.783642811116105e-06,
+      "scored_positions": 252,
+      "head_policy": "native_head",
+      "comparability": "advisory",
+      "restrictions": [
+        "Canonical dense Qwen35 split-QKV/Z; key heads 2/value heads 6; text-only view with own head; no Qwen35-MoE, Qwen4-Exp, historical fused layout, vision or MTP"
+      ],
+      "activation_omissions": [
+        "Native BF16 forward; no llama.cpp serving-kernel or activation quantization validation"
+      ],
+      "optimizer": "not-run",
+      "release_status": "public_anonymously_byte_verified"
+    },
+    {
+      "id": "qwen-gguf--q4_0",
+      "format": "canonical dense Qwen35 GGUF q4_0",
+      "classification": "lossy",
+      "fixture": {
+        "repository": "malaiwah/qwen3-5-tiny-random-gguf-q4_0-format",
+        "revision": "62077782002e9586b747244fe64593bacbd5eee5"
+      },
+      "evidence": {
+        "repository": "malaiwah/qfs-qwen-gguf-tiny-cpu-format-v1",
+        "revision": "7cb03a8be6ae3ebb1791c11b625718435308ddc5",
+        "comparison_path": "raw/candidates/q4_0/evidence/comparison-q4_0/comparison-receipt.json"
+      },
+      "source": {
+        "repository": "malaiwah/qwen3-5-gguf-tiny-random-bf16",
+        "revision": "490767e58441a55c5a9f6375ea0e31e2cdc9da76"
+      },
+      "mean_tokenwise_kld_nats": 0.0004317659524141758,
+      "scored_positions": 252,
+      "head_policy": "native_head",
+      "comparability": "advisory",
+      "restrictions": [
+        "Canonical dense Qwen35 split-QKV/Z; key heads 2/value heads 6; text-only view with own head; no Qwen35-MoE, Qwen4-Exp, historical fused layout, vision or MTP"
+      ],
+      "activation_omissions": [
+        "Native BF16 forward; no llama.cpp serving-kernel or activation quantization validation"
+      ],
+      "optimizer": "not-run",
+      "release_status": "public_anonymously_byte_verified"
+    }
+  ],
+  "coverage_report": {
+    "architecture_paths": {
+      "verified": 11,
+      "selected": 11,
+      "new_in_this_expansion": 7,
+      "scope": "tiny native random text paths, not full original production checkpoints"
+    },
+    "lossy_fixture_cases": {
+      "verified_nonzero": 18,
+      "selected": 18,
+      "percent": 100,
+      "scope": "deliberately selected representative storage cases; not 18 distinct optimizers"
+    },
+    "floating_controls": {
+      "verified": 2,
+      "selected": 2,
+      "scope": "Qwen GGUF F32 exact control and F16 near control"
+    },
+    "market_sample": {
+      "repositories": 100,
+      "format_metadata_unclassified": 47,
+      "classification_counts": {
+        "G": 42,
+        "U": 47,
+        "MO_MIX": 1,
+        "EXL3": 1,
+        "CT_INT": 2,
+        "MLX_AFFINE": 2,
+        "CT_MIX": 1,
+        "MO_MXFP8": 1,
+        "CUSTOM": 2,
+        "MLX_MXFP4": 1
+      },
+      "audit_file": "engines/quant-coverage-audit.json",
+      "original_full_checkpoints_executed": 0,
+      "meaning": "Metadata prioritization only; family labels do not prove a complete usable architecture/layout route"
+    },
+    "global_market_coverage_percent": null,
+    "not_claimed": [
+      "full architecture-by-quantizer Cartesian coverage",
+      "optimizer quality",
+      "trained model quality",
+      "GPU serving kernel equivalence",
+      "paid runner admission"
+    ]
+  },
+  "additional_native_fixtures": [
+    {
+      "repository": "malaiwah/qwen3-5-gguf-tiny-random-bf16",
+      "revision": "490767e58441a55c5a9f6375ea0e31e2cdc9da76",
+      "architecture": "qwen3_5",
+      "purpose": "nontrivial 2-key/6-value-head source for canonical GGUF transform and text-view controls"
+    }
+  ]
+}

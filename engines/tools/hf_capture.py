@@ -269,7 +269,7 @@ def load_panel(panel_dir: str, role: str, limit: Optional[int],
 
     receipt = os.path.join(panel_dir, "panel.receipt.json")
     return Panel(
-        root=panel_dir, panel_id="panel--%s" % os.path.basename(panel_dir.rstrip("/")),
+        root=panel_dir, panel_id=doc.get("panel_id") or "panel--%s" % os.path.basename(panel_dir.rstrip("/")),
         source=panel_json, receipt_sha256=F.sha256_file(receipt) if os.path.isfile(receipt) else None,
         windows=windows,
         tokenizer={"id": tokenizer_id, "repository": tokenizer_id, "revision": None,
@@ -1107,6 +1107,21 @@ def _source_files(args: argparse.Namespace) -> Dict[str, str]:
     if args.schedule == layer_outer.SCHEDULE_LAYER_OUTER:
         files["engines/tools/layer_outer.py"] = F.sha256_file(
             os.path.abspath(layer_outer.__file__))
+        streamer = getattr(args, "_weights_decode_streamer", None)
+        packed = getattr(streamer, "packed_plan", None)
+        if packed is not None:
+            import quant_stream
+            for name in quant_stream.source_files(packed):
+                files["engines/tools/" + name] = F.sha256_file(
+                    os.path.join(os.path.dirname(__file__), name))
+        gguf = getattr(streamer, "gguf_plan", None)
+        if gguf is not None:
+            names = ["gguf_surface.py"]
+            if "_bridge" in gguf:
+                names.append("gguf_qwen35.py")
+            for name in names:
+                files["engines/tools/" + name] = F.sha256_file(
+                    os.path.join(os.path.dirname(__file__), name))
     files["bin/fidelity/panel.py"] = F.sha256_file(
         os.path.abspath(panel_contract.__file__))
     files["bin/fidelity/codepin.py"] = F.sha256_file(
@@ -2372,6 +2387,8 @@ def _assemble(args, writer, panel, panel_records, capture_records, *, context_le
                       "schedule": args.schedule,
                       "verified_code": code_evidence,
                       "resolved_classes": getattr(args, "_resolved_classes", {}),
+                      "model_view": getattr(getattr(args, "_weights_decode_streamer", None),
+                                            "model_view", None),
                       "head_module_path": getattr(args, "_head_module_path", None),
                       "head_resolution": getattr(args, "_head_resolution", None),
                       # Full expected and observed sets, plus both identities
@@ -2429,6 +2446,17 @@ def _assemble(args, writer, panel, panel_records, capture_records, *, context_le
         disclosures = [{"code": "no_known_deviations", "severity": "info",
                         "affects_comparability": False,
                         "detail": "captured by engines/tools/hf_capture.py"}]
+    model_view = getattr(getattr(args, "_weights_decode_streamer", None), "model_view", None)
+    if model_view is not None:
+        disclosures = [d for d in disclosures if d.get("code") != "no_known_deviations"]
+        disclosures.append({
+            "code": "text_only_model_view", "severity": "caveat",
+            "affects_comparability": False,
+            "detail": "Language GGUF captured through the native Qwen3_5ForCausalLM text-only "
+                      "view, using the artifact's complete own text tensors and head. Vision "
+                      "and MTP are absent, not synthesized or borrowed. Original config and "
+                      "weight bytes remain the checkpoint identity; derived in-memory config "
+                      "and decoder layout are sealed in the runtime receipt. No multimodal claim."})
     # --allow-missing-weights was used: the number in this dataset is partly a
     # measurement of randomly initialised parameters. Say so, loudly, forever.
     if missing_weights:

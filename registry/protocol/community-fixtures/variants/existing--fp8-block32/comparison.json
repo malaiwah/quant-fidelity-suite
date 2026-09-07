@@ -1,0 +1,479 @@
+{
+  "candidate": {
+    "capture_content_digest": "efa3c2ef173c38fcad83052d6fb9704c1ceb33599d59ca27a03599ea605694f0",
+    "dataset_id": "fidelity--glm-moe-dsa-tiny.malaiwah.quant-format-fp8-block32",
+    "dataset_sha256": "293f1a5288076deef7ecab02069aba5166e8bc152b6c100f5ebe4af711c3a103",
+    "form": "hidden",
+    "head": {
+      "bits": 16,
+      "quantized": false,
+      "raw_tensor_sha256": "2364995d4009b32279b09045e48bf7cdceefcdaebdba3f70b003919a236f9510",
+      "source": "native",
+      "tensor_content_sha256": "2364995d4009b32279b09045e48bf7cdceefcdaebdba3f70b003919a236f9510"
+    },
+    "label": "candidate",
+    "lane": "other",
+    "lane_identity_sha256": "34f640ff350d24093734d97a81c1048ce0443d8b3c7bda0953f8283b8ea9269f",
+    "repository": null,
+    "revision": null,
+    "role": "quant",
+    "scope_digest": "attn.o=quantized:fp8_e4m3@8|attn.other=quantized:mixed|attn.qkv=quantized:fp8_e4m3@8|embed_tokens=native:bf16@16|lm_head=native:bf16@16|mlp.down=quantized:fp8_e4m3@8|mlp.gate=quantized:fp8_e4m3@8|mlp.up=quantized:fp8_e4m3@8|moe.experts=quantized:fp8_e4m3@8|moe.router=native:mixed|moe.shared_expert=quantized:fp8_e4m3@8|norm=native:bf16@16|head=native|kv=bf16",
+    "stack_fingerprint_sha256": "a83c4de13e06b8727c3a05959e470708b1fa396b0fcbd78c2f9deac666fea6cd",
+    "weights": {
+      "artifact_ref": null,
+      "checkpoint_identity_sha256": "e4f5fbe4fbdf92d8c64a3248d020e59cb183a97d246514cb4916349df126efbe",
+      "codec": "fp8_e4m3",
+      "config_sha256": "4f89c2d6f5698cf2ba2ff0add80273607770a708e23abbe0bafdde8db066475e",
+      "declared_bits": 8.0,
+      "declared_head_bits": 16,
+      "index_sha256": null,
+      "model_ref": null,
+      "model_revision": null,
+      "quantized": true,
+      "repository": "/tmp/qfs-quant-existing-release/stage-main/fp8-block32",
+      "revision": null
+    }
+  },
+  "comparability": {
+    "bias": null,
+    "class": "advisory",
+    "key": "cmp--77b8c1e8c10e1f14",
+    "key_inputs": {
+      "accumulation_dtype": "float64",
+      "direction": "reference_to_candidate",
+      "head_policy": "native_head",
+      "metric_name": "mean_tokenwise_kld",
+      "note": "provisional; the registry recomputes with its reference record id (registry CMP-001)",
+      "panel_id": "panel--panel",
+      "reference_id": "fidelity--glm-moe-dsa-tiny.malaiwah.quant-format-reference",
+      "stack_relation": "same_stack"
+    },
+    "same_lane": true,
+    "usable_as_floor": true
+  },
+  "comparator": {
+    "accumulation_dtype": "float64",
+    "bf16_reduced_precision_reduction": false,
+    "cublas_workspace_config": null,
+    "deterministic_algorithms": true,
+    "device": "cpu",
+    "estimator_backend": "torch:k6_kld_report._token_kld",
+    "head_applied_candidate_tensor_content_sha256": "2364995d4009b32279b09045e48bf7cdceefcdaebdba3f70b003919a236f9510",
+    "head_applied_reference_tensor_content_sha256": "2364995d4009b32279b09045e48bf7cdceefcdaebdba3f70b003919a236f9510",
+    "head_applied_tensor_content_sha256": null,
+    "logprob_dtype": "float64",
+    "position_block": 128,
+    "replay_backend": "numpy:cpu:float32",
+    "replay_env": {
+      "blas_configuration": "OpenBLAS 0.3.34.106.0  USE64BITINT DYNAMIC_ARCH NO_AFFINITY Haswell MAX_THREADS=64",
+      "blas_name": "scipy-openblas",
+      "blas_threads": 2,
+      "blas_threads_source": "ctypes:scipy_openblas_get_num_threads64_",
+      "blas_version": "0.3.34.106.0",
+      "cpu_model": "Intel(R) Xeon(R) CPU           X5570  @ 2.93GHz",
+      "library": "numpy",
+      "numpy_version": "2.5.3",
+      "replay_dtype": "float32"
+    },
+    "replay_peak_device_bytes": null,
+    "short_circuited": false,
+    "source_file_hashes_verified": true,
+    "tensor_content_digests_verified": true,
+    "tf32": false,
+    "tool": {
+      "entrypoint": "bin/fidelity-dataset compare",
+      "note": "the fp64 estimator is k6_kld_report._token_kld, imported not copied, whenever torch is importable; estimator_backend records which path ran."
+    },
+    "two_pass": true,
+    "vocab_chunk": null
+  },
+  "comparison_kind": "measurement",
+  "context_depth_buckets": {
+    "0000-0255": 0.00019925521791425689
+  },
+  "created_utc": "2026-09-07T16:35:16Z",
+  "determinism": {
+    "cold_start_per_run": null,
+    "distinct_evidence_hash_count": 2,
+    "evidence_hashes": [
+      "d3a8907faca213c298b4ff9e77dd5f041bba4353603447a30457e33c33386d39",
+      "efa3c2ef173c38fcad83052d6fb9704c1ceb33599d59ca27a03599ea605694f0"
+    ],
+    "evidence_kind": "hidden_state_tensor_sha256",
+    "identical_across_runs": null,
+    "max_run_mean": 0.00019925521791425689,
+    "min_run_mean": 0.00019925521791425689,
+    "note": "one comparison of two sealed captures. identical_across_runs is null, not true: that claim needs two independently produced captures of the SAME weights (SC-2), which is a different receipt.",
+    "population_stddev_of_run_means": 0.0,
+    "run_count": 1,
+    "run_means": [
+      0.00019925521791425689
+    ]
+  },
+  "disclosures": [
+    {
+      "affects_comparability": false,
+      "code": "native_head_replay",
+      "detail": "HEAD-1d: each side replayed through its own sealed head (reference 2364995d4009, candidate 2364995d4009); head error is inside the measurement, as under HEAD-2, and nothing is substituted. The heads are content-identical.",
+      "severity": "info"
+    },
+    {
+      "affects_comparability": true,
+      "code": "weights_reconstructed",
+      "detail": "candidate was captured from a WEIGHTS-ONLY RECONSTRUCTION (fp8-block-dequant-to-bf16, output bfloat16). The stored weights were decoded before the model forward; native quantized GEMM and serving activation arithmetic are not measured. Decoder provenance is in the sealed runtime receipt. The comparison is advisory.",
+      "severity": "caveat"
+    },
+    {
+      "affects_comparability": true,
+      "code": "activation_quantization_not_captured",
+      "detail": "candidate was captured from a bf16 materialisation of its block-scaled FP8 weights (fp8-block-dequant-to-bf16); the checkpoint declares activation_scheme: dynamic, so a served W8A8 deployment also quantizes activations per token at runtime. That term is not in this number, which is expected to understate the served divergence; it is not a mathematical bound. The comparison is advisory.",
+      "severity": "caveat"
+    }
+  ],
+  "estimator": {
+    "accumulation_dtype": "float64",
+    "head_policy": "native_head",
+    "hidden_dtype": "bf16",
+    "logits_dtype": "float32",
+    "softmax_note": "full vocabulary, torch.log_softmax in float64; no truncation, no top-k, no clamp. A non-finite intermediate is a hard refusal.",
+    "stack_relation": "same_stack",
+    "two_pass": true,
+    "vocab_chunk": null,
+    "zero_handling": null
+  },
+  "format_version": 1,
+  "gates": {
+    "coverage": {
+      "detail": "4 of 4/4 declared records shared",
+      "overridden_by": null,
+      "passed": true
+    },
+    "decode": {
+      "detail": "weights_decode reference none; candidate fp8-block-dequant-to-bf16",
+      "overridden_by": null,
+      "passed": true
+    },
+    "form": {
+      "detail": "hidden vs hidden",
+      "overridden_by": null,
+      "passed": true
+    },
+    "geometry": {
+      "detail": "vocab_size 260 equal; hidden_width 64",
+      "overridden_by": null,
+      "passed": true
+    },
+    "head": {
+      "detail": "HEAD-1d: own heads on both sides (2364995d4009 vs 2364995d4009)",
+      "overridden_by": null,
+      "passed": true
+    },
+    "lane": {
+      "detail": "lane=other vs other",
+      "overridden_by": null,
+      "passed": true
+    },
+    "lossy": {
+      "detail": "lossy_codec null on both sides",
+      "overridden_by": null,
+      "passed": true
+    },
+    "panel": {
+      "detail": "suite_token_hash_sha256 equal; 4 shared records; per-record token and mask digests equal; scoring_window equal",
+      "overridden_by": null,
+      "passed": true
+    },
+    "seal": {
+      "detail": "both manifests self-seal and checksums.txt verified; every tensor_content_sha256 recomputed",
+      "overridden_by": null,
+      "passed": true
+    },
+    "stack": {
+      "detail": "lane_identity equal / stack_fingerprint equal -> same_stack",
+      "overridden_by": null,
+      "passed": true
+    }
+  },
+  "high_kld_contexts": [
+    {
+      "allocation_stratum": null,
+      "domain": "garden",
+      "index": 0,
+      "max": 0.0015697916703366313,
+      "mean": 0.00023438639784356118,
+      "scored_rows": 63,
+      "window_id": "final-0000"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "instructions",
+      "index": 3,
+      "max": 0.0017633374355249104,
+      "mean": 0.0002093689543782,
+      "scored_rows": 63,
+      "window_id": "final-0003"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "arithmetic",
+      "index": 1,
+      "max": 0.0028586805769074642,
+      "mean": 0.00019166978784021226,
+      "scored_rows": 63,
+      "window_id": "final-0001"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "code",
+      "index": 2,
+      "max": 0.0008203384100845738,
+      "mean": 0.00016159573159505407,
+      "scored_rows": 63,
+      "window_id": "final-0002"
+    }
+  ],
+  "kl": {
+    "max": 0.0028586805769074642,
+    "mean": 0.00019925521791425689,
+    "median": 0.00010352960945399244,
+    "p95": 0.0006665651492531668,
+    "p99": 0.0014691277144390934,
+    "p99_9": 0.002583749448420438
+  },
+  "kl_macro_stratum_mean": null,
+  "kl_micro_token_mean": 0.00019925521791425689,
+  "measurement_scope": {
+    "contexts": 4,
+    "covers_full_panel": true,
+    "position_filter": "all",
+    "positions_per_context": 63,
+    "scored_positions": 252,
+    "subset_detail": null
+  },
+  "metric": {
+    "direction": "reference_to_candidate",
+    "direction_label": "KL(reference || candidate)",
+    "higher_is_better": false,
+    "name": "mean_tokenwise_kld",
+    "units": "nats",
+    "value": 0.00019925521791425689
+  },
+  "panel": {
+    "context_length": 64,
+    "contexts": 4,
+    "panel_id": "panel--panel",
+    "panel_token_sha256_legacy": "3c9467c85be43d238926f6d18bf825c2e4748814c95b8b0e8b8f1420546c3089",
+    "scored_positions": 252,
+    "scoring_window": {
+      "dropped_positions_total": 0,
+      "min_left_context_tokens": 1,
+      "policy": "every causal prediction position of every window is scored; nothing is dropped",
+      "score_from": 0,
+      "windowed": false
+    },
+    "suite_token_hash_sha256": "525cb6c625096ddb0ab19771a252e83223de98cc984733ef7da25a5eb076db36",
+    "tokenizer": {
+      "files": [
+        {
+          "bytes": 1479,
+          "name": "config.json",
+          "sha256": "7d5880677655ece868c12425a204f539243244af121bc8ad09b881a7546930d7"
+        },
+        {
+          "bytes": 216,
+          "name": "generation_config.json",
+          "sha256": "1d59e0fb61ca550ea84bd37a6bdf553ab364bc2689b17ba69f6a1adbc9d61e34"
+        },
+        {
+          "bytes": 6763,
+          "name": "tokenizer.json",
+          "sha256": "8557198de5989f11dc18c955f6bc98143d2f301c141a8dcab7461a14f78591da"
+        },
+        {
+          "bytes": 236,
+          "name": "tokenizer_config.json",
+          "sha256": "e0b489082ac322f131a544ca0833983e1cecb99c2817b2e72184e5ffbdb6ce63"
+        }
+      ],
+      "files_verified": true,
+      "id": "malaiwah/glm-moe-dsa-tiny-random-bf16",
+      "identity_sha256": "d352eac9d82f64010d4094b2dc548d67bf6020df8f7fd4f529bb66f22ceaa9b1",
+      "maximum_token_id_exclusive": 260,
+      "receipt": null,
+      "repository": "malaiwah/glm-moe-dsa-tiny-random-bf16",
+      "revision": "45563636ef723acfb826755493447dc40c7a0c37",
+      "vocab_size": 260
+    },
+    "tokenizer_candidate": {
+      "files": [
+        {
+          "bytes": 1479,
+          "name": "config.json",
+          "sha256": "7d5880677655ece868c12425a204f539243244af121bc8ad09b881a7546930d7"
+        },
+        {
+          "bytes": 216,
+          "name": "generation_config.json",
+          "sha256": "1d59e0fb61ca550ea84bd37a6bdf553ab364bc2689b17ba69f6a1adbc9d61e34"
+        },
+        {
+          "bytes": 6763,
+          "name": "tokenizer.json",
+          "sha256": "8557198de5989f11dc18c955f6bc98143d2f301c141a8dcab7461a14f78591da"
+        },
+        {
+          "bytes": 236,
+          "name": "tokenizer_config.json",
+          "sha256": "e0b489082ac322f131a544ca0833983e1cecb99c2817b2e72184e5ffbdb6ce63"
+        }
+      ],
+      "files_verified": true,
+      "id": "malaiwah/glm-moe-dsa-tiny-random-bf16",
+      "identity_sha256": "d352eac9d82f64010d4094b2dc548d67bf6020df8f7fd4f529bb66f22ceaa9b1",
+      "maximum_token_id_exclusive": 260,
+      "receipt": null,
+      "repository": "malaiwah/glm-moe-dsa-tiny-random-bf16",
+      "revision": "45563636ef723acfb826755493447dc40c7a0c37",
+      "vocab_size": 260
+    },
+    "tokenizer_identity_equal": true,
+    "tokenizer_reference": {
+      "files": [
+        {
+          "bytes": 1479,
+          "name": "config.json",
+          "sha256": "7d5880677655ece868c12425a204f539243244af121bc8ad09b881a7546930d7"
+        },
+        {
+          "bytes": 216,
+          "name": "generation_config.json",
+          "sha256": "1d59e0fb61ca550ea84bd37a6bdf553ab364bc2689b17ba69f6a1adbc9d61e34"
+        },
+        {
+          "bytes": 6763,
+          "name": "tokenizer.json",
+          "sha256": "8557198de5989f11dc18c955f6bc98143d2f301c141a8dcab7461a14f78591da"
+        },
+        {
+          "bytes": 236,
+          "name": "tokenizer_config.json",
+          "sha256": "e0b489082ac322f131a544ca0833983e1cecb99c2817b2e72184e5ffbdb6ce63"
+        }
+      ],
+      "files_verified": true,
+      "id": "malaiwah/glm-moe-dsa-tiny-random-bf16",
+      "identity_sha256": "d352eac9d82f64010d4094b2dc548d67bf6020df8f7fd4f529bb66f22ceaa9b1",
+      "maximum_token_id_exclusive": 260,
+      "receipt": null,
+      "repository": "malaiwah/glm-moe-dsa-tiny-random-bf16",
+      "revision": "45563636ef723acfb826755493447dc40c7a0c37",
+      "vocab_size": 260
+    }
+  },
+  "per_context": [
+    {
+      "allocation_stratum": null,
+      "domain": "garden",
+      "index": 0,
+      "max": 0.0015697916703366313,
+      "mean": 0.00023438639784356118,
+      "scored_rows": 63,
+      "window_id": "final-0000"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "arithmetic",
+      "index": 1,
+      "max": 0.0028586805769074642,
+      "mean": 0.00019166978784021226,
+      "scored_rows": 63,
+      "window_id": "final-0001"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "code",
+      "index": 2,
+      "max": 0.0008203384100845738,
+      "mean": 0.00016159573159505407,
+      "scored_rows": 63,
+      "window_id": "final-0002"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "instructions",
+      "index": 3,
+      "max": 0.0017633374355249104,
+      "mean": 0.0002093689543782,
+      "scored_rows": 63,
+      "window_id": "final-0003"
+    }
+  ],
+  "per_domain": {
+    "arithmetic": 0.00019166978784021226,
+    "code": 0.00016159573159505407,
+    "garden": 0.00023438639784356118,
+    "instructions": 0.0002093689543782
+  },
+  "per_stratum": null,
+  "receipt_sha256": "409c3c36bee9b60ae381787542c2c96ce8f56a1e8f113a0b9dff7a0c5204650c",
+  "reference": {
+    "capture_content_digest": "d3a8907faca213c298b4ff9e77dd5f041bba4353603447a30457e33c33386d39",
+    "dataset_id": "fidelity--glm-moe-dsa-tiny.malaiwah.quant-format-reference",
+    "dataset_sha256": "9d163f2d08c7931848ddf4526920fcf908e06b3d1484340d05d3623bf92b0ae7",
+    "form": "hidden",
+    "head": {
+      "bits": 16,
+      "quantized": false,
+      "raw_tensor_sha256": "2364995d4009b32279b09045e48bf7cdceefcdaebdba3f70b003919a236f9510",
+      "source": "native",
+      "tensor_content_sha256": "2364995d4009b32279b09045e48bf7cdceefcdaebdba3f70b003919a236f9510"
+    },
+    "label": "reference",
+    "lane": "other",
+    "lane_identity_sha256": "34f640ff350d24093734d97a81c1048ce0443d8b3c7bda0953f8283b8ea9269f",
+    "repository": null,
+    "revision": null,
+    "role": "root",
+    "scope_digest": "attn.o=native:bf16@16|attn.qkv=native:bf16@16|embed_tokens=native:bf16@16|lm_head=native:bf16@16|mlp.down=native:bf16@16|mlp.gate=native:bf16@16|mlp.up=native:bf16@16|moe.experts=native:bf16@16|norm=native:bf16@16|head=native|kv=bf16",
+    "stack_fingerprint_sha256": "a83c4de13e06b8727c3a05959e470708b1fa396b0fcbd78c2f9deac666fea6cd",
+    "weights": {
+      "artifact_ref": null,
+      "checkpoint_identity_sha256": "800be70604bef0c3adfb429774f44756d60bf23d141e82d24a032ce25ce0451e",
+      "codec": null,
+      "config_sha256": "7d5880677655ece868c12425a204f539243244af121bc8ad09b881a7546930d7",
+      "declared_bits": null,
+      "declared_head_bits": 16,
+      "index_sha256": null,
+      "model_ref": null,
+      "model_revision": "45563636ef723acfb826755493447dc40c7a0c37",
+      "quantized": false,
+      "repository": "malaiwah/glm-moe-dsa-tiny-random-bf16",
+      "revision": "45563636ef723acfb826755493447dc40c7a0c37"
+    }
+  },
+  "schema": "malaiwah.fidelity-comparison-receipt.v1",
+  "self_compare": null,
+  "submission": {
+    "emitted": false,
+    "path": null,
+    "receipt_sha256": null,
+    "refusal": null,
+    "submission_schema": null
+  },
+  "tokenwise": {
+    "bytes": 2144,
+    "path": "tokenwise-kld.npy",
+    "sha256": "332a0163947083906cbab066fed7ffd8e8d1a8b2d3b65c90f518620727a46cb6"
+  },
+  "top1_agreement": 0.8611111111111112,
+  "top1_discordant_contexts": [],
+  "uncertainty": {
+    "ci95_high": null,
+    "ci95_low": null,
+    "cluster_unit": null,
+    "clusters": null,
+    "method": "none",
+    "samples": null,
+    "seed": null
+  }
+}

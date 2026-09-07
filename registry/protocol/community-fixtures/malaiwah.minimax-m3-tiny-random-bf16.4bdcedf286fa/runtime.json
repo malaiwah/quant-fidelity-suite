@@ -1,0 +1,255 @@
+{
+  "capture_tool": {
+    "expert_fill": {
+      "bytes_filled": 0,
+      "declined": {
+        "model.language_model.layers.1.mlp.experts.down_proj": "language_model.model.layers.1.block_sparse_moe.experts.0.w2.weight routes here but is not an expert slice",
+        "model.language_model.layers.1.mlp.experts.gate_up_proj": "language_model.model.layers.1.block_sparse_moe.experts.0.w1.weight routes here but is not an expert slice",
+        "model.language_model.layers.2.mlp.experts.down_proj": "language_model.model.layers.2.block_sparse_moe.experts.0.w2.weight routes here but is not an expert slice",
+        "model.language_model.layers.2.mlp.experts.gate_up_proj": "language_model.model.layers.2.block_sparse_moe.experts.0.w1.weight routes here but is not an expert slice"
+      },
+      "decoded_slices": 0,
+      "identity": "a byte copy into the fused parameter's slice; bin/selftest_layer_outer.py L4/L6 assert equality with from_pretrained and with the converter path",
+      "layers_filled": 0,
+      "mode": "direct",
+      "reference": "transformers.core_model_loading.MergeModulelist(dim=0) + Concatenate(dim=1)",
+      "slices_filled": 0,
+      "staged_slices": 0,
+      "staging": "pageable",
+      "targets_filled": 0
+    },
+    "file": "engines/tools/hf_capture.py",
+    "head_module_path": "lm_head",
+    "head_resolution": "lm_head",
+    "layer_residency": "stream",
+    "mechanism": "transformers forward pass, layer-outer/window-inner schedule: for each decoder layer the model's own forward is run once per window with the layers below replaying their memoised output and the layers above suspending, so each layer's weights are materialised once for the whole panel. Windows are pushed through sequentially, never batched. Forward pre-hook on model.get_output_embeddings(), fired by the model's own epilogue after the last layer",
+    "model_view": null,
+    "parallel_plan_dropped": false,
+    "resolved_classes": {
+      "config": "transformers.models.minimax_m3_vl.configuration_minimax_m3_vl.MiniMaxM3VLConfig",
+      "model": "transformers.models.minimax_m3_vl.modeling_minimax_m3_vl.MiniMaxM3SparseForConditionalGeneration"
+    },
+    "resolved_panel_binding": {
+      "binding": {
+        "content": {
+          "archive": {
+            "algorithm": "sha256(ustar: sorted regular files; mode=0644; uid=gid=mtime=0)",
+            "bytes": 20480,
+            "compression": "none",
+            "format": "ustar",
+            "sha256": "0c9f0a7a2e0cf0179f57aca8dd910a357dd2d6ed2a531e2e9da1bd2471ffebb9"
+          },
+          "manifest": [
+            {
+              "bytes": 192,
+              "path": "arrays/causal-mask-64.npy",
+              "sha256": "a38fba8bfd9cd25a81b0e37fa144e8e13e84f769ae7f609ceebc94a64f4f5d02"
+            },
+            {
+              "bytes": 384,
+              "path": "arrays/final-0000.tokens.npy",
+              "sha256": "d60234f4b3b6044fb21eca18f7df82de9822f388e4d93d19d8a4eb69d6d490af"
+            },
+            {
+              "bytes": 384,
+              "path": "arrays/final-0001.tokens.npy",
+              "sha256": "20188213e4dfaaed04b1396a4ec46a5a2a6236c87d870c64d7102568d585ceea"
+            },
+            {
+              "bytes": 384,
+              "path": "arrays/final-0002.tokens.npy",
+              "sha256": "00341b323c286034a1c3a80ae66318cb6ce67153c08b1eedf6990b7a0310662c"
+            },
+            {
+              "bytes": 384,
+              "path": "arrays/final-0003.tokens.npy",
+              "sha256": "a13ec9b40a39027396ec752ee8595e0613569b78e27ef25d254f4f9a82d8775a"
+            },
+            {
+              "bytes": 4193,
+              "path": "panel.json",
+              "sha256": "dc8d6c1b233d5ef3b41bb7926eaefb6336c9597cac61b5f7ebda1d2a8321b6ce"
+            },
+            {
+              "bytes": 7804,
+              "path": "panel.receipt.json",
+              "sha256": "13aba5dc29c0b73948015c9164225a4e4ea6d72b5df880e3476ebfc098db0f08"
+            }
+          ],
+          "manifest_sha256": "a8d86d328bf5d3267902b43e47015e3b5afe184a45423c2db92be6801301e69e"
+        },
+        "panel": {
+          "bytes": 4193,
+          "context_length": 64,
+          "contexts": 4,
+          "file": "panel.json",
+          "id": "panel--minimax-m3-tiny.malaiwah.cpu-smoke-v1",
+          "name": "Tiny random-init minimax-m3 synthetic CPU smoke (not a benchmark)",
+          "positions_per_context": 63,
+          "role": "final",
+          "scored_positions_total": 252,
+          "sha256": "dc8d6c1b233d5ef3b41bb7926eaefb6336c9597cac61b5f7ebda1d2a8321b6ce",
+          "suite_token_hash_sha256": "525cb6c625096ddb0ab19771a252e83223de98cc984733ef7da25a5eb076db36"
+        },
+        "receipt": {
+          "bytes": 7804,
+          "declared_receipt_sha256": "15fd07d120bca971cb9fa7177e5d9c2e29bb48ba24b6449d952429117d6bf262",
+          "file": "panel.receipt.json",
+          "receipt_file_sha256": "13aba5dc29c0b73948015c9164225a4e4ea6d72b5df880e3476ebfc098db0f08",
+          "receipt_seal_mode": "self-blank"
+        },
+        "schema": "malaiwah.resolved-panel.v1",
+        "tokenizer": {
+          "files": [
+            {
+              "bytes": 2175,
+              "name": "config.json",
+              "sha256": "7fb52d928d3ab4a376f7af7b838c92b434f66995c1be01cd6a0f911fff1f4c90"
+            },
+            {
+              "bytes": 216,
+              "name": "generation_config.json",
+              "sha256": "1d59e0fb61ca550ea84bd37a6bdf553ab364bc2689b17ba69f6a1adbc9d61e34"
+            },
+            {
+              "bytes": 9335,
+              "name": "tokenizer.json",
+              "sha256": "c5f05830d9b8e3fc7042f20c32c18e056a5ee87c48313606849794bf1b485677"
+            },
+            {
+              "bytes": 516,
+              "name": "tokenizer_config.json",
+              "sha256": "9f24ab4c9150115747c129e162d2700bf8ef6fc9ba69703d13b99274463283e3"
+            }
+          ],
+          "files_verified": true,
+          "id": "malaiwah/minimax-m3-tiny-random-bf16",
+          "identity_sha256": "c0bef6e1e6ca0768df608b7c74c8c5437ac464072ca4054d406e815426dda075",
+          "maximum_token_id_exclusive": 272,
+          "receipt": null,
+          "repository": "malaiwah/minimax-m3-tiny-random-bf16",
+          "revision": "2776fc0ce078f3ba5ca9a81efec304f6fa7a89f4",
+          "vocab_size": 272
+        }
+      },
+      "binding_file": "panel-binding.json",
+      "binding_file_sha256": "3fe6e1006092500a118afbab485fe9eb552485fa857c094f574ca66cd77adf84",
+      "tokenizer_equivalences": []
+    },
+    "schedule": "layer-outer",
+    "sha256": "21ef72f4bb73ae52e232d63733494f0dece81009435af1c6a73052815d211c78",
+    "unexpected_tensor_allowlist": null,
+    "verified_code": null,
+    "version": "hf_capture/1",
+    "weights_decode": null,
+    "weights_license": {
+      "bytes": 3339,
+      "dataset_path": "LICENSE",
+      "sha256": "b53f2fdda3049b0e9013207be51efc2d372cda1fcfdd8bb4bb8b22658ca5db9c",
+      "source_file": "LICENSE"
+    },
+    "wraps": []
+  },
+  "container": {
+    "image_digest": null,
+    "image_reference": null,
+    "image_repository_digest": null
+  },
+  "format_version": 1,
+  "lane": "other",
+  "lane_identity_inputs": [
+    "torch_version",
+    "cuda_runtime_version",
+    "device_name",
+    "grouped_mm_kernel",
+    "numeric_policy",
+    "attention_backend",
+    "experts_implementation",
+    "parallelism",
+    "ep_emulate",
+    "reduce_order"
+  ],
+  "lane_identity_sha256": "34f640ff350d24093734d97a81c1048ce0443d8b3c7bda0953f8283b8ea9269f",
+  "lane_inferred": false,
+  "receipt_sha256": "e3ef17c9ccce92a4999a01879de5991b042d03b3368d883bfcf5cbc18cab7b28",
+  "resources": {
+    "bytes": {
+      "checkpoint_read": 144016,
+      "hidden_d2h": 18592,
+      "weights_h2d": null
+    },
+    "checkpoint_bytes": 158447,
+    "checkpoint_files": 2,
+    "device_name": null,
+    "forward_timing": "wall-clock",
+    "note": "provenance, not identity: peaks and stage seconds this run measured; forward_sum is device time under cuda-events, wall time otherwise; seal covers head serialisation up to this block's assembly",
+    "peak_cuda_allocated_bytes": null,
+    "peak_cuda_reserved_bytes": null,
+    "peak_resident_weight_bytes": 97344,
+    "peak_rss_bytes": 371204096,
+    "rss_units_source": "Linux ru_maxrss",
+    "seconds": {
+      "decode_sum": null,
+      "elapsed": 4.28,
+      "fill_sum": null,
+      "forward_sum": 0.084,
+      "identity": 0.002,
+      "layer_load_max": 0.017,
+      "layer_load_sum": 0.042,
+      "layer_loads": 3,
+      "resident_load": 3.559,
+      "seal": 0.007
+    }
+  },
+  "runtime_environment": {
+    "cold_run": "fidelity--minimax-m3.community-root-first",
+    "numeric_policy_observed": {
+      "NVIDIA_TF32_OVERRIDE": null,
+      "allow_tf32_cudnn": true,
+      "allow_tf32_matmul": false,
+      "deviates_from_default": false,
+      "float32_matmul_precision": "highest",
+      "observed_at": "seal time, after the forward"
+    },
+    "python": "3.12.14"
+  },
+  "schema": "malaiwah.fidelity-capture-runtime.v1",
+  "source_files": {
+    "bin/fidelity/codepin.py": "ce2a2c04d64adf7a268978a7ffe163c7d4cb5b675d5dc8e156f8a26a3b7bb5fd",
+    "bin/fidelity/panel.py": "0bf78fca76289920e0dc10d58082f42f24f4f2db6e0ecde61daefa4c22de286d",
+    "engines/tools/hf_capture.py": "21ef72f4bb73ae52e232d63733494f0dece81009435af1c6a73052815d211c78",
+    "engines/tools/layer_outer.py": "e3ea5715112663b1b60cf596eeffc2140e49b399809ece89a174bce41a969274"
+  },
+  "stack_fingerprint": {
+    "attention_backend": "model default",
+    "cuda_runtime_version": null,
+    "device": "cpu",
+    "device_name": null,
+    "engine": "transformers-eager",
+    "numeric_policy": "default torch matmul precision; no TF32 override applied",
+    "schema": "malaiwah.stack-fingerprint.v1",
+    "torch_version": "2.11.0+cpu",
+    "transformers_version": "5.16.1"
+  },
+  "stack_fingerprint_sha256": "a83c4de13e06b8727c3a05959e470708b1fa396b0fcbd78c2f9deac666fea6cd",
+  "upstream_receipts": [],
+  "weights": {
+    "checkpoint_files": [
+      {
+        "name": "config.json",
+        "sha256": "7fb52d928d3ab4a376f7af7b838c92b434f66995c1be01cd6a0f911fff1f4c90",
+        "size": 2175
+      },
+      {
+        "name": "model.safetensors",
+        "sha256": "c3ae6e37101836c9dbaf85e82e91fe4174707b1c007d1486ebe7f0b3de360f1c",
+        "size": 156272
+      }
+    ],
+    "checkpoint_identity_algorithm": "sha256 over the canonical JSON {\"algorithm\": <this string>, \"files\": [{\"name\", \"size\", \"sha256\"}, ...]} of every *.safetensors shard plus config.json in the checkpoint directory, sorted by name; for a llama.cpp GGUF tree the shards are every *.gguf of the one build directory (name = <build>/<file>) and config.json is the official release's copy beside it",
+    "checkpoint_identity_sha256": "9220ed85582c6cc84020275cf0dda497579a1aa7f20e0f051d33c8c304cc215d",
+    "model_revision": "ca904dff2941004a3f5bd5af62064fcfb34da8b9",
+    "repository": "malaiwah/minimax-m3-tiny-random-bf16",
+    "revision": "ca904dff2941004a3f5bd5af62064fcfb34da8b9"
+  }
+}

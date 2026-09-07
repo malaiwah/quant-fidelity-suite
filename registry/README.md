@@ -300,13 +300,62 @@ the validator warns whenever a `strict` row rests on a panel whose `contaminatio
 
 ## How to read the tables below
 
-20 tables follow, one per comparability group, across 5 models. Three things are true of all of them, and each is a mistake somebody has already made with numbers like these:
+32 tables follow, one per comparability group, across 17 models. Three things are true of all of them, and each is a mistake somebody has already made with numbers like these:
 
 1. **A number means nothing outside its own table.** Every table states the seven-part key its rows share. Two numbers under different keys are different quantities that happen to print in the same units.
-2. **The smallest number on this page is not the best quant.** Today it is GLM-5.2-SIQ-Fruit BF16 (the reference export) at 0 nats -- and it is not a quant at all -- those are unquantized weights, read by a second engine, measuring what two engines disagree by. Sorting this file by value and reading off the top is the single easiest way to be wrong with it.
+2. **The smallest number on this page is not the best quant.** Today it is deepseek-v4-tiny-random-bf16 (random test fixture) native BF16 at 0 nats -- and it is not a quant at all -- those are unquantized weights, read by a second engine, measuring what two engines disagree by. Sorting this file by value and reading off the top is the single easiest way to be wrong with it.
 3. **Nothing here compares two models.** A KL divergence is measured over one model's own vocabulary against that model's own teacher. GLM-5.3-Flash's numbers and Qwen3.8-27B's numbers are not on a shared scale and never will be.
 
 Attribution is a column, not a footnote: *measured by us*, *measured by us (their artifact)* and *reported by <name>* are three different epistemic states and the tables never merge them.
+
+## deepseek-v4-tiny-random-bf16 (random test fixture)
+
+`model--malaiwah.deepseek-v4-tiny-random-bf16` -- published by malaiwah. Tokenizer `fixture-tokenizer-a411cee2863e41c1`, vocabulary 272.
+
+### Panel: Synthetic CPU fixture panel 525cb6c62509
+
+> **Panel disclosure -- `reduced_run_count`:** Receipt disclosure reduced_run_count: this dataset is ONE cold capture (run_count 1, the DET-D4 floor is 5). Cross-run determinism is not asserted by the dataset; it is established by a second cold capture plus `fidelity-dataset compare --self-compare`, whose exactly-0.0 result is the SC-1 reproduction confirmation.
+
+> **Panel disclosure -- `native_head_replay`:** Receipt disclosure native_head_replay: HEAD-1d: each side replayed through its own sealed head (reference 5c5d4b4405a5, candidate 5c5d4b4405a5); head error is inside the measurement, as under HEAD-2, and nothing is substituted. The heads are content-identical.
+
+#### Group `cmp--b9834d82706b4192` -- 1 row
+
+**Panel** `panel--fixture.53326a9cd31fede1ea932442` -- Synthetic CPU fixture panel 525cb6c62509
+  4 contexts x 63 scored positions = **252 scored positions**, score_from 0
+  sealed: **yes** (token digest `525cb6c625096ddb...`) -- contamination scan: **NOT RUN**
+**Reference (teacher)** `reference--fixture.deepseek-v4.bb5f2cdf5ea90c38` -- native_bf16, artifact `artifact--malaiwah.deepseek-v4-tiny-random-bf16.185723bec10e` @185723bec10ee57db86e8c269b3c6a811122a0ca
+**Metric** mean_tokenwise_kld, direction reference_to_candidate, accumulation float64
+**Estimation surface** stack_relation `same_stack`, head_policy `native_head`
+**Comparability key** `cmp--b9834d82706b4192`
+**Like-for-like predicate** `comparable: unknown` -- no recorded difference, but hardware is unrecorded for at least one member, so homogeneity cannot be certified. Machine-readable form with per-dimension values: this key's `comparability` block in `index.json`.
+
+> **What this table is.** Every row here shares the comparability key above: the same tokens, the same teacher capture, the same metric and direction, the same estimator precision, the same stack relation and the same head policy. That makes them CANDIDATES for ranking -- the key is a necessary partition, not a certificate. Whether they are also like-for-like on the dimensions the key omits (lane, pipeline, scope coverage, hardware) is what the predicate line above answers.
+>
+> **Rank is not a verdict.** The table is sorted by fidelity alone, and fidelity buys bits: a larger, higher-bitrate quant will usually sit above a smaller one, which is not news. Read the Size and Codec columns before reading the order, and compare like against like.
+>
+> **What it is NOT comparable to.** Every other table in this file: no other group shares this key. That includes every table for a different model -- a KL number is a divergence over one model's own vocabulary against that model's own teacher, never a score that can be carried between models.
+>
+> **Single-row group.** This number has nothing in the registry to be ranked against. It is a stated fact, not a placing.
+
+> **1 of this group's 1 rows came off a different measurement lane** (`other`) and are tabled on their own below, not mixed into the ordering here. The key does not carry the lane; this file does.
+
+##### Lane `other` -- 1 of this group's 1 rows
+
+> **A different lane. Same key, and that is exactly the problem this table solves.** The comparability key is a function of the panel, the teacher, the metric, the direction, the estimator precision, the stack relation and the head policy -- and these rows match the table above on all seven. What they do not share is the machine and the code path that produced the candidate logits, and lanes are not interchangeable. Sorting them into one list would read as a ranking; where the same artifact appears in both, it is one set of weights measured twice, not two quants.
+>
+> **No bridge to the sealed lane is recorded for this lane.**
+
+| Artifact | Codec | Size | mean_tokenwise_kld (nats) | CI95 | Top-1 | Runs | Attribution | Receipt |
+|---|---|---:|---:|---|---:|---|---|---|
+| **deepseek-v4-tiny-random-bf16 (random test fixture) native BF16** _(measurement floor)_ | `bf16` | 0.0 GB | **0** | -- | 100.00 % | 2 runs, bitwise identical | measured by us | [receipt](https://huggingface.co/datasets/malaiwah/deepseek-v4-tiny-fidelity-root-v1/resolve/c86180f1844f932b2e685eeeed96b633e4c54cfb/fidelity-dataset.json) |
+
+<details><summary>Disclosures for the rows above (2)</summary>
+
+- `fixture.deepseek-v4.floor.55d284c17c025a99` **reduced_run_count**: Receipt disclosure reduced_run_count: this dataset is ONE cold capture (run_count 1, the DET-D4 floor is 5). Cross-run determinism is not asserted by the dataset; it is established by a second cold capture plus `fidelity-dataset compare --self-compare`, whose exactly-0.0 result is the SC-1 reproduction confirmation.
+- `fixture.deepseek-v4.floor.55d284c17c025a99` **reduced_run_count**: Two qualified cold runs, not five.
+
+</details>
+
 
 ## GLM-5.2-SIQ-Fruit
 
@@ -347,6 +396,545 @@ Attribution is a column, not a footnote: *measured by us*, *measured by us (thei
 - `fruit.siq-exl3-k3k4.heldout-v1` **single_run**: One cold capture of the candidate. Repeatability was established for the reference side only.
 - `fruit.siq-exl3-k3k4.heldout-v1` **declared_scheme_mismatch**: The artifact's config.json declares NVFP4/modelopt; the stored bytes are exl3-trellis K3/K4. scope_digest describes the bytes.
 - `fruit.siq-exl3-k3k4.heldout-v1` note: Per-window mean 0.038737453713514176, population sd 0.028308679654341876, min 0.012369540015856577 (final-0006, literary), max 0.09151472952402755 (final-0009, scientific) over 16 windows. The macro mean over contexts equals the token mean because every window contributes the same 2,047 positions.
+
+</details>
+
+
+## glm-moe-dsa-tiny-random-bf16 (random test fixture)
+
+`model--malaiwah.glm-moe-dsa-tiny-random-bf16` -- published by malaiwah. Tokenizer `fixture-tokenizer-08d3f8f92d3b9086`, vocabulary 260.
+
+### Panel: Synthetic CPU fixture panel 525cb6c62509
+
+> **Panel disclosure -- `reduced_run_count`:** Receipt disclosure reduced_run_count: this dataset is ONE cold capture (run_count 1, the DET-D4 floor is 5). Cross-run determinism is not asserted by the dataset; it is established by a second cold capture plus `fidelity-dataset compare --self-compare`, whose exactly-0.0 result is the SC-1 reproduction confirmation.
+
+> **Panel disclosure -- `native_head_replay`:** Receipt disclosure native_head_replay: HEAD-1d: each side replayed through its own sealed head (reference 2364995d4009, candidate 2364995d4009); head error is inside the measurement, as under HEAD-2, and nothing is substituted. The heads are content-identical.
+
+#### Group `cmp--9b87b6d52c97e8ca` -- 1 row
+
+**Panel** `panel--fixture.9d187d1dab31575b41ab4b00` -- Synthetic CPU fixture panel 525cb6c62509
+  4 contexts x 63 scored positions = **252 scored positions**, score_from 0
+  sealed: **yes** (token digest `525cb6c625096ddb...`) -- contamination scan: **NOT RUN**
+**Reference (teacher)** `reference--fixture.glm-moe-dsa.29e66b3afcf292da` -- native_bf16, artifact `artifact--malaiwah.glm-moe-dsa-tiny-random-bf16.a1a973330e4e` @a1a973330e4e912678adbd8ea41e8b86b1c9dccb
+**Metric** mean_tokenwise_kld, direction reference_to_candidate, accumulation float64
+**Estimation surface** stack_relation `same_stack`, head_policy `native_head`
+**Comparability key** `cmp--9b87b6d52c97e8ca`
+**Like-for-like predicate** `comparable: unknown` -- no recorded difference, but hardware is unrecorded for at least one member, so homogeneity cannot be certified. Machine-readable form with per-dimension values: this key's `comparability` block in `index.json`.
+
+> **What this table is.** Every row here shares the comparability key above: the same tokens, the same teacher capture, the same metric and direction, the same estimator precision, the same stack relation and the same head policy. That makes them CANDIDATES for ranking -- the key is a necessary partition, not a certificate. Whether they are also like-for-like on the dimensions the key omits (lane, pipeline, scope coverage, hardware) is what the predicate line above answers.
+>
+> **Rank is not a verdict.** The table is sorted by fidelity alone, and fidelity buys bits: a larger, higher-bitrate quant will usually sit above a smaller one, which is not news. Read the Size and Codec columns before reading the order, and compare like against like.
+>
+> **What it is NOT comparable to.** Every other table in this file: no other group shares this key. That includes every table for a different model -- a KL number is a divergence over one model's own vocabulary against that model's own teacher, never a score that can be carried between models.
+>
+> **Single-row group.** This number has nothing in the registry to be ranked against. It is a stated fact, not a placing.
+
+> **1 of this group's 1 rows came off a different measurement lane** (`other`) and are tabled on their own below, not mixed into the ordering here. The key does not carry the lane; this file does.
+
+##### Lane `other` -- 1 of this group's 1 rows
+
+> **A different lane. Same key, and that is exactly the problem this table solves.** The comparability key is a function of the panel, the teacher, the metric, the direction, the estimator precision, the stack relation and the head policy -- and these rows match the table above on all seven. What they do not share is the machine and the code path that produced the candidate logits, and lanes are not interchangeable. Sorting them into one list would read as a ranking; where the same artifact appears in both, it is one set of weights measured twice, not two quants.
+>
+> **No bridge to the sealed lane is recorded for this lane.**
+
+| Artifact | Codec | Size | mean_tokenwise_kld (nats) | CI95 | Top-1 | Runs | Attribution | Receipt |
+|---|---|---:|---:|---|---:|---|---|---|
+| **glm-moe-dsa-tiny-random-bf16 (random test fixture) native BF16** _(measurement floor)_ | `bf16` | 0.0 GB | **0** | -- | 100.00 % | 2 runs, bitwise identical | measured by us | [receipt](https://huggingface.co/datasets/malaiwah/glm-moe-dsa-tiny-fidelity-root-v1/resolve/b8ed427805abdfd6b8b20db10ca5107e840d0497/fidelity-dataset.json) |
+
+<details><summary>Disclosures for the rows above (2)</summary>
+
+- `fixture.glm-moe-dsa.floor.3fec5c1bbb4b9847` **reduced_run_count**: Receipt disclosure reduced_run_count: this dataset is ONE cold capture (run_count 1, the DET-D4 floor is 5). Cross-run determinism is not asserted by the dataset; it is established by a second cold capture plus `fidelity-dataset compare --self-compare`, whose exactly-0.0 result is the SC-1 reproduction confirmation.
+- `fixture.glm-moe-dsa.floor.3fec5c1bbb4b9847` **reduced_run_count**: Two qualified cold runs, not five.
+
+</details>
+
+
+## glm5-next-tiny-random-bf16 (random test fixture)
+
+`model--malaiwah.glm5-next-tiny-random-bf16` -- published by malaiwah. Tokenizer `fixture-tokenizer-1cd570eb10aee646`, vocabulary 266.
+
+### Panel: Synthetic CPU fixture panel 1ffa88108bda
+
+> **Panel disclosure -- `reduced_run_count`:** Receipt disclosure reduced_run_count: this dataset is ONE cold capture (run_count 1, the DET-D4 floor is 5). Cross-run determinism is not asserted by the dataset; it is established by a second cold capture plus `fidelity-dataset compare --self-compare`, whose exactly-0.0 result is the SC-1 reproduction confirmation.
+
+> **Panel disclosure -- `native_head_replay`:** Receipt disclosure native_head_replay: HEAD-1d: each side replayed through its own sealed head (reference e7cea31edbe2, candidate e7cea31edbe2); head error is inside the measurement, as under HEAD-2, and nothing is substituted. The heads are content-identical.
+
+#### Group `cmp--6757032314e38a59` -- 1 row
+
+**Panel** `panel--fixture.3e2777903c672346baceac98` -- Synthetic CPU fixture panel 1ffa88108bda
+  4 contexts x 63 scored positions = **252 scored positions**, score_from 0
+  sealed: **yes** (token digest `1ffa88108bda139b...`) -- contamination scan: **NOT RUN**
+**Reference (teacher)** `reference--fixture.glm5-next.d0b33dd18e79aba0` -- native_bf16, artifact `artifact--malaiwah.glm5-next-tiny-random-bf16.4c31348e3beb` @4c31348e3beb1a8a6bd73d055464362953d768ea
+**Metric** mean_tokenwise_kld, direction reference_to_candidate, accumulation float64
+**Estimation surface** stack_relation `same_stack`, head_policy `native_head`
+**Comparability key** `cmp--6757032314e38a59`
+**Like-for-like predicate** `comparable: unknown` -- no recorded difference, but hardware is unrecorded for at least one member, so homogeneity cannot be certified. Machine-readable form with per-dimension values: this key's `comparability` block in `index.json`.
+
+> **What this table is.** Every row here shares the comparability key above: the same tokens, the same teacher capture, the same metric and direction, the same estimator precision, the same stack relation and the same head policy. That makes them CANDIDATES for ranking -- the key is a necessary partition, not a certificate. Whether they are also like-for-like on the dimensions the key omits (lane, pipeline, scope coverage, hardware) is what the predicate line above answers.
+>
+> **Rank is not a verdict.** The table is sorted by fidelity alone, and fidelity buys bits: a larger, higher-bitrate quant will usually sit above a smaller one, which is not news. Read the Size and Codec columns before reading the order, and compare like against like.
+>
+> **What it is NOT comparable to.** Every other table in this file: no other group shares this key. That includes every table for a different model -- a KL number is a divergence over one model's own vocabulary against that model's own teacher, never a score that can be carried between models.
+>
+> **Single-row group.** This number has nothing in the registry to be ranked against. It is a stated fact, not a placing.
+
+> **1 of this group's 1 rows came off a different measurement lane** (`other`) and are tabled on their own below, not mixed into the ordering here. The key does not carry the lane; this file does.
+
+##### Lane `other` -- 1 of this group's 1 rows
+
+> **A different lane. Same key, and that is exactly the problem this table solves.** The comparability key is a function of the panel, the teacher, the metric, the direction, the estimator precision, the stack relation and the head policy -- and these rows match the table above on all seven. What they do not share is the machine and the code path that produced the candidate logits, and lanes are not interchangeable. Sorting them into one list would read as a ranking; where the same artifact appears in both, it is one set of weights measured twice, not two quants.
+>
+> **No bridge to the sealed lane is recorded for this lane.**
+
+| Artifact | Codec | Size | mean_tokenwise_kld (nats) | CI95 | Top-1 | Runs | Attribution | Receipt |
+|---|---|---:|---:|---|---:|---|---|---|
+| **glm5-next-tiny-random-bf16 (random test fixture) native BF16** _(measurement floor)_ | `bf16` | 0.0 GB | **0** | -- | 100.00 % | 2 runs, bitwise identical | measured by us | [receipt](https://huggingface.co/datasets/malaiwah/glm5-next-tiny-fidelity-root-v1/resolve/3990bcf5b82667cc359046898a652ee8a84921a7/fidelity-dataset.json) |
+
+<details><summary>Disclosures for the rows above (2)</summary>
+
+- `fixture.glm5-next.floor.9b37d404b8b10233` **reduced_run_count**: Receipt disclosure reduced_run_count: this dataset is ONE cold capture (run_count 1, the DET-D4 floor is 5). Cross-run determinism is not asserted by the dataset; it is established by a second cold capture plus `fidelity-dataset compare --self-compare`, whose exactly-0.0 result is the SC-1 reproduction confirmation.
+- `fixture.glm5-next.floor.9b37d404b8b10233` **reduced_run_count**: Two qualified cold runs, not five.
+
+</details>
+
+
+## k2-horizon-tiny-random-bf16 (random test fixture)
+
+`model--malaiwah.k2-horizon-tiny-random-bf16` -- published by malaiwah. Tokenizer `fixture-tokenizer-a411cee2863e41c1`, vocabulary 272.
+
+### Panel: Synthetic CPU fixture panel 525cb6c62509
+
+> **Panel disclosure -- `reduced_run_count`:** Receipt disclosure reduced_run_count: this dataset is ONE cold capture (run_count 1, the DET-D4 floor is 5). Cross-run determinism is not asserted by the dataset; it is established by a second cold capture plus `fidelity-dataset compare --self-compare`, whose exactly-0.0 result is the SC-1 reproduction confirmation.
+
+> **Panel disclosure -- `native_head_replay`:** Receipt disclosure native_head_replay: HEAD-1d: each side replayed through its own sealed head (reference 5c5d4b4405a5, candidate 5c5d4b4405a5); head error is inside the measurement, as under HEAD-2, and nothing is substituted. The heads are content-identical.
+
+#### Group `cmp--1fc318e7eb2a6ed5` -- 1 row
+
+**Panel** `panel--fixture.53326a9cd31fede1ea932442` -- Synthetic CPU fixture panel 525cb6c62509
+  4 contexts x 63 scored positions = **252 scored positions**, score_from 0
+  sealed: **yes** (token digest `525cb6c625096ddb...`) -- contamination scan: **NOT RUN**
+**Reference (teacher)** `reference--fixture.k2-horizon.baeeb09002899e7b` -- native_bf16, artifact `artifact--malaiwah.k2-horizon-tiny-random-bf16.50627d8f2166` @50627d8f2166ee04a172f4a5144dc0b3385b9ee9
+**Metric** mean_tokenwise_kld, direction reference_to_candidate, accumulation float64
+**Estimation surface** stack_relation `same_stack`, head_policy `native_head`
+**Comparability key** `cmp--1fc318e7eb2a6ed5`
+**Like-for-like predicate** `comparable: unknown` -- no recorded difference, but hardware is unrecorded for at least one member, so homogeneity cannot be certified. Machine-readable form with per-dimension values: this key's `comparability` block in `index.json`.
+
+> **What this table is.** Every row here shares the comparability key above: the same tokens, the same teacher capture, the same metric and direction, the same estimator precision, the same stack relation and the same head policy. That makes them CANDIDATES for ranking -- the key is a necessary partition, not a certificate. Whether they are also like-for-like on the dimensions the key omits (lane, pipeline, scope coverage, hardware) is what the predicate line above answers.
+>
+> **Rank is not a verdict.** The table is sorted by fidelity alone, and fidelity buys bits: a larger, higher-bitrate quant will usually sit above a smaller one, which is not news. Read the Size and Codec columns before reading the order, and compare like against like.
+>
+> **What it is NOT comparable to.** Every other table in this file: no other group shares this key. That includes every table for a different model -- a KL number is a divergence over one model's own vocabulary against that model's own teacher, never a score that can be carried between models.
+>
+> **Single-row group.** This number has nothing in the registry to be ranked against. It is a stated fact, not a placing.
+
+> **1 of this group's 1 rows came off a different measurement lane** (`other`) and are tabled on their own below, not mixed into the ordering here. The key does not carry the lane; this file does.
+
+##### Lane `other` -- 1 of this group's 1 rows
+
+> **A different lane. Same key, and that is exactly the problem this table solves.** The comparability key is a function of the panel, the teacher, the metric, the direction, the estimator precision, the stack relation and the head policy -- and these rows match the table above on all seven. What they do not share is the machine and the code path that produced the candidate logits, and lanes are not interchangeable. Sorting them into one list would read as a ranking; where the same artifact appears in both, it is one set of weights measured twice, not two quants.
+>
+> **No bridge to the sealed lane is recorded for this lane.**
+
+| Artifact | Codec | Size | mean_tokenwise_kld (nats) | CI95 | Top-1 | Runs | Attribution | Receipt |
+|---|---|---:|---:|---|---:|---|---|---|
+| **k2-horizon-tiny-random-bf16 (random test fixture) native BF16** _(measurement floor)_ | `bf16` | 0.0 GB | **0** | -- | 100.00 % | 2 runs, bitwise identical | measured by us | [receipt](https://huggingface.co/datasets/malaiwah/k2-horizon-tiny-fidelity-root-v1/resolve/9131871ea54fbe9589a05fbb68ed4d26f236ec32/fidelity-dataset.json) |
+
+<details><summary>Disclosures for the rows above (2)</summary>
+
+- `fixture.k2-horizon.floor.bb50aed4c5b1f157` **reduced_run_count**: Receipt disclosure reduced_run_count: this dataset is ONE cold capture (run_count 1, the DET-D4 floor is 5). Cross-run determinism is not asserted by the dataset; it is established by a second cold capture plus `fidelity-dataset compare --self-compare`, whose exactly-0.0 result is the SC-1 reproduction confirmation.
+- `fixture.k2-horizon.floor.bb50aed4c5b1f157` **reduced_run_count**: Two qualified cold runs, not five.
+
+</details>
+
+
+## kimi-k25-tiny-random-bf16 (random test fixture)
+
+`model--malaiwah.kimi-k25-tiny-random-bf16` -- published by malaiwah. Tokenizer `fixture-tokenizer-9cc132a24ced4fd7`, vocabulary 272.
+
+### Panel: Synthetic CPU fixture panel 525cb6c62509
+
+> **Panel disclosure -- `reduced_run_count`:** Receipt disclosure reduced_run_count: this dataset is ONE cold capture (run_count 1, the DET-D4 floor is 5). Cross-run determinism is not asserted by the dataset; it is established by a second cold capture plus `fidelity-dataset compare --self-compare`, whose exactly-0.0 result is the SC-1 reproduction confirmation.
+
+> **Panel disclosure -- `native_head_replay`:** Receipt disclosure native_head_replay: HEAD-1d: each side replayed through its own sealed head (reference e68a813f441b, candidate e68a813f441b); head error is inside the measurement, as under HEAD-2, and nothing is substituted. The heads are content-identical.
+
+#### Group `cmp--2cd2acab7abc566a` -- 1 row
+
+**Panel** `panel--fixture.a53145fb225cc15b73887d0f` -- Synthetic CPU fixture panel 525cb6c62509
+  4 contexts x 63 scored positions = **252 scored positions**, score_from 0
+  sealed: **yes** (token digest `525cb6c625096ddb...`) -- contamination scan: **NOT RUN**
+**Reference (teacher)** `reference--fixture.kimi-k25.29336d88a8aa2634` -- native_bf16, artifact `artifact--malaiwah.kimi-k25-tiny-random-bf16.721c97dd956f` @721c97dd956f23b6b5c1040d633539a162a19094
+**Metric** mean_tokenwise_kld, direction reference_to_candidate, accumulation float64
+**Estimation surface** stack_relation `same_stack`, head_policy `native_head`
+**Comparability key** `cmp--2cd2acab7abc566a`
+**Like-for-like predicate** `comparable: unknown` -- no recorded difference, but hardware is unrecorded for at least one member, so homogeneity cannot be certified. Machine-readable form with per-dimension values: this key's `comparability` block in `index.json`.
+
+> **What this table is.** Every row here shares the comparability key above: the same tokens, the same teacher capture, the same metric and direction, the same estimator precision, the same stack relation and the same head policy. That makes them CANDIDATES for ranking -- the key is a necessary partition, not a certificate. Whether they are also like-for-like on the dimensions the key omits (lane, pipeline, scope coverage, hardware) is what the predicate line above answers.
+>
+> **Rank is not a verdict.** The table is sorted by fidelity alone, and fidelity buys bits: a larger, higher-bitrate quant will usually sit above a smaller one, which is not news. Read the Size and Codec columns before reading the order, and compare like against like.
+>
+> **What it is NOT comparable to.** Every other table in this file: no other group shares this key. That includes every table for a different model -- a KL number is a divergence over one model's own vocabulary against that model's own teacher, never a score that can be carried between models.
+>
+> **Single-row group.** This number has nothing in the registry to be ranked against. It is a stated fact, not a placing.
+
+> **1 of this group's 1 rows came off a different measurement lane** (`other`) and are tabled on their own below, not mixed into the ordering here. The key does not carry the lane; this file does.
+
+##### Lane `other` -- 1 of this group's 1 rows
+
+> **A different lane. Same key, and that is exactly the problem this table solves.** The comparability key is a function of the panel, the teacher, the metric, the direction, the estimator precision, the stack relation and the head policy -- and these rows match the table above on all seven. What they do not share is the machine and the code path that produced the candidate logits, and lanes are not interchangeable. Sorting them into one list would read as a ranking; where the same artifact appears in both, it is one set of weights measured twice, not two quants.
+>
+> **No bridge to the sealed lane is recorded for this lane.**
+
+| Artifact | Codec | Size | mean_tokenwise_kld (nats) | CI95 | Top-1 | Runs | Attribution | Receipt |
+|---|---|---:|---:|---|---:|---|---|---|
+| **kimi-k25-tiny-random-bf16 (random test fixture) native BF16** _(measurement floor)_ | `bf16` | 0.0 GB | **0** | -- | 100.00 % | 2 runs, bitwise identical | measured by us | [receipt](https://huggingface.co/datasets/malaiwah/kimi-k25-tiny-fidelity-root-v1/resolve/ff643f85eef7c3b5e0f382a0e19e1a0bd06f7382/fidelity-dataset.json) |
+
+<details><summary>Disclosures for the rows above (2)</summary>
+
+- `fixture.kimi-k25.floor.96968fae6bcf3237` **reduced_run_count**: Receipt disclosure reduced_run_count: this dataset is ONE cold capture (run_count 1, the DET-D4 floor is 5). Cross-run determinism is not asserted by the dataset; it is established by a second cold capture plus `fidelity-dataset compare --self-compare`, whose exactly-0.0 result is the SC-1 reproduction confirmation.
+- `fixture.kimi-k25.floor.96968fae6bcf3237` **reduced_run_count**: Two qualified cold runs, not five.
+
+</details>
+
+
+## kimi-k3-tiny-random-bf16 (random test fixture)
+
+`model--malaiwah.kimi-k3-tiny-random-bf16` -- published by malaiwah. Tokenizer `fixture-tokenizer-9cc132a24ced4fd7`, vocabulary 272.
+
+### Panel: Synthetic CPU fixture panel 525cb6c62509
+
+> **Panel disclosure -- `reduced_run_count`:** Receipt disclosure reduced_run_count: this dataset is ONE cold capture (run_count 1, the DET-D4 floor is 5). Cross-run determinism is not asserted by the dataset; it is established by a second cold capture plus `fidelity-dataset compare --self-compare`, whose exactly-0.0 result is the SC-1 reproduction confirmation.
+
+> **Panel disclosure -- `native_head_replay`:** Receipt disclosure native_head_replay: HEAD-1d: each side replayed through its own sealed head (reference e68a813f441b, candidate e68a813f441b); head error is inside the measurement, as under HEAD-2, and nothing is substituted. The heads are content-identical.
+
+#### Group `cmp--4a66bc7afad67fe2` -- 1 row
+
+**Panel** `panel--fixture.a53145fb225cc15b73887d0f` -- Synthetic CPU fixture panel 525cb6c62509
+  4 contexts x 63 scored positions = **252 scored positions**, score_from 0
+  sealed: **yes** (token digest `525cb6c625096ddb...`) -- contamination scan: **NOT RUN**
+**Reference (teacher)** `reference--fixture.kimi-k3.c90350e92d0b404a` -- native_bf16, artifact `artifact--malaiwah.kimi-k3-tiny-random-bf16.3c1e2f22e5cc` @3c1e2f22e5ccfe37addc9906bfb0fdea6ad00e16
+**Metric** mean_tokenwise_kld, direction reference_to_candidate, accumulation float64
+**Estimation surface** stack_relation `same_stack`, head_policy `native_head`
+**Comparability key** `cmp--4a66bc7afad67fe2`
+**Like-for-like predicate** `comparable: unknown` -- no recorded difference, but hardware is unrecorded for at least one member, so homogeneity cannot be certified. Machine-readable form with per-dimension values: this key's `comparability` block in `index.json`.
+
+> **What this table is.** Every row here shares the comparability key above: the same tokens, the same teacher capture, the same metric and direction, the same estimator precision, the same stack relation and the same head policy. That makes them CANDIDATES for ranking -- the key is a necessary partition, not a certificate. Whether they are also like-for-like on the dimensions the key omits (lane, pipeline, scope coverage, hardware) is what the predicate line above answers.
+>
+> **Rank is not a verdict.** The table is sorted by fidelity alone, and fidelity buys bits: a larger, higher-bitrate quant will usually sit above a smaller one, which is not news. Read the Size and Codec columns before reading the order, and compare like against like.
+>
+> **What it is NOT comparable to.** Every other table in this file: no other group shares this key. That includes every table for a different model -- a KL number is a divergence over one model's own vocabulary against that model's own teacher, never a score that can be carried between models.
+>
+> **Single-row group.** This number has nothing in the registry to be ranked against. It is a stated fact, not a placing.
+
+> **1 of this group's 1 rows came off a different measurement lane** (`other`) and are tabled on their own below, not mixed into the ordering here. The key does not carry the lane; this file does.
+
+##### Lane `other` -- 1 of this group's 1 rows
+
+> **A different lane. Same key, and that is exactly the problem this table solves.** The comparability key is a function of the panel, the teacher, the metric, the direction, the estimator precision, the stack relation and the head policy -- and these rows match the table above on all seven. What they do not share is the machine and the code path that produced the candidate logits, and lanes are not interchangeable. Sorting them into one list would read as a ranking; where the same artifact appears in both, it is one set of weights measured twice, not two quants.
+>
+> **No bridge to the sealed lane is recorded for this lane.**
+
+| Artifact | Codec | Size | mean_tokenwise_kld (nats) | CI95 | Top-1 | Runs | Attribution | Receipt |
+|---|---|---:|---:|---|---:|---|---|---|
+| **kimi-k3-tiny-random-bf16 (random test fixture) native BF16** _(measurement floor)_ | `bf16` | 0.0 GB | **0** | -- | 100.00 % | 2 runs, bitwise identical | measured by us | [receipt](https://huggingface.co/datasets/malaiwah/kimi-k3-tiny-fidelity-root-v1/resolve/74f15b550582c96fb26c40c87a839298b914721b/fidelity-dataset.json) |
+
+<details><summary>Disclosures for the rows above (2)</summary>
+
+- `fixture.kimi-k3.floor.2e3a2daddd930f9a` **reduced_run_count**: Receipt disclosure reduced_run_count: this dataset is ONE cold capture (run_count 1, the DET-D4 floor is 5). Cross-run determinism is not asserted by the dataset; it is established by a second cold capture plus `fidelity-dataset compare --self-compare`, whose exactly-0.0 result is the SC-1 reproduction confirmation.
+- `fixture.kimi-k3.floor.2e3a2daddd930f9a` **reduced_run_count**: Two qualified cold runs, not five.
+
+</details>
+
+
+## minimax-m2-tiny-random-bf16 (random test fixture)
+
+`model--malaiwah.minimax-m2-tiny-random-bf16` -- published by malaiwah. Tokenizer `fixture-tokenizer-9cc132a24ced4fd7`, vocabulary 272.
+
+### Panel: Synthetic CPU fixture panel 525cb6c62509
+
+> **Panel disclosure -- `reduced_run_count`:** Receipt disclosure reduced_run_count: this dataset is ONE cold capture (run_count 1, the DET-D4 floor is 5). Cross-run determinism is not asserted by the dataset; it is established by a second cold capture plus `fidelity-dataset compare --self-compare`, whose exactly-0.0 result is the SC-1 reproduction confirmation.
+
+> **Panel disclosure -- `native_head_replay`:** Receipt disclosure native_head_replay: HEAD-1d: each side replayed through its own sealed head (reference e68a813f441b, candidate e68a813f441b); head error is inside the measurement, as under HEAD-2, and nothing is substituted. The heads are content-identical.
+
+#### Group `cmp--a99c67940f387a86` -- 1 row
+
+**Panel** `panel--fixture.a53145fb225cc15b73887d0f` -- Synthetic CPU fixture panel 525cb6c62509
+  4 contexts x 63 scored positions = **252 scored positions**, score_from 0
+  sealed: **yes** (token digest `525cb6c625096ddb...`) -- contamination scan: **NOT RUN**
+**Reference (teacher)** `reference--fixture.minimax-m2.9a0b71a3347e072b` -- native_bf16, artifact `artifact--malaiwah.minimax-m2-tiny-random-bf16.d4825603496f` @d4825603496f1c636385af403e891aaf20e9afe6
+**Metric** mean_tokenwise_kld, direction reference_to_candidate, accumulation float64
+**Estimation surface** stack_relation `same_stack`, head_policy `native_head`
+**Comparability key** `cmp--a99c67940f387a86`
+**Like-for-like predicate** `comparable: unknown` -- no recorded difference, but hardware is unrecorded for at least one member, so homogeneity cannot be certified. Machine-readable form with per-dimension values: this key's `comparability` block in `index.json`.
+
+> **What this table is.** Every row here shares the comparability key above: the same tokens, the same teacher capture, the same metric and direction, the same estimator precision, the same stack relation and the same head policy. That makes them CANDIDATES for ranking -- the key is a necessary partition, not a certificate. Whether they are also like-for-like on the dimensions the key omits (lane, pipeline, scope coverage, hardware) is what the predicate line above answers.
+>
+> **Rank is not a verdict.** The table is sorted by fidelity alone, and fidelity buys bits: a larger, higher-bitrate quant will usually sit above a smaller one, which is not news. Read the Size and Codec columns before reading the order, and compare like against like.
+>
+> **What it is NOT comparable to.** Every other table in this file: no other group shares this key. That includes every table for a different model -- a KL number is a divergence over one model's own vocabulary against that model's own teacher, never a score that can be carried between models.
+>
+> **Single-row group.** This number has nothing in the registry to be ranked against. It is a stated fact, not a placing.
+
+> **1 of this group's 1 rows came off a different measurement lane** (`other`) and are tabled on their own below, not mixed into the ordering here. The key does not carry the lane; this file does.
+
+##### Lane `other` -- 1 of this group's 1 rows
+
+> **A different lane. Same key, and that is exactly the problem this table solves.** The comparability key is a function of the panel, the teacher, the metric, the direction, the estimator precision, the stack relation and the head policy -- and these rows match the table above on all seven. What they do not share is the machine and the code path that produced the candidate logits, and lanes are not interchangeable. Sorting them into one list would read as a ranking; where the same artifact appears in both, it is one set of weights measured twice, not two quants.
+>
+> **No bridge to the sealed lane is recorded for this lane.**
+
+| Artifact | Codec | Size | mean_tokenwise_kld (nats) | CI95 | Top-1 | Runs | Attribution | Receipt |
+|---|---|---:|---:|---|---:|---|---|---|
+| **minimax-m2-tiny-random-bf16 (random test fixture) native BF16** _(measurement floor)_ | `bf16` | 0.0 GB | **0** | -- | 100.00 % | 2 runs, bitwise identical | measured by us | [receipt](https://huggingface.co/datasets/malaiwah/minimax-m2-tiny-fidelity-root-v1/resolve/0429feb8bc3f427e89e0ba2a341d28b82d431b0e/fidelity-dataset.json) |
+
+<details><summary>Disclosures for the rows above (2)</summary>
+
+- `fixture.minimax-m2.floor.ca1e98dca763d440` **reduced_run_count**: Receipt disclosure reduced_run_count: this dataset is ONE cold capture (run_count 1, the DET-D4 floor is 5). Cross-run determinism is not asserted by the dataset; it is established by a second cold capture plus `fidelity-dataset compare --self-compare`, whose exactly-0.0 result is the SC-1 reproduction confirmation.
+- `fixture.minimax-m2.floor.ca1e98dca763d440` **reduced_run_count**: Two qualified cold runs, not five.
+
+</details>
+
+
+## minimax-m3-tiny-random-bf16 (random test fixture)
+
+`model--malaiwah.minimax-m3-tiny-random-bf16` -- published by malaiwah. Tokenizer `fixture-tokenizer-9cc132a24ced4fd7`, vocabulary 272.
+
+### Panel: Synthetic CPU fixture panel 525cb6c62509
+
+> **Panel disclosure -- `reduced_run_count`:** Receipt disclosure reduced_run_count: this dataset is ONE cold capture (run_count 1, the DET-D4 floor is 5). Cross-run determinism is not asserted by the dataset; it is established by a second cold capture plus `fidelity-dataset compare --self-compare`, whose exactly-0.0 result is the SC-1 reproduction confirmation.
+
+> **Panel disclosure -- `native_head_replay`:** Receipt disclosure native_head_replay: HEAD-1d: each side replayed through its own sealed head (reference e68a813f441b, candidate e68a813f441b); head error is inside the measurement, as under HEAD-2, and nothing is substituted. The heads are content-identical.
+
+#### Group `cmp--7e10ab9bcc7628b7` -- 1 row
+
+**Panel** `panel--fixture.a53145fb225cc15b73887d0f` -- Synthetic CPU fixture panel 525cb6c62509
+  4 contexts x 63 scored positions = **252 scored positions**, score_from 0
+  sealed: **yes** (token digest `525cb6c625096ddb...`) -- contamination scan: **NOT RUN**
+**Reference (teacher)** `reference--fixture.minimax-m3.d193c0296d88fa50` -- native_bf16, artifact `artifact--malaiwah.minimax-m3-tiny-random-bf16.ca904dff2941` @ca904dff2941004a3f5bd5af62064fcfb34da8b9
+**Metric** mean_tokenwise_kld, direction reference_to_candidate, accumulation float64
+**Estimation surface** stack_relation `same_stack`, head_policy `native_head`
+**Comparability key** `cmp--7e10ab9bcc7628b7`
+**Like-for-like predicate** `comparable: unknown` -- no recorded difference, but hardware is unrecorded for at least one member, so homogeneity cannot be certified. Machine-readable form with per-dimension values: this key's `comparability` block in `index.json`.
+
+> **What this table is.** Every row here shares the comparability key above: the same tokens, the same teacher capture, the same metric and direction, the same estimator precision, the same stack relation and the same head policy. That makes them CANDIDATES for ranking -- the key is a necessary partition, not a certificate. Whether they are also like-for-like on the dimensions the key omits (lane, pipeline, scope coverage, hardware) is what the predicate line above answers.
+>
+> **Rank is not a verdict.** The table is sorted by fidelity alone, and fidelity buys bits: a larger, higher-bitrate quant will usually sit above a smaller one, which is not news. Read the Size and Codec columns before reading the order, and compare like against like.
+>
+> **What it is NOT comparable to.** Every other table in this file: no other group shares this key. That includes every table for a different model -- a KL number is a divergence over one model's own vocabulary against that model's own teacher, never a score that can be carried between models.
+>
+> **Single-row group.** This number has nothing in the registry to be ranked against. It is a stated fact, not a placing.
+
+> **1 of this group's 1 rows came off a different measurement lane** (`other`) and are tabled on their own below, not mixed into the ordering here. The key does not carry the lane; this file does.
+
+##### Lane `other` -- 1 of this group's 1 rows
+
+> **A different lane. Same key, and that is exactly the problem this table solves.** The comparability key is a function of the panel, the teacher, the metric, the direction, the estimator precision, the stack relation and the head policy -- and these rows match the table above on all seven. What they do not share is the machine and the code path that produced the candidate logits, and lanes are not interchangeable. Sorting them into one list would read as a ranking; where the same artifact appears in both, it is one set of weights measured twice, not two quants.
+>
+> **No bridge to the sealed lane is recorded for this lane.**
+
+| Artifact | Codec | Size | mean_tokenwise_kld (nats) | CI95 | Top-1 | Runs | Attribution | Receipt |
+|---|---|---:|---:|---|---:|---|---|---|
+| **minimax-m3-tiny-random-bf16 (random test fixture) native BF16** _(measurement floor)_ | `bf16` | 0.0 GB | **0** | -- | 100.00 % | 2 runs, bitwise identical | measured by us | [receipt](https://huggingface.co/datasets/malaiwah/minimax-m3-tiny-fidelity-root-v1/resolve/4bdcedf286fa2de29bc11102e90cac47cd77cd14/fidelity-dataset.json) |
+
+<details><summary>Disclosures for the rows above (2)</summary>
+
+- `fixture.minimax-m3.floor.45b1ac062143d1d7` **reduced_run_count**: Receipt disclosure reduced_run_count: this dataset is ONE cold capture (run_count 1, the DET-D4 floor is 5). Cross-run determinism is not asserted by the dataset; it is established by a second cold capture plus `fidelity-dataset compare --self-compare`, whose exactly-0.0 result is the SC-1 reproduction confirmation.
+- `fixture.minimax-m3.floor.45b1ac062143d1d7` **reduced_run_count**: Two qualified cold runs, not five.
+
+</details>
+
+
+## qwen3-5-gguf-tiny-random-bf16 (random test fixture)
+
+`model--malaiwah.qwen3-5-gguf-tiny-random-bf16` -- published by malaiwah. Tokenizer `fixture-tokenizer-9cc132a24ced4fd7`, vocabulary 272.
+
+### Panel: Synthetic CPU fixture panel 525cb6c62509
+
+> **Panel disclosure -- `reduced_run_count`:** Receipt disclosure reduced_run_count: this dataset is ONE cold capture (run_count 1, the DET-D4 floor is 5). Cross-run determinism is not asserted by the dataset; it is established by a second cold capture plus `fidelity-dataset compare --self-compare`, whose exactly-0.0 result is the SC-1 reproduction confirmation.
+
+> **Panel disclosure -- `native_head_replay`:** Receipt disclosure native_head_replay: HEAD-1d: each side replayed through its own sealed head (reference e68a813f441b, candidate e68a813f441b); head error is inside the measurement, as under HEAD-2, and nothing is substituted. The heads are content-identical.
+
+#### Group `cmp--4941dc6687219470` -- 1 row
+
+**Panel** `panel--fixture.a53145fb225cc15b73887d0f` -- Synthetic CPU fixture panel 525cb6c62509
+  4 contexts x 63 scored positions = **252 scored positions**, score_from 0
+  sealed: **yes** (token digest `525cb6c625096ddb...`) -- contamination scan: **NOT RUN**
+**Reference (teacher)** `reference--fixture.qwen35-gguf.5976d6ef519b46f8` -- native_bf16, artifact `artifact--malaiwah.qwen3-5-gguf-tiny-random-bf16.490767e58441` @490767e58441a55c5a9f6375ea0e31e2cdc9da76
+**Metric** mean_tokenwise_kld, direction reference_to_candidate, accumulation float64
+**Estimation surface** stack_relation `same_stack`, head_policy `native_head`
+**Comparability key** `cmp--4941dc6687219470`
+**Like-for-like predicate** `comparable: unknown` -- no recorded difference, but hardware is unrecorded for at least one member, so homogeneity cannot be certified. Machine-readable form with per-dimension values: this key's `comparability` block in `index.json`.
+
+> **What this table is.** Every row here shares the comparability key above: the same tokens, the same teacher capture, the same metric and direction, the same estimator precision, the same stack relation and the same head policy. That makes them CANDIDATES for ranking -- the key is a necessary partition, not a certificate. Whether they are also like-for-like on the dimensions the key omits (lane, pipeline, scope coverage, hardware) is what the predicate line above answers.
+>
+> **Rank is not a verdict.** The table is sorted by fidelity alone, and fidelity buys bits: a larger, higher-bitrate quant will usually sit above a smaller one, which is not news. Read the Size and Codec columns before reading the order, and compare like against like.
+>
+> **What it is NOT comparable to.** Every other table in this file: no other group shares this key. That includes every table for a different model -- a KL number is a divergence over one model's own vocabulary against that model's own teacher, never a score that can be carried between models.
+>
+> **Single-row group.** This number has nothing in the registry to be ranked against. It is a stated fact, not a placing.
+
+> **1 of this group's 1 rows came off a different measurement lane** (`other`) and are tabled on their own below, not mixed into the ordering here. The key does not carry the lane; this file does.
+
+##### Lane `other` -- 1 of this group's 1 rows
+
+> **A different lane. Same key, and that is exactly the problem this table solves.** The comparability key is a function of the panel, the teacher, the metric, the direction, the estimator precision, the stack relation and the head policy -- and these rows match the table above on all seven. What they do not share is the machine and the code path that produced the candidate logits, and lanes are not interchangeable. Sorting them into one list would read as a ranking; where the same artifact appears in both, it is one set of weights measured twice, not two quants.
+>
+> **No bridge to the sealed lane is recorded for this lane.**
+
+| Artifact | Codec | Size | mean_tokenwise_kld (nats) | CI95 | Top-1 | Runs | Attribution | Receipt |
+|---|---|---:|---:|---|---:|---|---|---|
+| **qwen3-5-gguf-tiny-random-bf16 (random test fixture) native BF16** _(measurement floor)_ | `bf16` | 0.0 GB | **0** | -- | 100.00 % | 2 runs, bitwise identical | measured by us | [receipt](https://huggingface.co/datasets/malaiwah/qwen3-5-gguf-tiny-fidelity-root-v1/resolve/af1922b4fb5c619e0bf2e92c1bfcd68d8a83cb32/fidelity-dataset.json) |
+
+<details><summary>Disclosures for the rows above (2)</summary>
+
+- `fixture.qwen35-gguf.floor.9b7444090207bc70` **reduced_run_count**: Receipt disclosure reduced_run_count: this dataset is ONE cold capture (run_count 1, the DET-D4 floor is 5). Cross-run determinism is not asserted by the dataset; it is established by a second cold capture plus `fidelity-dataset compare --self-compare`, whose exactly-0.0 result is the SC-1 reproduction confirmation.
+- `fixture.qwen35-gguf.floor.9b7444090207bc70` **reduced_run_count**: Two qualified cold runs, not five.
+
+</details>
+
+
+## qwen3-5-tiny-random-bf16 (random test fixture)
+
+`model--malaiwah.qwen3-5-tiny-random-bf16` -- published by malaiwah. Tokenizer `fixture-tokenizer-9cc132a24ced4fd7`, vocabulary 272.
+
+### Panel: Synthetic CPU fixture panel 525cb6c62509
+
+> **Panel disclosure -- `reduced_run_count`:** Receipt disclosure reduced_run_count: this dataset is ONE cold capture (run_count 1, the DET-D4 floor is 5). Cross-run determinism is not asserted by the dataset; it is established by a second cold capture plus `fidelity-dataset compare --self-compare`, whose exactly-0.0 result is the SC-1 reproduction confirmation.
+
+> **Panel disclosure -- `native_head_replay`:** Receipt disclosure native_head_replay: HEAD-1d: each side replayed through its own sealed head (reference e68a813f441b, candidate e68a813f441b); head error is inside the measurement, as under HEAD-2, and nothing is substituted. The heads are content-identical.
+
+#### Group `cmp--238563353ac89178` -- 1 row
+
+**Panel** `panel--fixture.a53145fb225cc15b73887d0f` -- Synthetic CPU fixture panel 525cb6c62509
+  4 contexts x 63 scored positions = **252 scored positions**, score_from 0
+  sealed: **yes** (token digest `525cb6c625096ddb...`) -- contamination scan: **NOT RUN**
+**Reference (teacher)** `reference--fixture.qwen3-5.1847b664a523e921` -- native_bf16, artifact `artifact--malaiwah.qwen3-5-tiny-random-bf16.a430e41d5814` @a430e41d5814ba5e7bfa5ee29d86935aac56d95d
+**Metric** mean_tokenwise_kld, direction reference_to_candidate, accumulation float64
+**Estimation surface** stack_relation `same_stack`, head_policy `native_head`
+**Comparability key** `cmp--238563353ac89178`
+**Like-for-like predicate** `comparable: unknown` -- no recorded difference, but hardware is unrecorded for at least one member, so homogeneity cannot be certified. Machine-readable form with per-dimension values: this key's `comparability` block in `index.json`.
+
+> **What this table is.** Every row here shares the comparability key above: the same tokens, the same teacher capture, the same metric and direction, the same estimator precision, the same stack relation and the same head policy. That makes them CANDIDATES for ranking -- the key is a necessary partition, not a certificate. Whether they are also like-for-like on the dimensions the key omits (lane, pipeline, scope coverage, hardware) is what the predicate line above answers.
+>
+> **Rank is not a verdict.** The table is sorted by fidelity alone, and fidelity buys bits: a larger, higher-bitrate quant will usually sit above a smaller one, which is not news. Read the Size and Codec columns before reading the order, and compare like against like.
+>
+> **What it is NOT comparable to.** Every other table in this file: no other group shares this key. That includes every table for a different model -- a KL number is a divergence over one model's own vocabulary against that model's own teacher, never a score that can be carried between models.
+>
+> **Single-row group.** This number has nothing in the registry to be ranked against. It is a stated fact, not a placing.
+
+> **1 of this group's 1 rows came off a different measurement lane** (`other`) and are tabled on their own below, not mixed into the ordering here. The key does not carry the lane; this file does.
+
+##### Lane `other` -- 1 of this group's 1 rows
+
+> **A different lane. Same key, and that is exactly the problem this table solves.** The comparability key is a function of the panel, the teacher, the metric, the direction, the estimator precision, the stack relation and the head policy -- and these rows match the table above on all seven. What they do not share is the machine and the code path that produced the candidate logits, and lanes are not interchangeable. Sorting them into one list would read as a ranking; where the same artifact appears in both, it is one set of weights measured twice, not two quants.
+>
+> **No bridge to the sealed lane is recorded for this lane.**
+
+| Artifact | Codec | Size | mean_tokenwise_kld (nats) | CI95 | Top-1 | Runs | Attribution | Receipt |
+|---|---|---:|---:|---|---:|---|---|---|
+| **qwen3-5-tiny-random-bf16 (random test fixture) native BF16** _(measurement floor)_ | `bf16` | 0.0 GB | **0** | -- | 100.00 % | 2 runs, bitwise identical | measured by us | [receipt](https://huggingface.co/datasets/malaiwah/qwen3-5-tiny-fidelity-root-v1/resolve/7e1a755b7c9ee43d2b95c981de177392241e780d/fidelity-dataset.json) |
+
+<details><summary>Disclosures for the rows above (2)</summary>
+
+- `fixture.qwen3-5.floor.e22167048fb26e61` **reduced_run_count**: Receipt disclosure reduced_run_count: this dataset is ONE cold capture (run_count 1, the DET-D4 floor is 5). Cross-run determinism is not asserted by the dataset; it is established by a second cold capture plus `fidelity-dataset compare --self-compare`, whose exactly-0.0 result is the SC-1 reproduction confirmation.
+- `fixture.qwen3-5.floor.e22167048fb26e61` **reduced_run_count**: Two qualified cold runs, not five.
+
+</details>
+
+
+## qwen4-exp-tiny-random-bf16 (random test fixture)
+
+`model--malaiwah.qwen4-exp-tiny-random-bf16` -- published by malaiwah. Tokenizer `fixture-tokenizer-57630af28506f7ed`, vocabulary 264.
+
+### Panel: Synthetic CPU fixture panel d0ae96d07d4a
+
+> **Panel disclosure -- `reduced_run_count`:** Receipt disclosure reduced_run_count: this dataset is ONE cold capture (run_count 1, the DET-D4 floor is 5). Cross-run determinism is not asserted by the dataset; it is established by a second cold capture plus `fidelity-dataset compare --self-compare`, whose exactly-0.0 result is the SC-1 reproduction confirmation.
+
+> **Panel disclosure -- `native_head_replay`:** Receipt disclosure native_head_replay: HEAD-1d: each side replayed through its own sealed head (reference f0e1210bca4f, candidate f0e1210bca4f); head error is inside the measurement, as under HEAD-2, and nothing is substituted. The heads are content-identical.
+
+#### Group `cmp--57fd571961121fe6` -- 1 row
+
+**Panel** `panel--fixture.2218037d11b09e931ba412f6` -- Synthetic CPU fixture panel d0ae96d07d4a
+  4 contexts x 63 scored positions = **252 scored positions**, score_from 0
+  sealed: **yes** (token digest `d0ae96d07d4a9888...`) -- contamination scan: **NOT RUN**
+**Reference (teacher)** `reference--fixture.qwen4-exp.cbec16fe7bff9a88` -- native_bf16, artifact `artifact--malaiwah.qwen4-exp-tiny-random-bf16.90fcdd52d45a` @90fcdd52d45a200a1b6d446886638af14957117c
+**Metric** mean_tokenwise_kld, direction reference_to_candidate, accumulation float64
+**Estimation surface** stack_relation `same_stack`, head_policy `native_head`
+**Comparability key** `cmp--57fd571961121fe6`
+**Like-for-like predicate** `comparable: unknown` -- no recorded difference, but hardware is unrecorded for at least one member, so homogeneity cannot be certified. Machine-readable form with per-dimension values: this key's `comparability` block in `index.json`.
+
+> **What this table is.** Every row here shares the comparability key above: the same tokens, the same teacher capture, the same metric and direction, the same estimator precision, the same stack relation and the same head policy. That makes them CANDIDATES for ranking -- the key is a necessary partition, not a certificate. Whether they are also like-for-like on the dimensions the key omits (lane, pipeline, scope coverage, hardware) is what the predicate line above answers.
+>
+> **Rank is not a verdict.** The table is sorted by fidelity alone, and fidelity buys bits: a larger, higher-bitrate quant will usually sit above a smaller one, which is not news. Read the Size and Codec columns before reading the order, and compare like against like.
+>
+> **What it is NOT comparable to.** Every other table in this file: no other group shares this key. That includes every table for a different model -- a KL number is a divergence over one model's own vocabulary against that model's own teacher, never a score that can be carried between models.
+>
+> **Single-row group.** This number has nothing in the registry to be ranked against. It is a stated fact, not a placing.
+
+> **1 of this group's 1 rows came off a different measurement lane** (`other`) and are tabled on their own below, not mixed into the ordering here. The key does not carry the lane; this file does.
+
+##### Lane `other` -- 1 of this group's 1 rows
+
+> **A different lane. Same key, and that is exactly the problem this table solves.** The comparability key is a function of the panel, the teacher, the metric, the direction, the estimator precision, the stack relation and the head policy -- and these rows match the table above on all seven. What they do not share is the machine and the code path that produced the candidate logits, and lanes are not interchangeable. Sorting them into one list would read as a ranking; where the same artifact appears in both, it is one set of weights measured twice, not two quants.
+>
+> **No bridge to the sealed lane is recorded for this lane.**
+
+| Artifact | Codec | Size | mean_tokenwise_kld (nats) | CI95 | Top-1 | Runs | Attribution | Receipt |
+|---|---|---:|---:|---|---:|---|---|---|
+| **qwen4-exp-tiny-random-bf16 (random test fixture) native BF16** _(measurement floor)_ | `bf16` | 0.0 GB | **0** | -- | 100.00 % | 2 runs, bitwise identical | measured by us | [receipt](https://huggingface.co/datasets/malaiwah/qwen4-exp-tiny-fidelity-root-v1/resolve/c6e1af0383df78006816ca1af067b4c5374bd7c1/fidelity-dataset.json) |
+
+<details><summary>Disclosures for the rows above (2)</summary>
+
+- `fixture.qwen4-exp.floor.8ba57920f6e4f6ba` **reduced_run_count**: Receipt disclosure reduced_run_count: this dataset is ONE cold capture (run_count 1, the DET-D4 floor is 5). Cross-run determinism is not asserted by the dataset; it is established by a second cold capture plus `fidelity-dataset compare --self-compare`, whose exactly-0.0 result is the SC-1 reproduction confirmation.
+- `fixture.qwen4-exp.floor.8ba57920f6e4f6ba` **reduced_run_count**: Two qualified cold runs, not five.
+
+</details>
+
+
+## spark2-5-tiny-random-bf16 (random test fixture)
+
+`model--malaiwah.spark2-5-tiny-random-bf16` -- published by malaiwah. Tokenizer `fixture-tokenizer-08d3f8f92d3b9086`, vocabulary 260.
+
+### Panel: Synthetic CPU fixture panel 525cb6c62509
+
+> **Panel disclosure -- `reduced_run_count`:** Receipt disclosure reduced_run_count: this dataset is ONE cold capture (run_count 1, the DET-D4 floor is 5). Cross-run determinism is not asserted by the dataset; it is established by a second cold capture plus `fidelity-dataset compare --self-compare`, whose exactly-0.0 result is the SC-1 reproduction confirmation.
+
+> **Panel disclosure -- `native_head_replay`:** Receipt disclosure native_head_replay: HEAD-1d: each side replayed through its own sealed head (reference 2364995d4009, candidate 2364995d4009); head error is inside the measurement, as under HEAD-2, and nothing is substituted. The heads are content-identical.
+
+#### Group `cmp--1b9cc52aa250300f` -- 1 row
+
+**Panel** `panel--fixture.9d187d1dab31575b41ab4b00` -- Synthetic CPU fixture panel 525cb6c62509
+  4 contexts x 63 scored positions = **252 scored positions**, score_from 0
+  sealed: **yes** (token digest `525cb6c625096ddb...`) -- contamination scan: **NOT RUN**
+**Reference (teacher)** `reference--fixture.spark2-5.022a11db4e1e3331` -- native_bf16, artifact `artifact--malaiwah.spark2-5-tiny-random-bf16.c0a57b037007` @c0a57b037007d475ede719e78f4a6ce24f211da0
+**Metric** mean_tokenwise_kld, direction reference_to_candidate, accumulation float64
+**Estimation surface** stack_relation `same_stack`, head_policy `native_head`
+**Comparability key** `cmp--1b9cc52aa250300f`
+**Like-for-like predicate** `comparable: unknown` -- no recorded difference, but hardware is unrecorded for at least one member, so homogeneity cannot be certified. Machine-readable form with per-dimension values: this key's `comparability` block in `index.json`.
+
+> **What this table is.** Every row here shares the comparability key above: the same tokens, the same teacher capture, the same metric and direction, the same estimator precision, the same stack relation and the same head policy. That makes them CANDIDATES for ranking -- the key is a necessary partition, not a certificate. Whether they are also like-for-like on the dimensions the key omits (lane, pipeline, scope coverage, hardware) is what the predicate line above answers.
+>
+> **Rank is not a verdict.** The table is sorted by fidelity alone, and fidelity buys bits: a larger, higher-bitrate quant will usually sit above a smaller one, which is not news. Read the Size and Codec columns before reading the order, and compare like against like.
+>
+> **What it is NOT comparable to.** Every other table in this file: no other group shares this key. That includes every table for a different model -- a KL number is a divergence over one model's own vocabulary against that model's own teacher, never a score that can be carried between models.
+>
+> **Single-row group.** This number has nothing in the registry to be ranked against. It is a stated fact, not a placing.
+
+> **1 of this group's 1 rows came off a different measurement lane** (`other`) and are tabled on their own below, not mixed into the ordering here. The key does not carry the lane; this file does.
+
+##### Lane `other` -- 1 of this group's 1 rows
+
+> **A different lane. Same key, and that is exactly the problem this table solves.** The comparability key is a function of the panel, the teacher, the metric, the direction, the estimator precision, the stack relation and the head policy -- and these rows match the table above on all seven. What they do not share is the machine and the code path that produced the candidate logits, and lanes are not interchangeable. Sorting them into one list would read as a ranking; where the same artifact appears in both, it is one set of weights measured twice, not two quants.
+>
+> **No bridge to the sealed lane is recorded for this lane.**
+
+| Artifact | Codec | Size | mean_tokenwise_kld (nats) | CI95 | Top-1 | Runs | Attribution | Receipt |
+|---|---|---:|---:|---|---:|---|---|---|
+| **spark2-5-tiny-random-bf16 (random test fixture) native BF16** _(measurement floor)_ | `bf16` | 0.0 GB | **0** | -- | 100.00 % | 2 runs, bitwise identical | measured by us | [receipt](https://huggingface.co/datasets/malaiwah/spark2-5-tiny-fidelity-root-v1/resolve/5715a4e51de6af894ac3963cd55d6ebe371dcb5a/fidelity-dataset.json) |
+
+<details><summary>Disclosures for the rows above (2)</summary>
+
+- `fixture.spark2-5.floor.d62ef495a49ba3a1` **reduced_run_count**: Receipt disclosure reduced_run_count: this dataset is ONE cold capture (run_count 1, the DET-D4 floor is 5). Cross-run determinism is not asserted by the dataset; it is established by a second cold capture plus `fidelity-dataset compare --self-compare`, whose exactly-0.0 result is the SC-1 reproduction confirmation.
+- `fixture.spark2-5.floor.d62ef495a49ba3a1` **reduced_run_count**: Two qualified cold runs, not five.
 
 </details>
 

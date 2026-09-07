@@ -20,6 +20,8 @@ docs/*
 !docs/schema
 engines/*
 !engines/tools
+!engines/coverage.json
+!engines/quant-coverage-audit.json
 !engines/patches-v2
 !engines/scopes
 engines/scopes/*

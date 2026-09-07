@@ -1,0 +1,290 @@
+{
+  "capture_tool": {
+    "expert_fill": {
+      "bytes_filled": 0,
+      "declined": {},
+      "decoded_slices": 0,
+      "identity": "a byte copy into the fused parameter's slice; bin/selftest_layer_outer.py L4/L6 assert equality with from_pretrained and with the converter path",
+      "layers_filled": 0,
+      "mode": "direct",
+      "reference": "transformers.core_model_loading.MergeModulelist(dim=0) + Concatenate(dim=1)",
+      "slices_filled": 0,
+      "staged_slices": 0,
+      "staging": "pageable",
+      "targets_filled": 0
+    },
+    "file": "engines/tools/hf_capture.py",
+    "head_module_path": "lm_head",
+    "head_resolution": "lm_head",
+    "layer_residency": "stream",
+    "mechanism": "transformers forward pass, layer-outer/window-inner schedule: for each decoder layer the model's own forward is run once per window with the layers below replaying their memoised output and the layers above suspending, so each layer's weights are materialised once for the whole panel. Windows are pushed through sequentially, never batched. Forward pre-hook on model.get_output_embeddings(), fired by the model's own epilogue after the last layer",
+    "model_view": null,
+    "parallel_plan_dropped": false,
+    "resolved_classes": {
+      "config": "qfs_verified_039f74cdaba38fc1443c736a69c0ea784fd1f1ed94ad49bb9335d6876adf3c21.configuration_spark.Spark2_5Config",
+      "model": "qfs_verified_039f74cdaba38fc1443c736a69c0ea784fd1f1ed94ad49bb9335d6876adf3c21.modeling_spark.Spark2_5ForCausalLM"
+    },
+    "resolved_panel_binding": {
+      "binding": {
+        "content": {
+          "archive": {
+            "algorithm": "sha256(ustar: sorted regular files; mode=0644; uid=gid=mtime=0)",
+            "bytes": 20480,
+            "compression": "none",
+            "format": "ustar",
+            "sha256": "5024a008b8542fc9a546b3513cd5767ac0a886f6e9fdff9f0f4f25f51a0bfe3b"
+          },
+          "manifest": [
+            {
+              "bytes": 192,
+              "path": "arrays/causal-mask-64.npy",
+              "sha256": "a38fba8bfd9cd25a81b0e37fa144e8e13e84f769ae7f609ceebc94a64f4f5d02"
+            },
+            {
+              "bytes": 384,
+              "path": "arrays/final-0000.tokens.npy",
+              "sha256": "d60234f4b3b6044fb21eca18f7df82de9822f388e4d93d19d8a4eb69d6d490af"
+            },
+            {
+              "bytes": 384,
+              "path": "arrays/final-0001.tokens.npy",
+              "sha256": "20188213e4dfaaed04b1396a4ec46a5a2a6236c87d870c64d7102568d585ceea"
+            },
+            {
+              "bytes": 384,
+              "path": "arrays/final-0002.tokens.npy",
+              "sha256": "00341b323c286034a1c3a80ae66318cb6ce67153c08b1eedf6990b7a0310662c"
+            },
+            {
+              "bytes": 384,
+              "path": "arrays/final-0003.tokens.npy",
+              "sha256": "a13ec9b40a39027396ec752ee8595e0613569b78e27ef25d254f4f9a82d8775a"
+            },
+            {
+              "bytes": 4196,
+              "path": "panel.json",
+              "sha256": "ed4a96ba009d5abdbd4947dda948f12a5b81a3f932ce8ab68e9fd35c46a25df0"
+            },
+            {
+              "bytes": 7803,
+              "path": "panel.receipt.json",
+              "sha256": "2461c4a0a74433a937aedda64778855c6f05c74a496bea8b6b6a3746c96e2492"
+            }
+          ],
+          "manifest_sha256": "123623faea336b52054ae6d3bf15a1e0da7ac7dede1113323e06b12d29a15c0b"
+        },
+        "panel": {
+          "bytes": 4196,
+          "context_length": 64,
+          "contexts": 4,
+          "file": "panel.json",
+          "id": "panel--spark2-5-tiny.malaiwah.cpu-smoke-v1",
+          "name": "Tiny random-init Spark2.5 hybrid synthetic CPU smoke (not a benchmark)",
+          "positions_per_context": 63,
+          "role": "final",
+          "scored_positions_total": 252,
+          "sha256": "ed4a96ba009d5abdbd4947dda948f12a5b81a3f932ce8ab68e9fd35c46a25df0",
+          "suite_token_hash_sha256": "525cb6c625096ddb0ab19771a252e83223de98cc984733ef7da25a5eb076db36"
+        },
+        "receipt": {
+          "bytes": 7803,
+          "declared_receipt_sha256": "fbd36224a03fcc519d0dae565444286987b69f14451a091d775d8250e18fb043",
+          "file": "panel.receipt.json",
+          "receipt_file_sha256": "2461c4a0a74433a937aedda64778855c6f05c74a496bea8b6b6a3746c96e2492",
+          "receipt_seal_mode": "self-blank"
+        },
+        "schema": "malaiwah.resolved-panel.v1",
+        "tokenizer": {
+          "files": [
+            {
+              "bytes": 1296,
+              "name": "config.json",
+              "sha256": "b0fa5015db542fe185e0060dbcebc956ee7ee03aeecbdac5783383b62be28103"
+            },
+            {
+              "bytes": 216,
+              "name": "generation_config.json",
+              "sha256": "1d59e0fb61ca550ea84bd37a6bdf553ab364bc2689b17ba69f6a1adbc9d61e34"
+            },
+            {
+              "bytes": 6763,
+              "name": "tokenizer.json",
+              "sha256": "8557198de5989f11dc18c955f6bc98143d2f301c141a8dcab7461a14f78591da"
+            },
+            {
+              "bytes": 236,
+              "name": "tokenizer_config.json",
+              "sha256": "e0b489082ac322f131a544ca0833983e1cecb99c2817b2e72184e5ffbdb6ce63"
+            }
+          ],
+          "files_verified": true,
+          "id": "malaiwah/spark2-5-tiny-random-bf16",
+          "identity_sha256": "24383b66bb631c15af316f2d1074207aa481e0ec2f85050b9b7b6090bd9f9bf4",
+          "maximum_token_id_exclusive": 260,
+          "receipt": null,
+          "repository": "malaiwah/spark2-5-tiny-random-bf16",
+          "revision": "dd4b081b0a6b042771cbfdaedf82ef345e59f5e9",
+          "vocab_size": 260
+        }
+      },
+      "binding_file": "panel-binding.json",
+      "binding_file_sha256": "1b65465c9b6a8cd961b2551b66964e0b2961f501856e6a7716de1f0ec864bada",
+      "tokenizer_equivalences": []
+    },
+    "schedule": "layer-outer",
+    "sha256": "21ef72f4bb73ae52e232d63733494f0dece81009435af1c6a73052815d211c78",
+    "unexpected_tensor_allowlist": null,
+    "verified_code": {
+      "closure_policy": "auto-map-static-relative-imports-and-package-initializers",
+      "closure_sha256": "039f74cdaba38fc1443c736a69c0ea784fd1f1ed94ad49bb9335d6876adf3c21",
+      "files": [
+        {
+          "git_blob_sha1": "cca611a0302679df685ca442d21c2756884aa47e",
+          "path": "configuration_spark.py",
+          "sha256": "02218597240490f490659b184052db940b08163ff9c3af7b7e59323f6f963722",
+          "size": 4329
+        },
+        {
+          "git_blob_sha1": "e5ff47ca766b426017d6d22fd6d1db899c8c92dd",
+          "path": "modeling_spark.py",
+          "sha256": "ba15bd14cca26322c9461ee2cf129423b59a5122826449947f7bb1acf5d9f2a6",
+          "size": 19704
+        }
+      ],
+      "imported_files": {
+        "configuration_spark.py": "02218597240490f490659b184052db940b08163ff9c3af7b7e59323f6f963722",
+        "modeling_spark.py": "ba15bd14cca26322c9461ee2cf129423b59a5122826449947f7bb1acf5d9f2a6"
+      },
+      "mapping_source": null,
+      "repository": "malaiwah/spark2-5-tiny-random-bf16",
+      "resolved_classes": {
+        "configuration_spark.Spark2_5Config": "qfs_verified_039f74cdaba38fc1443c736a69c0ea784fd1f1ed94ad49bb9335d6876adf3c21.configuration_spark.Spark2_5Config",
+        "modeling_spark.Spark2_5ForCausalLM": "qfs_verified_039f74cdaba38fc1443c736a69c0ea784fd1f1ed94ad49bb9335d6876adf3c21.modeling_spark.Spark2_5ForCausalLM"
+      },
+      "revision": "dd4b081b0a6b042771cbfdaedf82ef345e59f5e9",
+      "schema": "malaiwah.verified-code.v1",
+      "security_scope": "explicitly trusted code; provenance verification is not a sandbox",
+      "verification": "Hub immutable tree plus Git blob/LFS SHA-256; private verified source loader"
+    },
+    "version": "hf_capture/1",
+    "weights_decode": null,
+    "weights_license": {
+      "bytes": 11338,
+      "dataset_path": "LICENSE",
+      "sha256": "525c465ab952779d2d360a9ff36f7f49ae018a23d80302ff839a850a77784c36",
+      "source_file": "LICENSE"
+    },
+    "wraps": []
+  },
+  "container": {
+    "image_digest": null,
+    "image_reference": null,
+    "image_repository_digest": null
+  },
+  "format_version": 1,
+  "lane": "other",
+  "lane_identity_inputs": [
+    "torch_version",
+    "cuda_runtime_version",
+    "device_name",
+    "grouped_mm_kernel",
+    "numeric_policy",
+    "attention_backend",
+    "experts_implementation",
+    "parallelism",
+    "ep_emulate",
+    "reduce_order"
+  ],
+  "lane_identity_sha256": "34f640ff350d24093734d97a81c1048ce0443d8b3c7bda0953f8283b8ea9269f",
+  "lane_inferred": false,
+  "receipt_sha256": "7b1637de5695ec57f383d86a4f27136757f02d63895b85c910d8f4dbb8232054",
+  "resources": {
+    "bytes": {
+      "checkpoint_read": 315008,
+      "hidden_d2h": 36616,
+      "weights_h2d": null
+    },
+    "checkpoint_bytes": 319848,
+    "checkpoint_files": 2,
+    "device_name": null,
+    "forward_timing": "wall-clock",
+    "note": "provenance, not identity: peaks and stage seconds this run measured; forward_sum is device time under cuda-events, wall time otherwise; seal covers head serialisation up to this block's assembly",
+    "peak_cuda_allocated_bytes": null,
+    "peak_cuda_reserved_bytes": null,
+    "peak_resident_weight_bytes": 103808,
+    "peak_rss_bytes": 369823744,
+    "rss_units_source": "Linux ru_maxrss",
+    "seconds": {
+      "decode_sum": null,
+      "elapsed": 3.977,
+      "fill_sum": null,
+      "forward_sum": 0.12,
+      "identity": 0.003,
+      "layer_load_max": 0.007,
+      "layer_load_sum": 0.024,
+      "layer_loads": 4,
+      "resident_load": 3.174,
+      "seal": 0.008
+    }
+  },
+  "runtime_environment": {
+    "cold_run": "fidelity--spark2-5.community-root-first",
+    "numeric_policy_observed": {
+      "NVIDIA_TF32_OVERRIDE": null,
+      "allow_tf32_cudnn": true,
+      "allow_tf32_matmul": false,
+      "deviates_from_default": false,
+      "float32_matmul_precision": "highest",
+      "observed_at": "seal time, after the forward"
+    },
+    "python": "3.12.14"
+  },
+  "schema": "malaiwah.fidelity-capture-runtime.v1",
+  "source_files": {
+    "bin/fidelity/codepin.py": "ce2a2c04d64adf7a268978a7ffe163c7d4cb5b675d5dc8e156f8a26a3b7bb5fd",
+    "bin/fidelity/panel.py": "0bf78fca76289920e0dc10d58082f42f24f4f2db6e0ecde61daefa4c22de286d",
+    "engines/tools/hf_capture.py": "21ef72f4bb73ae52e232d63733494f0dece81009435af1c6a73052815d211c78",
+    "engines/tools/layer_outer.py": "e3ea5715112663b1b60cf596eeffc2140e49b399809ece89a174bce41a969274"
+  },
+  "stack_fingerprint": {
+    "attention_backend": "model default",
+    "cuda_runtime_version": null,
+    "device": "cpu",
+    "device_name": null,
+    "engine": "transformers-eager",
+    "numeric_policy": "default torch matmul precision; no TF32 override applied",
+    "schema": "malaiwah.stack-fingerprint.v1",
+    "torch_version": "2.11.0+cpu",
+    "transformers_version": "5.16.1",
+    "verified_code": {
+      "closure_sha256": "039f74cdaba38fc1443c736a69c0ea784fd1f1ed94ad49bb9335d6876adf3c21",
+      "repository": "malaiwah/spark2-5-tiny-random-bf16",
+      "resolved_classes": {
+        "config": "qfs_verified_039f74cdaba38fc1443c736a69c0ea784fd1f1ed94ad49bb9335d6876adf3c21.configuration_spark.Spark2_5Config",
+        "model": "qfs_verified_039f74cdaba38fc1443c736a69c0ea784fd1f1ed94ad49bb9335d6876adf3c21.modeling_spark.Spark2_5ForCausalLM"
+      },
+      "revision": "dd4b081b0a6b042771cbfdaedf82ef345e59f5e9"
+    }
+  },
+  "stack_fingerprint_sha256": "c3ddd68892de4a8ad42942c8d02d802d38654480424903e8aa811e5b2da62e13",
+  "upstream_receipts": [],
+  "weights": {
+    "checkpoint_files": [
+      {
+        "name": "config.json",
+        "sha256": "b0fa5015db542fe185e0060dbcebc956ee7ee03aeecbdac5783383b62be28103",
+        "size": 1296
+      },
+      {
+        "name": "model.safetensors",
+        "sha256": "4619fd92be1df082a65e5cbd17013154bfb01fe9cd9f82acf2a71ce19672a436",
+        "size": 318552
+      }
+    ],
+    "checkpoint_identity_algorithm": "sha256 over the canonical JSON {\"algorithm\": <this string>, \"files\": [{\"name\", \"size\", \"sha256\"}, ...]} of every *.safetensors shard plus config.json in the checkpoint directory, sorted by name; for a llama.cpp GGUF tree the shards are every *.gguf of the one build directory (name = <build>/<file>) and config.json is the official release's copy beside it",
+    "checkpoint_identity_sha256": "4f328789a8c8cd6d69e728892560c9ed378a4a71fb049ea6a24a24d63e0f99bd",
+    "model_revision": "c0a57b037007d475ede719e78f4a6ce24f211da0",
+    "repository": "malaiwah/spark2-5-tiny-random-bf16",
+    "revision": "c0a57b037007d475ede719e78f4a6ce24f211da0"
+  }
+}

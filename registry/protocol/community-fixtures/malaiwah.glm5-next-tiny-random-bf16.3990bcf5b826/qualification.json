@@ -1,0 +1,587 @@
+{
+  "canonical_job_sha256": "8d01b9e7b88f053a38028a71d25e8c6ee234322823cdadf4b1007a4b907dcb4b",
+  "captures": {
+    "canonical": {
+      "capture_content_digest": "64d3b9e1673f04f5013053455071bb6a4f587eb90ea77d6d83364204a1e2e373",
+      "capture_dtype": "BF16",
+      "capture_form": "hidden",
+      "capture_manifest": "capture/manifest.json",
+      "capture_manifest_sha256": "6c191de8807eb90d6519b1238811f503829aef67adbcf4ff3720c20f7b256e22",
+      "capture_schedule": "layer-outer",
+      "capture_tool_file": "engines/tools/hf_capture.py",
+      "dataset_author": "malaiwah",
+      "dataset_id": "fidelity--glm5-next.community-root",
+      "dataset_license": "other",
+      "dataset_manifest_file_sha256": "2e2bdbee80e2921d2b1067c59e2ec4e4631d41b9db7dc70655f7881e5df88fa5",
+      "dataset_name": "glm5_next random CPU fixture root",
+      "dataset_repository": "malaiwah/glm5-next-tiny-fidelity-root-v1",
+      "dataset_sha256": "d0b33dd18e79aba03d9048cb168cb0bfc0a5c8e9a5a186b6602466ca39e630a4",
+      "determinism_run_count": 1,
+      "lane_identity_sha256": "34f640ff350d24093734d97a81c1048ce0443d8b3c7bda0953f8283b8ea9269f",
+      "panel": {
+        "panel_id": "panel--glm5-next-tiny.malaiwah.cpu-smoke-v1",
+        "panel_receipt_sha256": "99f977c82d60132b6d34415366c9bcf948271727ae8f220df2ceb1ed3bf4515a",
+        "resolved_binding_evidence": {
+          "binding": {
+            "content": {
+              "archive": {
+                "algorithm": "sha256(ustar: sorted regular files; mode=0644; uid=gid=mtime=0)",
+                "bytes": 20480,
+                "compression": "none",
+                "format": "ustar",
+                "sha256": "1e89a1039e7384f0a4d1ad59ee8e0be3ad4bdf3b2d78759a2c4dab1bf90ff950"
+              },
+              "manifest": [
+                {
+                  "bytes": 192,
+                  "path": "arrays/causal-mask-64.npy",
+                  "sha256": "a38fba8bfd9cd25a81b0e37fa144e8e13e84f769ae7f609ceebc94a64f4f5d02"
+                },
+                {
+                  "bytes": 384,
+                  "path": "arrays/final-0000.tokens.npy",
+                  "sha256": "8109663cf1ccf154f7ef1c366fe074a994c3ebf01c3ff45a6f8a881a54dc27b2"
+                },
+                {
+                  "bytes": 384,
+                  "path": "arrays/final-0001.tokens.npy",
+                  "sha256": "19e4a039952b38dcdb4bda2a28d08a020601f5fca4dfc7f2dfde07a405ec2cdf"
+                },
+                {
+                  "bytes": 384,
+                  "path": "arrays/final-0002.tokens.npy",
+                  "sha256": "40105e60c877af0606869e06e1baa2e18b00d569d34c84cca56571d7f335dff8"
+                },
+                {
+                  "bytes": 384,
+                  "path": "arrays/final-0003.tokens.npy",
+                  "sha256": "e6a423012f7f923bd751c3936c5a6537b7357ecdcc20cce5c1242855dc09103f"
+                },
+                {
+                  "bytes": 4191,
+                  "path": "panel.json",
+                  "sha256": "553f66da501c6312850df1d151849eaa4b89d4a597b13e815b524ba975f7a904"
+                },
+                {
+                  "bytes": 7800,
+                  "path": "panel.receipt.json",
+                  "sha256": "c0c40861d67cb0b63dd3f23ee2dc83a45da370e9f32ac69f5fc24c06d798b610"
+                }
+              ],
+              "manifest_sha256": "8606ff0a1f681d99678043062680337e748cd9decbbe109d394526af2a5e38bb"
+            },
+            "panel": {
+              "bytes": 4191,
+              "context_length": 64,
+              "contexts": 4,
+              "file": "panel.json",
+              "id": "panel--glm5-next-tiny.malaiwah.cpu-smoke-v1",
+              "name": "Tiny random-init GLM5-Next synthetic CPU smoke (not a benchmark)",
+              "positions_per_context": 63,
+              "role": "final",
+              "scored_positions_total": 252,
+              "sha256": "553f66da501c6312850df1d151849eaa4b89d4a597b13e815b524ba975f7a904",
+              "suite_token_hash_sha256": "1ffa88108bda139ba366c897889fb911fed5bd65819cec723a84c6a601928317"
+            },
+            "receipt": {
+              "bytes": 7800,
+              "declared_receipt_sha256": "99f977c82d60132b6d34415366c9bcf948271727ae8f220df2ceb1ed3bf4515a",
+              "file": "panel.receipt.json",
+              "receipt_file_sha256": "c0c40861d67cb0b63dd3f23ee2dc83a45da370e9f32ac69f5fc24c06d798b610",
+              "receipt_seal_mode": "self-blank"
+            },
+            "schema": "malaiwah.resolved-panel.v1",
+            "tokenizer": {
+              "files": [
+                {
+                  "bytes": 2879,
+                  "name": "config.json",
+                  "sha256": "c1037e7d8c788c45b57360b4930643fac8ca3220fc278c862a2854d257818d46"
+                },
+                {
+                  "bytes": 216,
+                  "name": "generation_config.json",
+                  "sha256": "1d59e0fb61ca550ea84bd37a6bdf553ab364bc2689b17ba69f6a1adbc9d61e34"
+                },
+                {
+                  "bytes": 8009,
+                  "name": "tokenizer.json",
+                  "sha256": "38dd085a7cc3e9c5dddf4cc886688945e673bd4ce0050a3753ade5b39af837f5"
+                },
+                {
+                  "bytes": 378,
+                  "name": "tokenizer_config.json",
+                  "sha256": "9ba1aabf5c5e816cc26eaed133219c5f4943881936baa6ab66dba89f09919305"
+                }
+              ],
+              "files_verified": true,
+              "id": "malaiwah/glm5-next-tiny-random-bf16",
+              "identity_sha256": "a0623b1fa182a5a56bcd4bb105a492f709ecce49da36a3328e4f23c21e910fe5",
+              "maximum_token_id_exclusive": 266,
+              "receipt": null,
+              "repository": "malaiwah/glm5-next-tiny-random-bf16",
+              "revision": "e84b6a4844a36baecfaba7dbf0ca3cfea6662d24",
+              "vocab_size": 266
+            }
+          },
+          "binding_file": "panel-binding.json",
+          "binding_file_sha256": "eb5752d32f17fc6a8e1f249e0b8cc982d570ed8c22fb605420a25fc77bc9b299",
+          "tokenizer_equivalences": []
+        },
+        "suite_token_hash_sha256": "1ffa88108bda139ba366c897889fb911fed5bd65819cec723a84c6a601928317",
+        "tokenizer": {
+          "files": [
+            {
+              "bytes": 2879,
+              "name": "config.json",
+              "sha256": "c1037e7d8c788c45b57360b4930643fac8ca3220fc278c862a2854d257818d46"
+            },
+            {
+              "bytes": 216,
+              "name": "generation_config.json",
+              "sha256": "1d59e0fb61ca550ea84bd37a6bdf553ab364bc2689b17ba69f6a1adbc9d61e34"
+            },
+            {
+              "bytes": 8009,
+              "name": "tokenizer.json",
+              "sha256": "38dd085a7cc3e9c5dddf4cc886688945e673bd4ce0050a3753ade5b39af837f5"
+            },
+            {
+              "bytes": 378,
+              "name": "tokenizer_config.json",
+              "sha256": "9ba1aabf5c5e816cc26eaed133219c5f4943881936baa6ab66dba89f09919305"
+            }
+          ],
+          "files_verified": true,
+          "id": "malaiwah/glm5-next-tiny-random-bf16",
+          "identity_sha256": "a0623b1fa182a5a56bcd4bb105a492f709ecce49da36a3328e4f23c21e910fe5",
+          "maximum_token_id_exclusive": 266,
+          "receipt": null,
+          "repository": "malaiwah/glm5-next-tiny-random-bf16",
+          "revision": "e84b6a4844a36baecfaba7dbf0ca3cfea6662d24",
+          "vocab_size": 266
+        }
+      },
+      "process_label": "fidelity--glm5-next.community-root-first",
+      "runtime_container": {
+        "image_digest": null,
+        "image_reference": null,
+        "image_repository_digest": null
+      },
+      "runtime_device": "cpu",
+      "runtime_engine": "transformers-eager",
+      "runtime_lane": "other",
+      "runtime_manifest": "runtime/capture-runtime.json",
+      "runtime_manifest_sha256": "c1760a48053001f7b80fff5010f4c1b924e6a892080bfe5949e266e1e95ddcfe",
+      "stack_fingerprint_sha256": "a83c4de13e06b8727c3a05959e470708b1fa396b0fcbd78c2f9deac666fea6cd",
+      "unexpected_tensor_allowlist": null,
+      "weights_license": {
+        "bytes": 1071,
+        "dataset_path": "LICENSE",
+        "sha256": "6456969dd395bff476628945088b4cbd9d9c761b01a64e281c07b09daf9f94c3",
+        "source_file": "LICENSE"
+      },
+      "weights_license_file_bytes": 1071,
+      "weights_license_file_sha256": "6456969dd395bff476628945088b4cbd9d9c761b01a64e281c07b09daf9f94c3",
+      "weights_repository": "malaiwah/glm5-next-tiny-random-bf16",
+      "weights_revision": "4c31348e3beb1a8a6bd73d055464362953d768ea"
+    },
+    "repeat": {
+      "capture_content_digest": "64d3b9e1673f04f5013053455071bb6a4f587eb90ea77d6d83364204a1e2e373",
+      "capture_dtype": "BF16",
+      "capture_form": "hidden",
+      "capture_manifest": "capture/manifest.json",
+      "capture_manifest_sha256": "17c3dd2cb8ccee24e9579179d53a365843a11206fb4b4b69d8f1cff20f2ed5c9",
+      "capture_schedule": "layer-outer",
+      "capture_tool_file": "engines/tools/hf_capture.py",
+      "dataset_author": "malaiwah",
+      "dataset_id": "fidelity--glm5-next.community-root",
+      "dataset_license": "other",
+      "dataset_manifest_file_sha256": "1f1c6cb0cf7b702ea80a6ffd2c2047b9ad8d404bbfa5eb5121fd4cac604cf238",
+      "dataset_name": "glm5_next random CPU fixture root",
+      "dataset_repository": "malaiwah/glm5-next-tiny-fidelity-root-v1",
+      "dataset_sha256": "c1f34b5c7ca1f216ecbbc503ba6173446fed1683b301c76aaaf69bc735a00324",
+      "determinism_run_count": 1,
+      "lane_identity_sha256": "34f640ff350d24093734d97a81c1048ce0443d8b3c7bda0953f8283b8ea9269f",
+      "panel": {
+        "panel_id": "panel--glm5-next-tiny.malaiwah.cpu-smoke-v1",
+        "panel_receipt_sha256": "99f977c82d60132b6d34415366c9bcf948271727ae8f220df2ceb1ed3bf4515a",
+        "resolved_binding_evidence": {
+          "binding": {
+            "content": {
+              "archive": {
+                "algorithm": "sha256(ustar: sorted regular files; mode=0644; uid=gid=mtime=0)",
+                "bytes": 20480,
+                "compression": "none",
+                "format": "ustar",
+                "sha256": "1e89a1039e7384f0a4d1ad59ee8e0be3ad4bdf3b2d78759a2c4dab1bf90ff950"
+              },
+              "manifest": [
+                {
+                  "bytes": 192,
+                  "path": "arrays/causal-mask-64.npy",
+                  "sha256": "a38fba8bfd9cd25a81b0e37fa144e8e13e84f769ae7f609ceebc94a64f4f5d02"
+                },
+                {
+                  "bytes": 384,
+                  "path": "arrays/final-0000.tokens.npy",
+                  "sha256": "8109663cf1ccf154f7ef1c366fe074a994c3ebf01c3ff45a6f8a881a54dc27b2"
+                },
+                {
+                  "bytes": 384,
+                  "path": "arrays/final-0001.tokens.npy",
+                  "sha256": "19e4a039952b38dcdb4bda2a28d08a020601f5fca4dfc7f2dfde07a405ec2cdf"
+                },
+                {
+                  "bytes": 384,
+                  "path": "arrays/final-0002.tokens.npy",
+                  "sha256": "40105e60c877af0606869e06e1baa2e18b00d569d34c84cca56571d7f335dff8"
+                },
+                {
+                  "bytes": 384,
+                  "path": "arrays/final-0003.tokens.npy",
+                  "sha256": "e6a423012f7f923bd751c3936c5a6537b7357ecdcc20cce5c1242855dc09103f"
+                },
+                {
+                  "bytes": 4191,
+                  "path": "panel.json",
+                  "sha256": "553f66da501c6312850df1d151849eaa4b89d4a597b13e815b524ba975f7a904"
+                },
+                {
+                  "bytes": 7800,
+                  "path": "panel.receipt.json",
+                  "sha256": "c0c40861d67cb0b63dd3f23ee2dc83a45da370e9f32ac69f5fc24c06d798b610"
+                }
+              ],
+              "manifest_sha256": "8606ff0a1f681d99678043062680337e748cd9decbbe109d394526af2a5e38bb"
+            },
+            "panel": {
+              "bytes": 4191,
+              "context_length": 64,
+              "contexts": 4,
+              "file": "panel.json",
+              "id": "panel--glm5-next-tiny.malaiwah.cpu-smoke-v1",
+              "name": "Tiny random-init GLM5-Next synthetic CPU smoke (not a benchmark)",
+              "positions_per_context": 63,
+              "role": "final",
+              "scored_positions_total": 252,
+              "sha256": "553f66da501c6312850df1d151849eaa4b89d4a597b13e815b524ba975f7a904",
+              "suite_token_hash_sha256": "1ffa88108bda139ba366c897889fb911fed5bd65819cec723a84c6a601928317"
+            },
+            "receipt": {
+              "bytes": 7800,
+              "declared_receipt_sha256": "99f977c82d60132b6d34415366c9bcf948271727ae8f220df2ceb1ed3bf4515a",
+              "file": "panel.receipt.json",
+              "receipt_file_sha256": "c0c40861d67cb0b63dd3f23ee2dc83a45da370e9f32ac69f5fc24c06d798b610",
+              "receipt_seal_mode": "self-blank"
+            },
+            "schema": "malaiwah.resolved-panel.v1",
+            "tokenizer": {
+              "files": [
+                {
+                  "bytes": 2879,
+                  "name": "config.json",
+                  "sha256": "c1037e7d8c788c45b57360b4930643fac8ca3220fc278c862a2854d257818d46"
+                },
+                {
+                  "bytes": 216,
+                  "name": "generation_config.json",
+                  "sha256": "1d59e0fb61ca550ea84bd37a6bdf553ab364bc2689b17ba69f6a1adbc9d61e34"
+                },
+                {
+                  "bytes": 8009,
+                  "name": "tokenizer.json",
+                  "sha256": "38dd085a7cc3e9c5dddf4cc886688945e673bd4ce0050a3753ade5b39af837f5"
+                },
+                {
+                  "bytes": 378,
+                  "name": "tokenizer_config.json",
+                  "sha256": "9ba1aabf5c5e816cc26eaed133219c5f4943881936baa6ab66dba89f09919305"
+                }
+              ],
+              "files_verified": true,
+              "id": "malaiwah/glm5-next-tiny-random-bf16",
+              "identity_sha256": "a0623b1fa182a5a56bcd4bb105a492f709ecce49da36a3328e4f23c21e910fe5",
+              "maximum_token_id_exclusive": 266,
+              "receipt": null,
+              "repository": "malaiwah/glm5-next-tiny-random-bf16",
+              "revision": "e84b6a4844a36baecfaba7dbf0ca3cfea6662d24",
+              "vocab_size": 266
+            }
+          },
+          "binding_file": "panel-binding.json",
+          "binding_file_sha256": "eb5752d32f17fc6a8e1f249e0b8cc982d570ed8c22fb605420a25fc77bc9b299",
+          "tokenizer_equivalences": []
+        },
+        "suite_token_hash_sha256": "1ffa88108bda139ba366c897889fb911fed5bd65819cec723a84c6a601928317",
+        "tokenizer": {
+          "files": [
+            {
+              "bytes": 2879,
+              "name": "config.json",
+              "sha256": "c1037e7d8c788c45b57360b4930643fac8ca3220fc278c862a2854d257818d46"
+            },
+            {
+              "bytes": 216,
+              "name": "generation_config.json",
+              "sha256": "1d59e0fb61ca550ea84bd37a6bdf553ab364bc2689b17ba69f6a1adbc9d61e34"
+            },
+            {
+              "bytes": 8009,
+              "name": "tokenizer.json",
+              "sha256": "38dd085a7cc3e9c5dddf4cc886688945e673bd4ce0050a3753ade5b39af837f5"
+            },
+            {
+              "bytes": 378,
+              "name": "tokenizer_config.json",
+              "sha256": "9ba1aabf5c5e816cc26eaed133219c5f4943881936baa6ab66dba89f09919305"
+            }
+          ],
+          "files_verified": true,
+          "id": "malaiwah/glm5-next-tiny-random-bf16",
+          "identity_sha256": "a0623b1fa182a5a56bcd4bb105a492f709ecce49da36a3328e4f23c21e910fe5",
+          "maximum_token_id_exclusive": 266,
+          "receipt": null,
+          "repository": "malaiwah/glm5-next-tiny-random-bf16",
+          "revision": "e84b6a4844a36baecfaba7dbf0ca3cfea6662d24",
+          "vocab_size": 266
+        }
+      },
+      "process_label": "fidelity--glm5-next.community-root-repeat",
+      "runtime_container": {
+        "image_digest": null,
+        "image_reference": null,
+        "image_repository_digest": null
+      },
+      "runtime_device": "cpu",
+      "runtime_engine": "transformers-eager",
+      "runtime_lane": "other",
+      "runtime_manifest": "runtime/capture-runtime.json",
+      "runtime_manifest_sha256": "bb22af2a52a675e2eba6b41f585475c035ee3f8be577299e9fadacb18f7fe209",
+      "stack_fingerprint_sha256": "a83c4de13e06b8727c3a05959e470708b1fa396b0fcbd78c2f9deac666fea6cd",
+      "unexpected_tensor_allowlist": null,
+      "weights_license": {
+        "bytes": 1071,
+        "dataset_path": "LICENSE",
+        "sha256": "6456969dd395bff476628945088b4cbd9d9c761b01a64e281c07b09daf9f94c3",
+        "source_file": "LICENSE"
+      },
+      "weights_license_file_bytes": 1071,
+      "weights_license_file_sha256": "6456969dd395bff476628945088b4cbd9d9c761b01a64e281c07b09daf9f94c3",
+      "weights_repository": "malaiwah/glm5-next-tiny-random-bf16",
+      "weights_revision": "4c31348e3beb1a8a6bd73d055464362953d768ea"
+    }
+  },
+  "comparator": {
+    "accumulation_dtype": "float64",
+    "device": "cpu",
+    "estimator_backend": "numpy_fp64",
+    "force_compute_agreed": true,
+    "replay_backend": "numpy:cpu:float32",
+    "requested_replay_device": "numpy",
+    "requested_replay_dtype": "float32",
+    "requested_vocab_chunk": 8192,
+    "vocab_chunk": 8192
+  },
+  "comparison": {
+    "comparison_kind": "reproduction_confirmation",
+    "file_sha256": "e73adf474a4a1a4d1bbbf9b1ab3aa4f31579eef0f6169fe2ddf29ccf069643c8",
+    "max_kld": 0.0,
+    "mean_kld": 0.0,
+    "path": "comparison-receipt.json",
+    "receipt_sha256": "9b37d404b8b10233c6b7aadb9bd047de3b9a5b2deb144cbd23c698ce4d657e81",
+    "top1_agreement": 1.0
+  },
+  "dataset_repository": "malaiwah/glm5-next-tiny-fidelity-root-v1",
+  "destination_repository": "malaiwah/glm5-next-tiny-fidelity-root-v1",
+  "job_contract": {
+    "author": "malaiwah",
+    "candidate": null,
+    "container_image_digest": null,
+    "container_image_reference": null,
+    "dataset_id": "fidelity--glm5-next.community-root",
+    "dataset_license": "other",
+    "dataset_name": "glm5_next random CPU fixture root",
+    "dataset_repository": "malaiwah/glm5-next-tiny-fidelity-root-v1",
+    "device": "cpu",
+    "dtype": "bfloat16",
+    "engine": "hf-transformers",
+    "execution_kind": "local",
+    "form": "hidden",
+    "lane": "other",
+    "panel_binding_file_sha256": "eb5752d32f17fc6a8e1f249e0b8cc982d570ed8c22fb605420a25fc77bc9b299",
+    "panel_binding_path": "panel-binding.json",
+    "panel_id": "panel--glm5-next-tiny.malaiwah.cpu-smoke-v1",
+    "panel_receipt_file_bytes": 7800,
+    "panel_receipt_file_sha256": "c0c40861d67cb0b63dd3f23ee2dc83a45da370e9f32ac69f5fc24c06d798b610",
+    "panel_receipt_seal_mode": "self-blank",
+    "panel_receipt_sha256": "99f977c82d60132b6d34415366c9bcf948271727ae8f220df2ceb1ed3bf4515a",
+    "panel_resolved_binding": {
+      "content": {
+        "archive": {
+          "algorithm": "sha256(ustar: sorted regular files; mode=0644; uid=gid=mtime=0)",
+          "bytes": 20480,
+          "compression": "none",
+          "format": "ustar",
+          "sha256": "1e89a1039e7384f0a4d1ad59ee8e0be3ad4bdf3b2d78759a2c4dab1bf90ff950"
+        },
+        "manifest": [
+          {
+            "bytes": 192,
+            "path": "arrays/causal-mask-64.npy",
+            "sha256": "a38fba8bfd9cd25a81b0e37fa144e8e13e84f769ae7f609ceebc94a64f4f5d02"
+          },
+          {
+            "bytes": 384,
+            "path": "arrays/final-0000.tokens.npy",
+            "sha256": "8109663cf1ccf154f7ef1c366fe074a994c3ebf01c3ff45a6f8a881a54dc27b2"
+          },
+          {
+            "bytes": 384,
+            "path": "arrays/final-0001.tokens.npy",
+            "sha256": "19e4a039952b38dcdb4bda2a28d08a020601f5fca4dfc7f2dfde07a405ec2cdf"
+          },
+          {
+            "bytes": 384,
+            "path": "arrays/final-0002.tokens.npy",
+            "sha256": "40105e60c877af0606869e06e1baa2e18b00d569d34c84cca56571d7f335dff8"
+          },
+          {
+            "bytes": 384,
+            "path": "arrays/final-0003.tokens.npy",
+            "sha256": "e6a423012f7f923bd751c3936c5a6537b7357ecdcc20cce5c1242855dc09103f"
+          },
+          {
+            "bytes": 4191,
+            "path": "panel.json",
+            "sha256": "553f66da501c6312850df1d151849eaa4b89d4a597b13e815b524ba975f7a904"
+          },
+          {
+            "bytes": 7800,
+            "path": "panel.receipt.json",
+            "sha256": "c0c40861d67cb0b63dd3f23ee2dc83a45da370e9f32ac69f5fc24c06d798b610"
+          }
+        ],
+        "manifest_sha256": "8606ff0a1f681d99678043062680337e748cd9decbbe109d394526af2a5e38bb"
+      },
+      "panel": {
+        "bytes": 4191,
+        "context_length": 64,
+        "contexts": 4,
+        "file": "panel.json",
+        "id": "panel--glm5-next-tiny.malaiwah.cpu-smoke-v1",
+        "name": "Tiny random-init GLM5-Next synthetic CPU smoke (not a benchmark)",
+        "positions_per_context": 63,
+        "role": "final",
+        "scored_positions_total": 252,
+        "sha256": "553f66da501c6312850df1d151849eaa4b89d4a597b13e815b524ba975f7a904",
+        "suite_token_hash_sha256": "1ffa88108bda139ba366c897889fb911fed5bd65819cec723a84c6a601928317"
+      },
+      "receipt": {
+        "bytes": 7800,
+        "declared_receipt_sha256": "99f977c82d60132b6d34415366c9bcf948271727ae8f220df2ceb1ed3bf4515a",
+        "file": "panel.receipt.json",
+        "receipt_file_sha256": "c0c40861d67cb0b63dd3f23ee2dc83a45da370e9f32ac69f5fc24c06d798b610",
+        "receipt_seal_mode": "self-blank"
+      },
+      "schema": "malaiwah.resolved-panel.v1",
+      "tokenizer": {
+        "files": [
+          {
+            "bytes": 2879,
+            "name": "config.json",
+            "sha256": "c1037e7d8c788c45b57360b4930643fac8ca3220fc278c862a2854d257818d46"
+          },
+          {
+            "bytes": 216,
+            "name": "generation_config.json",
+            "sha256": "1d59e0fb61ca550ea84bd37a6bdf553ab364bc2689b17ba69f6a1adbc9d61e34"
+          },
+          {
+            "bytes": 8009,
+            "name": "tokenizer.json",
+            "sha256": "38dd085a7cc3e9c5dddf4cc886688945e673bd4ce0050a3753ade5b39af837f5"
+          },
+          {
+            "bytes": 378,
+            "name": "tokenizer_config.json",
+            "sha256": "9ba1aabf5c5e816cc26eaed133219c5f4943881936baa6ab66dba89f09919305"
+          }
+        ],
+        "files_verified": true,
+        "id": "malaiwah/glm5-next-tiny-random-bf16",
+        "identity_sha256": "a0623b1fa182a5a56bcd4bb105a492f709ecce49da36a3328e4f23c21e910fe5",
+        "maximum_token_id_exclusive": 266,
+        "receipt": null,
+        "repository": "malaiwah/glm5-next-tiny-random-bf16",
+        "revision": "e84b6a4844a36baecfaba7dbf0ca3cfea6662d24",
+        "vocab_size": 266
+      }
+    },
+    "panel_suite_token_hash_sha256": "1ffa88108bda139ba366c897889fb911fed5bd65819cec723a84c6a601928317",
+    "profile": {
+      "compute_dtype": "bfloat16",
+      "device": "cpu",
+      "engine": "hf-transformers",
+      "form": "hidden",
+      "lane": "root",
+      "profile_id": "root-hf-transformers-bf16",
+      "schedule": "two-fresh-process-qualification",
+      "source": "native",
+      "surface": "native-bf16"
+    },
+    "publish_root_to": "malaiwah/glm5-next-tiny-fidelity-root-v1",
+    "resume_capture": null,
+    "schedule": "layer-outer",
+    "target": {
+      "bits": 16,
+      "codec": "bf16",
+      "path": null,
+      "repo_id": "malaiwah/glm5-next-tiny-random-bf16",
+      "revision": "4c31348e3beb1a8a6bd73d055464362953d768ea",
+      "surface": "native-bf16"
+    },
+    "tokenizer_identity_sha256": "a0623b1fa182a5a56bcd4bb105a492f709ecce49da36a3328e4f23c21e910fe5",
+    "unexpected_tensor_allowlist": null,
+    "weights_license": {
+      "bytes": 1071,
+      "dataset_path": "LICENSE",
+      "sha256": "6456969dd395bff476628945088b4cbd9d9c761b01a64e281c07b09daf9f94c3",
+      "source_path": "LICENSE"
+    },
+    "weights_repository": "malaiwah/glm5-next-tiny-random-bf16",
+    "weights_revision": "4c31348e3beb1a8a6bd73d055464362953d768ea"
+  },
+  "job_file_sha256": "ebe163c3351c8789259a172f29b1849fce9dc431adffd3f4b7595a61e02102e7",
+  "local_execution": {
+    "capture_dataset_bytes": 243884,
+    "cuda_runtime_version": null,
+    "device": "cpu",
+    "device_name": null,
+    "note": "captured on hardware the author controls; there is no provider, no pod attestation, no container pin and no paid meter. resource_requirements are admission minima, not measurements: null means not applicable to an already completed local run; CPU capture uses zero GPUs and zero VRAM. capture_dataset_bytes is the observed combined size of the two sealed datasets.",
+    "pod_attestation": null,
+    "python": "3.12.14",
+    "torch_version": "2.11.0+cpu",
+    "transformers_version": "5.16.1"
+  },
+  "qualified_at": "2026-09-07T18:01:11Z",
+  "receipt_sha256": "ee7614e771c8988c5bae635f3538008b35d7a6239476a272d5b774729f3ee31a",
+  "reproduction_confirmation": {
+    "both_independently_verified": true,
+    "canonical_dataset_only": true,
+    "distinct_dataset_roots": true,
+    "exact_zero_comparison": true,
+    "two_fresh_processes": true
+  },
+  "schema": "fidelity.root-qualification-receipt.v1",
+  "verification": {
+    "canonical": {
+      "file_sha256": "e380ba3d415606c9647270eb3c2c5bd7d4c8d551ea051fe8682ac9c945110027",
+      "receipt_sha256": "11df0fc9c1ec96cd4c5b2f732b522c23763b8ffdea91ea02e459f1553c2aedbd"
+    },
+    "repeat": {
+      "file_sha256": "50ef598689d4bcce733978fa6d52407702b31a5fc3e93d34047b91f424bf6368",
+      "receipt_sha256": "bcef874f781a8acd1202e1b017745f533633ece2a4abd26f5330b80853e9142d"
+    }
+  }
+}

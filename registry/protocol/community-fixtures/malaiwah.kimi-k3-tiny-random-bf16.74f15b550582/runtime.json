@@ -1,0 +1,304 @@
+{
+  "capture_tool": {
+    "expert_fill": {
+      "bytes_filled": 0,
+      "declined": {},
+      "decoded_slices": 0,
+      "identity": "a byte copy into the fused parameter's slice; bin/selftest_layer_outer.py L4/L6 assert equality with from_pretrained and with the converter path",
+      "layers_filled": 0,
+      "mode": "direct",
+      "reference": "transformers.core_model_loading.MergeModulelist(dim=0) + Concatenate(dim=1)",
+      "slices_filled": 0,
+      "staged_slices": 0,
+      "staging": "pageable",
+      "targets_filled": 0
+    },
+    "file": "engines/tools/hf_capture.py",
+    "head_module_path": "language_model.lm_head",
+    "head_resolution": "get_output_embeddings()",
+    "layer_residency": "stream",
+    "mechanism": "transformers forward pass, layer-outer/window-inner schedule: for each decoder layer the model's own forward is run once per window with the layers below replaying their memoised output and the layers above suspending, so each layer's weights are materialised once for the whole panel. Windows are pushed through sequentially, never batched. Forward pre-hook on model.get_output_embeddings(), fired by the model's own epilogue after the last layer",
+    "model_view": null,
+    "parallel_plan_dropped": false,
+    "resolved_classes": {
+      "config": "qfs_verified_23275202fa207d76a05b46876829bd7e4cebabf188f7c367ae808b0195162824.configuration_kimi_k3.KimiK3Config",
+      "model": "qfs_verified_23275202fa207d76a05b46876829bd7e4cebabf188f7c367ae808b0195162824.modeling_kimi_k3.KimiK3ForConditionalGeneration"
+    },
+    "resolved_panel_binding": {
+      "binding": {
+        "content": {
+          "archive": {
+            "algorithm": "sha256(ustar: sorted regular files; mode=0644; uid=gid=mtime=0)",
+            "bytes": 20480,
+            "compression": "none",
+            "format": "ustar",
+            "sha256": "5cf719cae9fcb342653ca35061979d207e689d77e752a058eed6a202e52511ac"
+          },
+          "manifest": [
+            {
+              "bytes": 192,
+              "path": "arrays/causal-mask-64.npy",
+              "sha256": "a38fba8bfd9cd25a81b0e37fa144e8e13e84f769ae7f609ceebc94a64f4f5d02"
+            },
+            {
+              "bytes": 384,
+              "path": "arrays/final-0000.tokens.npy",
+              "sha256": "d60234f4b3b6044fb21eca18f7df82de9822f388e4d93d19d8a4eb69d6d490af"
+            },
+            {
+              "bytes": 384,
+              "path": "arrays/final-0001.tokens.npy",
+              "sha256": "20188213e4dfaaed04b1396a4ec46a5a2a6236c87d870c64d7102568d585ceea"
+            },
+            {
+              "bytes": 384,
+              "path": "arrays/final-0002.tokens.npy",
+              "sha256": "00341b323c286034a1c3a80ae66318cb6ce67153c08b1eedf6990b7a0310662c"
+            },
+            {
+              "bytes": 384,
+              "path": "arrays/final-0003.tokens.npy",
+              "sha256": "a13ec9b40a39027396ec752ee8595e0613569b78e27ef25d254f4f9a82d8775a"
+            },
+            {
+              "bytes": 4187,
+              "path": "panel.json",
+              "sha256": "b2c789da2101774814aebe57ec7e73f0566e058e9f6c87136973ebb5a0f2410d"
+            },
+            {
+              "bytes": 7792,
+              "path": "panel.receipt.json",
+              "sha256": "b6bb4ea5a6ba997bbfe273ade3952e8ebc85e51981017281f0412be7fe5325ec"
+            }
+          ],
+          "manifest_sha256": "21225dbb43635e7dcc6f9245ffa60dcc27eb09d85478d5659339a4ad91ad6dfc"
+        },
+        "panel": {
+          "bytes": 4187,
+          "context_length": 64,
+          "contexts": 4,
+          "file": "panel.json",
+          "id": "panel--kimi-k3-tiny.malaiwah.cpu-smoke-v1",
+          "name": "Tiny random-init kimi-k3 synthetic CPU smoke (not a benchmark)",
+          "positions_per_context": 63,
+          "role": "final",
+          "scored_positions_total": 252,
+          "sha256": "b2c789da2101774814aebe57ec7e73f0566e058e9f6c87136973ebb5a0f2410d",
+          "suite_token_hash_sha256": "525cb6c625096ddb0ab19771a252e83223de98cc984733ef7da25a5eb076db36"
+        },
+        "receipt": {
+          "bytes": 7792,
+          "declared_receipt_sha256": "76330cfd1386b953706f9e5d27334cd3fe27a35edb899a6b600c0c12a7a1af37",
+          "file": "panel.receipt.json",
+          "receipt_file_sha256": "b6bb4ea5a6ba997bbfe273ade3952e8ebc85e51981017281f0412be7fe5325ec",
+          "receipt_seal_mode": "self-blank"
+        },
+        "schema": "malaiwah.resolved-panel.v1",
+        "tokenizer": {
+          "files": [
+            {
+              "bytes": 3739,
+              "name": "config.json",
+              "sha256": "064463931db1c0c2d08ef87346bfe1586b9ca7d21a34f6dc050fa4be2e25fdfd"
+            },
+            {
+              "bytes": 216,
+              "name": "generation_config.json",
+              "sha256": "1d59e0fb61ca550ea84bd37a6bdf553ab364bc2689b17ba69f6a1adbc9d61e34"
+            },
+            {
+              "bytes": 9335,
+              "name": "tokenizer.json",
+              "sha256": "c5f05830d9b8e3fc7042f20c32c18e056a5ee87c48313606849794bf1b485677"
+            },
+            {
+              "bytes": 516,
+              "name": "tokenizer_config.json",
+              "sha256": "9f24ab4c9150115747c129e162d2700bf8ef6fc9ba69703d13b99274463283e3"
+            }
+          ],
+          "files_verified": true,
+          "id": "malaiwah/kimi-k3-tiny-random-bf16",
+          "identity_sha256": "d3a22e8d6dedea92926c62f6185a39183bb94edfa6ba94df02296622b429f377",
+          "maximum_token_id_exclusive": 272,
+          "receipt": null,
+          "repository": "malaiwah/kimi-k3-tiny-random-bf16",
+          "revision": "3a12212e4692e70b531f541e20f6237efb79637e",
+          "vocab_size": 272
+        }
+      },
+      "binding_file": "panel-binding.json",
+      "binding_file_sha256": "5700513430bb28c467d6d1e98bd59bfb3174caa9e189eb2131cb0b310ecbbc11",
+      "tokenizer_equivalences": []
+    },
+    "schedule": "layer-outer",
+    "sha256": "21ef72f4bb73ae52e232d63733494f0dece81009435af1c6a73052815d211c78",
+    "unexpected_tensor_allowlist": null,
+    "verified_code": {
+      "closure_policy": "auto-map-static-relative-imports-and-package-initializers",
+      "closure_sha256": "23275202fa207d76a05b46876829bd7e4cebabf188f7c367ae808b0195162824",
+      "files": [
+        {
+          "git_blob_sha1": "b38c4f8fcab1ce295aea236772ea1cba57f978c9",
+          "path": "configuration_kimi_k3.py",
+          "sha256": "735eb9ebe593e17d231e08e1df7f7be9b5ee0e079f511aa201f9572077b416ae",
+          "size": 11343
+        },
+        {
+          "git_blob_sha1": "de8c1857187a576a54712c386a30bedd4a7c48c1",
+          "path": "cpu_reference.py",
+          "sha256": "f5ab2904ea43b434bcc17fb61a104f6c2975e5f52a39cffbbcfa94b358350e4e",
+          "size": 5976
+        },
+        {
+          "git_blob_sha1": "42680d606c6b747dd4635fafe7899b2d48cae429",
+          "path": "modeling_kimi_k3.py",
+          "sha256": "344de6dfed495bd6e66e1d16abac12ba6cfd222e872b15ad73003f38462f35af",
+          "size": 54765
+        },
+        {
+          "git_blob_sha1": "8482f619f7950d45906c074ddcd32fee67f4eab7",
+          "path": "modeling_kimi_linear.py",
+          "sha256": "94956f39cd28bf211acf70a3e38f469db5d24637b76a4f58b0b096527bb70df5",
+          "size": 50914
+        }
+      ],
+      "imported_files": {
+        "configuration_kimi_k3.py": "735eb9ebe593e17d231e08e1df7f7be9b5ee0e079f511aa201f9572077b416ae",
+        "cpu_reference.py": "f5ab2904ea43b434bcc17fb61a104f6c2975e5f52a39cffbbcfa94b358350e4e",
+        "modeling_kimi_k3.py": "344de6dfed495bd6e66e1d16abac12ba6cfd222e872b15ad73003f38462f35af",
+        "modeling_kimi_linear.py": "94956f39cd28bf211acf70a3e38f469db5d24637b76a4f58b0b096527bb70df5"
+      },
+      "mapping_source": null,
+      "repository": "malaiwah/kimi-k3-tiny-random-bf16",
+      "resolved_classes": {
+        "configuration_kimi_k3.KimiK3Config": "qfs_verified_23275202fa207d76a05b46876829bd7e4cebabf188f7c367ae808b0195162824.configuration_kimi_k3.KimiK3Config",
+        "modeling_kimi_k3.KimiK3ForConditionalGeneration": "qfs_verified_23275202fa207d76a05b46876829bd7e4cebabf188f7c367ae808b0195162824.modeling_kimi_k3.KimiK3ForConditionalGeneration"
+      },
+      "revision": "3a12212e4692e70b531f541e20f6237efb79637e",
+      "schema": "malaiwah.verified-code.v1",
+      "security_scope": "explicitly trusted code; provenance verification is not a sandbox",
+      "verification": "Hub immutable tree plus Git blob/LFS SHA-256; private verified source loader"
+    },
+    "version": "hf_capture/1",
+    "weights_decode": null,
+    "weights_license": {
+      "bytes": 3065,
+      "dataset_path": "LICENSE",
+      "sha256": "20c797ce19af0c17de52c6afb144644768a591c521655f5ebf5712c9850f2887",
+      "source_file": "LICENSE"
+    },
+    "wraps": []
+  },
+  "container": {
+    "image_digest": null,
+    "image_reference": null,
+    "image_repository_digest": null
+  },
+  "format_version": 1,
+  "lane": "other",
+  "lane_identity_inputs": [
+    "torch_version",
+    "cuda_runtime_version",
+    "device_name",
+    "grouped_mm_kernel",
+    "numeric_policy",
+    "attention_backend",
+    "experts_implementation",
+    "parallelism",
+    "ep_emulate",
+    "reduce_order"
+  ],
+  "lane_identity_sha256": "34f640ff350d24093734d97a81c1048ce0443d8b3c7bda0953f8283b8ea9269f",
+  "lane_inferred": false,
+  "receipt_sha256": "4e9f5b2a5aeb34f9e4c4015c142d6212752f3cda73d45cd82927b7573cbec633",
+  "resources": {
+    "bytes": {
+      "checkpoint_read": 539784,
+      "hidden_d2h": 36640,
+      "weights_h2d": null
+    },
+    "checkpoint_bytes": 562643,
+    "checkpoint_files": 2,
+    "device_name": null,
+    "forward_timing": "wall-clock",
+    "note": "provenance, not identity: peaks and stage seconds this run measured; forward_sum is device time under cuda-events, wall time otherwise; seal covers head serialisation up to this block's assembly",
+    "peak_cuda_allocated_bytes": null,
+    "peak_cuda_reserved_bytes": null,
+    "peak_resident_weight_bytes": 243896,
+    "peak_rss_bytes": 415834112,
+    "rss_units_source": "Linux ru_maxrss",
+    "seconds": {
+      "decode_sum": null,
+      "elapsed": 6.255,
+      "fill_sum": null,
+      "forward_sum": 0.524,
+      "identity": 0.006,
+      "layer_load_max": 0.024,
+      "layer_load_sum": 0.081,
+      "layer_loads": 4,
+      "resident_load": 4.859,
+      "seal": 0.01
+    }
+  },
+  "runtime_environment": {
+    "cold_run": "fidelity--kimi-k3.community-root-first",
+    "numeric_policy_observed": {
+      "NVIDIA_TF32_OVERRIDE": null,
+      "allow_tf32_cudnn": true,
+      "allow_tf32_matmul": false,
+      "deviates_from_default": false,
+      "float32_matmul_precision": "highest",
+      "observed_at": "seal time, after the forward"
+    },
+    "python": "3.12.14"
+  },
+  "schema": "malaiwah.fidelity-capture-runtime.v1",
+  "source_files": {
+    "bin/fidelity/codepin.py": "ce2a2c04d64adf7a268978a7ffe163c7d4cb5b675d5dc8e156f8a26a3b7bb5fd",
+    "bin/fidelity/panel.py": "0bf78fca76289920e0dc10d58082f42f24f4f2db6e0ecde61daefa4c22de286d",
+    "engines/tools/hf_capture.py": "21ef72f4bb73ae52e232d63733494f0dece81009435af1c6a73052815d211c78",
+    "engines/tools/layer_outer.py": "e3ea5715112663b1b60cf596eeffc2140e49b399809ece89a174bce41a969274"
+  },
+  "stack_fingerprint": {
+    "attention_backend": "model default",
+    "cuda_runtime_version": null,
+    "device": "cpu",
+    "device_name": null,
+    "engine": "transformers-eager",
+    "numeric_policy": "default torch matmul precision; no TF32 override applied",
+    "schema": "malaiwah.stack-fingerprint.v1",
+    "torch_version": "2.11.0+cpu",
+    "transformers_version": "5.16.1",
+    "verified_code": {
+      "closure_sha256": "23275202fa207d76a05b46876829bd7e4cebabf188f7c367ae808b0195162824",
+      "repository": "malaiwah/kimi-k3-tiny-random-bf16",
+      "resolved_classes": {
+        "config": "qfs_verified_23275202fa207d76a05b46876829bd7e4cebabf188f7c367ae808b0195162824.configuration_kimi_k3.KimiK3Config",
+        "model": "qfs_verified_23275202fa207d76a05b46876829bd7e4cebabf188f7c367ae808b0195162824.modeling_kimi_k3.KimiK3ForConditionalGeneration"
+      },
+      "revision": "3a12212e4692e70b531f541e20f6237efb79637e"
+    }
+  },
+  "stack_fingerprint_sha256": "cd29a3f7b928d884891e11b76a586f711611759ead36607be5d1cdd99ced3d7f",
+  "upstream_receipts": [],
+  "weights": {
+    "checkpoint_files": [
+      {
+        "name": "config.json",
+        "sha256": "064463931db1c0c2d08ef87346bfe1586b9ca7d21a34f6dc050fa4be2e25fdfd",
+        "size": 3739
+      },
+      {
+        "name": "model.safetensors",
+        "sha256": "572cf29b76b1811bdfcc277382c42fd3c9f4f3c7962a704f14d41ccab06bd747",
+        "size": 558904
+      }
+    ],
+    "checkpoint_identity_algorithm": "sha256 over the canonical JSON {\"algorithm\": <this string>, \"files\": [{\"name\", \"size\", \"sha256\"}, ...]} of every *.safetensors shard plus config.json in the checkpoint directory, sorted by name; for a llama.cpp GGUF tree the shards are every *.gguf of the one build directory (name = <build>/<file>) and config.json is the official release's copy beside it",
+    "checkpoint_identity_sha256": "d0b47d78a15e154f9dcb52210501b76d0d21420cd59be4d0a7ad4218d394b134",
+    "model_revision": "3c1e2f22e5ccfe37addc9906bfb0fdea6ad00e16",
+    "repository": "malaiwah/kimi-k3-tiny-random-bf16",
+    "revision": "3c1e2f22e5ccfe37addc9906bfb0fdea6ad00e16"
+  }
+}

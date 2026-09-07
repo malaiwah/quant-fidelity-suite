@@ -39,6 +39,10 @@ bin/engines.json
 bin/fidelity/__init__.py
 bin/fidelity/census.py
 bin/fidelity/common.py
+bin/fidelity/codepin.py
+bin/fidelity/coverage.py
+engines/coverage.json
+engines/quant-coverage-audit.json
 bin/fidelity/cardbench_payload.py
 bin/fidelity/resultsink.py
 bin/fidelity/engines.py
@@ -174,6 +178,10 @@ engines/tools/gguf_decode_bench.py
 # (structural census) and records the weaker gate in the receipt -- so shipping
 # it is the difference between a strong claim and a disclosed weak one.
 engines/tools/nvfp4_surface.py
+engines/tools/affine_surface.py
+engines/tools/microscale_surface.py
+engines/tools/quant_stream.py
+engines/tools/gguf_qwen35.py
 
 # --- pipeline patch series -------------------------------------------------
 # bootstrap_measure.sh clones the quant pipeline at its pin and applies these.

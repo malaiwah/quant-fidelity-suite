@@ -523,11 +523,11 @@ def main() -> int:
         check("[18] the predicate reads the tail over the ModelOpt leftover",
               lo.is_trellis_checkpoint(dy_cfg) and not lo.is_trellis_checkpoint(_Config(
                   {"quant_method": "modelopt", "config_groups": {}})))
-        fp8_18, tr_18, trfp8_18, st_18, nv_18, gg_18 = lo.checkpoint_decode_plans(
+        fp8_18, tr_18, trfp8_18, st_18, nv_18, gg_18, packed_18 = lo.checkpoint_decode_plans(
             dy_cfg, td, lambda **kw: events.append(kw))
         check("[18] a hybrid_tr3_tail checkpoint passes the FP8 gate and plans a TP compose",
               fp8_18 is None and trfp8_18 is None and nv_18 is None and gg_18 is None
-              and tr_18 is not None
+              and packed_18 is None and tr_18 is not None
               and tr_18["quant_method"] == "exl3" and st_18["declared_by"] == "hybrid_tr3_tail"
               and st_18["composition"]["tp"] == 2
               and [e["stage"] for e in events] == ["trellis_decode_plan"]
