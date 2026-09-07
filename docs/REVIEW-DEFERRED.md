@@ -22,7 +22,7 @@ This file now covers two different reasons to hold a fix back:
 
 ## Status index — regenerate, do not trust from memory
 
-**As of 2026-09-07 (refreshed).** Counted mechanically over the `##` headings in this
+**As of 2026-09-07 (refreshed after the three operator decisions).** Counted mechanically over the `##` headings in this
 file: an entry is CLOSED when its body carries a `RESOLVED` / `CLOSED` /
 `PARTLY RESOLVED` note. Two caveats a future reader needs:
 
@@ -35,7 +35,7 @@ file: an entry is CLOSED when its body carries a `RESOLVED` / `CLOSED` /
 
 Closed (33): CC-01, CC-07, CC-08, CLI-01, CLI-02, CLI-11, CLI-16, CLI-17, CLI-21, CLI-22, CLI-25, CLI-28, DECODE-PARITY-01, DEP-01, DEP-02, DEP-03, DEP-04, DEP-05, DESC-01, MKL-01, NUM-16, REAP-1, REAP-2, REAP-3, REAP-4, ROOT-1, ROOT-2, SEC-01, SEC-09, SH-05, SH-10, SH-22, STAT-01
 
-Open (0): 
+Open (0): (none)
 
 **The reliable prediction about this list, learned the hard way on
 2026-09-06/07: an entry is more often already fixed in code and missing a

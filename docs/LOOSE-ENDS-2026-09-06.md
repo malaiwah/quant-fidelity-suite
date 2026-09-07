@@ -102,6 +102,26 @@ backlog's real failure mode was never unfixed defects — it was dispositions
 living in commit messages and code comments instead of in the file that exists
 to hold them. Hence the status index, and hence the rule at the top of it.
 
+## The three open decisions, resolved by the operator 2026-09-07
+
+All three were held back deliberately because each changes something durable.
+The operator took the recommended option in every case. **Status index: 33
+closed, 0 open.**
+
+| decision | ruling | what shipped |
+|---|---|---|
+| **CC-08** — declare `mlx`/`nvfp4` on a lane? | **Probe first, then declare only what the probe confirms.** | `stream_score.py --help` lists both in **`--source` and `--profile`**, and the engine enforces the pairing itself, so `mlx -> mlx` / `nvfp4 -> nvfp4` are the engine's rule and not an authored guess. Declared on `streaming` with wildcard profile maps (the rate is not a bits table, same as `gguf`). Safe on identity: the lane **name** enters a comparability key and did not change, so no published row shifts. New rung scrapes both choice lists from the engine's argparse **by AST** and refuses a surface with no profile map or a profile the engine will not accept. Honest caveat on the record: the readers are bitwise-verified, but **neither surface has been measured end to end on this lane** — the first run of each is new ground. |
+| **NUM-16** — who owns the unfilled knobs? | **The authored profile is the authority.** | `engines.json` declares `profile_authoritative_flags` (eleven keys) and `invoke_engine` **refuses** a job whose `runtime` names one. The point of refusing rather than deleting the advertising: the old behaviour was to **silently ignore** such a key, which is the worst of the three options, because the operator believes the value took effect and the receipt cannot show it did not. Narrow and checked — no `job.json` in this tree carries any of the eleven — and the rung asserts **both** directions, since a guard that refused everything would pass a one-sided test while being useless. |
+| **PANEL-D6** — whose tokenizer id does a capture record? | **Prefer the panel's own declaration.** | Precedence is `--tokenizer-id` -> panel receipt `tokenizer.id` -> `--weights-repository` -> `--model`, with a verified `--panel-binding-evidence` still above all four because a binding is checked against real bytes. Measured on the committed panel tree, which is what makes it a fix rather than a theory: `panel--fruit.malaiwah.heldout-v1` declares exactly `glm-5.2-siq-fruit`, the id the **published** root records, so a fresh Fruit capture now compares to it **with no flag**. Panels declaring nothing keep the previous default exactly. Recorded additively as `PUBLISHED-CORRECTIONS.md` §5, because it changes what compares equal going forward while rewriting nothing published. |
+
+**One option was explicitly rejected and the reason is worth keeping:** for
+PANEL-D6, treating a legacy or path-valued tokenizer id as *unknown* rather
+than as a mismatch would have been looser and easier. It was refused because
+"unknown" would mean the panel gate can no longer tell you two captures used
+different tokenizers — **the one thing the token-id digest cannot see, because
+it hashes integers.** Making a gate quieter is not the same as making it
+right.
+
 ## Checked and deliberately NOT changed
 
 - **`bin/engines.json` `minutes_per_window: 20.0`** for the sealed EP8 lane is
