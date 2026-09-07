@@ -1095,15 +1095,19 @@ def publish_result(actor, job_id, *, visibility="private", confirm_publish=False
         def persist():
             nonlocal head
             head = _save_ledger(actor, repo, head, ledger)
-        if public and plan["mode"] == "root":
+        if public and plan["mode"] in ("root", "candidate"):
             from fidelity import dsformat as F
             dataset = Path(proof["qualification"]["dataset_path"])
             root_files = {name: dataset / name for name in F.iter_dataset_files(str(dataset), exclude=())}
-            root_files["receipts/root-qualification.json"] = Path(proof["qualification"]["qualification_path"])
+            qualification_name = "root-qualification.json" if plan["mode"] == "root" else "candidate-qualification.json"
+            root_files["receipts/" + qualification_name] = Path(proof["qualification"]["qualification_path"])
             root_repo = plan["output"]["dataset_repository"]
             revision = _upload_tree(actor, root_repo, root_files, private=False,
                                     state=attempt.setdefault("root", {}), persist=persist)
-            metadata.update(root_repository=root_repo, root_revision=revision)
+            if plan["mode"] == "root":
+                metadata.update(root_repository=root_repo, root_revision=revision)
+            else:
+                metadata.update(capture_repository=root_repo, capture_revision=revision)
         repository = actor.username + "/qfs-evidence-" + plan["workflow_id"] + "-" + visibility
         if "README.md" not in files:
             card = root / "README.md"
@@ -1167,6 +1171,12 @@ def _check_saved_publication(actor, publication, proof, *, public):
                     raise JobsError("Canonical root publication differs from the original planned dataset.")
                 records = [dict(r, path=r["path"][6:]) for r in proof["result"]["files"] if r["path"].startswith("first/")]
                 _verify_uploaded(actor, meta["root_repository"], meta["root_revision"], records, private=False)
+        elif public and proof["plan"]["mode"] == "candidate":
+            meta = publication["metadata"]
+            if meta.get("capture_repository") != proof["plan"]["output"]["dataset_repository"]:
+                raise JobsError("Published candidate capture differs from the planned dataset.")
+            records = [dict(r, path=r["path"][6:]) for r in proof["result"]["files"] if r["path"].startswith("first/")]
+            _verify_uploaded(actor, meta["capture_repository"], meta["capture_revision"], records, private=False)
 
 
 def request_review(actor, job_id, *, confirm_public=False):
@@ -1228,8 +1238,12 @@ def _publication_card(proof, metadata, visibility):
         text += "\nThe raw panel's referenced arrays are retained under `input-panel/`. Use the tokenizer pinned by the plan/receipt. The dataset's `other` license label does not replace the copied upstream license terms.\n"
     if plan["mode"] != "root":
         text += "\n[Own-head comparison](comparison/comparison-receipt.json). Reconstruction measures stored weights, not native serving arithmetic or optimizer quality.\n"
+        if proof["result"]["outputs"].get("submission"):
+            text += "\n[Original registry submission receipt](%s).\n" % _relative(proof["result"]["outputs"]["submission"])
     if metadata.get("root_repository"):
         text += "\n[Canonical public native root](https://huggingface.co/datasets/%s/tree/%s).\n" % (metadata["root_repository"], metadata["root_revision"])
+    if metadata.get("capture_repository"):
+        text += "\n[Standalone candidate capture](https://huggingface.co/datasets/%s/tree/%s).\n" % (metadata["capture_repository"], metadata["capture_revision"])
     text += "\nPublication visibility: **%s**. Captured bytes and their original scientific receipts are unchanged by this explanatory card.\n\n" % visibility
     text += "## Publication attribution\n\n```json\n" + json.dumps(metadata, indent=2, ensure_ascii=False).replace("`", "\\u0060") + "\n```\n"
     return text.encode("utf-8")

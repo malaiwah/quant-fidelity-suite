@@ -475,7 +475,7 @@ def workflow(plan, out, runner, outputs):
             runner.run("capture-" + name, [*common, "--out", out / name, "--run-name", label, "--cold-run", label, "--memory-report", out / (name + ".memory.json")])
             runner.run("verify-" + name, [*tool, "verify", out / name, "--verify-tensors", "--json", out / (name + ".verify.json")])
             outputs[name] = name
-        runner.run("reproduction", [*tool, "compare", "--reference", out / "first", "--candidate", out / "repeat", "--out", out / "reproduction", "--device", "cpu", "--replay-device", "numpy", "--replay-dtype", "float32", "--vocab-chunk", "8192", "--verify-tensors", "--self-compare", "--force-compute", "--reference-label", plan["workflow_id"] + "-first", "--candidate-label", plan["workflow_id"] + "-repeat"])
+        runner.run("reproduction", [*tool, "compare", "--reference", out / "first", "--candidate", out / "repeat", "--out", out / "reproduction", "--device", "cpu", "--replay-device", "numpy", "--replay-dtype", "float32", "--vocab-chunk", "8192", "--verify-tensors", "--own-heads", "--self-compare", "--force-compute", "--reference-label", plan["workflow_id"] + "-first", "--candidate-label", plan["workflow_id"] + "-repeat"])
         reproduction = load_json(out / "reproduction/comparison-receipt.json")
         if reproduction["comparison_kind"] != "reproduction_confirmation" or reproduction["self_compare"].get("force_compute_agreed") is not True:
             raise ValueError("two cold captures did not pass forced exact numerical self-control")

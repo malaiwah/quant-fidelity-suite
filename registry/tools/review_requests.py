@@ -453,5 +453,5 @@ if __name__ == "__main__":
         require(len(sys.argv) == 3 and sys.argv[1] == "stage", "Use the authenticated Explorer review controller")
         stage(sys.argv[2])
     except Exception as exc:
-        print(str(exc))
+        print(type(exc).__name__ + ": " + str(exc))
         raise SystemExit(2)

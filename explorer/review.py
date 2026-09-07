@@ -297,8 +297,10 @@ def inspect_request(actor, discussion_id):
         (directory / "context.json").write_bytes(_canonical(context))
         command = [sys.executable, "-I", "-B", str(ROOT / "registry/tools/review_requests.py"), "stage", str(directory)]
         env = {k: v for k, v in os.environ.items() if k in {"PATH", "LANG", "LC_ALL", "HOME", "SYSTEMROOT"}}
+        env.update(OMP_NUM_THREADS="1", OPENBLAS_NUM_THREADS="1", MKL_NUM_THREADS="1", NUMEXPR_NUM_THREADS="1")
         run = subprocess.run(command, cwd=directory, capture_output=True, timeout=120, env=env, check=False)
-        _require(run.returncode == 0, "Registry review refused: " + run.stdout.decode("utf-8", errors="replace")[-12000:])
+        _require(run.returncode == 0, "Registry review refused (exit %s): " % run.returncode
+                 + (run.stdout + run.stderr).decode("utf-8", errors="replace")[-12000:])
         preview = _parse((directory / "preview.json").read_text())
         changes = {}
         for p in stage.rglob("*"):
