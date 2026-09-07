@@ -93,7 +93,7 @@ has been overtaken by a campaign edit.
 
 ## SEC-01 — command injection into a rented GPU box that holds a live HF token
 
-> **APPLIED 2026-08-30 (M4), after the campaign that locked these files ended.** The
+> **RESOLVED (APPLIED 2026-08-30, M4), after the campaign that locked these files ended.** The
 > `eval` is gone (NUL-delimited bash array, `mapfile -d`), `load_panel_descriptor`
 > validates `repo_id` and `revision` at ingestion, and `hfmeta` carries a comment
 > recording that `repo_meta`/`resolve_revision` are load-bearing for shell safety.
@@ -315,7 +315,7 @@ install the handlers after the announcement.
 
 ## CLI-11 / SEC-08 — unfiltered `tar.extractall` of an archive built on a rented box
 
-> **APPLIED 2026-08-30 (M4)**, using the explicit member pass as the load-bearing
+> **RESOLVED (APPLIED 2026-08-30, M4)**, using the explicit member pass as the load-bearing
 > control with `filter="data"` added only where `tarfile.data_filter` exists, and with
 > the link rejection BEFORE the `resolve_inside` check for the reason filed. Regression:
 > `bin/selftest_teardown.py` builds a `receipts.tar.gz` with an absolute member, a `..`
@@ -1053,6 +1053,24 @@ sets `.status` on `HubError` for exactly this.
 Do NOT extend a host allow-list to `registry_client._http_get`: its URLs are built internally
 from `HF_ENDPOINT` plus a constant DATASET_ID, and a hard allow-list there breaks every
 mirror and enterprise-proxy user.
+
+**RESOLVED 2026-09-07** (additive note). `_resolve` now reads **anonymously
+first** and attaches a token only when the anonymous read is refused, so a
+public dataset — which is what nearly every compare and verify touches — no
+longer sends a credential to a host that does not need one.
+
+Two design points worth keeping. **An anonymous read is evidence, not just
+hygiene:** it is what proves a published dataset is publicly readable, which
+is exactly the property a third party reproducing a row depends on, and it is
+the same reasoning `dshub` already uses for its own anonymous verification
+path. And **the fallback keys on the STATUS, not on any failure** — only
+401/403 mean "this needs credentials". A 404, a 429 or a network fault does
+not escalate, because otherwise a typo in a repo name would quietly send the
+token somewhere it was never meant to go. The fallback also says out loud
+that the dataset is NOT publicly readable when it fires.
+
+Three rungs in `selftest_fidelity_dataset.py` (148 passed), all verified
+failing pre-fix, where the token was attached on every one of the three paths.
 
 ## CLI-28 — six error paths print a traceback instead of a diagnosis
 

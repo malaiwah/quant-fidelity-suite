@@ -2406,7 +2406,81 @@ def section_resources(tmp):
     check("E6 an absent key is a bad_tensor_file refusal, as before", missing_ok)
 
 
+def cli22_anonymous_first_case():
+    """CLI-22 / SEC-03 (caller half): a public read must not be authenticated.
+
+    `_resolve` used to read a token unconditionally, so every compare and every
+    verify of a PUBLIC dataset sent a credential to a host that does not need
+    one. The `_get` host-scoping half already stopped the token leaving the
+    configured endpoint; this is the half that stops it being attached at all.
+
+    An anonymous read is also EVIDENCE: it is what proves a published dataset
+    is publicly readable, which is the property a third party reproducing a row
+    depends on.
+    """
+    import types
+    import fidelity_dataset as FD
+    from fidelity import dshub
+
+    saved = (dshub.fetch_dataset, dshub.read_token, dshub.parse_ref,
+             FD.emit, FD.cache_path)
+    attempts = []
+    state = {"scenario": "public"}
+
+    def fake_fetch(ref, cache, token=None, allow_partial=False,
+                   manifest_only=False):
+        attempts.append("token" if token else "anonymous")
+        if state["scenario"] == "public":
+            return "/tmp/ok"
+        if state["scenario"] == "private":
+            if token is None:
+                exc = dshub.HubError("HTTP 401")
+                exc.status = 401
+                raise exc
+            return "/tmp/ok-auth"
+        exc = dshub.HubError("HTTP 404")
+        exc.status = 404
+        raise exc
+
+    try:
+        dshub.fetch_dataset = fake_fetch
+        dshub.read_token = lambda path=None: "hf_secret"
+        dshub.parse_ref = lambda ref: ("o/r", "a" * 40)
+        FD.emit = lambda *a, **k: None
+        FD.cache_path = lambda c, r, rev: "/tmp/cache"
+        args = types.SimpleNamespace(cache="/tmp/c", token_file=None)
+        ref = "hf://o/r@" + "a" * 40
+
+        attempts.clear()
+        state["scenario"] = "public"
+        FD._resolve(ref, args)
+        check("CLI-22 a PUBLIC dataset is read anonymously -- the token is "
+              "never attached", attempts == ["anonymous"], repr(attempts))
+
+        attempts.clear()
+        state["scenario"] = "private"
+        FD._resolve(ref, args)
+        check("CLI-22 a GATED dataset falls back to the token exactly once, "
+              "after the anonymous read is refused",
+              attempts == ["anonymous", "token"], repr(attempts))
+
+        attempts.clear()
+        state["scenario"] = "missing"
+        raised = False
+        try:
+            FD._resolve(ref, args)
+        except dshub.HubError:
+            raised = True
+        check("CLI-22 a 404 does NOT escalate to an authenticated retry, so a "
+              "typo in a repo name cannot send the token somewhere",
+              raised and attempts == ["anonymous"], repr(attempts))
+    finally:
+        (dshub.fetch_dataset, dshub.read_token, dshub.parse_ref,
+         FD.emit, FD.cache_path) = saved
+
+
 def main():
+    cli22_anonymous_first_case()
     tmp = tempfile.mkdtemp(prefix="fidelity-dataset-selftest-")
     try:
         base = section_format(tmp)

@@ -77,12 +77,41 @@ def _resolve(ref, args, allow_partial=False, manifest_only=False):
         return ref
     from fidelity import dshub
 
-    token = dshub.read_token(getattr(args, "token_file", None))
     repo, revision = dshub.parse_ref(ref)
     cache = cache_path(getattr(args, "cache", None), repo, revision)
     emit("fetching %s@%s -> %s" % (repo, revision, cache))
-    return dshub.fetch_dataset(ref, cache, token=token, allow_partial=allow_partial,
-                               manifest_only=manifest_only)
+
+    # CLI-22 / SEC-03 (caller half). This used to read a token
+    # unconditionally, so EVERY read of a public dataset was authenticated --
+    # sending a credential to a host that does not need it, on every compare
+    # and every verify. The `_get` host-scoping half already stops the token
+    # leaving the configured endpoint; this stops it being attached at all.
+    #
+    # An anonymous read is also EVIDENCE, not just hygiene: it is what proves
+    # a published dataset is publicly readable, which is the property a third
+    # party reproducing a row depends on, and it is the same reasoning dshub
+    # already uses for its own anonymous verification path.
+    #
+    # The fallback keys on the STATUS, not on any failure: only 401/403 mean
+    # "this needs credentials". A 404, a 429 or a network fault must NOT
+    # escalate to an authenticated retry, because then a typo in a repo name
+    # would quietly send the token somewhere it was never meant to go.
+    try:
+        return dshub.fetch_dataset(ref, cache, token=None,
+                                   allow_partial=allow_partial,
+                                   manifest_only=manifest_only)
+    except dshub.HubError as exc:
+        if getattr(exc, "status", None) not in (401, 403):
+            raise
+        token = dshub.read_token(getattr(args, "token_file", None))
+        if not token:
+            raise
+        emit("anonymous read refused (HTTP %s); retrying with the configured "
+             "token -- this dataset is NOT publicly readable"
+             % getattr(exc, "status", "?"))
+        return dshub.fetch_dataset(ref, cache, token=token,
+                                   allow_partial=allow_partial,
+                                   manifest_only=manifest_only)
 
 
 # ---------------------------------------------------------------------------
