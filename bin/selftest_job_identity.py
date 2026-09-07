@@ -9,8 +9,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "bin"))
 
+from fidelity.common import seal  # noqa: E402
 from fidelity.jobcontract import (  # noqa: E402
-    JobContractError, finalize_bundle_manifest, finalize_job,
+    JobContractError, execution_contract_sha256,
+    finalize_bundle_manifest, finalize_job,
     validate_execution_job, verify_job,
 )
 
@@ -135,6 +137,93 @@ def mutate_registry(document):
         ensure_ascii=False).encode("utf-8")).hexdigest()
 
 
+
+def publication_fixture(checked_at="2026-09-01T00:00:00Z"):
+    document = fixture()
+    receipt = seal({
+        "schema": "fidelity.hf-publish-create-preflight.v1",
+        "checked_at": checked_at,
+        "endpoint": "https://huggingface.co",
+        "repository": "owner/new-root", "repo_type": "dataset",
+        "expected_destination_state": "absent",
+        "authenticated_principal": "owner",
+        "authorization": {"basis": "user", "namespace": "owner", "role": "owner"},
+        "probes": {
+            kind: {"authenticated_status": 404, "anonymous_status": 401}
+            for kind in ("datasets", "models", "spaces")},
+        "mutation_performed": False,
+    })
+    document["publication_preflight"] = {
+        key: value for key, value in receipt.items()
+        if key not in ("checked_at", "receipt_sha256")}
+    document["execution_attempt"]["publication_preflight"] = receipt
+    return document
+
+
+def publication_identity_checks():
+    first = publication_fixture()
+    second = publication_fixture("2026-09-02T00:00:00Z")
+    first_id = finalize_job(first)["job_id_full"]
+    check("repeated publication planning keeps semantic identity",
+          first_id == finalize_job(second)["job_id_full"])
+    check("fresh publication receipt still changes the full execution contract",
+          execution_contract_sha256(finalize_job(first))
+          != execution_contract_sha256(finalize_job(second)))
+    archived = copy.deepcopy(first)
+    archived["publication_preflight"] = (
+        archived["execution_attempt"].pop("publication_preflight"))
+    archived_full = hashlib.sha256(json.dumps(
+        {key: value for key, value in archived.items()
+         if key != "execution_attempt"},
+        sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    ).encode("utf-8")).hexdigest()
+    archived.update(job_id_full=archived_full, job_id=archived_full[:16])
+    check("archived sealed-top publication retains its original identity",
+          verify_job(archived) == archived_full)
+    missing_receipt = copy.deepcopy(first)
+    del missing_receipt["execution_attempt"]["publication_preflight"]
+    try:
+        finalize_job(missing_receipt)
+    except JobContractError:
+        pass
+    else:
+        raise AssertionError("semantic publication without sealed receipt accepted")
+    for name, mutate in (
+            ("destination", lambda p: p.update(repository="owner/other-root")),
+            ("principal", lambda p: p.update(authenticated_principal="other")),
+            ("authority", lambda p: p["authorization"].update(role="admin")),
+            ("head", lambda p: p.update(expected_destination_state="b" * 40)),
+            ("probe", lambda p: p["probes"]["models"].update(anonymous_status=404)),
+            ("future qualification fact",
+             lambda p: p.update(qualification_sha256="c" * 64))):
+        candidate = copy.deepcopy(first)
+        mutate(candidate["publication_preflight"])
+        receipt = candidate["execution_attempt"]["publication_preflight"]
+        receipt.update(candidate["publication_preflight"])
+        candidate["execution_attempt"]["publication_preflight"] = seal(receipt)
+        check("publication " + name + " changes identity",
+              finalize_job(candidate)["job_id_full"] != first_id)
+        # A separately altered authorization block is never accepted against
+        # a still-sealed attempt receipt.
+        candidate["execution_attempt"]["publication_preflight"] = (
+            first["execution_attempt"]["publication_preflight"])
+        try:
+            finalize_job(candidate)
+        except JobContractError:
+            pass
+        else:
+            raise AssertionError("unbound publication " + name + " accepted")
+    for name in ("checked_at", "receipt_sha256"):
+        candidate = copy.deepcopy(first)
+        candidate["execution_attempt"]["publication_preflight"][name] = "tampered"
+        try:
+            finalize_job(candidate)
+        except JobContractError:
+            pass
+        else:
+            raise AssertionError("tampered publication " + name + " accepted")
+
+
 def changed(base, mutator):
     candidate = copy.deepcopy(base)
     mutator(candidate)
@@ -142,6 +231,7 @@ def changed(base, mutator):
 
 
 def main():
+    publication_identity_checks()
     base = fixture()
     finalized = finalize_job(base)
     check("full identity verifies",

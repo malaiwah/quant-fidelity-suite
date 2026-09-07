@@ -1,8 +1,19 @@
 # Build plan — fidelity dataset tooling
 
-Implementation plan for [`FIDELITY-DATASET-SPEC.md`](FIDELITY-DATASET-SPEC.md) and
-[`CARD-ANNOTATION-SPEC.md`](CARD-ANNOTATION-SPEC.md). Every design decision is already made in those
-two documents; this file says **what to write, where, with what signature, and what it must refuse**.
+**Historical implementation plan**, with an implementation addendum below.
+It records the original design for [`FIDELITY-DATASET-SPEC.md`](FIDELITY-DATASET-SPEC.md)
+and [`CARD-ANNOTATION-SPEC.md`](CARD-ANNOTATION-SPEC.md), not current CLI help.
+
+**Current status, 2026-09-07:** capture/compare, registry ingestion, public
+roots and the candidate route subsequently landed. The old "new files only",
+concurrent ownership prohibitions, no-local-panel statements, test counts and
+unexercised-live-tree seam are historical constraints/results, not today's
+work instructions or remaining blockers. CLI signatures below are archival
+proposals: use [`../bin/README.md`](../bin/README.md), `--help` and
+[`THIRD-PARTY-QUICKSTART.md`](THIRD-PARTY-QUICKSTART.md) for the runnable route.
+Public bytes, registry identity, verified panel binding and paid admission
+remain distinct; the format alone does not authorize remote modeling code or
+make missing/lost captures recoverable.
 
 ---
 

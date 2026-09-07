@@ -42,7 +42,7 @@
         "quantized_proxy",
         "unknown"
       ],
-      "description": "What the teacher actually IS. dequantized_from_quant means the reference distribution is itself a quantized model's, so student numbers against it are systematically SMALLER than against a true BF16 teacher and must never be ranked against native_* rows."
+      "description": "What the teacher actually IS. dequantized_from_quant means the reference distribution is itself a quantized model's. Divergence from it has no guaranteed ordering relative to divergence from a true BF16 teacher and must never be ranked against native_* rows."
     },
     "capture": {
       "type": "object",

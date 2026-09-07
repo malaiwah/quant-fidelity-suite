@@ -297,8 +297,8 @@ print("3) synthetic K8 contract build/verify OK "
       f"({contract['contract_sha256'][:16]}, 42 work units, state chain verifies)")
 
 # --------------------------------------------------- 4) no-drift controls --
+from quant_pipeline.campaign import glm53_uniform_k6 as uniform_k6
 try:
-    from quant_pipeline.campaign import glm53_uniform_k6 as uniform_k6
     uniform_k6.verify_launch_plan(k8_plan)
 except ValueError:
     print("4) K6 verifier refuses the K8 plan (no cross-admission)")

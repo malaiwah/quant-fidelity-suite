@@ -40,8 +40,8 @@ from ..cache.recurrent_util import prepare_for_recurrence
 #     plus one shared expert (moe_intermediate 2048). SwiGLU clamp (swiglu_limit 10.0).
 #     NOTE on the clamp: exllamav3 applies min(silu(g), limit) * clamp(u, +-limit)
 #     (post-activation) where the reference clamps g before silu. The two differ only for
-#     g > limit, by <= 4.5e-4 absolute at |out| ~= 10 -- far below one bf16 ulp at 10
-#     (0.0625), i.e. below checkpoint precision. Accepted as-is.
+#     g > limit, by <= 4.5e-4 per unit up-value (<= 4.5e-3 with |up| <= 10).
+#     This small bound is not proof of identical downstream routing or logits.
 #
 # Checkpoint namespace: model.language_model.layers.N.*, lm_head.weight top-level. The MTP
 # block (model.language_model.layers.45.*, num_nextn_predict_layers == 1) and the vision
@@ -199,6 +199,8 @@ class Glm5NextModel(Model):
                 # KDA is head-symmetric (64 k-heads == 64 v-heads, head_dim 128 both sides);
                 # q/k/v/o are quantized, the tiny gate projections (b, f_a/f_b, g_a/g_b) stay
                 # fp16 inside the module (qmap None, pad_to 1), conv/A_log/dt_bias/o_norm raw.
+                # The reference o_norm used eps=1e-5; this checkpoint's model-wide
+                # rms_norm_eps matches. Recheck that equality for any new configuration.
                 attn = KimiDeltaAttention(
                     config = config,
                     key = f"{key}.self_attn",
@@ -366,7 +368,7 @@ class Glm5NextModel(Model):
         self.modules += [
             # PORT-CHECK: ContractStreams is the new weightless stream collapse in
             # modules/hyperconnections.py (plan item F): plain mean over the hc_mult streams,
-            # fp16 out. GLM-5.3 has no learned hc head (no hc_head_* tensors in the
+            # fp32 out; final RMSNorm owns the fp16 cast. GLM-5.3 has no learned hc head (no hc_head_* tensors in the
             # checkpoint), unlike DeepSeek-V4's HyperHead
             ContractStreams(
                 config = config,
@@ -437,7 +439,7 @@ class Glm5NextModel(Model):
     @override
     def check_compat(self):
         try:
-            import fla
+            import inspect
             from fla.ops.kda import chunk_kda, fused_recurrent_kda
             from fla.modules.fused_norm_gate import rms_norm_gated
         except (ModuleNotFoundError, ImportError) as e:
@@ -445,19 +447,22 @@ class Glm5NextModel(Model):
                   "(https://github.com/fla-org/flash-linear-attention): pip install "
                   "flash-linear-attention")
             raise e
-        # PORT-CHECK: pin the true minimum. Required features, all verified present on fla
-        # main: fla.ops.kda.{chunk_kda, fused_recurrent_kda} (fused_recurrent_kda with
-        # initial_state / output_final_state / use_qk_l2norm_in_kernel and the in-kernel SAFE
-        # gate via use_gate_in_kernel; chunk_kda taking precomputed [B, T, H, K] log-decay),
-        # and rms_norm_gated(activation = "sigmoid")
-        min_fla = (0, 4, 0)
-        try:
-            ver = tuple(int(x) for x in fla.__version__.split(".")[:3])
-        except Exception:
-            ver = None
-        if ver is not None and ver < min_fla:
-            raise RuntimeError(
-                f" ## GLM-5.3 (glm5_next) requires flash-linear-attention >= "
-                f"{'.'.join(str(v) for v in min_fla)} (found {fla.__version__}): KDA kernels "
-                f"(fla.ops.kda) and sigmoid-gated RMSNorm are missing in older releases"
-            )
+        # Feature-check the installed API, not a guessed release floor. Verified against
+        # upstream fla/ops/kda/{chunk,fused_recurrent}.py on 2026-09-07:
+        # chunk exposes safe_gate; recurrent selects the bounded gate via lower_bound.
+        common = {"initial_state", "output_final_state", "use_qk_l2norm_in_kernel",
+                  "use_gate_in_kernel", "lower_bound"}
+        for fn, required in ((chunk_kda, common | {"safe_gate"}),
+                             (fused_recurrent_kda, common | {"A_log", "dt_bias"}),
+                             (rms_norm_gated, {"activation"})):
+            try:
+                parameters = inspect.signature(fn).parameters
+            except (TypeError, ValueError) as e:
+                raise RuntimeError(f"Cannot prove required FLA API for {fn!r}") from e
+            missing = required - parameters.keys()
+            if missing:
+                raise RuntimeError(
+                    f"GLM-5.3 requires FLA {fn.__name__} parameters {sorted(missing)}; "
+                    "install flash-linear-attention with bounded KDA gate support. "
+                    "**kwargs alone does not prove support."
+                )

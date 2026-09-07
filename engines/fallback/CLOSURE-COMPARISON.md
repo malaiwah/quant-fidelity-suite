@@ -1,6 +1,6 @@
 # R10 closure delta check — our reconstruction vs the sealed core
 
-**Verdict: bit-identical. 120/120 encodes, 624 MiB of packed trellis compared, 0 differing bytes.**
+**Verdict: bit-identical on 120/120 sampled encodes; 624 MiB compared, 0 differing bytes.**
 
 This is the comparison we promised in
 [glm-5.3-flash-exl3-4bpw issue #1](https://github.com/brandonmmusic-max/glm-5.3-flash-exl3-4bpw/issues/1),
@@ -103,23 +103,25 @@ after the run, `sealed_unmodified: true`):
 
 **48/48 byte-identical — 0 differing bytes out of 352,321,536.**
 
-His numeric machinery, run at K6/K8, produces exactly the bytes our
-reconstruction produces. The only thing standing between his sealed core and
-our K6/K8 artifacts is an admission constant.
+On these sampled inputs, his numeric primitives at K6/K8 produce the same
+bytes as our reconstruction after bypassing public-API rate admission. This
+does not establish identity of every historical campaign encode or binary.
 
 ## 5. Fidelity impact
 
-Zero — and that is meant literally, not as a rounding.
+No codec difference was observed on the sampled comparison domain.
 
 - packed-byte difference: **0** of 654,311,424 bytes compared
 - decoded-weight error delta between codecs: **max |Δ| = 0.0** across all 120 encodes
 - reconstruction SHA-256 identical: 120/120
 
-Because the substitution changes no encoded bit, it cannot change any logit, so
-its KLD impact is identically zero and no re-scoring is warranted. For scale:
-the quantization error the two codecs jointly make is ~2.3e-02 relative
-Frobenius at K6 and ~7.2e-03 at K8 — the inter-codec difference is 0 against
-that.
+For those identical reconstructed tensors, replacing one codec's output by the
+other's cannot change a fixed deterministic forward. However, 120 sampled
+encodes (including shape-matched substitute Hessians) do not prove equality of
+all 37,152 campaign matrices, the historical extension binary, or zero
+whole-campaign KLD impact. Shipped-artifact KLD remains its separately measured
+reference-forward result. The sampled shared error is ~2.3e-02 relative
+Frobenius at K6 and ~7.2e-03 at K8; no inter-codec delta was observed here.
 
 ## 6. Provenance — the code compared is the code that shipped
 
@@ -172,12 +174,12 @@ model cards can say:
 > rates K3/K4/K5/K6/K8 — 624 MiB of packed bytes, zero differing. On K3/K4/K5
 > this was through his public API; on K6/K8, which his published core refuses by
 > an admission constant (`ALLOWED_BITS = (3, 4, 5)`), it was through his sealed
-> numeric primitives directly. The substitution changes no encoded bit, so its
-> fidelity impact is zero.
+> numeric primitives directly. No differences were observed on this sampled
+> domain; whole-campaign bit identity and zero fidelity impact are not proved.
 
-The honest framing of K6/K8 is **declared rate extension of a verified-equivalent
-codec** — not "what his pipeline would have produced", because his published
-pipeline produces nothing at those rates.
+The honest framing of K6/K8 is a **declared rate extension corroborated on the
+sampled domain**, not "what his pipeline would have produced": its public API
+refuses those rates.
 
 ---
 

@@ -35,9 +35,9 @@
     },
     "bin/selftest_battery_harness.py": {
       "tier": "hermetic",
-      "job": "fast",
-      "seconds_xeon_x5570": 0.09,
-      "assertions_measured": 12
+      "job": "full",
+      "seconds_xeon_x5570": 7.942,
+      "assertions_measured": 8
     },
     "bin/selftest_bundle_complete.py": {
       "tier": "torch",
@@ -55,6 +55,24 @@
       "job": "fast",
       "seconds_xeon_x5570": 0.2,
       "assertions_measured": 48
+    },
+    "bin/selftest_changelog.py": {
+      "tier": "hermetic",
+      "job": "fast",
+      "seconds_xeon_x5570": 0.67,
+      "assertions_measured": 7,
+      "note": "Executed against a scratch Git repository: generated-only commits stay current and real code changes invalidate the snapshot."
+    },
+    "bin/selftest_clean_scope_report.py": {
+      "tier": "hermetic",
+      "job": "full",
+      "seconds_xeon_x5570": 0.98,
+      "assertions_measured": 4,
+      "note": "2026-09-07: four executed behavior groups (qualification propagation, refusal preservation, atomic replacement, failed replacement cleanup); wall clock conservatively includes the adjacent stats suite."
+    },
+    "port/tests/selftest_parity_fail_closed.py": {
+      "tier": "torch",
+      "reason": "Runs the native parity harness against CPU Torch fixtures and injected constructor/forward failures; no GPU or checkpoint download, but Torch is required."
     },
     "bin/selftest_container.py": {
       "tier": "hermetic",

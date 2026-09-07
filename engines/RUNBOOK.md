@@ -71,8 +71,9 @@ on faith from the anatomy reports. Where anatomy and source disagreed, source wo
    compute_capabilities`); it executes on SM90.
 3. **Student KLD capture runs EP8, not EP4.** His EP4 decoded-BF16 capture peaked
    184.8 GiB/rank on B200-192GB and cannot fit H200-141GB. Patch v2-0006 makes
-   `EP_SIZE` env-driven (`QP_GLM53_EP_SIZE=8`); the reconstructed-expert install is
-   exact under any divisor of 288, so logits are unchanged.
+   `EP_SIZE` env-driven (`QP_GLM53_EP_SIZE=8`). Expert reconstruction can remain
+   exact under divisors of 288, but changed BF16 reduction topology can change
+   logits. The later `STREAMING.md` bridge explicitly measures this lane effect.
 4. **Hessian artifacts are pruned after each layer receipt seals** (disk: 507 GB if
    kept; ~60 GB peak with pruning). Safe because `seal_layer` is the last consumer
    (`build_materialization_plan` and the materializer verify sealed layer receipts
@@ -111,7 +112,7 @@ encode/contract/materialize campaign driver, so write:
 | `tools/campaign_driver.py mtp` | `glm53_mtp_k4.build_contract/build_work_units/claim_next/...`, MTP work-unit **telemetry writer** (`quant-pipeline.glm53-mtp45-exl3-mcg-work-unit-telemetry.v1` — read by `seal_mtp_layer`, written nowhere upstream), `seal_mtp_layer` |
 | `tools/campaign_driver.py materialize` | reader-ABI receipt (bits 6, `tp_sizes [4]`, exact_reconstruction_checked), `build_materialization_plan`, `materialize_checkpoint` (per-shard resume), `seal_materialization_receipt` |
 | `tools/student_capture.py` | EP8 stock-transformers Glm5Next (eager, tf32 off, use_cache off, fp32 logits) + patched offline reader install; capture receipt `quant-pipeline.glm53-logit-capture.v1`; run 1 also dumps the decoded reference parity panel (metadata schema **verbatim** `quant-pipeline.glm53-decoded-k4-tp2-reference-panel.v1` + predeclared tolerances) |
-| `tools/k6_kld_report.py` | fp64 `token_kld_chunk` over 25x2047=51,175 positions, report schema `quant-pipeline.glm53-packed-student-kld.v1`, `glm53_k6_postmtp.build_packed_k6_kld_receipt` + `build_five_run_kld_receipt` (patches-v2 0005), comparison table |
+| `tools/kld_report.py` | fp64 full-vocabulary KL over 25x2047=51,175 positions; historical schema identities remain unchanged |
 | `tools/publish_release.py` | HF `upload_large_folder`, README cards, `MANIFEST.json` + `SHA256SUMS` closed tree, checkpoint gate receipt, discussion draft |
 
 Estimated authoring effort: the dominant non-GPU work item (~1 focused day) unless

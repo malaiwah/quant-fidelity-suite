@@ -8,8 +8,8 @@
 # MLX glm5_next NoPE-MLA / kpool-indexer / sigmoid-noaux_tc MoE):
 #
 #   kda   KimiDeltaAttention layer  (module key  model.language_model.layers.<K>.self_attn)
-#           - prefill  (T = --seq, exercises the fla chunk_kda path, T >= 64)
-#           - short    (T = 32,    exercises the fused recurrent path,  T < num_heads)
+#           - prefill  (T = --seq) and short (T = 32).
+#             Kernel dispatch is implementation-dependent, not instrumented here.
 #   dsa   NoPE MLA + kpool indexer  (module key  model.language_model.layers.<D>.self_attn)
 #           - nc       (T = --seq, cache-less calibration path, dense-exact since T <= index_topk)
 #           - cached   (T = --seq, paged fp16 latent cache, prefill kernels with D_r = 0)
@@ -22,34 +22,35 @@
 #           - the reference computes BOTH activation conventions:
 #               vLLM:  clamp(g, max=10) * sigmoid(clamp(g, max=10)) * clamp(u, +-10)
 #               exl3:  min(silu(g), 10) * clamp(u, +-10)
-#             They differ only for g > 10 by <= ~4.5e-4 absolute (below bf16 resolution at
-#             |x| ~ 10); both rows are reported so a systematic activation mismatch is visible.
-#   hc    mHC HyperConnection mix/apply on real layer tensors vs mhc_pre/post_torch (verbatim
-#           vLLM math). Fails loudly if hyperconnections.py lacks the allow_bf16 load patch.
+#             The post-activation clamp difference is bounded by ~4.5e-4 per unit
+#             up-value (~4.5e-3 after |up| <= 10); both conventions are reported.
+#   hc    mHC HyperConnection mix/apply against independent checkpoint tensors.
+#           Loaded fn/base/scale must preserve checkpoint values exactly.
 #
-# Both sides consume the SAME checkpoint values: exllamav3 loads bf16 -> fp16 for GEMM weights
-# (lossless: every bf16 normal value in fp16 range is exactly representable in fp16) and keeps
-# raw dtypes for A_log / dt_bias / conv / norms / hc; the reference upcasts the same bf16 bytes
-# to fp32. Differences therefore measure implementation parity, not weight rounding.
+# The reference reads checkpoint tensors independently and upcasts to fp32.
+# Native GEMM loaders may convert bf16 to fp16; exactness requires representable
+# values (including the fp16 subnormal boundary). Load/rounding defects therefore
+# remain part of parity, not an assumed-away difference. mHC loads are checked exactly.
 #
 # Environment
 # -----------
 #   - Full parity needs: CUDA GPU, exllamav3 (with the glm5_next port registered), triton,
 #     flash-linear-attention (fla.ops.kda), safetensors.
-#   - On a CPU-only machine (or before the port compiles) the harness runs the reference
-#     oracles alone plus deterministic self-checks (KDA state-carry consistency) and exits 0
-#     with the exl3-side comparisons marked SKIP.
+#   - CPU/reference runs require explicit --ref-only. They may exit 0 for reference
+#     checks, but are UNQUALIFIED / NON-NATIVE and cannot certify the port.
+#   - Missing CUDA, construction errors and native execution errors fail native runs.
 #   - The full-size MoE test loads 288 experts in fp16 (~14.6 GB VRAM). With less free VRAM,
 #     pass --moe-experts 32: BOTH sides are truncated to the same first-N experts (router
 #     included), so the comparison remains a valid implementation-parity check.
 #
 # Usage
 # -----
-#   python tests/glm5_parity/glm5_layer_parity.py --model-dir /home/glm53k6/models/bf16
-#   python tests/glm5_parity/glm5_layer_parity.py --tests kda,moe --moe-experts 32
-#   python tests/glm5_parity/glm5_layer_parity.py --tests dsa --long-dsa
+#   python port/tests/glm5_layer_parity.py --model-dir /path/to/bf16
+#   python port/tests/glm5_layer_parity.py --tests kda,moe --moe-experts 32
+#   python port/tests/glm5_layer_parity.py --tests dsa --long-dsa
 #
-# Exit code 0 = all requested comparisons passed (or were skipped with reason); 1 = failures.
+# Exit code 0 = requested layer coverage passed, or explicit unqualified reference-only;
+# 1 = failures/missing native coverage. Neither mode qualifies whole-model serving.
 
 from __future__ import annotations
 
@@ -493,17 +494,22 @@ def metrics(out: torch.Tensor, ref: torch.Tensor) -> dict:
 
 
 class Report:
-    def __init__(self):
+    def __init__(self, ref_only=False, required=None):
         self.rows = []
         self.failures = 0
         self.skips = 0
+        self.ref_only = ref_only
+        self.required = required or {}
 
     def add(self, name: str, m: dict | None, tol_rel: float, tol_cos: float,
             note: str = "", skip: str | None = None):
         if skip is not None:
-            self.rows.append((name, None, note or skip, "SKIP"))
+            status = "SKIP" if self.ref_only else "FAIL"
+            self.rows.append((name, None, note or skip, status))
             self.skips += 1
-            print(f"[SKIP] {name}: {skip}")
+            if not self.ref_only:
+                self.failures += 1
+            print(f"[{status}] {name}: {skip}")
             return
         ok = (m["rel_max"] <= tol_rel) and (m["cosine"] >= tol_cos)
         status = "PASS" if ok else "FAIL"
@@ -527,7 +533,20 @@ class Report:
                 print(f"{name:44s} {m['rel_max']:>10.3e} {m['cosine']:>10.6f} {status:>8s}  {note}")
         print("=" * 100)
         print(f"{self.failures} failure(s), {self.skips} skip(s)")
-        return 1 if self.failures else 0
+        missing = []
+        if not self.ref_only:
+            for group, count in self.required.items():
+                completed = sum(name.startswith(group + "/") and "/oracle-" not in name
+                                and m is not None for name, m, _, _ in self.rows)
+                if completed != count:
+                    missing.append(f"{group}: {completed}/{count}")
+        if missing:
+            print("MISSING NATIVE COVERAGE: " + ", ".join(missing))
+        if self.ref_only:
+            print("UNQUALIFIED / NON-NATIVE: reference-only checks; no native parity claim.")
+        elif not self.failures and not missing:
+            print("Requested layer comparisons passed; NOT whole-model/native-serving qualification.")
+        return 1 if self.failures or missing else 0
 
 
 # --------------------------------------------------------------------------------------------
@@ -688,17 +707,23 @@ def exl3_run_moe_truncated(R: ShardReader, key: str, x: torch.Tensor,
 
 
 def exl3_run_hc(model, key: str, resid_bf16: torch.Tensor, y_half: torch.Tensor,
-                device: torch.device):
-    """Runs HyperConnection.mix / apply_ on real tensors. Returns exl3 (post, comb, collapsed,
-    applied) plus the module's fn/base/scale for the reference."""
+                device: torch.device, source: ShardReader):
+    """Check native loads against independent checkpoint values before mix/apply."""
     hc = model.find_module(key)
     hc.load(device)
-    streams = resid_bf16.float().to(device).contiguous()
-    post, comb, collapsed = hc.mix(streams, {})
-    applied = hc.apply_(streams.clone(), y_half.to(device), post, comb, {})
-    tensors = (hc.fn.clone(), hc.base.clone(), hc.scale.clone())
-    hc.unload()
-    return post, comb, collapsed, applied, tensors
+    try:
+        tensors = tuple(source.get(f"{key}_{name}").float().to(device)
+                        for name in ("fn", "base", "scale"))
+        for name, expected in zip(("fn", "base", "scale"), tensors):
+            loaded = getattr(hc, name)
+            if loaded.shape != expected.shape or not torch.equal(loaded.float(), expected):
+                raise RuntimeError(f"mHC checkpoint load parity failed: {key}_{name}")
+        streams = resid_bf16.float().to(device).contiguous()
+        post, comb, collapsed = hc.mix(streams, {})
+        applied = hc.apply_(streams.clone(), y_half.to(device), post, comb, {})
+        return post, comb, collapsed, applied, tensors
+    finally:
+        hc.unload()
 
 
 # --------------------------------------------------------------------------------------------
@@ -741,13 +766,17 @@ def main():
                     help = "additionally test the sparse kpool-indexer regime at T = index_topk + 256")
     ap.add_argument("--seed", type = int, default = 17)
     ap.add_argument("--ref-only", action = "store_true",
-                    help = "skip the exllamav3 side; run reference oracles + self-checks only")
+                    help = "UNQUALIFIED / NON-NATIVE: run reference oracles + self-checks only")
     args = ap.parse_args()
+    tests = [t.strip() for t in args.tests.split(",") if t.strip()]
+    if not tests or len(tests) != len(set(tests)) or set(tests) - {"kda", "dsa", "moe", "hc"}:
+        ap.error("--tests must be a nonempty, unique list from {kda,dsa,moe,hc}")
 
     torch.manual_seed(args.seed)
     tc = load_text_config(args.model_dir)
     R = ShardReader(args.model_dir)
-    rep = Report()
+    counts = {"kda": 2, "dsa": 3 + int(args.long_dsa), "moe": 3, "hc": 8}
+    rep = Report(args.ref_only, {test: counts[test] for test in tests})
 
     device = torch.device(args.device)
     cuda_ok = device.type == "cuda" and torch.cuda.is_available()
@@ -759,7 +788,6 @@ def main():
     moe_key = f"{KEY_PREFIX}.layers.{moe_l}.mlp"
     hc_key = f"{KEY_PREFIX}.layers.{kda_l}.hc_attn"
 
-    tests = [t.strip() for t in args.tests.split(",") if t.strip()]
     assert args.seq <= tc.index_topk, \
         f"--seq {args.seq} > index_topk {tc.index_topk}: dense DSA reference would not be exact"
 
@@ -787,9 +815,12 @@ def main():
             exl3_err = f"{type(e).__name__}: {e}"
             traceback.print_exc()
     elif not cuda_ok:
-        exl3_err = "no CUDA device (reference-only mode)"
+        exl3_err = "no CUDA device; use --ref-only for unqualified reference checks"
     else:
         exl3_err = "--ref-only"
+    if model is None and not args.ref_only:
+        rep.add("native/construction", None, 0, 0, skip=exl3_err)
+        sys.exit(rep.summary())
 
     # ---- KDA -------------------------------------------------------------------------------
     if "kda" in tests:
@@ -798,7 +829,7 @@ def main():
         ref_kda_s, _ = ref_kda_forward(R, kda_key, x_kda_short, tc, ref_device)
         print(f"(kda reference computed in {time.time() - t0:.1f}s)")
 
-        # Oracle self-check: state-carried split run must equal the full run exactly (fp32)
+        # Oracle self-check: state-carried split run must agree within fp32 tolerance.
         half = args.seq // 2
         y1, st = ref_kda_forward(R, kda_key, x_kda[:, :half], tc, ref_device)
         y2, _ = ref_kda_forward(R, kda_key, x_kda[:, half:], tc, ref_device, state = st)
@@ -810,11 +841,11 @@ def main():
             try:
                 mod = exl3_load_module(model, kda_key, device)
                 out = mod.forward(x_kda.to(device), {})
-                rep.add("kda/prefill-chunked-vs-ref", metrics(out, ref_kda),
-                        tol_rel = 3e-2, tol_cos = 0.999, note = f"T={args.seq} (fla chunk path)")
+                rep.add("kda/prefill-vs-ref", metrics(out, ref_kda),
+                        tol_rel = 3e-2, tol_cos = 0.999, note = f"T={args.seq}; dispatch unverified")
                 out_s = mod.forward(x_kda_short.to(device), {})
-                rep.add("kda/short-recurrent-vs-ref", metrics(out_s, ref_kda_s),
-                        tol_rel = 3e-2, tol_cos = 0.999, note = "T=32 (fused recurrent path)")
+                rep.add("kda/short-vs-ref", metrics(out_s, ref_kda_s),
+                        tol_rel = 3e-2, tol_cos = 0.999, note = "T=32; dispatch unverified")
                 mod.unload()
             except Exception as e:
                 traceback.print_exc()
@@ -914,9 +945,8 @@ def main():
 
     # ---- mHC -------------------------------------------------------------------------------
     if "hc" in tests:
-        # Two shapes: R = b*s <= 32 takes the ext half-fn decode path, R > 32 the fp32-fn
-        # path (fn is bf16 in the checkpoint, so half rounding is lossless; the kernel
-        # accumulates fp32 either way -- both should track the fp32 reference tightly)
+        # Two input shapes target the native small-R and large-R paths. Native fn_h
+        # rounding is part of the numerical comparison, not assumed lossless.
         hc_cases = [("decode(R=8)", 8, 2e-3), ("prefill(R=48)", 48, 1e-3)]
         if model is not None:
             for tag, S, tol in hc_cases:
@@ -924,7 +954,7 @@ def main():
                 y_site = (torch.randn(1, S, H) * 0.5).half()
                 try:
                     post, comb, collapsed, applied, (fn, base, scale) = \
-                        exl3_run_hc(model, hc_key, resid, y_site, device)
+                        exl3_run_hc(model, hc_key, resid, y_site, device, R)
                     r_post, r_comb, r_coll = mhc_pre_torch(
                         resid.to(device), fn, scale, base,
                         rms_eps = tc.rms_norm_eps, hc_pre_eps = tc.hc_eps,
@@ -943,7 +973,7 @@ def main():
                 except Exception as e:
                     traceback.print_exc()
                     rep.add(f"hc/{tag}", None, 0, 0,
-                            skip = f"exl3 HC failed (missing allow_bf16 load patch?): "
+                            skip = f"exl3 HC failed: "
                                    f"{type(e).__name__}: {e}")
         else:
             rep.add("hc/exl3", None, 0, 0, skip = exl3_err)

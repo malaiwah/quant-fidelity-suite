@@ -55,6 +55,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -68,7 +69,7 @@ SCHEMA = "fidelity-suite/selftest-partition.v1"
 # Where selftests live, and what a selftest looks like. Both halves are
 # asserted against the declaration, so a new tree or a new extension is a
 # visible edit here rather than a silent omission there.
-ROOTS = ("bin", "engines/tools")
+ROOTS = ("bin", "engines/tools", "port/tests")
 PATTERNS = ("selftest_*.py", "selftest_*.sh")
 
 TIERS = ("hermetic", "torch", "network", "gpu", "pipeline", "orphan-dead")
@@ -233,20 +234,26 @@ def command_for(path):
 
 
 def is_internal_skip(line):
-    """A rung's own SKIP line, not a PASS whose label mentions skipping.
-
-    `bin/selftest_battery_harness.py` asserts a rung named "SKIP_RE catches
-    every skip format", and a substring match reported that PASS as a skip.
-    A verdict token at the start of the line settles it: a line whose first
-    word is PASS, ok or FAIL is a result, whatever its label says.
-    """
+    """Explicit skip notices, including nested skips inside an outer PASS."""
     stripped = line.strip()
     if not stripped:
         return False
-    head = stripped.split(None, 1)[0].strip("[]")
-    if head in ("PASS", "ok", "FAIL", "no"):
+    if stripped.startswith("{"):
+        try:
+            document = json.loads(stripped)
+        except ValueError:
+            pass
+        else:
+            skipped = document.get("skipped") if isinstance(document, dict) else None
+            return bool(skipped) if isinstance(skipped, list) else (
+                type(skipped) is int and skipped > 0)
+    if re.match(r"^(?:SKIP|SKIPPED)\b|^\[skip\]", stripped):
+        return True
+    if re.search(r"\bSKIPPED\b|\bSKIP(?:PED)?:", stripped):
+        return True
+    if re.match(r"^(?:PASS|FAIL|ok|\[ok\])(?:\s|$)", stripped):
         return False
-    return "SKIP" in stripped or "[skip]" in stripped
+    return re.search(r"\b[1-9][0-9]* skipped\b", stripped) is not None
 
 
 def run_job(doc, job):
@@ -316,7 +323,15 @@ def main(argv=None) -> int:
                         help="print the paths a tier or job selects")
     parser.add_argument("--run", metavar="TIER_OR_JOB",
                         help="execute a tier or job and return its verdict")
+    parser.add_argument("--skip-notices", metavar="LOG",
+                        help="print explicit skip notices from a captured rung log")
     args = parser.parse_args(argv)
+    if args.skip_notices:
+        with open(args.skip_notices, encoding="utf-8", errors="replace") as handle:
+            for line in handle:
+                if is_internal_skip(line):
+                    print(line.rstrip("\n"))
+        return 0
     doc = load()
     if args.list:
         selector = args.list

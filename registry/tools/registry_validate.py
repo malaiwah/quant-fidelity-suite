@@ -328,13 +328,14 @@ def check_comparability(C, rep):
         bias = comp.get("bias")
         if est.get("stack_relation") == "cross_stack":
             if not bias:
-                rep.err("BIAS-001", "%s is cross_stack with no bias block. A cross-stack number without its "
-                                     "floor is not publishable here." % mid, mid)
+                rep.err("BIAS-001", "%s is cross_stack with no bias block. The stack mismatch "
+                                     "must be disclosed, even when its direction is unknown." % mid, mid)
             else:
                 if bias.get("kind") != "cross_stack_capture_replay":
                     rep.err("BIAS-001", "%s: cross_stack requires bias.kind=cross_stack_capture_replay" % mid, mid)
-                if bias.get("direction") == "unknown":
-                    rep.err("BIAS-001", "%s: cross_stack bias.direction must not be unknown" % mid, mid)
+                if bias.get("direction") == "unknown" and comp.get("usable_as_floor") is not False:
+                    rep.err("BIAS-001", "%s: unknown cross_stack bias requires "
+                                        "comparability.usable_as_floor=false" % mid, mid)
                 if not bias.get("floor_measurement_ref") and len(bias.get("detail", "")) < 40:
                     rep.err("BIAS-001", "%s: no floor_measurement_ref and no explicit detail saying why "
                                          "no floor exists" % mid, mid)
@@ -377,21 +378,10 @@ def check_comparability(C, rep):
                                         "produced it declared it unusable as a zero-point."
                             % (mid, bias["floor_measurement_ref"]), mid)
 
-    # FLOOR-001 / FLOOR-002: a quantized artifact cannot be MORE faithful than
-    # unquantized weights measured through the same stack. The registry publishes that
-    # zero-point as an explicit floor row, so the cheapest possible check on a new number
-    # is "is it below the floor of its own comparability group". Nothing was doing it:
-    # a fabricated row at 0.009 nats sailed past every invariant and rendered at the TOP
-    # of the flagship ranked table, above the real 0.0137 K6 row. This is attack-agnostic
-    # -- it catches a forged submission, a miscalibrated third-party measurement and an
-    # honest tool bug with equal force, which is why it is worth more than any one of the
-    # identity checks above.
-    #
-    # Two tiers. Same key AND same lane is airtight, and is an error. Same key but a
-    # different lane is still a valid BOUND -- this registry has measured its own lane
-    # offset at 8.5e-06 nats (K6 sealed 0.013723384665701147 vs streaming
-    # 0.013714888822596553), five orders of magnitude below the floor itself -- but it is
-    # not a comparability claim, so it is reported with a margin and named separately.
+    # Unquantized controls contextualize a measurement; they are not mathematical
+    # lower bounds on KL. Quantization and runtime perturbations can cancel, so
+    # below-control values warrant inspection, never rejection on value alone.
+    # Identity, lane and explicitly prohibited floor use remain hard errors above.
     _floors = {}          # (key, lane) -> [(mid, value)]
     _floors_any_lane = {}  # key         -> [(mid, lane, value)]
     _group_size = {}       # key         -> published member count
@@ -430,39 +420,28 @@ def check_comparability(C, rep):
         same = _floors.get((key, lane)) or []
         for fid, fval in same:
             if fid != mid and value < fval:
-                rep.err("FLOOR-001", "%s reports %.17g on lane %r, BELOW the measurement floor %s "
-                                     "(%.17g) of its own comparability group. A quantized artifact "
-                                     "cannot be more faithful to the reference than the unquantized "
-                                     "weights measured through the same stack: this number is not "
-                                     "a ranking, it is a defect."
-                        % (mid, value, lane, fid, fval), mid)
+                rep.warn("FLOOR-001", "%s reports %.17g on lane %r, below the unquantized control %s "
+                                      "(%.17g). Inspect the paired evidence; perturbations may "
+                                      "cancel, so this is not by itself an invalid measurement "
+                                      "or a floor-subtracted quantization effect."
+                         % (mid, value, lane, fid, fval), mid)
         if not same:
             other = [(fid, flane, fval) for fid, flane, fval in _floors_any_lane.get(key, [])
                      if fid != mid]
-            # 5% margin: cross-lane comparison is a bound, not a comparability claim, and
-            # the measured lane offset is ~6e-04 of the floor. Anything below 0.95x the
-            # other lane's floor is not a lane effect.
+            # A different lane supplies context only, not a universal numeric bound.
             for fid, flane, fval in other:
-                if value < fval * 0.95:
-                    rep.err("FLOOR-002", "%s reports %.17g on lane %r, below 95%% of the floor %s "
-                                         "(%.17g, lane %r) in the same comparability group. No floor "
-                                         "was measured on this row's own lane, so this is a bound "
-                                         "rather than a paired comparison -- but the measured "
-                                         "lane offset on this registry is ~6e-04 of the floor, and "
-                                         "this gap is far larger than any lane effect."
-                            % (mid, value, lane, fid, fval, flane), mid)
+                if value < fval:
+                    rep.warn("FLOOR-002", "%s reports %.17g on lane %r, below unquantized control %s "
+                                          "(%.17g, lane %r). No paired same-lane control exists; "
+                                          "this cross-lane observation is descriptive, not a "
+                                          "lower-bound violation."
+                             % (mid, value, lane, fid, fval, flane), mid)
             if not other and _group_size.get(key, 0) > 1 and key not in _floorless_reported:
-                # ONCE PER GROUP, not once per row. A lone row has nothing to be ranked
-                # against, so an unbounded number there misleads nobody; a multi-member
-                # group with no floor is a ranked table whose ordering rests on nothing.
-                # Reported per-row this was 50 lines and it buried the 51 warnings that
-                # were already here -- a warning channel nobody reads is worse than no
-                # warning, so it is emitted once against the first member encountered.
+                # Report missing control context once per group, not once per row.
                 _floorless_reported.add(key)
-                rep.warn("FLOOR-003", "comparability group %s ranks %d published rows with no "
-                                      "measurement floor on any lane (first member %s): the "
-                                      "ordering has no zero-point and nothing bounds how low a "
-                                      "member may be reported."
+                rep.warn("FLOOR-003", "comparability group %s contains %d published rows with no "
+                                      "unquantized control on any lane (first member %s). Values "
+                                      "remain descriptive; a key alone does not certify ranking."
                          % (key, _group_size[key], mid), mid)
 
     # CMP-003 / CMP-005
@@ -1090,9 +1069,9 @@ def check_references(C, rep):
             if not L.has_disclosure(m, "different_reference_kind", affects=True):
                 rep.err("REFC-006", "%s measures against a quantized_proxy reference without "
                                     "a different_reference_kind disclosure: its number is a "
-                                    "distance from the designated proxy, not from the model, "
-                                    "and is systematically SMALLER than it would be against "
-                                    "true unquantized weights" % mid, mid)
+                                    "distance from the designated proxy, not from the unquantized "
+                                    "reference. No systematic ordering relative to an "
+                                    "unquantized teacher follows" % mid, mid)
             if (m.get("comparability") or {}).get("class") != "advisory":
                 rep.err("REFC-006", "%s measures against a quantized_proxy reference but "
                                     "declares comparability.class=%r: a designated proxy is "

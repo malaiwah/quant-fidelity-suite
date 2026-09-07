@@ -14,10 +14,10 @@ their own config/index — each is measured as its own row.
 
 ## 1. The scope finding — this format quantizes past the routed experts
 
-Every other surface in this suite quantizes routed experts only, so the
-non-routed model comes from the official BF16 tree. Measured from orcarouter's
-own index and shard headers (revision `c80f6810`, 113,446 stored tensors), the
-MLX artifact is **not** shaped that way:
+Historical TR3/Dione captures reconstructed routed experts while retaining the
+official backbone; this is not universal across surfaces (GGUF also quantizes
+backbone/head). Measured from orcarouter's own index and shard headers
+(revision `c80f6810`, 113,446 stored tensors), this MLX artifact has wider scope:
 
 | class | modules | bits |
 |---|---|---|
@@ -91,7 +91,9 @@ multiply-add; we do not), which is why the receipts claim bitwise equality **at
 mlx's output dtype** and report the fp32 delta rather than asserting it is zero.
 Our lane keeps fp32 through the decode and applies the suite's single
 fp32→bf16 rounding at expert install — the same install algebra every other
-surface gets, and the only deviation from an MLX runtime.
+surface gets. This is weight reconstruction in a reference-forward lane, not
+the complete MLX runtime: native attention, routing, caches and arithmetic
+are not qualified by these output-dtype decoder checks.
 
 ## 3. Provenance — an unsealed source, said out loud
 

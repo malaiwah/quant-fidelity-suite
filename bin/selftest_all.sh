@@ -31,10 +31,6 @@ pass=0; fail=0; skip=0; inner_skip=0
 # tier (quant_pipeline/QP_PIPELINE_ROOT) the output never mentioned existed.
 LOG_DIR="$TMP/rungs"; mkdir -p "$LOG_DIR"
 rung_n=0
-# The skip formats this estate emits, measured rather than assumed. Keep the
-# `0 skipped` exclusion in every consumer: a summary line reading "0 skipped"
-# is not an internal skip, and a nonzero one is.
-SKIP_RE='(^[[:space:]]*(SKIP|SKIPPED)\b)|(\bSKIP(PED)?:)|(\[skip\])|(\bSKIPPED\b)'
 
 t() {  # t <name> <expected_rc> <cmd...>
   local name="$1" exp="$2"; shift 2
@@ -43,30 +39,21 @@ t() {  # t <name> <expected_rc> <cmd...>
   log="$LOG_DIR/$(printf '%03d' "$rung_n").log"
   "$@" >"$log" 2>&1; local rc=$?
   if [ "$rc" = "$exp" ]; then
+    local notices="$LOG_DIR/$(printf '%03d' "$rung_n").skips"
+    if ! "$PY" "$ROOT/bin/selftest_partition.py" --skip-notices "$log" >"$notices"; then
+      printf '  FAIL  %s (could not inspect coverage notices)\n' "$name"
+      fail=$((fail+1))
+      return
+    fi
     printf '  PASS  %s\n' "$name"; pass=$((pass+1))
-    # An outer PASS is not evidence that the rung ran. Surface what it
-    # skipped INSIDE itself, counted separately so the summary cannot claim
-    # "0 skipped" while a dependency tier sat out.
-    #
-    # The pattern is MEASURED against the formats this estate really emits
-    # (LocalCoverage, 2026-09-06). Four exist because nothing ever required
-    # one: leading `SKIP`, a trailing `SKIPPED:` colon, the bracketed
-    # `[skip]` form used by the quant_pipeline tier, and a mid-line SKIPPED
-    # in gguf/nvfp4 where the colon comes BEFORE the token. The first
-    # version of this caught 3 of 8 real lines and missed exactly the
-    # accelerator and quant_pipeline tier -- the one §3.2 was built on.
-    #
-    # The `0 skipped` exclusion is load-bearing: without it every green rung
-    # whose summary reads "11 passed, 0 failed, 0 skipped" reports a phantom
-    # internal skip. A NONZERO inner count is a real skip and must count.
+    # Counts are notices, not independent tests: a suite can print individual
+    # skips and their summary. Empty JSON lists and passing labels are not skips.
     local inner
-    inner="$(grep -iE "$SKIP_RE" "$log" 2>/dev/null \
-      | grep -civE '\b0 skipped\b' || true)"
+    inner="$(wc -l <"$notices")"
     if [ "${inner:-0}" -gt 0 ]; then
       inner_skip=$((inner_skip+inner))
-      printf '        %s internal skip(s):\n' "$inner"
-      grep -iE "$SKIP_RE" "$log" 2>/dev/null | grep -ivE '\b0 skipped\b' \
-        | sed 's/^[[:space:]]*/          /' | head -6
+      printf '        %s internal skip notice(s):\n' "$inner"
+      sed 's/^[[:space:]]*/          /' "$notices"
     fi
   else
     printf '  FAIL  %s (rc=%s, expected %s)\n' "$name" "$rc" "$exp"
@@ -123,8 +110,12 @@ fi
 # discriminator. Scoped to this rung on purpose: a global setting would
 # change what the timing rungs measure, and nothing has established that the
 # other torch rungs need it.
-t "fidelity reducer: fp64 known answers (P1-06)" 0 \
-  env MKL_NUM_THREADS=1 "$VPY" bin/selftest_fidelity_reducer.py
+if [ -n "$TPY" ]; then
+  t "fidelity reducer: fp64 known answers (P1-06)" 0 \
+    env MKL_NUM_THREADS=1 "$TPY" bin/selftest_fidelity_reducer.py
+else
+  s "fidelity reducer: fp64 known answers" "no torch in $VPY or $PY -- export FIDELITY_PYTHON"
+fi
 t "registry client/viewer/matcher (T1)"    0 python3 bin/selftest_registry_view.py
 # P1-07. identical_across_runs=true needs one valid digest PER claimed run, all
 # equal. The old ingest collapsed digests to a set first, so one digest plus
@@ -186,14 +177,21 @@ t "engine output streams, not buffered to exit (T23)" \
 # would go green on exactly the rewrite the pyproject comments forbid.
 t "python3.9 floor: bin/ and registry/ (T19)" \
                                            0 python3 bin/selftest_py39_floor.py
-# T20. The harness itself, which was the one file in this tree with no test.
-# A harness that mis-selects an interpreter or swallows a skip does not fail
-# loudly -- it reports green, which is worse than red. Three of its five
-# invariants are red at 4681e30: the `A && B || C` rung, the single reused
-# out.log, and the summary that could print "0 skipped" while a dependency
-# tier sat out. Text-only over this file; no shell executed.
-t "the battery harness's own invariants (T20)" \
+# The harness's dispatch and summary are executed with tiny local commands.
+# Constructor/forward or missing-dependency coverage belongs to the inner tests;
+# this rung checks real success/failure propagation, separate logs and visible skips.
+t "battery dispatch: actual shell outcomes and skip visibility (T20)" \
                                            0 python3 bin/selftest_battery_harness.py
+t "generated changelog stays current after its own commit" \
+                                           0 python3 bin/selftest_changelog.py
+t "clean-scope report: scientific qualifications survive publication" \
+                                           0 python3 bin/selftest_clean_scope_report.py
+if [ -n "$TPY" ]; then
+  t "native parity harness refuses execution errors and missing coverage" \
+                                           0 "$TPY" port/tests/selftest_parity_fail_closed.py
+else
+  s "native parity harness refusal regressions" "CPU Torch required; no native GPU parity claimed"
+fi
 # T22. Thirteen suites that existed, passed, and were run by NOTHING -- the
 # battery's 73 rungs covered 55 of 71 selftest files on disk (LocalCoverage;
 # enumerated and timed by CiGate at 4c5201d). All thirteen are hermetic:
@@ -880,10 +878,10 @@ fi
 
 echo
 echo "selftest_all: $pass passed, $fail failed, $skip skipped," \
-     "$inner_skip internal skip(s) inside passing rungs"
+     "$inner_skip internal skip notice(s) inside passing rungs"
 if [ "$inner_skip" -gt 0 ]; then
-  echo "  NOTE: an outer PASS is not evidence a rung RAN. The internal skips"
-  echo "        are named per rung above; a dependency tier sitting out shows"
-  echo "        here and nowhere else. Green means green only at 0 internal."
+  echo "  INCOMPLETE optional coverage: passing rungs contain the skips named above."
+  echo "  Notice counts include summary notices; they are not independent test counts."
+  echo "  Even zero reported skips is not native-runtime or scientific qualification."
 fi
 [ "$fail" -eq 0 ]

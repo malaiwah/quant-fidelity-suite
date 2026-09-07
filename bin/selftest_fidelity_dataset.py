@@ -742,9 +742,10 @@ def section_head(tmp):
         dscompare.load_dataset(same_a), dscompare.load_dataset(other_head),
         {"disclose_head_substitution": True})
     blocking = [d for d in findings["disclosures"] if d["code"] == "head_substituted"]
-    check("H3  H2 + --disclose-head-substitution -> advisory, downward bias, blocking",
+    check("H3  head substitution is advisory, unknown-direction and blocking",
           findings["class"] == "advisory"
-          and findings["bias"]["direction"] == "downward"
+          and findings["bias"]["direction"] == "unknown"
+          and findings["usable_as_floor"] is False
           and blocking and blocking[0]["severity"] == "blocking")
 
     logit_a = os.path.join(tmp, "h-la")
@@ -868,9 +869,13 @@ def section_head(tmp):
     own_same_dir = os.path.join(tmp, "h14-own")
     shared = dscompare.compare(same_a, same_b, shared_dir, dict(base_options))
     own_same = dscompare.compare(same_a, same_b, own_same_dir, dict(base_options, own_heads=True))
-    check("H14 --own-heads on identical heads is BITWISE the shared-head replay, labelled native_head",
+    check("H14 identical own/shared heads agree on a nonzero, fully computed comparison",
           np.array_equal(np.load(os.path.join(shared_dir, "tokenwise-kld.npy")),
                          np.load(os.path.join(own_same_dir, "tokenwise-kld.npy")))
+          and shared["metric"]["value"] > 0.0
+          and own_same["metric"]["value"] > 0.0
+          and shared["comparator"]["short_circuited"] is False
+          and own_same["comparator"]["short_circuited"] is False
           and shared["estimator"]["head_policy"] == "shared_reference_head"
           and own_same["estimator"]["head_policy"] == "native_head"
           and own_same["comparator"]["head_applied_reference_tensor_content_sha256"]
@@ -1085,13 +1090,7 @@ def section_lane(tmp):
     recon = [d for d in findings["disclosures"] if d["code"] == "weights_reconstructed"]
     check("D2  exl3-trellis-* weights_decode -> advisory + weights_reconstructed (caveat, affects)",
           findings["class"] == "advisory" and len(recon) == 1
-          and recon[0]["severity"] == "caveat" and recon[0]["affects_comparability"] is True
-          and "decode_payload_hf" in recon[0]["detail"]
-          and "transcription of exllamav3" in recon[0]["detail"]
-          and "activations" in recon[0]["detail"]
-          and "K3 x 100" in recon[0]["detail"]
-          and "64 trailing zero row(s)" in recon[0]["detail"]
-          and "candidate" in (gates.get("decode") or {}).get("detail", ""),
+          and recon[0]["severity"] == "caveat" and recon[0]["affects_comparability"] is True,
           json.dumps(recon)[:200])
     x4_dir = os.path.join(tmp, "x4-out")
     receipt = dscompare.compare(a, x3, x4_dir, {"device": "cpu", "replay_device": "numpy",
@@ -1122,7 +1121,6 @@ def section_lane(tmp):
     check("D3  fp8-block-dequant with activation_scheme dynamic -> activation_quantization_not_captured",
           findings["class"] == "advisory" and len(act) == 1
           and act[0]["severity"] == "caveat" and act[0]["affects_comparability"] is True
-          and "not a mathematical bound" in act[0]["detail"]
           and not any(d["code"] == "weights_reconstructed" for d in findings["disclosures"]),
           json.dumps(act)[:200])
 

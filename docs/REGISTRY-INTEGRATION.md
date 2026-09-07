@@ -4,7 +4,7 @@ The fidelity-dataset comparison receipt needed small, **additive** changes under
 `registry/` before a step-3 receipt could become a registry row. This document
 was originally a specification of changes deliberately *not* applied, because a
 concurrent workflow held `registry/` open. That workflow has landed; the changes
-below are now **applied**, and `make check` is green with them:
+below were applied in that revision. The following is historical validation output:
 
 ```
 62 passed, 0 failed
@@ -80,12 +80,12 @@ from `estimator.stack_relation` when it does not.
 **Why this was necessary.** `emit_submission` forwarded metric, estimator,
 determinism, scope and disclosures — and dropped `comparability.bias` and
 `usable_as_floor` on the floor. `registry_add` synthesises a bias only for
-`stack_relation == cross_stack`, so a row derived from a **head-substituted**
-comparison arrived with `bias: null` for a comparison whose own receipt said
-`{kind: other, direction: downward, detail: "…the candidate's own
-head-quantization error is erased, biasing the number DOWNWARD…"}`. That is
-exactly what BIAS-001 exists to prevent, arriving through the submission path.
-Cases **N16b**, **N16c**, **N16d**.
+`stack_relation == cross_stack`, so head-substitution information could be
+lost. **Correction, 2026-09-07:** the historical receipt called that bias
+`downward`; substitution generally has unknown direction when hidden states
+and heads both differ. A head-only shared replay does erase the entire
+difference, but does not justify a universal sign. Carry the comparator's
+explicit bias and `usable_as_floor` verdict, not a reconstructed assumption.
 
 ## 3. BIAS-007 — APPLIED
 
@@ -100,6 +100,11 @@ another **lane**; BIAS-007 refuses a floor the producing tool itself stamped
 unusable — cross-lane, cross-stack, or head-substituted. It is the registry
 honouring a verdict the comparator already reached, rather than re-deriving it
 from fields that cannot see the reason.
+
+An unknown cross-stack bias direction is an honest measurement limitation,
+not a malformed result. It still does not make the row a usable floor.
+Likewise equal comparability keys are necessary, not sufficient for ranking:
+the actual secondary `pair_predicate` must pass.
 
 ## 4. Still deferred: a `registry_add` adapter for the receipt itself
 

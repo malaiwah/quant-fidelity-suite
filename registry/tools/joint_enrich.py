@@ -12,8 +12,8 @@ exactly 2047 scored positions, and the panel's domain assignment is public.
 
 So this module, from ``registry/protocol/per-window/*.json``:
 
-  * computes the window-block bootstrap (percentile + BCa, B=5000, seed
-    20260829) and the cluster-robust SE, and writes them into ``uncertainty``;
+  * retains historical window-block bootstrap (percentile + BCa, B=5000, seed
+    20260829) and clustered SE as fixed-panel diagnostics, not document inference;
   * computes ``sigma_run`` from the row's OWN ``determinism.run_means`` -- never
     from a hardcoded constant -- and combines it with the clustered SE in
     quadrature;
@@ -27,8 +27,8 @@ The clean17 rows are not a correction and do not supersede anything.  They are
 the same measurement read over a different, smaller window set, and they exist
 because brandonmusic's 13-gram scan showed the sealed panel is not
 calibration-clean.  The two scopes disagree in DIRECTION between contributors --
-every malaiwah row falls 12.6-16.2% on the clean scope while his own 4bpw row
-rises 1.6% -- so neither scope can stand in for the other and both are published.
+the quant and control scope movements differ -- so neither scope can stand in
+for the other and both are published as descriptive finite-panel estimands.
 The two Flash rows that carry no per-window array (the BF16 streaming floor and
 the Dione Q4) are named in NOT_RECOMPUTABLE so the omission is visible.
 
@@ -39,9 +39,9 @@ with the window's mean and its scored-position count.  Those rows get the
 interval and nothing else.  The frozen protocol, the calibration-overlap scan,
 the clean17 scope and the coverage simulation are all objects of the Flash
 panel25 and would be a borrowed claim on any other panel, so a series declares
-``panel=False`` and the enrichment refuses to write any of them.  No coverage
-simulation exists for corpus5x5-v1; the note says so and calls the level
-nominal.
+``panel=False`` and the enrichment refuses to write any of them. No coverage
+simulation exists for corpus5x5-v1. Its historical window interval is a
+descriptive diagnostic, not a calibrated source-document interval.
 
 No number here is invented: every value is a deterministic function of
 per-window means this registry already publishes, and ``make check`` re-derives
@@ -70,6 +70,7 @@ SELECTION_FILE = os.path.join(PROTOCOL_DIR, "window-selection.brandonmusic-final
 # repository instead of two that can drift.
 sys.path.insert(0, os.path.join(_REPO, "bin"))
 import registry_lib as _L                    # noqa: E402
+from registry_predicate import pair_predicate
 from jointstd import protocol as _proto      # noqa: E402
 from jointstd import stats as _stats         # noqa: E402
 
@@ -121,7 +122,9 @@ class Series:
         if self.source == "per-window":
             return doc["per_window"]
         if self.source == "receipt-per-context":
-            return [{"window_id": w["window_id"], "count": int(w["scored_rows"]),
+            return [{**{k: w[k] for k in ("document_id", "source_document_id",
+                                         "source_document_sha256") if k in w},
+                     "window_id": w["window_id"], "count": int(w["scored_rows"]),
                      "mean": w["mean"], "domain": w.get("domain")}
                     for w in doc["per_context"]]
         raise SystemExit("joint_enrich: %s: unknown series source %r" % (self.slug, self.source))
@@ -392,13 +395,16 @@ def _uncertainty(per_window: List[Dict[str, Any]], run_means: Optional[List[floa
         note.append("sigma_run not estimable: fewer than two cold runs.")
     if unc.get("coverage_measured"):
         cm = unc["coverage_measured"]
-        note.append("Coverage of these BCa endpoints is MEASURED at %.1f%% against a "
-                    "nominal 95%% (%d reps, %s); the endpoints are unchanged and the "
-                    "method is unchanged, and this sentence is the difference between "
-                    "an interval that states its level and one that assumes it."
+        note.append("Under the recorded window-iid simulation only, these BCa "
+                    "endpoints have coverage %.1f%% against nominal 95%% (%d reps, %s). "
+                    "This does not measure source-document or domain-population "
+                    "coverage; historical endpoints are retained."
                     % (100.0 * cm["measured"], cm["reps"], cm["population"]))
     elif no_coverage_note:
         note.append(no_coverage_note)
+    note.append("Window statistics describe this finite panel. Independent "
+                "source-document sampling and a defensible document map are not "
+                "established by these intervals; no population inference follows.")
     note.append("Percentiles of the per-token distribution are NOT quoted: they are not "
                 "derivable from per-window summaries.")
     unc["note"] = " ".join(note)
@@ -529,18 +535,17 @@ def _clean_row(row: Dict[str, Any], ctx: _Context,
             # the floor has a clean sibling, so point at the SCOPE-MATCHED one
             cmp_["bias"]["floor_measurement_ref"] = floor + CLEAN_SUFFIX
             cmp_["bias"]["detail"] = (
-                cmp_["bias"]["detail"] + " Scope-matched: this row's floor reference is "
-                "the clean17 floor, not the panel25 one. Subtracting a floor measured on "
-                "a different WINDOW SET is the same class of error as subtracting one "
-                "measured on a different LANE, and this registry refuses both.")
+                "Clean17 descriptive cross-stack context only. The referenced floor "
+                "is recomputed on the same 17 windows; the panel25 floor value does "
+                "not apply here. A shared lane alone does not establish additive "
+                "bias or authorize causal subtraction.")
         else:
             cmp_["bias"]["floor_measurement_ref"] = None
             cmp_["bias"]["detail"] = (
-                cmp_["bias"]["detail"] + " NO FLOOR ON THIS SCOPE: the same-lane floor "
+                "NO FLOOR ON THIS SCOPE: the same-lane floor "
                 "(%s) has a scalar-only receipt with no per-window array, so it cannot be "
-                "recomputed on the calibration-clean window set. Rather than borrow the "
-                "panel25 floor -- a cross-scope subtraction -- this row carries no floor "
-                "reference at all." % floor)
+                "recomputed on the calibration-clean window set. This row has no floor "
+                "reference; panel25 floor values do not apply to clean17." % floor)
     new["comparability"] = cmp_
     delta = summary["mean"] - row["metric"]["value"]
     rel = 100.0 * delta / row["metric"]["value"] if row["metric"]["value"] else float("nan")
@@ -576,7 +581,8 @@ def _clean_row(row: Dict[str, Any], ctx: _Context,
 
 
 # --------------------------------------------------------------------------
-def apply(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def apply(rows: List[Dict[str, Any]],
+          collections: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
     """Enrich the seeded rows in place and append the clean-scope siblings."""
     ctx = _Context()
     proto_block = ctx.protocol_block()
@@ -635,7 +641,7 @@ def apply(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
                     "recomputed without re-running the measurement."
                     % NOT_RECOMPUTABLE[mid])
             out.append(row)
-    _ordering_footnotes(out, ctx.per_window)
+    _ordering_footnotes(out, ctx.per_window, collections)
     return out + clean_rows
 
 
@@ -689,20 +695,19 @@ def _receipt_uncertainty(row: Dict[str, Any], pw: List[Dict[str, Any]],
 
 
 def orderings(rows: List[Dict[str, Any]],
-              windows: Optional[Dict[str, List[Dict[str, Any]]]] = None
+              windows: Optional[Dict[str, List[Dict[str, Any]]]] = None,
+              collections: Optional[Dict[str, Any]] = None
               ) -> List[Dict[str, Any]]:
-    """Adjacent-pair paired statistics for every comparability group of
-    ``panel=False`` series rows, in ascending order of metric.value.
+    """Descriptive adjacent-pair contrasts certified by the actual pair predicate.
 
-    Two rows on the same 25 windows are paired, so the honest question about
-    their ORDER is the per-window delta, not the two marginal intervals: the
-    paired delta's scatter is smaller than either interval and the sign test
-    asks nothing of its distribution. Reported per adjacent pair: the paired
-    mean delta (higher minus lower), its sd (ddof=1), the count of windows on
-    which the higher row is higher, and the exact two-sided sign-test p over
-    the non-tied windows. ``windows`` is measurement id -> window summaries;
-    when omitted every series is read from its own file.
+    Registry context is explicit: absent context fails closed. Window signs are
+    finite-panel counts, not independent source-document evidence. Even recorded
+    document IDs alone do not establish a sampling design for an inferential p.
     """
+    if collections is None:
+        return []
+    context = dict(collections)
+    context["measurements"] = {r["id"]: r for r in rows}
     groups: Dict[str, List[Dict[str, Any]]] = {}
     for row in rows:
         s = SERIES.get(row["id"])
@@ -713,21 +718,24 @@ def orderings(rows: List[Dict[str, Any]],
     for key in sorted(groups):
         members = sorted(groups[key], key=lambda r: r["metric"]["value"])
         for lo, hi in zip(members, members[1:]):
-            a = {w["window_id"]: float(w["mean"]) for w in
-                 (windows[lo["id"]] if windows else SERIES[lo["id"]].load())}
-            b = {w["window_id"]: float(w["mean"]) for w in
-                 (windows[hi["id"]] if windows else SERIES[hi["id"]].load())}
+            if pair_predicate(context, lo["id"], hi["id"])["comparable"] != "true":
+                continue
+            source_a = windows[lo["id"]] if windows is not None else SERIES[lo["id"]].load()
+            source_b = windows[hi["id"]] if windows is not None else SERIES[hi["id"]].load()
+            a = {w["window_id"]: float(w["mean"]) for w in source_a}
+            b = {w["window_id"]: float(w["mean"]) for w in source_b}
             if set(a) != set(b):
                 raise SystemExit("joint_enrich: %s and %s do not share a window set"
                                  % (lo["id"], hi["id"]))
             deltas = [b[w] - a[w] for w in sorted(a)]
             wins = sum(1 for d in deltas if d > 0)
             ties = sum(1 for d in deltas if d == 0)
-            n = len(deltas) - ties
-            # exact two-sided binomial test at p = 1/2 over the non-tied windows
-            k = min(wins, n - wins)
-            p = min(1.0, 2.0 * sum(math.comb(n, i) for i in range(k + 1)) / 2.0 ** n) \
-                if n else 1.0
+            provenance = {
+                mid: [{k: w[k] for k in ("window_id", "document_id",
+                                        "source_document_id", "source_document_sha256")
+                       if k in w} for w in source]
+                for mid, source in ((lo["id"], source_a), (hi["id"], source_b))
+            }
             out.append({
                 "comparability_key": key,
                 "lower": lo["id"],
@@ -737,18 +745,24 @@ def orderings(rows: List[Dict[str, Any]],
                 "sd_delta": _round(statistics.stdev(deltas)) if len(deltas) >= 2 else None,
                 "wins": wins,
                 "ties": ties,
-                "sign_test_p": _round(p),
+                "sign_test_p": None,
+                "inference_unit": "unknown",
+                "window_stats_are": "descriptive of this fixed panel only",
+                "source_document_provenance": provenance,
+                "inference_note": "No defensible independent source-document sampling "
+                                  "design supplied; no inferential p or ranking claim.",
             })
     return out
 
 
 def _ordering_footnotes(rows: List[Dict[str, Any]],
-                        windows: Dict[str, List[Dict[str, Any]]]) -> None:
+                        windows: Dict[str, List[Dict[str, Any]]],
+                        collections: Optional[Dict[str, Any]] = None) -> None:
     """One sentence per row about the adjacent pair below it (above it for the
     lowest row), appended to ``uncertainty.note``. Free text only: the schema
     gains no field for this."""
     by_id = {r["id"]: r for r in rows}
-    pairs = orderings(rows, windows)
+    pairs = orderings(rows, windows, collections)
     spoken = set()
     for o in pairs:
         for mid in (o["higher"], o["lower"]):
@@ -758,14 +772,13 @@ def _ordering_footnotes(rows: List[Dict[str, Any]],
             other = o["lower"] if mid == o["higher"] else o["higher"]
             unc = by_id[mid]["uncertainty"]
             unc["note"] = unc["note"] + (
-                " Ordering vs %s (%s row in this comparability group): per-window delta "
-                "(%s minus %s) mean %+.6f nats, sd %.6f (ddof=1), positive on %d of %d "
-                "windows, two-sided sign-test p=%.3g."
-                % (SERIES[other].slug,
-                   "the next-lower" if other == o["lower"] else "the next-higher",
-                   SERIES[o["higher"]].slug, SERIES[o["lower"]].slug,
-                   o["mean_delta"], o["sd_delta"] or 0.0, o["wins"], o["windows"],
-                   o["sign_test_p"]))
+                " Descriptive contrast vs %s: per-window delta (%s minus %s) mean "
+                "%+.6f nats, sd %.6f (ddof=1), positive on %d of %d windows. "
+                "No inferential p: independent source-document sampling is not "
+                "established; window counts do not establish a population ordering."
+                % (SERIES[other].slug, SERIES[o["higher"]].slug,
+                   SERIES[o["lower"]].slug, o["mean_delta"], o["sd_delta"] or 0.0,
+                   o["wins"], o["windows"]))
 
 
 # ==========================================================================

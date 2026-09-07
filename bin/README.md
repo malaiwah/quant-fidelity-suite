@@ -9,11 +9,11 @@ way the registry will, before it is sent anywhere.
 
 ## Why here and not in `engines/tools/`
 
-`engines/tools/` holds the ENGINES — the things that read a checkpoint and emit
-logits. Every one of them is model-agnostic now (they have run GLM-5.3-Flash,
-Qwen3.8-27B, Fruit, MiniMax-M3 and DeepSeek V4), which is why the directory is
-no longer called `k6/`. But an engine is still a thing you point at a
-checkpoint, and the runners here are the thing a stranger types. Putting them
+`engines/tools/` holds the ENGINES — checkpoint readers and capture/scoring
+implementations. Support is architecture-, surface- and schedule-specific:
+fixture/truncated runs of MiniMax-M3 or DeepSeek V4 do not prove every engine
+can run those full models. An engine is pointed at a checkpoint; the runners
+here are the commands a contributor invokes. Putting them
 at the top level alongside `registry/` is what makes the pair read as a product
 rather than as internal tooling.
 
@@ -44,8 +44,8 @@ Nine steps, one status line each; every refusal states its remedy, exit codes
    roots — FP8 and BF16 — land on the same model);
 6. **panel + teacher**: the pair prior measurements of that model used, with
    the alternatives and their `--panel/--teacher` overrides printed;
-7. **surface**: a repo no lane can read (e.g. `tr3-published`, MLX) is
-   refused HERE, for $0.00, naming the missing reader;
+7. **surface**: a target unsupported by the selected route is refused HERE,
+   for $0.00; a reader elsewhere in the tree does not imply lane admission;
 8. **lane**: `local-mps` on Apple Silicon, `local-cuda-budget` otherwise;
    `--lane streaming` is redirected to `measure-cloud` (bin/measure never
    rents);
@@ -66,9 +66,10 @@ Rendering rules (reproduced from `registry/tools/registry_render.py`, the
 normative reference): rows are grouped by the **recomputed** comparability key
 — never the stored block — one table per key; named-lane rows are tabled
 apart from no-declared-lane rows (None means "no declared lane", NOT
-"sealed"); sorting only within a lane sub-table; a filter may HIDE groups but
-never MERGE them; single-row groups say "nothing to rank against"; subset
-panels always carry their caveat; the footer names the snapshot that answered
+"sealed"); equal keys and lane labels alone do not authorize ranking —
+`pair_predicate` must permit the pair. A filter may HIDE groups but never
+MERGE them; single-row groups say "nothing to rank against"; subset
+panels carry their caveat; the footer names the snapshot that answered
 (dataset commit sha or local git HEAD). `check` tiers artifacts EXACT /
 UNPINNED / STALE / PINNED-UNVERIFIED and quotes the `revision_unpinned`
 disclosure verbatim. Data sources: `--registry auto|hf|local[:PATH]` — `check`
@@ -76,22 +77,17 @@ prefers the published mirror, `rows`/`lineage` prefer the offline clone.
 
 ## Preview scoring (`bin/kld-preview`)
 
-Scores capture trees locally, labeled honestly. CENSUS mode (a sealed full
-capture): every position scored exactly with the sealed fp64 math — 0.15
-ms/position on CPU, ~8 s/panel, so **scoring never motivates sampling**; the
-receipt is a preview only because the lane differs from the teacher's.
-SAMPLED mode (a `--store-positions per-window:<m>` capture): teacher rows
-sliced at the student's stored indices, stratified estimator with FPC, quoted
-CI the WIDER of z and bootstrap, tail disclosure (max sampled value + top-3
-share — with a printed warning when the estimate is tail-dominated, because
-on heavy tails both intervals are anti-conservative and the remedy is more
-positions).
-
-The 25-window rule is structural: no panel estimate unless ALL windows
-contributed, because per-window KLD scatter (sd 7.2e-3) — and even the paired
-per-window delta (sd 2.0e-3) — exceeds the K6-vs-K8 effect (1.33e-3), so a
-single window has no power to compare quants (lessons
-28/29). Window subsets get per-window diagnostics only.
+Scores capture trees locally. CENSUS mode scores every stored panel position;
+the earlier 0.15 ms/position CPU figure is a workload-specific observation,
+not a universal reason to dismiss scoring costs. SAMPLED mode
+(`--store-positions per-window:<m>`) slices teacher rows at the student's
+stored indices and uses a stratified finite-panel estimator with FPC and
+position-sampling uncertainty. This uncertainty concerns omitted positions
+under the sampling design, not generalization to new source documents.
+Heavy tails can undermine nominal z/bootstrap coverage; tail diagnostics do
+not calibrate it. Every window must contribute for a panel estimate; window
+subsets get per-window diagnostics only. One window can describe itself,
+not establish the full panel or population ranking.
 
 Preview receipts are **structurally unsubmittable on two independent axes**:
 (1) bin-side — schema contains `-preview.`, headline field is
@@ -106,24 +102,31 @@ regardless.
 
 ## Floor-aware stats (`bin/fidelity-stats`)
 
-`attributable`: quant panel mean minus the SAME-lane floor, gated on
-`teacher_receipt_sha256` identity. The canonical cross-lane refusal does the
-arithmetic for you: subtracting the cross-stack floor 0.012712 from the
-streaming K8 mean gives 0.012384 − 0.012712 = **−0.000328** — a negative
-attributable for an 8-bit quant, arithmetic proof the floors are not
-interchangeable; the same-lane floor gives 0.012384 − 0.011506 = +0.000878.
-`engines/BF16-FLOOR.json` (the analysis) is refused as a floor input by name, and
-"floor = 0" is accepted only with T1 hash evidence
-(`engines/SAME-LANE-TEACHER.md`). `--from-registry MEASUREMENT_ID` fetches the
-public receipt and gates on its real teacher sha.
+`attributable` is the historical command name: it reports a **descriptive
+native-baseline KL contrast**, quant mean minus a compatible control mean.
+It does not identify an additive codec effect. Teacher identity and lane
+gates remain mandatory; a negative subtraction is not, by itself, proof
+that a measurement is invalid. The old cross-stack subtraction
+0.012384 − 0.012712 = −0.000328 illustrates why unlike controls must not
+be substituted, not a mathematical law of KL. A zero control requires
+the declared repeatability evidence; see [`engines/SAME-LANE-TEACHER.md`](../engines/SAME-LANE-TEACHER.md).
 
-`paired-delta`: the honest CI for a two-run difference — paired per-window
-deltas, exact t (incomplete-beta), BCa bootstrap over windows, exact sign
-test, Wilcoxon; refuses cross-teacher/cross-panel pairs. The printed estimand
-statement is mandatory: the census difference itself is exact (deterministic
-lane); the CI answers generalization to new windows and must never be
-presented as measurement noise. Design constants at n=25: paired SE 3.47e-4,
-MDE ~1.01e-3 — effects below ~1e-3 need more text, not more runs.
+A zero claimed by the legacy scalar-summary format is refused even if a
+`zero_floor_evidence` note names a hash kind: no teacher/student tensor operands
+are bound there. Use the sealed dataset comparison and qualification route to
+establish an actual zero control.
+
+`paired-delta` reports **B − A**. Window t/BCa/sign/Wilcoxon fields are
+descriptive diagnostics, not population inference. Both normal reports
+need matching teacher and token-panel receipt identities, and declared
+token hashes/counts/document and lane identities must agree. Conditional
+source-document inference requires explicit consistent per-window
+`document_id` provenance on both sides and an independent/exchangeable
+document assumption. Its document sign test is primary under that assumption;
+the equal-document t interval is illustrative. Missing provenance means
+`inference_unit: none`, not guessed window independence. The old n=25 SE/MDE
+constants are withdrawn; finite-panel differences are descriptive conditional
+on the captured bytes and replay arithmetic.
 
 ## Engine pinning
 
@@ -131,7 +134,7 @@ A lane whose engine is not `pinned: true` in `engines.json` **refuses to
 plan**. It does not guess flags.
 
 **All five lanes are now pinned**: `sealed-ep8` (against
-`engines/tools/k6_student_capture.py`), and `bf16-floor`, `streaming`,
+`engines/tools/student_capture.py`), and `bf16-floor`, `streaming`,
 `local-mps`, `local-cuda-budget` (all against `engines/tools/stream_score.py`,
 every required flag verified by `bin/measure-local --probe-engines` in the
 real file). The 2026-08-29 reconciliation was done by PROBING the CLI (AST
@@ -299,11 +302,10 @@ of what is built:
 * **The fetch stops being a barrier.** `engines/tools/race_fetch.py` reads
   `model.safetensors.index.json`, buckets every shard by the first layer that
   needs it, and downloads in that order while the capture runs. The layer-outer
-  loader blocks on layer N's shards only when it is about to load layer N. Worst
-  case no slower than fetch-then-capture; every run writes a
-  `race-fetch-report.json` with `blocked_seconds` measured, so the saving is a
-  receipt rather than a claim. The digest is unchanged: race mode changes when
-  bytes arrive, never which.
+  loader blocks on layer N's shards only when it is about to load layer N.
+  A `race-fetch-report.json` records blocked time. The saved CPU Fruit
+  synthetic-panel A/B is evidence for that run, not a guarantee of no slowdown:
+  network contention, scheduling and buffering can erase or reverse a saving.
   The head is a **priority-0** file, not a last one — the resident load, the
   vocab/hidden sizes and the capture tap all need it before layer 0.
 * **A preview is a different DATASET, not an earlier version of one.**
@@ -315,27 +317,28 @@ of what is built:
 * **The generation sanity check runs on EVERY capture**, race or not
   (`engines/tools/generation_probe.py`). `"The capital of France is"` → `" Paris"`,
   as one extra window through the schedule already loading every layer: ~1/N of
-  an N-window panel and zero extra weight loading. It is the only guard here
-  that sees a shard which loaded as ZEROS — names, shapes and tensor counts are
-  all correct in that case. Recorded always; fail-closed unconditionally on a
-  degenerate distribution and on a declared `--sanity-expect`.
+  an N-window panel and zero extra weight loading. It can catch a degenerate
+  forward even when names/shapes look correct, but one prompt does not prove
+  every zero-filled shard is detected or validate full-model semantics.
+  A declared `--sanity-expect` and degenerate-distribution failures are refused.
 
 ### Before you start — what exists today, and what does not
 
-The format and the tooling are complete and tested; the **published artifacts
-they consume are not yet in place**. Read this before planning GPU time.
+Published roots and runnable dataset tooling exist, but availability,
+registry routing, supported decoding and exact paid admission are separate.
+Read the current registry reference records and dry-run before planning GPU time.
 
 | you will want | state today | what to do |
 |---|---|---|
-| a **root fidelity dataset** to fetch (step 1) | **two are published.** [`malaiwah/glm53-fidelity-root-v1`](https://huggingface.co/datasets/malaiwah/glm53-fidelity-root-v1) is the sealed hidden-form root of the production GLM-5.3 (zai-org/GLM-5.3-BF16 @ 304b8051), captured layer-outer on an H200 under the two-fresh-process protocol; every GLM-5.3 quant row in the registry is scored against it (`compare --reference hf://malaiwah/glm53-fidelity-root-v1 --own-heads`). [`malaiwah/fruit-fidelity-root-v1`](https://huggingface.co/datasets/malaiwah/fruit-fidelity-root-v1) is the 385 MB CI-fixture root (5B GLM-5.2-SIQ-Fruit, 16 contexts) for seeing the whole three-step path without a GPU. No root exists yet for GLM-5.3-Flash or Qwen3.8-27B. | `bin/fidelity-dataset describe hf://malaiwah/glm53-fidelity-root-v1` prints the identity card (vocab 154880, hidden 6144, panel id/hash, lane `streaming`). To capture your own root, README *Recipe 2 → Local GPU quickstart* is the copy/paste sequence (`capture --engine hf-transformers` → `verify` ×2 → `compare --self-compare` → `qualify-root --local` → `publish`). |
+| a **root fidelity dataset** to fetch (step 1) | The registry records roots for GLM-5.3, GLM-5.2, GLM-5.3-Flash, Qwen3.8-27B and Fruit; this is no longer a two-root inventory. Examples: [`glm53-fidelity-root-v1`](https://huggingface.co/datasets/malaiwah/glm53-fidelity-root-v1), [`qwen38-27b-fidelity-root-v1`](https://huggingface.co/datasets/malaiwah/qwen38-27b-fidelity-root-v1), [`fruit-fidelity-root-v1`](https://huggingface.co/datasets/malaiwah/fruit-fidelity-root-v1). These are recorded publication identities, not a fresh live availability check. | Read [`registry/data/references.jsonl`](../registry/data/references.jsonl) for the exact immutable URI/revision and panel, then `fidelity-dataset describe hf://<repo>@<revision>`. A small root permits CPU comparison without model weights; creating it still requires capture. |
 | a **token panel** (step 1/2) | the hf-transformers engine takes `--panel <dir>`: a committed token-panel tree under `engines/panels/` (`panel.json`, `panel.receipt.json`, `arrays/`). `panel--glm53.malaiwah.corpus5x5-v1` (356 KB, the GLM-5.3 family's panel, tokenizer zai-org/GLM-5.3-BF16) and the Flash and Fruit panels are committed; `engines/panels/README.md` lists them. The `sealed-lane` engine's `--token-panel` receipt is campaign-internal. (The *runners* `measure-cloud`/`measure-local` take `--panel <hf-dataset>`, a teacher-logit dataset, and the local planner no longer prices its 31.7 GB for the dataset route, which never fetches it.) | For a new family build the panel first: `engines/tools/build_token_panel.py` ([`engines/panels/README.md`](../engines/panels/README.md)). A root capture also needs the panel **binding**: `bin/fidelity-dataset panel-binding --panel engines/panels/<id> --tokenizer-root <checkpoint dir> --out panel.binding.json` writes it and prints the sha256 for `--panel-binding-sha256`. |
 | a **cost/time estimate** for a capture | `capture --dry-run` validates inputs, seal and layout for the sealed-lane engine only; the hf-transformers engine has no plan phase and returns exit 4 (`USAGE`) for `--dry-run`. **Neither prints hours, VRAM or dollars.** | Size it with `bin/measure-local --artifact <repo> --panel <dataset> --estimate-only` (the layer-outer capture plan from the target's config.json, the measured H200 peaks, the pre-fetch gate and the exact `fidelity-dataset capture` argv) or `measure-cloud --dry-run`. Measured on H200: GLM-5.3 bf16 root cold capture 1,947 s per run after a 1.51 TB fetch; the K4 candidate 442 s per run after 394 GB. |
-| to **submit a comparison to the registry** (step 3) | **works, and needs one input file.** `compare --emit-submission` requires `--submission-provenance FILE`: the artifact (HF repo at a 40-hex revision, codec, quantization scope), `panel_ref` and `reference_ref` are registry identities a fidelity dataset cannot know, and `panel_ref`/`reference_ref` must already exist because a measurement may not introduce a panel. Without the file the command **refuses** rather than writing empty blocks. | `fidelity-dataset provenance-template --out prov.json`, fill it in, then `compare … --emit-submission --submission-provenance prov.json`. The command then runs `registry_validate.py --submission` **on its own output** and prints ACCEPTED/REJECTED, so you find out now rather than in review. Copy the accepted file into `registry/receipts/<your-handle>/` and open a PR. |
+| to **submit a comparison to the registry** (step 3) | `compare --emit-submission` requires `--submission-provenance FILE`: artifact identity/scope and existing `panel_ref`/`reference_ref` cannot be inferred from capture bytes alone. It refuses missing provenance and validates the generated submission. | Generate `fidelity-dataset provenance-template --out prov.json`, fill it, then `compare … --emit-submission --submission-provenance prov.json`. Follow [quickstart §6](../docs/THIRD-PARTY-QUICKSTART.md#6-submit-it--one-live-destination) for the submission destination. The paid candidate comparison/qualification handoff is a distinct route; a sealed comparison alone is not automatic registry filing. |
 | to **annotate your card** with the result | `fidelity-card annotate --role quant` resolves its numbers from **published registry measurements**, not from your comparison receipt. With no row yet it refuses, and the refusal names the ordering. | The order is: capture → compare → **get the row into the registry** → then annotate. There is no receipt-to-card path, by design: a card cites registry ids, not local receipts. `--role fidelity-dataset` **is** usable — pass `--fidelity-dataset-root DIR` and every value is read out of that dataset's own manifest. `annotate` always self-validates and exits non-zero rather than writing an invalid card. |
 
 ```bash
 # step 1/2 -- capture. Default engine hf-transformers = engines/tools/hf_capture.py,
-# any HF causal LM, --schedule layer-outer holds one decoder layer resident and
+# supported native transformers model/surface; --schedule layer-outer holds one decoder layer resident and
 # reads the checkpoint once; everything after `--` is the engine's own argv
 # (`capture --help` prints the argv the GLM-5.3 K4 job ran; README Recipe 2
 # has the root and candidate sequences in full).
@@ -382,13 +385,13 @@ bin/fidelity-dataset compare --reference ds-bf16 --candidate ds-k6 --out cmp \
         # hidden @ head.T. By default that runs in numpy on the CPU while the
         # GPU holds the head for the fp64 estimator and does nothing else --
         # `nvidia-smi` reads 0% for the whole comparison. --replay-device cuda
-        # moves it. Measured on the published Qwen3.8-27B root (512 windows,
-        # 1,048,064 positions, vocab 248,320, hidden 5,120), one RTX PRO 6000,
-        # same process, same data, only this flag different:
+        # moves it. Measured force-computed SELF-COMPARISON of the published
+        # Qwen3.8 root (512 windows, 1,048,064 positions, vocab 248,320,
+        # hidden 5,120), same RTX PRO 6000 rental and data:
         #     numpy  1,754.71 s   GPU  0%
         #     cuda     173.27 s   GPU 88%   peak 7.13 GB device memory
-        # 10.13x, and it reproduced the published floor's tokenwise-kld.npy
-        # digest 8be5dcca... byte for byte.
+        # 10.13x for that workload; not an arbitrary candidate speedup.
+        # Its all-zero tokenwise-kld.npy digest 8be5dcca... was unchanged.
         #
         # IT IS NOT THE DEFAULT, AND THAT IS DELIBERATE. An fp32 GEMM
         # accumulates in an order the BLAS chooses, so numpy-on-OpenBLAS,
@@ -396,9 +399,9 @@ bin/fidelity-dataset compare --reference ds-bf16 --candidate ds-k6 --out cmp \
         # head and the same hidden states. The floor is immune (both sides get
         # identical logits, so the KLD is exactly 0.0 either way) but a nonzero
         # row is not. Every receipt now names the backend in
-        # `comparator.replay_backend`; rows measured under different values are
-        # not rankable against each other. Pick one per comparability group and
-        # keep it.
+        # `comparator.replay_backend`. Equal registry keys alone do not bind
+        # every replay difference or authorize ranking: pair_predicate must
+        # pass. Keep replay policy fixed and disclosed for reproduction.
         #
         # --replay-dtype float64 accumulates the replay in fp64 instead: more
         # accurate, and much more reproducible across backends, but a DIFFERENT
@@ -446,15 +449,15 @@ bin/fidelity-dataset publish ds-bf16 --repo <handle>/<dataset-repo> --expected-h
 
 | you will hit | because |
 |---|---|
-| `head_mismatch` (HEAD-1b) | the two hidden-form captures declare different `lm_head` tensor-content digests. Replaying one artifact's hiddens through the other's head erases its head-quantization error and flatters it. `--disclose-head-substitution` proceeds but forces `advisory`, a downward bias block and a **blocking** disclosure — i.e. not publishable. |
+| `head_mismatch` (HEAD-1b) | hidden-form captures declare different `lm_head` content digests. Use `--own-heads` to replay each through its own head. `--disclose-head-substitution` instead changes the estimand, with **unknown** bias direction, blocking/unsubmittable disclosure and `usable_as_floor: false`; it is not a mathematical lower bound. |
 | `head_mismatch` (HEAD-4) | a hidden-form dataset with a null head content digest. **No override.** |
 | `panel_mismatch` (PANEL-D3) | `scoring_window.score_from` differs. That is a different *panel*, not a comparator flag — which is what makes a llama.cpp-geometry number structurally incomparable rather than silently comparable. There is deliberately no override, so the refusal prints a `remedy:` line saying so. |
 | `panel_mismatch` (PANEL-D6) | the two captures declare different tokenizers. `suite_token_hash_sha256` hashes token **ids** — integers — so it cannot see this; two tokenizers can emit the same ids from different text. A field null on either side is *unknown*, not different. |
-| `head_substitution_vacuous` (HEAD-1c) | the capture content digests are **equal** and the head digests **differ** — a head-only quant (stock EXL3 `head_bits` 6–8). Hidden replay through one head erases the only difference there is and would report an exact reproduction. **No override**: publish logit-form captures, where each side runs its own head. |
+| `head_substitution_vacuous` (HEAD-1c) | equal hidden content and different heads: shared-head replay would erase a head-only difference and fabricate reproduction. No shared-head override; `--own-heads` is a distinct valid comparison, or capture logits with each artifact's head. `native_head` names head identity policy, not native serving-kernel equivalence. |
 | `lane_mismatch` | different lanes. `--allow-cross-lane` proceeds and stamps `usable_as_floor: false`, so **BIAS-006** cannot be laundered downstream. |
 | `unlisted_file` / `missing_file` | the tree is not exactly what `checksums.txt` covers. `--allow-partial` narrows this to capture tensors and stamps `covers_full_panel: false`. |
 | `bad_vocab_chunk` | `--vocab-chunk` must be a positive integer. A final partial vocabulary block is processed exactly; the safe root qualification profile binds **8192**. |
-| `replay_device_mismatch` | `--replay-device` names a device the estimator does not use. The replayed logits would cross the bus twice per position block, which is slower than the numpy path it replaces. Set `--device` to the same value. |
+| `replay_device_mismatch` | `--replay-device` names a device the estimator does not use. Set `--device` to the same value; mismatched-device transfer is not an admitted replay profile, regardless of projected performance. |
 | `replay_backend_unavailable` | `--replay-device` other than `numpy` needs torch. The default needs nothing. |
 | `bad_replay_dtype` | `--replay-dtype` is `float32` or `float64`. |
 
@@ -507,9 +510,9 @@ bin/selftest_all.sh                        # everything below; PASS/FAIL/SKIP le
 python3 bin/selftest_fit.py                # 41 known-answer checks (census, solver, window-major cost)
 python3 bin/selftest_decode_parity.py      # needs torch; decode bitwise MPS==CPU
 python3 bin/selftest_registry_view.py      # T1: loader, tiers, never-merge renderer
-python3 bin/selftest_stats.py              # T2: K8-ANOMALY known answers, refusal arithmetic
+python3 bin/selftest_stats.py              # paired contrasts, provenance gates, descriptive/inferential boundary
 python3 bin/selftest_preview_stats.py      # T3: unbiasedness, coverage, FPC, panel gate
-python3 bin/selftest_zero_floor.py         # T4: the exact-0.0 identity (+ fixed npy sha)
+python3 bin/selftest_zero_floor.py         # exact-zero self-comparison and refusal invariants
 python3 bin/selftest_submission_refusal.py # T5: previews/teachers cannot become rows
 python3 bin/selftest_fidelity_dataset.py   # T6: format, seals, panel/head/lane/coverage refusals
 python3 bin/selftest_fidelity_compare.py   # T8: known-answer KLD, exact self-compare, SC-3

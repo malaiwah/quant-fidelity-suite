@@ -13,13 +13,18 @@ produced **five defects, and not one of them was about the measurement**:
 | storage sized 100 GB | correct only where the disk is separable; `No space left on device`, 45 min into a paid run |
 | three hardcoded `/home/jl_fs` roots | the worst stalled an A100 at **0% GPU for two hours** at $1.59/h — $3.07 before anyone noticed |
 
-Every one is an artefact of orchestrating a machine instead of running an
-image. A container has no id to parse, no state to poll, no disk to size, and
-its filesystem root is a mount the caller chose. This is that image.
+An image removes some environment/layout variation; it does not remove the
+provider's instance ids, lifecycle, disk sizing, billing or cleanup duties.
+The caller must still provision storage and supervise the container host.
 
 **The SSH path is not removed.** JarvisLabs is driven through its own CLI and
 has no custom-image path at all, and a new transport proves itself before it
 replaces a working one. `bin/measure-cloud` is unchanged in behaviour.
+
+**Evidence scope, 2026-09-07:** the Lambda A10-equipped host/image acceptance
+test below ran its fixture forwards on **CPU**. The later Fruit L4 GPU
+reproduction is separate evidence. Neither install/import success nor setup
+decode parity qualifies all model forwards, GPU models or drivers.
 
 ---
 
@@ -56,6 +61,12 @@ The HF token arrives at runtime — `--token-file`, or `HF_TOKEN` — is written
 already reads, and is then **removed from the environment the stages see**. It
 never reaches argv, which is the property `bin/measure_cloud.py` has and must
 keep. Rung C4 asserts all four halves of that.
+For the admitted SSH route, publication and download now use separate token
+files: `--hf-token-file` stays controller-local; explicit
+`--hf-download-token-file` is the pod credential. The generic container
+entrypoint's `--token-file`/`HF_TOKEN` interface does not certify read-only
+scope or provide a remote-code sandbox. Do not mount a publisher credential
+into an untrusted capture environment.
 
 ---
 
@@ -251,11 +262,11 @@ capture_content_digest  b417acc22b8aa7f3294b8e62c4b619bc5051aef9fd8a073602572a30
 
 Identical, and so is every field of the stack fingerprint — torch 2.11.0+cu130,
 transformers 5.16.1, CUDA 13.0, `NVIDIA L4`, `transformers-eager`, default
-matmul precision. The L4 was chosen deliberately: it is the card that produced
-the published root, and [`ARCHITECTURE-DETERMINISM.md`](ARCHITECTURE-DETERMINISM.md)
-established that the GPU MODEL, not the provider or the host, is what moves
-these bits. So this is a same-architecture reproduction through an entirely
-different transport, and it is the first row in this project whose
+matmul precision. The L4 was chosen to match the published root's device.
+The architecture study found matching bits in particular paired rentals,
+not that GPU model alone exhausts all host/driver/kernel effects. This is a
+same-device reproduction through a different transport, and the first recorded
+row here whose
 `container.image_digest` is not null:
 `sha256:65425cfd9d31fb8f0e8d58d1548ad6b46704aabebfcc60d42b5e59d1f5f6f5f0`.
 
@@ -321,11 +332,13 @@ does not get to shift because we added a container.
 
 ## The acceptance test, and its result
 
-**Bit-identical output.** A containerised capture must produce the same
-`capture_content_digest` as the current path on the same GPU. If it does not,
-the image changed the arithmetic — that is a failure, not a variance.
+**Acceptance criterion:** capture-content identity across environments on the
+same actual execution device, model and panel. A mismatch needs investigation
+of changed inputs/runtime, not dismissal as variance.
 
-**Run, 2026-08-31, Lambda `gpu_1x_a10` (NVIDIA A10, one box, one GPU):**
+**Run, 2026-08-31, Lambda `gpu_1x_a10`: CPU forwards on an A10-equipped host.**
+Both runtime receipts record `device: cpu`; setup GPU decode checks are not
+the fixture's forward. The following is host-vs-image CPU evidence:
 
 | | arm A — host bootstrap | arm B — the image |
 |---|---|---|
@@ -345,11 +358,10 @@ only variable between them was the environment. Evidence, including both
 manifests and both runtime receipts:
 [`reports/container-proof/`](../reports/container-proof/).
 
-`dataset_sha256` differs for exactly one reason, and it is the right one: arm B's
-runtime receipt records the image it ran in and arm A's does not. Every other
-field above is equal, including `stack_fingerprint_sha256` — which is what
-`dscompare` reads to decide `stack_relation`, so the two captures are
-same-stack and one can serve as the other's floor.
+The dataset seals differ with their runtime/provenance metadata, including
+the image record. Equal content and stack fingerprints classify the recorded
+CPU captures as same-stack; they do not establish floor eligibility by
+themselves or bypass the historical panel refusal below.
 
 One detail worth keeping: the two arms did **not** have identical interpreters.
 The host bootstrap installed python **3.12.13** from deadsnakes; the image has
@@ -361,16 +373,14 @@ never matter.
 `fidelity-dataset compare --self-compare` was **refused** on this pair, and
 correctly: `PANEL-D6` compares the two captures' tokenizer identity, which is
 recorded as the local path of the model tree (`/home/ubuntu/…/models/target`
-vs `/workspace/…/models/target`). On the SSH path both arms always share a
-root, so this never surfaced; a container has a different mount root by
-construction. Written up in
-[`REVIEW-DEFERRED.md`](REVIEW-DEFERRED.md) rather than fixed here, because it
-changes a published manifest field.
+vs `/workspace/…/models/target`). The current verified panel-binding route
+records the panel's stable tokenizer identity. These old unbound manifests
+are preserved, not resealed, and their refusal cannot establish a failure of
+today's bound paid route. See [`REVIEW-DEFERRED.md`](REVIEW-DEFERRED.md).
 
-Determinism is a **per-device** property (`docs/ARCHITECTURE-DETERMINISM.md`:
-two A100s in two clouds agree bitwise; an H200 is 2.973e-04 nats away, 13× the
-gap this registry publishes between two 4-bit quantizers). The comparison above
-is only meaningful on **one** GPU, which is why both arms ran on one box.
+The architecture study's paired GPU observations are finite controls, not a
+universal driver/host exclusion. They also cannot turn the CPU experiment
+above into GPU evidence. A new execution stack requires its own reproduction.
 
 ### One operational wart
 
@@ -387,9 +397,10 @@ second time you use the mount.
 Direct provider-native container launch is **not an admitted measurement path**.
 The current paid controller accepts only a fresh RunPod secure on-demand pod
 over its authenticated SSH lifecycle, with a durable lease, installed reaper,
-controller-loss proof, bounded result retrieval, exact absence, and billing
-reconciliation. It deliberately exposes no `--image` path and refuses direct
-`RunPod.create(...)`, Vast, Lambda, and JarvisLabs execution before mutation.
+bounded retrieval and exact absence. Controller-loss proof and strict
+campaign/billing admission are opt-in; default billing settlement is advisory.
+See [`CLOUD-RECIPES.md`](CLOUD-RECIPES.md). Direct provider-native launches
+and non-RunPod paid execution remain refused by the controller.
 
 The container experiments below remain implementation evidence for the image;
 they are not a runnable rental recipe. Use
@@ -449,10 +460,11 @@ chars; gzip+base64 (Vast's own documented workaround) handles longer scripts.
 | **blocked at `setup`** | the Nevada host's network has a broken SSL proxy to huggingface.co (cert hostname mismatch); `stage_measure.sh` uses `urllib` with strict SSL and fails before any model fetch |
 | spend | ~$0.08 across 6 attempts; balance $19.56 → $19.48; all instances destroyed |
 
-The transport pipeline works end-to-end (launch → image run → result frame →
-ntfy delivery → retrieval). The blocking issue is host-specific SSL, not the
-image or the transport. A host with working SSL to huggingface.co (or an
-`HF_ENDPOINT` mirror) would complete the capture.
+The transport rehearsal exercised launch → image startup → failure result
+frame → ntfy delivery → retrieval. It did **not** complete model fetch or
+capture. Working TLS removes the observed blocker, not every possible
+downstream failure, so a successful full forward cannot be promised.
+The current authenticated Hub path is not bypassed with an unverified mirror.
 
 ---
 

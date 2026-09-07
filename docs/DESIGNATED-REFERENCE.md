@@ -1,5 +1,10 @@
 # When a family publishes no unquantized weights
 
+**Historical scope, clarified 2026-09-07.** Repository counts, availability
+and DeepSeek release descriptions below describe the inspected snapshot,
+not a current Hub census. The designation rule remains reference-relative;
+its former directional KL claim is withdrawn in §"What the number means".
+
 Every measurement in this registry is a distance **from** something. Until now
 that something was always the model's own unquantized release, and a family
 that publishes none was simply unmeasurable: Stage A closed
@@ -67,23 +72,18 @@ Three selftest cases prove each clause fires:
 
 ## What the number means, stated plainly
 
-A row against a designated proxy answers *"how far is this quant from the best
-published version of this model?"* — **not** *"how far is this quant from the
-model?"*.
+A row against a designated proxy answers *"how far is this candidate from the
+chosen published reference?"* — not *"how far is it from an unavailable
+unquantized model?"*. Highest declared precision is a selection rule, not a
+proof of maximal fidelity.
 
-It is systematically **smaller** than the true divergence, because the proxy
-already carries its own quantization error and the child inherits it rather
-than being charged for it. The reference's own self-compare is exactly 0.0 by
-construction, and that 0.0 is a **designation, not a floor**: it says "this is
-the origin we chose", not "this model was measured to lose nothing".
-
-The existing `reference_kind` vocabulary already said this, in the schema's own
-words, before there was any tooling for it:
-
-> `dequantized_from_quant` means the reference distribution is itself a
-> quantized model's, so student numbers against it are systematically SMALLER
-> than against a true BF16 teacher and must never be ranked against `native_*`
-> rows.
+**Correction, 2026-09-07.** The earlier "systematically smaller" claim,
+including the quoted historical schema wording for `dequantized_from_quant`,
+is withdrawn. KL has no triangle inequality or monotonicity under a change of
+reference: a proxy-referenced KL can be larger or smaller than a true-teacher
+KL. Its bias direction is unknown without a controlled measurement.
+The reference self-compare's 0.0 is an origin by construction, not a measured
+floor or evidence that the quantized reference loses nothing.
 
 `quantized_proxy` is the sibling case where the quantized artifact is used
 **directly** as the teacher rather than dequantized first. It was in the enum
@@ -98,8 +98,8 @@ bpw in a repo name is not evidence. Where two candidates are close, prefer the
 one whose scope is **fully read** over one with `unknown` classes — an
 unmeasurable recipe makes a poor origin.
 
-For `deepseek_v4` the choice is degenerate and therefore easy: the family's
-own published root is the most-faithful artifact in it, and every other repo is
-a quantization of that. The reference is the root, the children are its
-quantizations, and the engine to read them is already proven — 3,176/3,176
-tensors byte-exact, self-compare exactly 0.0.
+For the inspected `deepseek_v4` family, the official quantized root is the
+designated origin by this rule. The recorded 3,176/3,176 tensor reconstruction
+and zero self-compare establish their stated tested scopes, not maximal
+fidelity, native full-forward parity, or the present availability of every
+Hub repository. A new unquantized release would require a new reference id.

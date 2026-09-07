@@ -1,9 +1,15 @@
 # GLM-5.3 (full) quantized descendants — what the engine side needs
 
-**Status:** gap analysis, 2026-09-04. Nothing below is implemented yet
-except where a file is named. Numbers come from the Hub API and the
-checkpoint bytes (index censuses, `quantization_config`, shard headers), not
-from repo names.
+**Historical gap analysis, 2026-09-04.** The plan below records the gaps and
+estimates at that date, not current admission. FP8 and trellis weight sources
+and the two-cold-run candidate dataset route subsequently landed; GLM-5.3
+candidate results are recorded in the registry. Follow
+[`THIRD-PARTY-QUICKSTART.md` §3b](THIRD-PARTY-QUICKSTART.md#3b-measure-a-quant-against-a-published-root--the-candidate-route)
+and the [generated support matrix](../README.md#before-you-rent-what-is-measurable-today)
+for current routes. Decode support is not blanket paid admission or proof of
+native serving equivalence. The tables, work order, "today" statements and
+prices below are archival; numbers came from the then-inspected Hub metadata
+and checkpoint bytes, not repo names.
 
 ## The one fact that shapes everything
 

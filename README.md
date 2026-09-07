@@ -11,22 +11,29 @@ license: mit
 short_description: Explore quantization evidence, costs and receipt provenance
 ---
 
-# quant-fidelity-suite — how much quality a quantization costs, with receipts
+# quant-fidelity-suite — distributional fidelity, with receipts
 
-Tools, a schema-enforced public registry, and the campaign log behind
-full-vocabulary KL-divergence measurements of quantized models against their
-unquantized references. Five model families
-([GLM-5.3](https://huggingface.co/zai-org/GLM-5.3-BF16),
-[GLM-5.2](https://huggingface.co/zai-org/GLM-5.2),
-[GLM-5.3-Flash](https://huggingface.co/zai-org/GLM-5.3-Flash),
-[Qwen3.8-27B](https://huggingface.co/Qwen/Qwen3.8-27B), and a 5B MoE CI
-fixture), six storage formats, 95 published rows. Receipt-driven: every
-published number links to a JSON receipt with pinned revisions and sha256s.
+Tools and a public registry for measuring teacher-forced next-token distribution
+changes between exact model artifacts. The primary metric is full-vocabulary
+KL(reference || candidate), under a declared capture and replay configuration.
+It is a fidelity diagnostic, **not a task benchmark or universal quantizer ranking**.
 
-The suite began as a GLM-5.3-Flash program — most of the campaign material
-under [`engines/`](engines/) and [`remote/`](remote/) still is — and the measurement
-tooling in [`bin/`](bin/) and the registry in [`registry/`](registry/) are
-model-agnostic.
+## Choose your starting point
+
+| Goal | Read |
+|---|---|
+| Understand or cite a score | [WHAT-WE-MEASURE.md](WHAT-WE-MEASURE.md), then [llms.txt](llms.txt) |
+| Inspect measurements | [Generated registry tables](registry/README.md) and [index predicates](registry/index.json) |
+| Measure or contribute | [Third-party walkthrough](docs/THIRD-PARTY-QUICKSTART.md) and [contribution contract](registry/CONTRIBUTING.md) |
+| Change the code | [AGENTS.md](AGENTS.md) and the relevant executable selftest |
+| Reuse captures | [Dataset format](docs/FIDELITY-DATASET-SPEC.md) and [CLI reference](bin/README.md) |
+| Audit prior claims | [Published corrections](docs/PUBLISHED-CORRECTIONS.md), [review coverage and next work](docs/REVIEW-2026-09-07.md) |
+
+The registry covers several model families, storage formats and historical
+protocols. Read [data/measurements.jsonl](registry/data/measurements.jsonl) for the
+current inventory: not every row has fp64 accumulation, pinned provenance,
+independent verification, or publicly available captures. Unknown and legacy
+fields are scientific disclosures, not defaults to fill in.
 
 ## QFS Explorer — no-install evidence and cost planning
 
@@ -121,57 +128,52 @@ or measurement container. It does not copy secrets or change existing visibility
 The hosted app disables unused upload/local-file/remote-file routes; receipts
 are pasted as bounded JSON and validated in a time-limited offline worker.
 
-## Measure a quant from an HF link — one command
+## Measure a quant from an HF link
+
+Start without execution:
 
 ```bash
-bin/measure malaiwah/GLM-5.3-Flash-TR3-6bpw
-bin/measure https://huggingface.co/orcarouter/GLM-5.3-Flash-MLX/tree/main/4-bit
+bin/measure malaiwah/GLM-5.3-Flash-TR3-6bpw --plan-only
+bin/measure --help
 ```
 
-(Both are already measured, so both answer from the registry for $0.00 —
-the honest common case. A repo whose live head has moved since it was
-measured — `zai-org/GLM-5.3-Flash-BF16` today — refuses with the drift
-remedies instead of silently answering about different bytes.)
+`bin/measure` resolves the target and checks the registry first. It never rents a
+machine. An already-measured artifact returns its rows; otherwise it plans a
+local route or names the missing prerequisite. The target is positional;
+`--model` and `--dry-run` are not flags of this front end. Use `--plan-only` to
+avoid execution. Revision drift is a different artifact, not permission to reuse
+a prior number silently.
 
-It resolves the revision (live head by default), **asks the public registry
-first** — an already-measured artifact gets its rows and receipt links printed
-and exit 0, nothing spent — then walks `base_model` lineage to the registry's
-model, picks the panel/teacher prior measurements used (alternatives printed
-with override flags), sniffs the repo's packing surface, picks the lane for
-your machine, and hands off to `measure-local --execute`. **`bin/measure` never
-rents**, so it plans a *local* lane — and the local lanes read only `packed`
-and `native-bf16` today, which means a third-party quant gets a costed plan and
-a refusal naming `bin/measure-cloud` rather than a number. See
-[Before you rent](#before-you-rent-what-is-measurable-today). Refusals name their
-arithmetic or remedy: revision drift needs `--force` or
-`--accept-measured-revision`; a surface no lane can read (most third-party
-repos today) is refused for $0.00 with the missing reader named; missing
-torch/transformers/quant_pipeline/teacher/disk are all listed at once with
-their install commands. `--plan-only` stops at the plan.
+### Browse the registry
+
+```bash
+bin/registry-view rows --model glm --lane streaming --registry local
+bin/registry-view --help
+```
+
+The footer identifies the snapshot. Equal recomputed comparability keys are
+necessary, not sufficient: inspect secondary predicates and missing evidence.
+A declared incompatible or unknown pair must not acquire a ranking merely
+because a renderer puts the rows next to each other.
 
 ## Before you rent: what is measurable today
 
-A measurement needs three things to line up, and **the intersection is narrow
-right now**. All three are checked for $0.00 before anything is created — but
-knowing them up front is the difference between one dry-run and an afternoon.
+Three independent prerequisites must hold:
 
-**1. A panel you can download.** A measurement may not introduce a panel
-(CONTRIBUTING §6), so you must score on one the registry already has *and* that
-you can fetch:
-
-| panel | fetchable? |
-|---|---|
-| `panel--glm53.brandonmusic.final25` (+ its subsets) | **yes** — the only one with a built-in fetch descriptor. 25 windows, 51,175 scored positions, ~31.7 GB out of a 1.32 TB repo. This is the panel every recipe here defaults to. |
-| `panel--glm53.malaiwah.suite-v5-10m` | public dataset, but no built-in descriptor — you must write one for `--panel-descriptor`. |
-| the five `panel--qwen38.malaiwah.*` panels | **no.** `availability.status: private`. The whole Qwen3.8-27B family — the cheapest model in the registry — is closed to outside measurement today. `bin/measure` refuses with "has no local fetch descriptor in this checkout". |
-| `panel--fruit.malaiwah.heldout-v1` | **yes**, but by a different route: it ships inside the published root dataset [`malaiwah/fruit-fidelity-root-v1`](https://huggingface.co/datasets/malaiwah/fruit-fidelity-root-v1) and is used through `bin/fidelity-dataset`, not through the two runners. |
-
-**2. A reader for the artifact's storage surface, on a lane you can run.**
-Readers are per-lane, and the matrix below is **generated from
-[`bin/engines.json`](bin/engines.json)** — the same file the runners consult —
-so it cannot drift from what the tools actually do (a selftest fails if it
-does). Every other document that talks about surface support links here
-instead of restating it.
+1. **Exact inputs you can obtain.** A panel's declared public availability, a
+   runner fetch descriptor, and token arrays inside a portable dataset are
+   different things. Check the selected [panel](registry/data/panels.jsonl) and
+   [reference](registry/data/references.jsonl), including their immutable pins.
+   Historical Qwen availability labels and old "no roots published" statements
+   do not describe every later dataset route. No live availability is implied
+   merely by a local metadata record.
+2. **An implemented reader on the chosen route.** The matrix below describes
+   `engines.json` runner lanes, not every decoder used by `hf_capture.py` and
+   not automatic paid admission. Local inputs may be required even for a reader
+   that exists.
+3. **Admission for this exact artifact/profile/runtime.** The paid controller
+   additionally checks scientific evidence, resources and lifecycle safety.
+   Parser choices or historical provider recipes are not authorization to spend.
 
 <!-- BEGIN GENERATED: support-matrix -->
 <!-- GENERATED by bin/render_support_matrix.py FROM bin/engines.json and the runners' own argparse declarations -- DO NOT EDIT BY HAND.
@@ -204,475 +206,131 @@ instead of restating it.
 Reading the matrix: `bin/measure` never rents, so it plans only the
 local lanes and redirects `--lane streaming` to `bin/measure-cloud`;
 `packed` needs a payload store that is not published, and `native-bf16`
-is an unquantized tree — so a surface whose ✓ appears **only** under
-`streaming` is measurable exclusively by renting. A surface with no ✓
-anywhere (MLX, NVFP4, AWQ, GPTQ …) is refused on every lane at plan
-time, for $0.00, even where a bitwise-tested decoder exists under
-[`engines/tools/`](engines/tools/) — a reader no lane lists is not
-reachable. `gguf` reads a llama.cpp shelf repo: `--path` selects the
-build and its scope covers the whole forward, so its rows are not
-rankable against routed-experts-only rows
+is an unquantized tree. A streaming-only checkmark means these local
+runner lanes cannot execute it, not that the engine requires a rental.
+Direct engine execution and `fidelity-dataset capture` are separate
+routes on hardware you control. No checkmark means absent from these
+runner contracts, even where a decoder exists under
+[`engines/tools/`](engines/tools/). Paid admission adds its own exact
+artifact/profile/runtime gates. `gguf --path` selects one shelf build;
+read its measured scope before comparing it with a routed-only quant
 ([`docs/GGUF-MEASUREMENT.md`](docs/GGUF-MEASUREMENT.md)).
 <!-- END GENERATED: support-matrix -->
 
-The generated matrix is an **engine-capability** matrix, not paid admission.
-The paid controller admits any public unquantized root at an exact revision
-and, for quants, only the exact public K6 TR3 pin, all on RunPod's SSH route.
-Generic third-party quant surfaces—including GGUF—remain available to local
-tooling where listed, but `measure-cloud` refuses them before provider access
-until their scientific evidence is authored.
+For portable hidden capture, `bin/fidelity-dataset capture --engine hf-transformers`
+uses `hf_capture.py` / `layer_outer.py`; that is a separate entrypoint from the
+local streaming lanes in the matrix. See [LAYER-OUTER](docs/LAYER-OUTER.md) and the
+[walkthrough](docs/THIRD-PARTY-QUICKSTART.md) for tested surfaces and current limits.
 
-**3. An exact admitted profile and artifact pin.** `engines.json` maps
-`(surface, bpw) -> profile`, but paid admission additionally binds repository,
-40-hex revision, metadata digests, runtime evidence and any release-specific
-verdict bridge. K8 is deliberately refused: its release seal does not prove
-that the measured checkpoint was the sealed K8 surface, and K6 evidence cannot
-be transferred.
-
-Start with the registry and local planner:
+### Recipe 1 — paid execution
 
 ```bash
-bin/measure <hf-repo>     # already measured, locally readable, or exact refusal
+bin/measure-cloud --help
 ```
 
-For the complete RunPod walkthrough, use
-[`docs/THIRD-PARTY-QUICKSTART.md`](docs/THIRD-PARTY-QUICKSTART.md). Planning
-is `--dry-run`: every check runs, nothing is created, $0.00.
+Use the [single maintained paid walkthrough](docs/THIRD-PARTY-QUICKSTART.md),
+starting with `--dry-run`, explicit `--max-cost` and `--max-runtime`, and the
+required separate credential files. Do not reuse a publication credential for
+remote downloads. Fetch, setup, candidate captures, repeat qualification,
+comparison, retrieval and teardown all belong in the budget.
 
-Both are honest about repos that are announcements rather than releases (a
-2-file placeholder) and about releases that are genuinely broken (one branch of
-a well-known EXL3 repo is missing 22 of the model's 1,618 non-routed tensors;
-the dry-run names them and refuses before the rental).
-
-## Browse the registry
-
-```bash
-bin/registry-view check malaiwah/GLM-5.3-Flash-TR3-6bpw   # already measured? (tiers + rows + receipts)
-bin/registry-view rows --model glm --lane streaming        # filtered, never-merged tables
-bin/registry-view lineage 0xSero/GLM-5.3-Flash-EXL3-Q4     # base-model walk + panel/teacher pick
-```
-
-Works offline against the local clone and online against the public dataset
-(`--registry auto|hf|local[:PATH]`; the footer names the snapshot that
-answered). Rows are grouped by recomputed comparability key and split by lane
-— filters can hide groups but never merge them, so cross-reference ranking is
-structurally impossible. Floor-aware analysis lives in `bin/fidelity-stats`
-(the streaming lane's floor and the cross-lane refusal arithmetic), local
-preview scoring in `bin/kld-preview`; the same-lane-teacher plan that drives
-the floor to zero is [`engines/SAME-LANE-TEACHER.md`](engines/SAME-LANE-TEACHER.md).
-
-> **Agents:** start at [`llms.txt`](llms.txt) — a curated index plus the five rules that
-> decide whether two fidelity numbers may be compared at all. Reading it first will stop you
-> making the comparison mistakes this project exists to prevent.
-
-## Measurement routes
-
-Both routes produce provenance-bearing artifacts and refuse when required
-identity or capacity is missing. Local-lane receipts remain previews unless a
-same-lane reference contract says otherwise. The paid route is intentionally
-not a generic “any supported decoder” switch.
-
-### Cloud — the RunPod route
-
-Every paid run enforces four things and needs nothing else: `--max-cost` caps
-the whole run's liability, `--max-runtime` is an absolute deadline written
-into the lease, the on-pod watchdog and the provider, the pod is destroyed on
-every exit path, and the installed user-systemd reaper destroys it at the
-deadline even if the controller dies. Setup is one command per machine and
-account: `bin/measure-cloud reaper --provider runpod --install`. Strict
-campaign mode (a shared ledger and a sealed controller-loss drill proof) is
-opt-in; [`docs/CLOUD-RECIPES.md`](docs/CLOUD-RECIPES.md) has the guarantees,
-the recipe and the tradeoffs, and `bin/measure-cloud --help` is the ground
-truth for every flag.
-
-The minimal root capture, as the `--help` epilog shows it (`--max-runtime`
-is the bound authored in `bin/engines.json` for this target, `--max-cost`
-the all-in maximum computed from it; when either moves the dry-run refuses
-with the new number):
-
-```bash
-bin/measure-cloud --provider runpod --role root \
-    --model zai-org/GLM-5.3-BF16 --revision <rev> \
-    --panel-dir engines/panels/<panel> \
-    --dataset-id fidelity--<id> --publish-root-to <owner>/<repo> \
-    --hf-token-file ~/.hf_token --measurer <your-hf-handle> \
-    --max-cost 65 --max-runtime 7h30m --retrieval-delete-reserve 14400 \
-    --out ~/fidelity-runs/<name> --dry-run
-```
-
-`--dry-run` prints the plan with every derived value and creates nothing;
-re-run without it to spend. Exit codes: 0 ok; 1 the run failed and the pod is
-proven gone; 3 refused before anything was created; 90 a pod may remain.
-A quant is measured against a published root with the same command plus
-`--candidate-scope/--candidate-codec/--candidate-bits/--reference-dataset`
-— the route behind every GLM-5.3 quant row; the walkthrough is
-[QUICKSTART §3b](docs/THIRD-PARTY-QUICKSTART.md).
-
-### Container image — local/developer surface, not paid admission
-
-The multi-arch image remains useful on hardware you already control:
-
-```bash
-docker run --gpus all --rm -v /data/run:/workspace \
-    ghcr.io/malaiwah/quant-fidelity-measure:main doctor
-```
-
-The current paid RunPod controller deliberately refuses provider-native
-container execution. It uses one authenticated SSH transport so lifecycle,
-host-key, archive-retrieval and deletion evidence have one audited boundary.
-The image entrypoint and result sinks remain tested implementation surfaces;
-they are not a shortcut around paid admission.
+Watchdogs, the independent reaper, secure transport and exact-absence checks are
+load-bearing. Their availability and provider guarantees must be established;
+a declared budget is not an unconditional provider-enforced financial cap.
+No machine should be rented just to discover an unsupported profile.
 
 ### Recipe 2 — local: your own hardware
 
-Two engines exist, and which one your target reaches decides everything
-below. `bin/measure-local --estimate-only` says which on its `MEMORY PLAN`
-line, and prices only that one:
-
-* **`engines/tools/stream_score.py`, window-major** — the lanes
-  `measure-local` can execute (`local-mps`, `local-cuda-budget`). They read the
-  campaign's `packed` payload stores and the GLM-5.3-Flash `native-bf16` tree
-  ([support matrix](#before-you-rent-what-is-measurable-today)) and emit
-  `receipt_class: preview`. The checkpoint is re-read once per panel window.
-* **`engines/tools/hf_capture.py --schedule layer-outer`**
-  ([docs/LAYER-OUTER.md](docs/LAYER-OUTER.md)) — one decoder layer resident,
-  checkpoint read once per cold run, windows never batched. It reads
-  `native-bf16`, `fp8-block` and `exl3hf` releases, it is the engine behind
-  every GLM-5.3 row in the registry, and you reach it through
-  `bin/fidelity-dataset capture --engine hf-transformers`, **not** through
-  `measure-local --execute`. The [quickstart below](#local-gpu-quickstart)
-  is that route.
-
-Three things to know about `measure-local` before pasting:
-
-1. **`measure-local` is plan-only by default.** Without `--execute` it plans,
-   prints "Plan accepted. Nothing was executed", and exits 3. That is not a
-   bug: the one-command front-end `bin/measure` is what turns `--execute` on
-   for you.
-2. **`measure-local` downloads nothing.** Not the artifact
-   (`--artifact-path`, a local tree), not the teacher panel (`--teacher-tree`,
-   or place it at `<work>/teacher`), not the quant pipeline
-   (`--pipeline-root`). `--execute` preflights all three and refuses with the
-   full list of what is missing and how to get each one.
-3. **The lanes it executes read only `packed` and `native-bf16`** Flash
-   trees. For an `exl3hf`/`fp8-block`/`native-bf16` GLM-5.3-class target the
-   plan prints the layer-outer capture plan, the pre-fetch gate and the
-   dataset-route commands, and `--execute` refuses by name.
-
 ```bash
-# Plan: $0.00, downloads nothing, executes nothing. This artifact is already
-# measured, so the registry front gate answers first and exits 0 (--force
-# plans anyway). The plan is memory/disk/time arithmetic over the target's
-# own config.json, never a pinned constant.
-bin/measure-local \
-    --artifact brandonmusic/GLM-5.3-Flash-tr3-4bpw \
-    --panel    brandonmusic/GLM-5.3-Flash-BF16-Teacher-Logits \
-    --vram-budget 30 --estimate-only
+bin/measure-local --help
 ```
 
-```bash
-# Execute: only for a surface the local lanes can read (packed / native-bf16),
-# with all three inputs already on disk. Template, not copy-paste:
-bin/measure-local \
-    --artifact <hf-repo> --panel <hf-dataset> --vram-budget 30 \
-    --execute \
-    --artifact-path  /path/to/the/packed/root \
-    --teacher-tree   /path/to/the/teacher/logits \
-    --pipeline-root  /path/to/quant_pipeline
-```
+`measure-local` is plan-only by default; `--execute` opts in. It downloads
+nothing: execution needs the artifact, teacher panel and pipeline locally
+(`--artifact-path`, `--teacher-tree`, `--pipeline-root`). Consult the support
+matrix rather than assuming every decoder is available on every local lane.
 
-`--estimate-only` prints the plan and stops; `--simulate-device "RTX 5090:32"`
-plans for hardware you do not own yet. For a Flash `packed` target the plan is
-the streaming lane's panel-batched cost model (`expert_chunk` /
-`window_batch`, bit-identical at any setting because experts are visited in
-ascending order into an fp32 accumulator). For a GLM-5.3-class target it is
-the layer-outer plan against the peaks the H200 pods measured:
-
-```
-$ bin/measure-local --artifact wrldsuksgo2mars/GLM-5.3-EXL3-K4-v1 --panel ... \
-      --simulate-device "RTX 5090:32" --estimate-only --force
-  census source          config.json (exact)  (78L / hidden 6144 / 256 experts / vocab 154880)
-  engine                 engines/tools/hf_capture.py --schedule layer-outer
-  modelled peak          61.93 GB  (arithmetic, docs/LAYER-OUTER.md 8.1)
-  measured peak          56.86 GB allocated / 58.14 GB reserved on NVIDIA H200 SXM 141 GB
-  device needs           64.00 GB  (RTX 5090 has 32.00 GB)
-  WARNING  WOULD REFUSE (real run): RTX 5090 (32.00 GB) is below the layer-outer plan
-BEFORE YOU FETCH  (394.11 GB is more than 100.00 GB: read this first)
-  fetch size             394.11 GB
-  disk free              18.53 GB at ... (568.45 GB needed)
-  estimated VRAM         64.00 GB needed on the device, RTX 5090 has 32.00 GB -- DOES NOT FIT
-```
-
-Ask the streaming planner for too little and it refuses with the arithmetic,
-not a stack trace:
-
-```
-REFUSE: no schedule fits a 3.60 GB budget
-        minimum viable budget for this model at 4 bpw is 4.58 GB
-        that floor is set by the lm_head step -- the lm_head weight (1.27 GB)
-        and one window of fp32 logits (1.27 GB) must be resident together, and
-        neither shrinks with --expert-chunk or --window-batch
-        run the cloud recipe instead: docs/THIRD-PARTY-QUICKSTART.md section 3b
-```
-
-Verify the machine before trusting it — both selftests are offline and take
-under a minute:
-
-```bash
-bin/measure-local --selftest      # fit estimator vs known cases + decode parity
-```
-
-#### Local GPU quickstart
-
-The finishable sequence for one card. Everything a human had to guess is a
-documented default or a refusal ([table](#every-default-and-refusal-in-one-place)).
-**Card sizes, measured on H200 by the engine you will run** (pod logs quoted
-in `docs/LAYER-OUTER.md` §8.1): GLM-5.3 bf16/FP8 37.53 GB allocated /
-57.08 GB reserved, the K4 trellis candidate 56.86 GB. So:
-
-| card | root of a mid-size bf16 release (Qwen3-8B class, largest layer + head ≲ 20 GB) | GLM-5.3 root or candidate |
-|---|---|---|
-| RTX PRO 6000, 96 GB | runs | runs (measured 57 GB; ~39 GB headroom on paper) |
-| RTX 5090, 32 GB | runs | **refused today** by `measure-local` and the plan below: the loader materialises one whole layer's 19.33 GB of routed experts before fusing them. The chunked loader that would bring the peak to ~28 GB is described in LAYER-OUTER.md §8.1 and not built. |
-
-**Environment (both cards).** The pod's exact hashed closure — torch
-2.11.0+cu130, transformers 5.16.1, accelerate, hf_transfer — on Python 3.12;
-the CUDA 13.0 wheels need a driver that supports them.
-
-```bash
-python3.12 -m venv ~/.venvs/fidelity
-~/.venvs/fidelity/bin/pip install --no-deps --require-hashes --only-binary=:all: -r bin/requirements-cu130-py312.lock
-export FIDELITY_PYTHON=~/.venvs/fidelity/bin/python HF_HOME=/nvme/hf HF_HUB_ENABLE_HF_TRANSFER=1
-bin/fidelity-doctor
-bin/measure-local --artifact <hf-repo> --panel brandonmusic/GLM-5.3-Flash-BF16-Teacher-Logits --estimate-only --force   # the plan + the exact argv for YOUR target
-```
-
-**A root (96 GB card; on 32 GB only for a model whose plan fits).** Two cold
-runs are two processes with distinct labels. `--device cuda` (not `cuda:0`),
-`--lane streaming` (the published roots' lane) and `--repository` (the
-immutable dataset identity) are contract inputs, not style.
-
-```bash
-REV=<40-hex>; M=/nvme/models/<name>
-hf download <owner>/<repo> --revision $REV --local-dir $M                          # zai-org/GLM-5.3-BF16: 1.51 TB
-bin/fidelity-dataset panel-binding --panel engines/panels/panel--glm53.malaiwah.corpus5x5-v1 \
-    --tokenizer-root $M --out /nvme/ds/panel.binding.json                          # prints the sha256 to pass below
-for run in 1 2; do
-  bin/fidelity-dataset capture --engine hf-transformers --out /nvme/ds/root-$run --form hidden --role root --lane streaming -- \
-      --model $M --model-revision $REV --weights-repository <owner>/<repo> --repository <handle>/<dataset-repo> \
-      --panel engines/panels/panel--glm53.malaiwah.corpus5x5-v1 --panel-id panel--glm53.malaiwah.corpus5x5-v1 \
-      --panel-binding /nvme/ds/panel.binding.json --panel-binding-sha256 <sha256-printed-above> \
-      --schedule layer-outer --device cuda --dtype bfloat16 --sanity-expect Paris \
-      --dataset-id fidelity--<family>.<handle>.root.bf16 --dataset-name "<name> root bf16" \
-      --run-name root-cold-$run --cold-run root-cold-$run --author <handle> --role root \
-      --dataset-license other --weights-license-file $M/LICENSE \
-      --weights-license-sha256 "$(sha256sum $M/LICENSE | cut -d' ' -f1)" --weights-license-bytes "$(stat -c %s $M/LICENSE)" \
-      --memory-report /nvme/ds/mem-$run.json
-done
-bin/fidelity-dataset verify /nvme/ds/root-1 --json /nvme/ds/root-1.verify.json
-bin/fidelity-dataset verify /nvme/ds/root-2 --json /nvme/ds/root-2.verify.json
-bin/fidelity-dataset compare --reference /nvme/ds/root-1 --candidate /nvme/ds/root-2 --self-compare --force-compute \
-    --replay-device numpy --vocab-chunk 8192 --out /nvme/ds/root-repro          # the root contract's replay profile; expect exactly 0.0
-bin/fidelity-dataset qualify-root --local --model-dir $M --first /nvme/ds/root-1 --repeat /nvme/ds/root-2 \
-    --first-label root-cold-1 --repeat-label root-cold-2 \
-    --first-verify /nvme/ds/root-1.verify.json --repeat-verify /nvme/ds/root-2.verify.json \
-    --comparison /nvme/ds/root-repro/comparison-receipt.json --out /nvme/ds/receipts/root-qualification.json
-bin/fidelity-dataset publish /nvme/ds/root-1 --repo <handle>/<dataset-repo> --expected-head absent \
-    --qualification /nvme/ds/receipts/root-qualification.json --job /nvme/ds/receipts/job.json --dry-run   # drop --dry-run, add --token-file, to publish
-```
-
-`qualify-root --local` writes `receipts/job.json` with `execution_kind: local`
-from the captures' own sealed evidence (panel binding, the per-shard census
-`hf_capture` hashed, the stack fingerprint) and the receipt records the card,
-torch/transformers versions and that no pod attestation exists; `publish`
-accepts it without the pod's `result.tar.gz` triple and keeps every seal and
-identity gate. Wall clock from the H200 pod, GLM-5.3 bf16: cold capture
-1,947 s, self-compare ~6 min, after the 1.51 TB fetch.
-
-**An EXL3/FP8 quant against the published GLM-5.3 root (≥ 64 GB card).**
-`--codec`/`--declared-bits` are read from the artifact's `quantization_config`
-(`exl3-trellis` @ 4 for the K4); the scope file comes from
-`engines/tools/exl3_scope.py` (or `fp8_scope.py`).
-
-```bash
-Q=<owner>/<quant>; QREV=<40-hex>; C=/nvme/models/<quant>
-hf download $Q --revision $QREV --local-dir $C                                     # K4: 394 GB
-$FIDELITY_PYTHON engines/tools/exl3_scope.py --index $C/model.safetensors.index.json --config $C/config.json \
-    --repo $Q --revision $QREV --out /nvme/ds/scope.json
-for run in 1 2; do
-  bin/fidelity-dataset capture --engine hf-transformers --out /nvme/ds/cand-$run --form hidden --role quant --lane streaming -- \
-      --model $C --model-revision $QREV --weights-repository $Q --repository <handle>/<dataset-repo> \
-      --panel engines/panels/panel--glm53.malaiwah.corpus5x5-v1 --panel-id panel--glm53.malaiwah.corpus5x5-v1 \
-      --schedule layer-outer --device cuda --dtype bfloat16 --sanity-expect Paris \
-      --dataset-id fidelity--glm53.<handle>.quant.<slug> --dataset-name "<quant>" \
-      --run-name cand-cold-$run --cold-run cand-cold-$run --author <handle> --role quant \
-      --scope-file /nvme/ds/scope.json --codec exl3-trellis --declared-bits 4 --memory-report /nvme/ds/mem-cand-$run.json
-done
-bin/fidelity-dataset compare --reference /nvme/ds/cand-1 --candidate /nvme/ds/cand-2 --self-compare --force-compute \
-    --vocab-chunk 8192 --device cuda --replay-device cuda --out /nvme/ds/cand-repro   # determinism: exactly 0.0
-bin/fidelity-dataset compare --reference hf://malaiwah/glm53-fidelity-root-v1 --candidate /nvme/ds/cand-1 \
-    --own-heads --vocab-chunk 8192 --device cuda --replay-device cuda --cache /nvme/ds/cache --out /nvme/ds/cmp
-```
-
-Expect `class advisory`, `stack_relation cross_stack` against the H200 root:
-the stack fingerprint includes the device name, and a same-backend replay
-(`--replay-device cuda` on both sides of a group) is what makes rows within
-your own group rankable. The K4 row measured 0.044804 nats on the pod.
-
-##### Every default and refusal in one place
-
-| you would otherwise guess | what the tools do |
-|---|---|
-| interpreter | `FIDELITY_PYTHON` → the venv above; `fidelity-dataset capture|compare` run under it |
-| which tool | `measure-local --estimate-only` plans and prints the route; `fidelity-dataset capture` runs it; the container is pod-contract-only ([CONTAINER.md](docs/CONTAINER.md)) |
-| `--engine` | default `hf-transformers` (sealed-lane is campaign-internal, opt-in) |
-| `--schedule` | `layer-outer` is required in the quickstart; the default `window-outer` loads the whole model and is refused by the root contract |
-| `--device` | `cuda` exactly; `cuda:0` is refused at `qualify-root` (the contract binds `cuda`) |
-| `--lane` | `streaming`, the published roots' lane; `compare` refuses a lane mismatch without `--allow-cross-lane` |
-| panel | a committed tree under `engines/panels/`; a new family builds one with `engines/tools/build_token_panel.py` |
-| panel binding | `fidelity-dataset panel-binding` writes it and prints the sha256 |
-| ids | `fidelity--<family>.<handle>.<role>.<codec>`; `--repository <handle>/<dataset-repo>` must differ from the weights repo |
-| checkpoint location | `--model <dir>` after `hf download --local-dir`; `HF_HOME` keeps the cache off your home volume |
-| scope / codec / bits | `exl3_scope.py`/`fp8_scope.py`; `quantization_config` (`exl3-trellis` @ 4 for the K4) |
-| `--sanity-expect Paris` | fail-closed generation probe; always pass it |
-| `--author`, `--dataset-license` | pass both; `other` + the LICENSE bytes for a root that redistributes the head weights |
-| replay for qualification | `--replay-device numpy --vocab-chunk 8192`; anything else is refused by `qualify-root` with the remedy |
-| disk | checkpoint + 2 × 2.53 GB datasets (+ 2.53 GB root when comparing); the plan prints free disk before the fetch |
-| memory | GLM-5.3-class needs ≥ 64 GB today; the plan refuses below it and says why |
-| token | `hf download` uses the cached login; `compare`/`publish` take `--token-file`; `publish --dry-run` reads none |
-| comparability | `advisory` / `cross_stack` against an H200 root, by construction |
+The layer-outer dataset route is different. Its memory requirement depends on
+actual model geometry and surface; a 32 GB or 96 GB card is not a blanket fit
+guarantee. Use the local planner and [current capture instructions](bin/README.md)
+before downloading a checkpoint. Preserve the declared backend and numerical
+policy rather than silently substituting a faster one.
 
 ### Recipe 3 — submit it
 
-`measure-local` seals `<out>/receipts/measurement-receipt.json`. The safe cloud
-controller retrieves and verifies it at
-`<out>/result/receipts/measurement-receipt.json`. **That file IS your
-submission receipt** (schema
-`quant-fidelity-registry/submission-receipt.v1`) — the one and only thing you
-submit; older docs called the same object `submission.json`.
-
 ```bash
-bin/registry-submit <receipt.json>
+bin/registry-submit --help
 ```
 
-Prints the row your receipt would generate, its comparability key, and the rows
-it can be ranked against — or exactly which check it failed. Then open a
-discussion on the registry dataset and attach the file (the live path today;
-the GitHub PR mirror is documented but **not live yet**). The paste template,
-acceptance criteria, and how you are credited:
-[`registry/CONTRIBUTING.md`](registry/CONTRIBUTING.md). Step-by-step for a
-first-time contributor: [`docs/THIRD-PARTY-QUICKSTART.md`](docs/THIRD-PARTY-QUICKSTART.md).
+Submission validates locally and publishes nothing. The legacy sealed
+submission receipt and a modern candidate comparison receipt have different
+filing paths; follow [registry/CONTRIBUTING.md](registry/CONTRIBUTING.md). A root
+capture can be qualified and retained locally; publication for public reuse is
+a separate permissioned action.
 
 ### Which cloud?
 
-The committed provider benchmark receipts answer a historical performance
-question: the streaming inner loop is host-bandwidth-bound, and provider/SKU
-labels do not guarantee equivalent hosts. The dated table and receipts are in
-**[`docs/CLOUD-COMPARISON.md`](docs/CLOUD-COMPARISON.md)**. They are not current
-prices and the historical benchmark controller is not an admitted paid route.
+[Provider benchmark evidence](reports/provider-bench/README.md) describes dated
+host/SKU experiments, not current capacity or prices. A streaming inner-loop
+microbenchmark is not an end-to-end capture cost for another model or schedule.
+[Cloud recipes](docs/CLOUD-RECIPES.md) distinguish adapter capabilities from
+current paid admission and its exact safety requirements.
 
-Current paid execution is deliberately narrower: one exact secure on-demand
-RunPod pod over authenticated SSH. Other providers, spot, native containers,
-recovery, persistent volumes and hold-on-failure refuse before mutation.
-The controller probes the created host before the large fetch, but only after
-the campaign, reaper, drill, source, account and scientific gates pass.
+## Capture once, compare retained data
 
-> **Requirements.** The paid route needs stock Python, an owner mode-0600
-> RunPod key file, ED25519 SSH key, healthy account-bound user-systemd reaper,
-> current paid drill proof and explicit campaign limits. See
-> [`docs/THIRD-PARTY-QUICKSTART.md`](docs/THIRD-PARTY-QUICKSTART.md).
-> Local execution uses a venv via `FIDELITY_PYTHON`; do not modify the system
-> Python.
-
-## Capture once, compare many — the three-step path
-
-The recipes above **fuse** capture and comparison: every measurement re-runs the
-reference. `bin/fidelity-dataset` separates them into three steps. A root can be
-qualified and retained locally; publishing it later makes that sealed capture a
-portable reference other measurements can download instead of re-running.
-
-```
-step 1  capture   reference weights + panel  ->  qualified dataset A (publish: OPTIONAL; required for public reuse)
-step 2  capture   quantized weights + panel  ->  fidelity dataset B   (publish: OPTIONAL)
-step 3  compare   A, B  ->  KLD + determinism + a registry receipt
-                  A, A  ->  reproduction confirmation, exactly 0.0
+```text
+reference weights + token panel -> sealed reference capture A
+candidate weights + token panel -> sealed candidate capture B
+A, B + declared head/replay policy -> KL, provenance and comparison receipt
 ```
 
-Step 3 needs **neither** set of weights and no GPU — it is fp64 arithmetic over
-two sealed trees. Step 2 is publishable standalone, so a quant author can
-contribute a capture with no access to our infrastructure. A verified off-pod
-archive survives losing the machine; publication additionally lets other
-measurers reuse it. This distinction exists because the filesystem holding
-earlier sealed receipt trees was destroyed.
+Offline comparison needs both captures, not a new model forward. Root reuse saves
+reference capture work; it does **not** eliminate the cost of obtaining every
+candidate capture. Hidden-form storage is compact, but its fp32 head replay need
+not be identical to native bf16 serving logits. Own-head replay includes each
+capture's head; a shared reference head can erase candidate head error.
 
-```bash
-bin/fidelity-dataset describe ds-bf16                                  # the identity card
-bin/fidelity-dataset compare --reference ds-bf16 --candidate ds-k6 --out cmp
-bin/fidelity-card       validate --card README.md                      # provenance on an HF card
-```
+Same-file self-comparison is an arithmetic identity. Independent cold captures,
+forced computation, perturbed/nonzero controls and scoped forward parity answer
+different validation questions. The dataset format makes these distinguishable;
+a self-seal alone cannot prove a correct experiment.
 
-The format is versioned and stable at v1
-([`docs/FIDELITY-DATASET-SPEC.md`](docs/FIDELITY-DATASET-SPEC.md)); the
-three-step rationale is [WHAT-WE-MEASURE §8](WHAT-WE-MEASURE.md).
+## What a result can honestly establish
 
-**Two conformant roots are published.** The production one is the GLM-5.3
-root every registry row of that family is scored against; the small one is
-the cheapest way to see the whole three-step path end to end without renting
-anything:
+- A finite-panel mean is descriptive of those exact token histories. Population
+  inference requires source-level provenance and a defensible sampling model.
+  The old Flash final25 has four source documents, not 25 independent texts;
+  other panels have different designs.
+- Checkpoint reconstruction and native serving are distinct estimands. Read
+  omitted activation/kernel, scope and head disclosures before comparing.
+- Excess over a matched control is a signed contrast, not causal quantization
+  error. Runtime effects may cancel or amplify; no universal lower/upper bound
+  follows. The old 2.52x residual-ratio interpretation is withdrawn.
+- Repeated content hashes establish observed conditional repeatability. They do
+  not establish cross-device determinism, accuracy or long-context quality.
+- Historical headline measurements and their original receipts remain in the
+  [registry](registry/README.md) and [campaign journal](JOURNAL.md), with
+  [additive corrections](docs/PUBLISHED-CORRECTIONS.md). This overview does not
+  duplicate numerical tables that can diverge from their evidence.
 
-```bash
-bin/fidelity-dataset describe hf://malaiwah/glm53-fidelity-root-v1   # GLM-5.3 (zai-org/GLM-5.3-BF16 @ 304b8051), 25 windows, 2.5 GB
-bin/fidelity-dataset describe hf://malaiwah/fruit-fidelity-root-v1   # 5B CI fixture, 385 MB
-```
+## Repository map
 
-[`malaiwah/glm53-fidelity-root-v1`](https://huggingface.co/datasets/malaiwah/glm53-fidelity-root-v1)
-is a sealed `malaiwah.fidelity-dataset.v1` hidden-form root captured layer-outer
-on an H200 under the two-fresh-process protocol, on the committed panel
-`engines/panels/panel--glm53.malaiwah.corpus5x5-v1`; a quant of GLM-5.3 is
-scored against it with `compare --reference hf://malaiwah/glm53-fidelity-root-v1
---own-heads` ([Recipe 2 → Local GPU quickstart](#local-gpu-quickstart)).
-[`malaiwah/fruit-fidelity-root-v1`](https://huggingface.co/datasets/malaiwah/fruit-fidelity-root-v1)
-is the same format for the 5B GLM-5.2-SIQ-Fruit CI fixture, **with a token panel
-and its sealed receipt inside the dataset**, so step 1 is a download rather than
-a GPU booking. No root exists yet for GLM-5.3-Flash or Qwen3.8-27B; the
-10.48M-position suite-scale capture (spec §14) remains out of scope for v1.
-
-## Headline results
-
-| Measurement | Value | Where |
-|---|---|---|
-| Official FP8 vs BF16, mean KLD (10.48M positions) | **0.028104 nats** (CI95 [0.0272, 0.0290], top-1 94.3%) | [fidelity dataset](https://huggingface.co/datasets/malaiwah/GLM-5.3-Flash-fidelity-suite-v1) |
-| Official FP8 on brandonmusic's sealed 25-window panel | **0.020615 nats** / top-1 95.6% | [receipt](https://huggingface.co/datasets/malaiwah/GLM-5.3-Flash-fidelity-suite-v1/blob/main/reports/fp8-on-brandon-panel.json) |
-| Cross-stack BF16 floor (our replay vs his teacher) | 0.012712 nats | [receipt](https://huggingface.co/datasets/malaiwah/GLM-5.3-Flash-fidelity-suite-v1/blob/main/reports/crosscheck-brandonmusic.json) |
-| glm5_next launch nondeterminism (first report + interventions) | pins → ~10× flip-rate reduction | [vLLM PR #53906 comments](https://github.com/vllm-project/vllm/pull/53906), `reports/determinism-*.json` |
-
-## What's in this repo
-
-| Path | What it is |
+| Path | Purpose |
 |---|---|
-| [`bin/`](bin/) | **The two copy-paste recipes above**: `measure-cloud`, `measure-local`, `registry-submit`, the shared fit estimator (`fidelity/census.py`), the engine pin file (`engines.json`), and two offline selftests |
-| [`registry/`](registry/) | **The fidelity registry**: schemas, seeded rows, submission receipt format, validator, and [CONTRIBUTING.md](registry/CONTRIBUTING.md) |
-| [`docs/`](docs/) | **The fidelity dataset format v1** (the three-step split above): the [spec](docs/FIDELITY-DATASET-SPEC.md), the [HF card annotation standard](docs/CARD-ANNOTATION-SPEC.md), the [registry integration](docs/REGISTRY-INTEGRATION.md) it still needs, worked examples, and the annotation applied to our K6/K8 cards. Tooling: `bin/fidelity-dataset`, `bin/fidelity-card` |
-| [`tools/`](tools/) | The fidelity harness (vLLM hidden-state capture → shared-head replay → exact full-vocab KL), activation capture, cross-stack checker, publishers |
-| [`remote/`](remote/) | The self-driving on-VM pipeline + stage scripts used for the overnight 8×H200 capture campaign |
-| [`engines/`](engines/) | **The K6/K6K8 EXL3 quantization program** (in progress): runbook, stage driver, patch series onto [brandonmusic's pipeline](https://github.com/brandonmmusic-max/glm-5.3-flash-exl3-4bpw), driver tools, recipes, and the disclosed [r10 codec reconstruction](engines/fallback/) |
-| [`engines/tools/`](engines/tools/) | The single-GPU **streaming scorer** (`stream_score.py`) and its weight-decode surfaces: sealed K6/K8 payloads, the official BF16 floor, third-party EXL3 (`dione_surface.py`, `exl3hf_surface.py`), and the three community-quant surfaces — Apple-silicon MLX (**[`mlx_surface.py`](engines/tools/MLX-SURFACE.md)**, bitwise vs `mlx.core.dequantize`), llama.cpp GGUF (`gguf_surface.py`, bitwise vs `gguf-py`) and NVFP4 (`nvfp4_surface.py`, bitwise vs `compressed-tensors`). Each one CENSUSES what its artifact actually quantized and the registry row discloses it: the three do not share a scope |
-| [`port/`](port/) | Design bundle for a native exllamav3 `glm5_next` architecture port (blueprint, draft, parity harness, adversarial review) |
-| [`suite/`](suite/), [`calsuite/`](calsuite/) | The held-out evaluation suite (5,120×2,048 ctx) and calibration token sets |
-| [`JOURNAL.md`](JOURNAL.md) | The captain's log: every decision, failure, cost, and 24 lessons learned |
+| `bin/` | Public wrappers, local/cloud controllers, dataset/card tools, selftests and bundle contract |
+| `engines/tools/` | Model capture, per-format reconstruction, KL scoring and real-tensor evidence |
+| `registry/` | Schemas, frozen receipts/protocols, ingestion, generated data and tables |
+| `container/` | Reproducible image/build tooling; distinct from paid admission |
+| `suite/`, `calsuite/`, `engines/panels/` | Sampling/calibration manifests and selected token panels |
+| `tools/`, `remote/` | Original serving-lane and campaign harnesses |
+| `port/` | Unqualified draft native exllamav3 architecture and parity harness |
+| `docs/`, `reports/`, `JOURNAL.md` | Contracts, scoped experiments and historical corrections |
 
-## Published datasets
+## Credits
 
-- [malaiwah/GLM-5.3-Flash-fidelity-suite-v1](https://huggingface.co/datasets/malaiwah/GLM-5.3-Flash-fidelity-suite-v1) — the quality reference: the full 5,120×2,048 token suite, a **512-context shard** of BF16 and of FP8-as-served hidden states (`reference-bf16-shard0/`, `as-served-fp8-shard0/` — 512 × 2,047 scored positions each, `capture-manifest-shard.json`), the shared lm_head, and all receipts. The 0.028104 headline was measured over the whole 10.48M-position run; the retained hidden states are shard 0 of 10, which is what you can replay against.
-- [malaiwah/GLM-5.3-Flash-calibration-activations-v1](https://huggingface.co/datasets/malaiwah/GLM-5.3-Flash-calibration-activations-v1) — 147 GB of MoE block-input activations + router logits (natural routing), for calibration-aware quantization work.
-
-## Credits & lineage
-
-Methodology descends from the author's Qwen3.8-27B fidelity/quant work
-([malaiwah/qwen38-27b-exl3](https://github.com/malaiwah/qwen38-27b-exl3)).
-The K6 program builds directly on
-[brandonmusic](https://huggingface.co/brandonmusic)'s GLM-5.3-Flash EXL3
-pipeline and BF16 teacher-logits dataset — see the
-[co-credited corroboration thread](https://huggingface.co/brandonmusic/GLM-5.3-Flash-EXL3-4bpw/discussions/1).
-Base model by [Z.ai](https://huggingface.co/zai-org); quant format by
-[turboderp's exllamav3](https://github.com/turboderp-org/exllamav3).
+The methodology builds on the author's Qwen fidelity work and
+[brandonmusic's pipeline and teacher datasets](https://huggingface.co/brandonmusic).
+Base-model providers and quantizers are credited per artifact; trellis kernels
+come from [exllamav3](https://github.com/turboderp-org/exllamav3).
+Third-party results remain attributed rather than becoming maintainer measurements.
+See [LICENSE](LICENSE) for licensing and third-party notices.

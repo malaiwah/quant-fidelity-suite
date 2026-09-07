@@ -434,7 +434,11 @@ def _token_kld(teacher: Any, student: Any, device: str) -> "tuple[np.ndarray, in
         raise _fail("teacher/student logits must be finite")
     teacher_logp = torch.log_softmax(teacher64, dim=-1)
     student_logp = torch.log_softmax(student64, dim=-1)
+    if not torch.isfinite(teacher_logp).all() or not torch.isfinite(student_logp).all():
+        raise _fail("log-softmax produced a non-finite value; never clamped")
     values = torch.sum(torch.exp(teacher_logp) * (teacher_logp - student_logp), dim=-1)
+    if not torch.isfinite(values).all():
+        raise _fail("KLD reduction produced a non-finite value; never clamped")
     matches = int(
         torch.count_nonzero(
             torch.argmax(teacher64, dim=-1) == torch.argmax(student64, dim=-1)
@@ -588,6 +592,8 @@ def _measure_run(
         window_top1_matches = 0
         values = np.empty(count, dtype=np.float64)
         for start in range(0, count, chunk_positions):
+            # The final block can be shorter than chunk_positions. Recording
+            # the requested block does not prove every reduction has that shape.
             stop = min(start + chunk_positions, count)
             teacher_logits = _load_slice(teacher_paths[window_id], start, stop)
             student_logits = _load_slice(Path(student_row["path"]), start, stop)

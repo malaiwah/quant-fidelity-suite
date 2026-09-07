@@ -72,12 +72,12 @@ pays bootstrap, a 200 GB fetch, materialize and the panel, which
 `bin/measure-cloud --dry-run` estimates and this does not. Two consequences,
 both of which cut the same way:
 
-* As a **ranking**, it transfers: the inner loop is the term that varies
-  between machines, by up to 6x on identical silicon.
-* As an **absolute**, it flatters the fast expensive card. If the inner loop is
-  only a fraction *f* of the scored wall clock, a card that halves it saves
-  only *f*/2 of the run while charging its full rate for all of it. A card that
-  loses this column loses by more in practice, never less.
+* The ranking is of **this inner-loop benchmark**, not an established ranking
+  of complete captures. Fetch, decode, setup, storage, scheduler, CPU/BLAS,
+  network locality and failure/retry costs can change the end-to-end order.
+* If this loop is a fraction *f* of wall time, halving it alone saves *f*/2.
+  Other phases need their own measurements; the winner or loser in this
+  column need not win or lose by more in a real run.
 
 Every rental behind those rows, one line each:
 
@@ -138,20 +138,13 @@ load, across all 32 measured rentals:
 | Gen5 x16 | 16 | 38.3 – 57.7 GB/s |
 | **Gen4 x1** (GH200; the link is not the path) | 3 | **378.6 – 403.9 GB/s** |
 
-Ignore the last row for a moment. Everything attached over PCIe spans 12 to 58
-GB/s, and from the A100 80GB PCIe's 26.7 the most any card reaches is 57.7 —
-**2.2x** — with per-matrix time tracking it: 0.89 ms for the A100, 0.33 ms for
-a B200 that has **seven times** its bf16 throughput. On a PCIe machine the
-*most* any amount of silicon buys you is roughly **2.7x**.
-
-**2. Therefore a rate multiple above ~2.7x cannot be repaid.** Break-even
-against Vast's A100 80GB PCIe at $0.581/h requires the dearer card to be as
-many times faster as it is times more expensive. Lambda's H100 SXM5 at $4.29 is
-7.4x the rate and would need to be 7.4x faster; the best H100 SXM measured
-anywhere in this survey is **2.0x** faster. Lambda's cheapest 80 GB card, the
-H100 PCIe at $3.29, measured 0.555 and 0.735 ms — **1.4x** faster than the
-A100 for 5.7x the money, and a median $0.0214/window against $0.0062. It is
-not close, and no PCIe-attached card at Lambda's price list closes it.
+Across these sampled PCIe hosts, warm bandwidth reached at most 57.7 GB/s,
+about 2.2x the cited A100's 26.7 GB/s. Their measured per-matrix advantage
+reached about 2.7x. These are observed ratios for the instrument's shapes and
+software, not physical ceilings for all PCIe hardware or future drivers.
+At the dated prices, the sampled Lambda H100 PCIe inner-loop rate did not
+offset its hourly premium over the sampled Vast A100. No inference about
+every Lambda offering or a full layer-outer capture follows from that ratio.
 
 **3. And then Lambda wins outright — on the one instance type that is not
 PCIe-attached.** `gpu_1x_gh200`, $2.29/h:
@@ -166,17 +159,17 @@ PCIe-attached.** `gpu_1x_gh200`, $2.29/h:
 A GH200 reaches host memory over NVLink-C2C, not over PCIe, so it is not
 subject to the ceiling that decides every other row. Fourteen times the
 bandwidth, nine times faster per matrix, at four times the hourly rate — which
-nets out to **2.3x cheaper per measurement than the best single rental on the
-cheapest marketplace**, and 2.5x cheaper than the best *median* row there, on
+nets out to **2.3x cheaper per priced inner-loop window than the cited rental**,
+and 2.5x cheaper than the best *median* row there, on
 fleet hardware at a stable published price rather than a stranger's PC. Three
 independent rentals measured 0.097, 0.098 and 0.099 ms — a 2% spread, against
 2.25x on RunPod's secure H100s.
 
-**So: Lambda stops being the expensive option the moment you stop buying PCIe
-from it.** Every PCIe card on its price list is 5–8x Vast's cost per
-measurement and always will be, because the axis that matters is capped and the
-price is not. Its GH200 is the cheapest way to run this lane that this survey
-found anywhere, on any provider, at any price.
+**Within this historical survey, GH200 had the cheapest priced inner loop.**
+That is not a permanent provider ranking or an end-to-end measurement quote.
+The GH200 benchmark used torch 2.7/CUDA 12.8, not the production
+torch 2.11/cu130 capture stack; its transport/runtime and full capture
+correctness require separate qualification before using that route.
 
 **Two caveats, both load-bearing.**
 
@@ -376,8 +369,7 @@ fp64 estimator**, against two roots of the same weights captured on two GPUs:
 | NVIDIA A100-SXM4-80GB (this run) | 0.038844450282 | 0.8786334 |
 | **difference** | **1.070e-04 nats — 0.276 %** | −0.113 pp |
 
-Set beside `ARCHITECTURE-DETERMINISM.md` §8's own table, Fruit lands exactly
-where its size says it should:
+For context, the three **different experiments** reported:
 
 | | model | KLD | hardware term, absolute | relative |
 |---|---|---|---|---|
@@ -385,25 +377,20 @@ where its size says it should:
 | **Fruit SIQ exl3 K3/K4** | **13 built layers, hidden 1024, vocab 154880** | **0.03874** | **1.070e-04** | **0.276 %** |
 | GLM-5.3-Flash 2.05bpw | 45 layers, vocab 154880 | 0.1219 | 2.973e-04 | 0.245 % |
 
-Absolute grows with depth; relative sits on GLM-5.3-Flash's 0.245 %. The
-prediction held.
+These experiments differ in architecture, depth/width, quantization and
+runtime. They do not identify a universal depth scaling law or transferable
+0.25% hardware budget. The Fruit root-to-root KL was **4.467e-03** nats
+(top-1 0.9657); changing the root in this candidate comparison shifted KL by
+**1.070e-04**. The ratio is descriptive, not proof that "41.7x cancels":
+KL is not an additive distance and the experiments do not isolate a shared
+component. No universal lower/upper bound for candidate divergence follows.
 
-**And the part that is new: the perturbation mostly cancels.** The two roots are
-far apart from each other — `KLD(L4 ‖ A100) = 4.467e-03` nats, top-1 0.9657,
-hidden states differing by up to 2.70 in absolute value — yet a quant measured
-against either moves by only 1.070e-04. **41.7x of the root-to-root divergence
-is common-mode and cancels in the KL between root and candidate.** That is why
-the registry's published numbers are as stable as they are, and it is the
-strongest argument yet that a root captured on scarce hardware does not poison
-the rows measured against it.
-
-**State the statistics honestly.** On 16 windows the paired per-window delta is
-mean 1.070e-04, sd 6.147e-04, **t = 0.70**, with 8 windows moving each way. The
-census difference on this panel is exact — the lane is deterministic — but at
-t = 0.70 the shift does **not** generalise to a new panel on this evidence. The
-number to quote is "the hardware term is at the 1e-04 / 0.3 % scale", not
-"1.070e-04 ± nothing". `llms.txt` Rule 2 applies to machines as it does to
-windows.
+**Statistical scope:** the paired window diagnostics were mean 1.070e-04,
+sd 6.147e-04, t=0.70, with 8 windows moving each way. These describe this
+finite panel conditional on captures and replay arithmetic. Window t is
+not calibrated population evidence without source-document provenance and a
+sampling model. Neither this t value nor the observed 0.276% difference proves
+generalization to other panels, artifacts or hardware.
 
 Harness control: the same code reproduces the published registry row
 (`measurement--fruit.siq-exl3-k3k4.heldout-v1`, 0.038737453713514176) as
@@ -428,9 +415,9 @@ polls. Trying to actually rent one for an hour, at 45-second polls
   for `active`, so an unhealthy box costs a quarter-hour of rental unless
   something destroys it.
 
-Five of eight attempts produced nothing. That is a scheduling property of the
-work, not a footnote: **a GH200 root capture has to be written as a retry loop
-against capacity and health, or it does not happen.**
+Five of eight attempts produced nothing. That is evidence of scheduling risk
+in this dated survey, not authorization for automatic paid retry loops.
+The current controller refuses Lambda measurement execution.
 
 ## What a price cannot express
 
@@ -453,10 +440,11 @@ your own arithmetic; there is nothing to reconcile against, and `bin/measure-clo
 four-way cost report (estimated / computed / billed / balance-delta) loses its
 fourth column there. Keep runs small until you have seen an invoice.
 
-**JarvisLabs is the only one whose disk survives its instance**, which is what
-makes a preempted spot box cheap to resume — the 300 GB you already fetched is
-still there. That is worth real money on a lane whose fetch is the expensive
-part, and none of the other three offer it.
+The historical JarvisLabs campaign used a separable filesystem to preserve
+downloaded weights across instance loss. The old claim that no other provider
+offers persistent storage was too broad (RunPod exposes network volumes).
+Provider feature existence is not current controller admission: the safe
+RunPod route uses the storage/lifecycle modes named in the quickstart.
 
 ---
 
@@ -497,10 +485,9 @@ same price, **2.2x** between the best and worst machine. Its A100-SXM4 spread
 2.25x and its B200 1.9x. By contrast JarvisLabs reproduced to 0.5% across three
 rentals and Lambda's GH200 to 2% across three.
 
-That is the honest summary of the marketplace-versus-fleet trade, and it is
-measurable rather than a matter of taste: **`host spread` in the table above is
-the price of the cheap tier.** Rule 2 of [`llms.txt`](../llms.txt) — never rank
-on a single sample — applies to machines as surely as it applies to windows.
+This small survey illustrates that catalogue/provider labels do not determine
+host performance. `host spread` is the observed sample range, not a population
+reliability estimate or a price uniquely attached to marketplace tiers.
 
 The defence is already in the tool. `bin/measure-cloud` accepts
 `--min-h2d-gbps`, checked after setup and before the fetch, which is the last

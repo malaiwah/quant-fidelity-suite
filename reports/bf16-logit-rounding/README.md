@@ -23,19 +23,21 @@ again. One window, `final-0000`, 2,047 positions, workstation CPU
 | quantity | value |
 |---|---|
 | max \|logit\| on the window | 46.36 |
-| max \|fp32 − bf16(fp32)\| over all logits | 0.1247 (one bf16 ULP at [32, 64)) |
+| max \|fp32 − bf16(fp32)\| over all logits | 0.1247 (approximately half a bf16 ULP; spacing at [32, 64) is 0.25) |
 | one-sided KL(fp32 ‖ bf16-rounded), root alone | **1.73e-5 nats** |
 | K4 row: KL(ref ‖ cand) fp32 → both sides bf16-rounded | 0.030082 → 0.029956, **Δ −1.26e-4 nats (−0.42 %)** |
 | FP8 row: same | 0.012478 → 0.012451, **Δ −2.69e-5 nats (−0.22 %)** |
 
-Reading: a logit-form row captured from a bf16 stack would carry a term of
-the 1e-5–1e-4 nats class relative to the hidden-form rows — under 1 % of every
-GLM-5.3 row, and negative on both real comparisons here (rounding both sides
-slightly *shrinks* the divergence). The review's synthetic estimate
-(2.6e-4 one-sided, +4.7 % two-sided) overstated it for real GLM-5.3 logit
-magnitudes. One window is a magnitude measurement, not a panel statistic;
-`--windows all` on the same script produces the 25-window version in about
-three hours on this box.
+On this one window, final-logit rounding produced a root-only divergence of
+the 1e-5 nats class and changed the two candidate comparisons by 1e-5–1e-4
+nats, under 1% of **these two window means**. Rounding both sides slightly
+*shrinks* their divergence: it is not a universally positive/additive term or
+a mathematical lower bound. This isolates final nearest-even logit rounding,
+not activation quantization, native serving kernels, or a full served forward.
+It neither bounds every GLM-5.3 row nor establishes a panel statistic. The
+review's synthetic example (2.6e-4 one-sided, +4.7% two-sided) differs from this
+window, not from a proven universal real-model bound. `--windows all` requests
+the 25-window experiment; no all-window result is claimed here.
 
 ```
 python3 reports/bf16-logit-rounding/measure.py \

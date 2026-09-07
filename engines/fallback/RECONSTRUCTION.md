@@ -1,10 +1,12 @@
 # R10TrellisCodec fallback reconstruction — inference catalogue & disclosure rules
 
-Status: **DRAFT / DORMANT**. Activate ONLY if Brandon does not publish
-`r7_encoder/r10_codec.py` and `encode_tr3_v31.py` (asked in
-glm-5.3-flash-exl3-4bpw issue #1; RUNBOOK Phase G0 item 1 is abort-level on
-their absence). If the sealed files land, DELETE this fallback from the run
-tree and use his files — never mix the two closures in one campaign.
+**2026-09-07 status qualification:** this is the historical reconstruction design
+and inference catalogue, not a current dormant/activation instruction. The sealed
+closure was subsequently published and compared in
+[`CLOSURE-COMPARISON.md`](CLOSURE-COMPARISON.md): 120 sampled encodes matched.
+That corroborates the reconstruction on the sampled domain, not every campaign
+encode. Preserve historical campaign closures and receipts; do not mix or replace
+them retroactively.
 
 Deliverables in this directory:
 

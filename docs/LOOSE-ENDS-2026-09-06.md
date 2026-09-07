@@ -153,9 +153,9 @@ missing step):
    reproduction confirmation). Its dataset is structurally unpublishable
    (`destination_repository: null` sealed inside the qualification) and
    publication is optional for a candidate, so a row is the whole job.
-3. `DecoderParity`'s bitwise result retires the `weights_reconstructed` caveat
-   those rows carry — ingestion and caveat retirement should be decided
-   together.
+3. **Corrected 2026-09-07:** `DecoderParity` proves sampled pre-Hadamard equality,
+   not complete native reconstruction (`all_bitwise: false`). Retain the
+   `weights_reconstructed` caveat; ingestion does not retire it.
 4. Identity collision needing a ruling: two repos publish `dataset.id`
    `fidelity--fruit.malaiwah.root.bf16` at different `dataset_sha256`, and
    registry ids are hashed into `comparability.key`.

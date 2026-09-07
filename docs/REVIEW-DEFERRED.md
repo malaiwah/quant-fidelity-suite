@@ -22,6 +22,12 @@ This file now covers two different reasons to hold a fix back:
 
 ## Status index — regenerate, do not trust from memory
 
+**Reading this index:** the counts below are a historical snapshot, not current
+machine-verified closure. `PARTLY RESOLVED` is partial, not closed. The
+[2026-09-07 scientific review](REVIEW-2026-09-07.md) records the subsequent repairs
+and remaining review coverage; original findings and proposed patches stay
+below for audit, and must not be applied without checking current code.
+
 **As of 2026-09-07 (refreshed after the three operator decisions).** Counted mechanically over the `##` headings in this
 file: an entry is CLOSED when its body carries a `RESOLVED` / `CLOSED` /
 `PARTLY RESOLVED` note. Two caveats a future reader needs:

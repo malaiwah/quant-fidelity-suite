@@ -10,17 +10,21 @@ leases, and `vast` and `lambda` are refused before any provider mutation.
 
 ## Why this is legitimate to fix, scientifically
 
-Provider is **not** a comparability axis. `docs/ARCHITECTURE-DETERMINISM.md`
-measured **two A100s in two clouds agreeing bitwise**, while an H200 sat
-2.973e-04 nats away from them — an order of magnitude above the effect between
-adjacent bit-widths. So what a comparison binds is the **device model** and the
-**rebuilt software stack**, not the company that rented you the card.
-`stackprint.fingerprint_sha256` hashes the `gpus` block (`props.name`,
-`total_memory_mib`, `compute_capability`) and the whole torch/CUDA stack, and
-`stack_relation` — derived from that digest — is one of the seven
-`COMPARABILITY_KEY_FIELDS`. `panel_id`, `reference_id`, `metric_name`,
-`direction`, `accumulation_dtype`, `stack_relation`, `head_policy`. No provider
-field appears in it.
+Provider is **not** itself a comparability-key field. The paired runs in
+[`ARCHITECTURE-DETERMINISM.md`](ARCHITECTURE-DETERMINISM.md) found two A100s
+in different clouds agreeing and an H200 differing by 2.973e-04 nats on the
+tested workload. That is finite evidence, not a proof that hosts or drivers
+never matter.
+
+The production dataset capture uses `hf_capture._stack_fingerprint`, not the
+broader `stackprint.fingerprint_sha256` inventory: it hashes engine label,
+torch/transformers versions, requested device/GPU name, CUDA runtime, numeric
+policy and attention environment. It does not bind every driver, CPU/BLAS,
+Python, optional-package or modeling-code difference in that digest. Runtime
+and harness evidence may record additional facts separately.
+The seven key fields are `panel_id`, `reference_id`, `metric_name`, `direction`,
+`accumulation_dtype`, `stack_relation`, and `head_policy`. Equal keys are
+necessary but not sufficient: ranking also requires `pair_predicate`.
 
 Evidence from this campaign: one `stack_fingerprint_sha256` (`e7ddf6b28047…`)
 covers the GLM-5.2 root, every GLM-5.2 candidate capture and the whole GLM-5.3
@@ -29,10 +33,10 @@ family, and four GLM-5.3-Flash rows landed on one comparability key
 CA-MTL-3 — because the GPU model and the stack were identical and the site was
 not part of what the root asserts.
 
-A Lambda H200 or a Vast H200 running the same `bootstrap_measure.sh` recipe is
-therefore the same measurement. The obstacle is not physics. It is that we
-cannot yet **prove** what we rented, **prove** it is gone, or **reconcile** what
-it cost.
+A Lambda or Vast H200 running the bootstrap recipe is a candidate for a
+same-stack reproduction, not automatically the same measurement. It needs
+actual capture/replay evidence as well as live resource identity, exact
+teardown absence and the applicable financial-safety checks.
 
 ## The twelve methods
 
@@ -221,6 +225,9 @@ once an adapter conforms:
    device term as a number rather than a worry.
 6. Teardown proven on success, failure, exception and interrupt.
 
-Only after 3 and 6 may a paid measurement run there at all, because a leaked
-instance is a blocker-level defect and an unreconciled cost is an unpublishable
-receipt.
+Paid admission requires demonstrated cleanup, including 3 and 6; adapter
+methods or offline tests alone do not authorize a rental. Unsettled billing
+must remain explicitly unsettled (as the JarvisLabs exception above states).
+That is an operator-safety limitation, not by itself a scientific reason to
+invalidate a sealed KLD receipt; strict campaign admission can require more
+than the default route.

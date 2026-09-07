@@ -1,10 +1,11 @@
 {
- "schema": "malaiwah.glm53-clean-scope-recompute/1",
+ "schema": "malaiwah.glm53-clean-scope-recompute/2",
+ "supersedes_schema": "malaiwah.glm53-clean-scope-recompute/1",
  "title": "GLM-5.3-Flash fidelity: brandonmusic's calibration-clean scope, recomputed from published per-window data",
  "generated_by": "bin/emit_clean_scope_report.py",
  "gpu_used": false,
  "is_a_correction": false,
- "summary": "brandonmusic's 13-gram calibration-overlap scan excludes 8 of the 25 windows of his sealed final panel -- the whole axis4_reasoning domain plus final-0021 and final-0022 -- leaving a 17-window calibration-clean scope. Every malaiwah number published on that panel used all 25 windows and therefore carries the same contamination. This report recomputes all six series on his clean scope from our own published per-window arrays. Five of the six fall (-9.5% to -16.2%); his 4bpw artifact rises (+1.6%). The FP8-minus-floor attributable error rises 1.44% while both of its inputs fall, which is the measured argument for reporting subtracted numbers.",
+ "summary": "brandonmusic's 13-gram calibration-overlap scan excludes 8 of the 25 windows of his sealed final panel -- the whole axis4_reasoning domain plus final-0021 and final-0022 -- leaving a 17-window calibration-clean scope. Every malaiwah number published on that panel used all 25 windows and therefore carries the same contamination. This report recomputes all six series on his clean scope from our own published per-window arrays. Scope movements describe these two finite panels only. FP8-minus-BF16 is a descriptive contrast, not identified quantization error; mixed-lane results do not rank codecs.",
  "provenance": {
   "protocol_file": "registry/protocol/glm53-joint-kld-protocol.v1.json",
   "protocol_file_sha256": "80df521eb46fba68538dd90aa3f2baf22b1e440b8b560555646ff9bbeb35961b",
@@ -117,6 +118,13 @@
      "mean_kld_nats": 0.013723384665701145,
      "windows": 25,
      "scored_positions": 51175,
+     "not_submittable": true,
+     "inference_unit": "unknown",
+     "window_stats_are": "Descriptive of this fixed panel only; source-document sampling provenance and assumptions are not established.",
+     "source_analysis": {
+      "path": "docs/joint-standard/analysis/k6-sealed.panel.json",
+      "sha256": "ce449a639c6f9506c5ed41469d512aba9046777559000e790ab2a78b9a482e63"
+     },
      "se_clustered_window": 0.0014396809848740985,
      "ci95_bca": [
       0.011154809315386134,
@@ -132,56 +140,116 @@
      "cluster_unit": "window",
      "by_domain": [
       {
-       "domain": "axis1_general",
-       "windows": 7,
-       "scored_positions": 14329,
-       "mean_kld_nats": 0.011739694055877225,
-       "se_clustered_window": 0.003195509740141823,
-       "interval_method": "delta_t_log",
-       "ci95": [
+       "bootstrap_b": null,
+       "bootstrap_seed": null,
+       "ci95_bca": null,
+       "ci95_percentile": null,
+       "ci95_t_log": [
         0.006031125476419084,
         0.022851525318857823
        ],
-       "ci95_bca": null
+       "coverage_note": "7 windows. A 95%-labelled interval on this few clusters does not deliver 95%: measured 81.3% for BCa and 92.0% for this one over the 42 real cells in registry/tools/coverage_sim.py. Quote it as what it measures, or quote se_clustered_window and build your own.",
+       "df": 6,
+       "domain": "axis1_general",
+       "interval_kind": "t",
+       "interval_method": "delta_t_log",
+       "mean": 0.011739694055877225,
+       "n": 14329,
+       "n_clusters_window": 7,
+       "se_clustered_window": 0.003195509740141823,
+       "small_g": true,
+       "t_critical": 2.446911851144968,
+       "windows": 7,
+       "scored_positions": 14329,
+       "mean_kld_nats": 0.011739694055877225,
+       "ci95": [
+        0.006031125476419084,
+        0.022851525318857823
+       ]
       },
       {
-       "domain": "axis2_legal",
-       "windows": 6,
-       "scored_positions": 12282,
-       "mean_kld_nats": 0.014657753884586004,
-       "se_clustered_window": 0.003796051219974006,
-       "interval_method": "delta_t_log",
-       "ci95": [
+       "bootstrap_b": null,
+       "bootstrap_seed": null,
+       "ci95_bca": null,
+       "ci95_percentile": null,
+       "ci95_t_log": [
         0.0075326177293666,
         0.02852258758644882
        ],
-       "ci95_bca": null
-      },
-      {
-       "domain": "axis3_code_agentic",
+       "coverage_note": "6 windows. A 95%-labelled interval on this few clusters does not deliver 95%: measured 81.3% for BCa and 92.0% for this one over the 42 real cells in registry/tools/coverage_sim.py. Quote it as what it measures, or quote se_clustered_window and build your own.",
+       "df": 5,
+       "domain": "axis2_legal",
+       "interval_kind": "t",
+       "interval_method": "delta_t_log",
+       "mean": 0.014657753884586004,
+       "n": 12282,
+       "n_clusters_window": 6,
+       "se_clustered_window": 0.003796051219974006,
+       "small_g": true,
+       "t_critical": 2.570581835636313,
        "windows": 6,
        "scored_positions": 12282,
-       "mean_kld_nats": 0.012911952347228223,
-       "se_clustered_window": 0.0022221512440916036,
-       "interval_method": "delta_t_log",
+       "mean_kld_nats": 0.014657753884586004,
        "ci95": [
+        0.0075326177293666,
+        0.02852258758644882
+       ]
+      },
+      {
+       "bootstrap_b": null,
+       "bootstrap_seed": null,
+       "ci95_bca": null,
+       "ci95_percentile": null,
+       "ci95_t_log": [
         0.008295850432399202,
         0.020096615142189404
        ],
-       "ci95_bca": null
-      },
-      {
-       "domain": "axis4_reasoning_termination",
+       "coverage_note": "6 windows. A 95%-labelled interval on this few clusters does not deliver 95%: measured 81.3% for BCa and 92.0% for this one over the 42 real cells in registry/tools/coverage_sim.py. Quote it as what it measures, or quote se_clustered_window and build your own.",
+       "df": 5,
+       "domain": "axis3_code_agentic",
+       "interval_kind": "t",
+       "interval_method": "delta_t_log",
+       "mean": 0.012911952347228223,
+       "n": 12282,
+       "n_clusters_window": 6,
+       "se_clustered_window": 0.0022221512440916036,
+       "small_g": true,
+       "t_critical": 2.570581835636313,
        "windows": 6,
        "scored_positions": 12282,
-       "mean_kld_nats": 0.015914753476750452,
-       "se_clustered_window": 0.0023717048393595537,
-       "interval_method": "delta_t_log",
+       "mean_kld_nats": 0.012911952347228223,
        "ci95": [
+        0.008295850432399202,
+        0.020096615142189404
+       ]
+      },
+      {
+       "bootstrap_b": null,
+       "bootstrap_seed": null,
+       "ci95_bca": null,
+       "ci95_percentile": null,
+       "ci95_t_log": [
         0.010849990527256308,
         0.02334374187603909
        ],
-       "ci95_bca": null
+       "coverage_note": "6 windows. A 95%-labelled interval on this few clusters does not deliver 95%: measured 81.3% for BCa and 92.0% for this one over the 42 real cells in registry/tools/coverage_sim.py. Quote it as what it measures, or quote se_clustered_window and build your own.",
+       "df": 5,
+       "domain": "axis4_reasoning_termination",
+       "interval_kind": "t",
+       "interval_method": "delta_t_log",
+       "mean": 0.015914753476750452,
+       "n": 12282,
+       "n_clusters_window": 6,
+       "se_clustered_window": 0.0023717048393595537,
+       "small_g": true,
+       "t_critical": 2.570581835636313,
+       "windows": 6,
+       "scored_positions": 12282,
+       "mean_kld_nats": 0.015914753476750452,
+       "ci95": [
+        0.010849990527256308,
+        0.02334374187603909
+       ]
       }
      ]
     },
@@ -189,6 +257,13 @@
      "mean_kld_nats": 0.011677286368695299,
      "windows": 17,
      "scored_positions": 34799,
+     "not_submittable": true,
+     "inference_unit": "unknown",
+     "window_stats_are": "Descriptive of this fixed panel only; source-document sampling provenance and assumptions are not established.",
+     "source_analysis": {
+      "path": "docs/joint-standard/analysis/k6-sealed.selected.json",
+      "sha256": "8721d7d0cad73f65d78b69d55f159fd1cf37ae39b9ca38e52252fc20933dc9da"
+     },
      "se_clustered_window": 0.0015634720783838894,
      "ci95_bca": [
       0.008855914041658055,
@@ -204,43 +279,88 @@
      "cluster_unit": "window",
      "by_domain": [
       {
-       "domain": "axis1_general",
-       "windows": 7,
-       "scored_positions": 14329,
-       "mean_kld_nats": 0.011739694055877225,
-       "se_clustered_window": 0.003195509740141823,
-       "interval_method": "delta_t_log",
-       "ci95": [
+       "bootstrap_b": null,
+       "bootstrap_seed": null,
+       "ci95_bca": null,
+       "ci95_percentile": null,
+       "ci95_t_log": [
         0.006031125476419084,
         0.022851525318857823
        ],
-       "ci95_bca": null
+       "coverage_note": "7 windows. A 95%-labelled interval on this few clusters does not deliver 95%: measured 81.3% for BCa and 92.0% for this one over the 42 real cells in registry/tools/coverage_sim.py. Quote it as what it measures, or quote se_clustered_window and build your own.",
+       "df": 6,
+       "domain": "axis1_general",
+       "interval_kind": "t",
+       "interval_method": "delta_t_log",
+       "mean": 0.011739694055877225,
+       "n": 14329,
+       "n_clusters_window": 7,
+       "se_clustered_window": 0.003195509740141823,
+       "small_g": true,
+       "t_critical": 2.446911851144968,
+       "windows": 7,
+       "scored_positions": 14329,
+       "mean_kld_nats": 0.011739694055877225,
+       "ci95": [
+        0.006031125476419084,
+        0.022851525318857823
+       ]
       },
       {
-       "domain": "axis2_legal",
-       "windows": 5,
-       "scored_positions": 10235,
-       "mean_kld_nats": 0.011448683071708841,
-       "se_clustered_window": 0.0024835064070602027,
-       "interval_method": "delta_t_log",
-       "ci95": [
+       "bootstrap_b": null,
+       "bootstrap_seed": null,
+       "ci95_bca": null,
+       "ci95_percentile": null,
+       "ci95_t_log": [
         0.0062688576913827706,
         0.020908489318014985
        ],
-       "ci95_bca": null
-      },
-      {
-       "domain": "axis3_code_agentic",
+       "coverage_note": "5 windows. A 95%-labelled interval on this few clusters does not deliver 95%: measured 81.3% for BCa and 92.0% for this one over the 42 real cells in registry/tools/coverage_sim.py. Quote it as what it measures, or quote se_clustered_window and build your own.",
+       "df": 4,
+       "domain": "axis2_legal",
+       "interval_kind": "t",
+       "interval_method": "delta_t_log",
+       "mean": 0.011448683071708841,
+       "n": 10235,
+       "n_clusters_window": 5,
+       "se_clustered_window": 0.0024835064070602027,
+       "small_g": true,
+       "t_critical": 2.7764451051977908,
        "windows": 5,
        "scored_positions": 10235,
-       "mean_kld_nats": 0.011818518903627059,
-       "se_clustered_window": 0.002369290861006419,
-       "interval_method": "delta_t_log",
+       "mean_kld_nats": 0.011448683071708841,
        "ci95": [
+        0.0062688576913827706,
+        0.020908489318014985
+       ]
+      },
+      {
+       "bootstrap_b": null,
+       "bootstrap_seed": null,
+       "ci95_bca": null,
+       "ci95_percentile": null,
+       "ci95_t_log": [
         0.006773826515079503,
         0.020620160372346173
        ],
-       "ci95_bca": null
+       "coverage_note": "5 windows. A 95%-labelled interval on this few clusters does not deliver 95%: measured 81.3% for BCa and 92.0% for this one over the 42 real cells in registry/tools/coverage_sim.py. Quote it as what it measures, or quote se_clustered_window and build your own.",
+       "df": 4,
+       "domain": "axis3_code_agentic",
+       "interval_kind": "t",
+       "interval_method": "delta_t_log",
+       "mean": 0.011818518903627059,
+       "n": 10235,
+       "n_clusters_window": 5,
+       "se_clustered_window": 0.002369290861006419,
+       "small_g": true,
+       "t_critical": 2.7764451051977908,
+       "windows": 5,
+       "scored_positions": 10235,
+       "mean_kld_nats": 0.011818518903627059,
+       "ci95": [
+        0.006773826515079503,
+        0.020620160372346173
+       ]
       }
      ]
     }
@@ -262,6 +382,13 @@
      "mean_kld_nats": 0.013714888822596551,
      "windows": 25,
      "scored_positions": 51175,
+     "not_submittable": true,
+     "inference_unit": "unknown",
+     "window_stats_are": "Descriptive of this fixed panel only; source-document sampling provenance and assumptions are not established.",
+     "source_analysis": {
+      "path": "docs/joint-standard/analysis/k6-streaming.panel.json",
+      "sha256": "c5cfa7c863589915ee17f3402a7d11a6cf609a514c2c1920c998dacf5d489d97"
+     },
      "se_clustered_window": 0.0014372012222096185,
      "ci95_bca": [
       0.011156714543112723,
@@ -278,56 +405,128 @@
      "deff_window": 23.291465915742382,
      "by_domain": [
       {
-       "domain": "axis1_general",
-       "windows": 7,
-       "scored_positions": 14329,
-       "mean_kld_nats": 0.011760871660686201,
-       "se_clustered_window": 0.003196150771600996,
-       "interval_method": "delta_t_log",
-       "ci95": [
+       "bootstrap_b": null,
+       "bootstrap_seed": null,
+       "ci95_bca": null,
+       "ci95_percentile": null,
+       "ci95_t_log": [
         0.006048449189263251,
         0.0228683581346213
        ],
-       "ci95_bca": null
+       "coverage_note": "7 windows. A 95%-labelled interval on this few clusters does not deliver 95%: measured 81.3% for BCa and 92.0% for this one over the 42 real cells in registry/tools/coverage_sim.py. Quote it as what it measures, or quote se_clustered_window and build your own.",
+       "deff_window": 52.92045319742275,
+       "df": 6,
+       "domain": "axis1_general",
+       "interval_kind": "t",
+       "interval_method": "delta_t_log",
+       "mean": 0.011760871660686201,
+       "n": 14329,
+       "n_clusters_window": 7,
+       "pooled_std": 0.052592452335547345,
+       "se_clustered_window": 0.003196150771600996,
+       "se_naive": 0.00043935490642902064,
+       "small_g": true,
+       "t_critical": 2.446911851144968,
+       "windows": 7,
+       "scored_positions": 14329,
+       "mean_kld_nats": 0.011760871660686201,
+       "ci95": [
+        0.006048449189263251,
+        0.0228683581346213
+       ]
       },
       {
-       "domain": "axis2_legal",
-       "windows": 6,
-       "scored_positions": 12282,
-       "mean_kld_nats": 0.014675231714109943,
-       "se_clustered_window": 0.0037888679988247833,
-       "interval_method": "delta_t_log",
-       "ci95": [
+       "bootstrap_b": null,
+       "bootstrap_seed": null,
+       "ci95_bca": null,
+       "ci95_percentile": null,
+       "ci95_t_log": [
         0.007557084110599127,
         0.028498085069711424
        ],
-       "ci95_bca": null
-      },
-      {
-       "domain": "axis3_code_agentic",
+       "coverage_note": "6 windows. A 95%-labelled interval on this few clusters does not deliver 95%: measured 81.3% for BCa and 92.0% for this one over the 42 real cells in registry/tools/coverage_sim.py. Quote it as what it measures, or quote se_clustered_window and build your own.",
+       "deff_window": 62.95176404281637,
+       "df": 5,
+       "domain": "axis2_legal",
+       "interval_kind": "t",
+       "interval_method": "delta_t_log",
+       "mean": 0.014675231714109943,
+       "n": 12282,
+       "n_clusters_window": 6,
+       "pooled_std": 0.0529224656066094,
+       "se_clustered_window": 0.0037888679988247833,
+       "se_naive": 0.0004775353463279665,
+       "small_g": true,
+       "t_critical": 2.570581835636313,
        "windows": 6,
        "scored_positions": 12282,
-       "mean_kld_nats": 0.012844753725643303,
-       "se_clustered_window": 0.0021965157354470496,
-       "interval_method": "delta_t_log",
+       "mean_kld_nats": 0.014675231714109943,
        "ci95": [
+        0.007557084110599127,
+        0.028498085069711424
+       ]
+      },
+      {
+       "bootstrap_b": null,
+       "bootstrap_seed": null,
+       "ci95_bca": null,
+       "ci95_percentile": null,
+       "ci95_t_log": [
         0.008275947250333834,
         0.019935808346986782
        ],
-       "ci95_bca": null
-      },
-      {
-       "domain": "axis4_reasoning_termination",
+       "coverage_note": "6 windows. A 95%-labelled interval on this few clusters does not deliver 95%: measured 81.3% for BCa and 92.0% for this one over the 42 real cells in registry/tools/coverage_sim.py. Quote it as what it measures, or quote se_clustered_window and build your own.",
+       "deff_window": 12.522613014054691,
+       "df": 5,
+       "domain": "axis3_code_agentic",
+       "interval_kind": "t",
+       "interval_method": "delta_t_log",
+       "mean": 0.012844753725643303,
+       "n": 12282,
+       "n_clusters_window": 6,
+       "pooled_std": 0.06878937846063685,
+       "se_clustered_window": 0.0021965157354470496,
+       "se_naive": 0.0006207072797980763,
+       "small_g": true,
+       "t_critical": 2.570581835636313,
        "windows": 6,
        "scored_positions": 12282,
-       "mean_kld_nats": 0.015904367716931822,
-       "se_clustered_window": 0.002375639210261843,
-       "interval_method": "delta_t_log",
+       "mean_kld_nats": 0.012844753725643303,
        "ci95": [
+        0.008275947250333834,
+        0.019935808346986782
+       ]
+      },
+      {
+       "bootstrap_b": null,
+       "bootstrap_seed": null,
+       "ci95_bca": null,
+       "ci95_percentile": null,
+       "ci95_t_log": [
         0.010833306751963603,
         0.023349187673425278
        ],
-       "ci95_bca": null
+       "coverage_note": "6 windows. A 95%-labelled interval on this few clusters does not deliver 95%: measured 81.3% for BCa and 92.0% for this one over the 42 real cells in registry/tools/coverage_sim.py. Quote it as what it measures, or quote se_clustered_window and build your own.",
+       "deff_window": 8.515212148234172,
+       "df": 5,
+       "domain": "axis4_reasoning_termination",
+       "interval_kind": "t",
+       "interval_method": "delta_t_log",
+       "mean": 0.015904367716931822,
+       "n": 12282,
+       "n_clusters_window": 6,
+       "pooled_std": 0.09022300651208837,
+       "se_clustered_window": 0.002375639210261843,
+       "se_naive": 0.0008141093610748118,
+       "small_g": true,
+       "t_critical": 2.570581835636313,
+       "windows": 6,
+       "scored_positions": 12282,
+       "mean_kld_nats": 0.015904367716931822,
+       "ci95": [
+        0.010833306751963603,
+        0.023349187673425278
+       ]
       }
      ]
     },
@@ -335,6 +534,13 @@
      "mean_kld_nats": 0.011675992693734857,
      "windows": 17,
      "scored_positions": 34799,
+     "not_submittable": true,
+     "inference_unit": "unknown",
+     "window_stats_are": "Descriptive of this fixed panel only; source-document sampling provenance and assumptions are not established.",
+     "source_analysis": {
+      "path": "docs/joint-standard/analysis/k6-streaming.selected.json",
+      "sha256": "2764864c0bd2a58972d1c0b8738309521a941c94b6bf5c4d64394d45e8612593"
+     },
      "se_clustered_window": 0.0015593749081984104,
      "ci95_bca": [
       0.008862707095335811,
@@ -351,43 +557,97 @@
      "deff_window": 28.45223499740042,
      "by_domain": [
       {
-       "domain": "axis1_general",
-       "windows": 7,
-       "scored_positions": 14329,
-       "mean_kld_nats": 0.011760871660686201,
-       "se_clustered_window": 0.003196150771600996,
-       "interval_method": "delta_t_log",
-       "ci95": [
+       "bootstrap_b": null,
+       "bootstrap_seed": null,
+       "ci95_bca": null,
+       "ci95_percentile": null,
+       "ci95_t_log": [
         0.006048449189263251,
         0.0228683581346213
        ],
-       "ci95_bca": null
+       "coverage_note": "7 windows. A 95%-labelled interval on this few clusters does not deliver 95%: measured 81.3% for BCa and 92.0% for this one over the 42 real cells in registry/tools/coverage_sim.py. Quote it as what it measures, or quote se_clustered_window and build your own.",
+       "deff_window": 52.92045319742275,
+       "df": 6,
+       "domain": "axis1_general",
+       "interval_kind": "t",
+       "interval_method": "delta_t_log",
+       "mean": 0.011760871660686201,
+       "n": 14329,
+       "n_clusters_window": 7,
+       "pooled_std": 0.052592452335547345,
+       "se_clustered_window": 0.003196150771600996,
+       "se_naive": 0.00043935490642902064,
+       "small_g": true,
+       "t_critical": 2.446911851144968,
+       "windows": 7,
+       "scored_positions": 14329,
+       "mean_kld_nats": 0.011760871660686201,
+       "ci95": [
+        0.006048449189263251,
+        0.0228683581346213
+       ]
       },
       {
-       "domain": "axis2_legal",
-       "windows": 5,
-       "scored_positions": 10235,
-       "mean_kld_nats": 0.011469656467137568,
-       "se_clustered_window": 0.0024738051808448425,
-       "interval_method": "delta_t_log",
-       "ci95": [
+       "bootstrap_b": null,
+       "bootstrap_seed": null,
+       "ci95_bca": null,
+       "ci95_percentile": null,
+       "ci95_t_log": [
         0.006302044576494688,
         0.020874657085863214
        ],
-       "ci95_bca": null
-      },
-      {
-       "domain": "axis3_code_agentic",
+       "coverage_note": "5 windows. A 95%-labelled interval on this few clusters does not deliver 95%: measured 81.3% for BCa and 92.0% for this one over the 42 real cells in registry/tools/coverage_sim.py. Quote it as what it measures, or quote se_clustered_window and build your own.",
+       "deff_window": 49.54583935287759,
+       "df": 4,
+       "domain": "axis2_legal",
+       "interval_kind": "t",
+       "interval_method": "delta_t_log",
+       "mean": 0.011469656467137568,
+       "n": 10235,
+       "n_clusters_window": 5,
+       "pooled_std": 0.03555542081937551,
+       "se_clustered_window": 0.0024738051808448425,
+       "se_naive": 0.00035144866635796964,
+       "small_g": true,
+       "t_critical": 2.7764451051977908,
        "windows": 5,
        "scored_positions": 10235,
-       "mean_kld_nats": 0.01176349836660026,
-       "se_clustered_window": 0.0023416558963500166,
-       "interval_method": "delta_t_log",
+       "mean_kld_nats": 0.011469656467137568,
        "ci95": [
+        0.006302044576494688,
+        0.020874657085863214
+       ]
+      },
+      {
+       "bootstrap_b": null,
+       "bootstrap_seed": null,
+       "ci95_bca": null,
+       "ci95_percentile": null,
+       "ci95_t_log": [
         0.0067687669256710215,
         0.020443885177400856
        ],
-       "ci95_bca": null
+       "coverage_note": "5 windows. A 95%-labelled interval on this few clusters does not deliver 95%: measured 81.3% for BCa and 92.0% for this one over the 42 real cells in registry/tools/coverage_sim.py. Quote it as what it measures, or quote se_clustered_window and build your own.",
+       "deff_window": 11.27893785032922,
+       "df": 4,
+       "domain": "axis3_code_agentic",
+       "interval_kind": "t",
+       "interval_method": "delta_t_log",
+       "mean": 0.01176349836660026,
+       "n": 10235,
+       "n_clusters_window": 5,
+       "pooled_std": 0.07053958463642644,
+       "se_clustered_window": 0.0023416558963500166,
+       "se_naive": 0.000697250725054212,
+       "small_g": true,
+       "t_critical": 2.7764451051977908,
+       "windows": 5,
+       "scored_positions": 10235,
+       "mean_kld_nats": 0.01176349836660026,
+       "ci95": [
+        0.0067687669256710215,
+        0.020443885177400856
+       ]
       }
      ]
     }
@@ -409,6 +669,13 @@
      "mean_kld_nats": 0.012384191023436866,
      "windows": 25,
      "scored_positions": 51175,
+     "not_submittable": true,
+     "inference_unit": "unknown",
+     "window_stats_are": "Descriptive of this fixed panel only; source-document sampling provenance and assumptions are not established.",
+     "source_analysis": {
+      "path": "docs/joint-standard/analysis/k8-streaming.panel.json",
+      "sha256": "7232749664f50035d97efeb316710cb8e98091086cf6dbe33d7b848bffba065d"
+     },
      "se_clustered_window": 0.0013870397068192204,
      "ci95_bca": [
       0.009990565373832765,
@@ -425,56 +692,128 @@
      "deff_window": 21.118186261459297,
      "by_domain": [
       {
-       "domain": "axis1_general",
-       "windows": 7,
-       "scored_positions": 14329,
-       "mean_kld_nats": 0.01136703558705986,
-       "se_clustered_window": 0.0031050257891583354,
-       "interval_method": "delta_t_log",
-       "ci95": [
+       "bootstrap_b": null,
+       "bootstrap_seed": null,
+       "ci95_bca": null,
+       "ci95_percentile": null,
+       "ci95_t_log": [
         0.0058259247582836925,
         0.022178367108803897
        ],
-       "ci95_bca": null
+       "coverage_note": "7 windows. A 95%-labelled interval on this few clusters does not deliver 95%: measured 81.3% for BCa and 92.0% for this one over the 42 real cells in registry/tools/coverage_sim.py. Quote it as what it measures, or quote se_clustered_window and build your own.",
+       "deff_window": 36.13350707225051,
+       "df": 6,
+       "domain": "axis1_general",
+       "interval_kind": "t",
+       "interval_method": "delta_t_log",
+       "mean": 0.01136703558705986,
+       "n": 14329,
+       "n_clusters_window": 7,
+       "pooled_std": 0.06183268351279173,
+       "se_clustered_window": 0.0031050257891583354,
+       "se_naive": 0.0005165473689207676,
+       "small_g": true,
+       "t_critical": 2.446911851144968,
+       "windows": 7,
+       "scored_positions": 14329,
+       "mean_kld_nats": 0.01136703558705986,
+       "ci95": [
+        0.0058259247582836925,
+        0.022178367108803897
+       ]
       },
       {
-       "domain": "axis2_legal",
-       "windows": 6,
-       "scored_positions": 12282,
-       "mean_kld_nats": 0.013399716050517279,
-       "se_clustered_window": 0.0035532932739297837,
-       "interval_method": "delta_t_log",
-       "ci95": [
+       "bootstrap_b": null,
+       "bootstrap_seed": null,
+       "ci95_bca": null,
+       "ci95_percentile": null,
+       "ci95_t_log": [
         0.006777274002187509,
         0.02649330544648718
        ],
-       "ci95_bca": null
-      },
-      {
-       "domain": "axis3_code_agentic",
+       "coverage_note": "6 windows. A 95%-labelled interval on this few clusters does not deliver 95%: measured 81.3% for BCa and 92.0% for this one over the 42 real cells in registry/tools/coverage_sim.py. Quote it as what it measures, or quote se_clustered_window and build your own.",
+       "deff_window": 60.3998054955362,
+       "df": 5,
+       "domain": "axis2_legal",
+       "interval_kind": "t",
+       "interval_method": "delta_t_log",
+       "mean": 0.013399716050517279,
+       "n": 12282,
+       "n_clusters_window": 6,
+       "pooled_std": 0.05066964135282992,
+       "se_clustered_window": 0.0035532932739297837,
+       "se_naive": 0.0004572074345817254,
+       "small_g": true,
+       "t_critical": 2.570581835636313,
        "windows": 6,
        "scored_positions": 12282,
-       "mean_kld_nats": 0.010502908041343519,
-       "se_clustered_window": 0.0019035629741204728,
-       "interval_method": "delta_t_log",
+       "mean_kld_nats": 0.013399716050517279,
        "ci95": [
+        0.006777274002187509,
+        0.02649330544648718
+       ]
+      },
+      {
+       "bootstrap_b": null,
+       "bootstrap_seed": null,
+       "ci95_bca": null,
+       "ci95_percentile": null,
+       "ci95_t_log": [
         0.0065913357843431,
         0.01673576964277084
        ],
-       "ci95_bca": null
-      },
-      {
-       "domain": "axis4_reasoning_termination",
+       "coverage_note": "6 windows. A 95%-labelled interval on this few clusters does not deliver 95%: measured 81.3% for BCa and 92.0% for this one over the 42 real cells in registry/tools/coverage_sim.py. Quote it as what it measures, or quote se_clustered_window and build your own.",
+       "deff_window": 11.845040429004687,
+       "df": 5,
+       "domain": "axis3_code_agentic",
+       "interval_kind": "t",
+       "interval_method": "delta_t_log",
+       "mean": 0.010502908041343519,
+       "n": 12282,
+       "n_clusters_window": 6,
+       "pooled_std": 0.061296195762744796,
+       "se_clustered_window": 0.0019035629741204728,
+       "se_naive": 0.0005530940355222895,
+       "small_g": true,
+       "t_critical": 2.570581835636313,
        "windows": 6,
        "scored_positions": 12282,
-       "mean_kld_nats": 0.014436630320889642,
-       "se_clustered_window": 0.002594699602928338,
-       "interval_method": "delta_t_log",
+       "mean_kld_nats": 0.010502908041343519,
        "ci95": [
+        0.0065913357843431,
+        0.01673576964277084
+       ]
+      },
+      {
+       "bootstrap_b": null,
+       "bootstrap_seed": null,
+       "ci95_bca": null,
+       "ci95_percentile": null,
+       "ci95_t_log": [
         0.00909529600277872,
         0.022914734711037048
        ],
-       "ci95_bca": null
+       "coverage_note": "6 windows. A 95%-labelled interval on this few clusters does not deliver 95%: measured 81.3% for BCa and 92.0% for this one over the 42 real cells in registry/tools/coverage_sim.py. Quote it as what it measures, or quote se_clustered_window and build your own.",
+       "deff_window": 9.579999561496873,
+       "df": 5,
+       "domain": "axis4_reasoning_termination",
+       "interval_kind": "t",
+       "interval_method": "delta_t_log",
+       "mean": 0.014436630320889642,
+       "n": 12282,
+       "n_clusters_window": 6,
+       "pooled_std": 0.09290495713564614,
+       "se_clustered_window": 0.002594699602928338,
+       "se_naive": 0.0008383094092996101,
+       "small_g": true,
+       "t_critical": 2.570581835636313,
+       "windows": 6,
+       "scored_positions": 12282,
+       "mean_kld_nats": 0.014436630320889642,
+       "ci95": [
+        0.00909529600277872,
+        0.022914734711037048
+       ]
       }
      ]
     },
@@ -482,6 +821,13 @@
      "mean_kld_nats": 0.010829419869882874,
      "windows": 17,
      "scored_positions": 34799,
+     "not_submittable": true,
+     "inference_unit": "unknown",
+     "window_stats_are": "Descriptive of this fixed panel only; source-document sampling provenance and assumptions are not established.",
+     "source_analysis": {
+      "path": "docs/joint-standard/analysis/k8-streaming.selected.json",
+      "sha256": "47c9905292115d0f801f06adef7af12d3aecf8d8317541d01cf23e6205cad8bd"
+     },
      "se_clustered_window": 0.0015000884254381746,
      "ci95_bca": [
       0.008063199874715557,
@@ -498,43 +844,97 @@
      "deff_window": 24.889061068372047,
      "by_domain": [
       {
-       "domain": "axis1_general",
-       "windows": 7,
-       "scored_positions": 14329,
-       "mean_kld_nats": 0.01136703558705986,
-       "se_clustered_window": 0.0031050257891583354,
-       "interval_method": "delta_t_log",
-       "ci95": [
+       "bootstrap_b": null,
+       "bootstrap_seed": null,
+       "ci95_bca": null,
+       "ci95_percentile": null,
+       "ci95_t_log": [
         0.0058259247582836925,
         0.022178367108803897
        ],
-       "ci95_bca": null
+       "coverage_note": "7 windows. A 95%-labelled interval on this few clusters does not deliver 95%: measured 81.3% for BCa and 92.0% for this one over the 42 real cells in registry/tools/coverage_sim.py. Quote it as what it measures, or quote se_clustered_window and build your own.",
+       "deff_window": 36.13350707225051,
+       "df": 6,
+       "domain": "axis1_general",
+       "interval_kind": "t",
+       "interval_method": "delta_t_log",
+       "mean": 0.01136703558705986,
+       "n": 14329,
+       "n_clusters_window": 7,
+       "pooled_std": 0.06183268351279173,
+       "se_clustered_window": 0.0031050257891583354,
+       "se_naive": 0.0005165473689207676,
+       "small_g": true,
+       "t_critical": 2.446911851144968,
+       "windows": 7,
+       "scored_positions": 14329,
+       "mean_kld_nats": 0.01136703558705986,
+       "ci95": [
+        0.0058259247582836925,
+        0.022178367108803897
+       ]
       },
       {
-       "domain": "axis2_legal",
-       "windows": 5,
-       "scored_positions": 10235,
-       "mean_kld_nats": 0.010324226620147562,
-       "se_clustered_window": 0.0021796529038721297,
-       "interval_method": "delta_t_log",
-       "ci95": [
+       "bootstrap_b": null,
+       "bootstrap_seed": null,
+       "ci95_bca": null,
+       "ci95_percentile": null,
+       "ci95_t_log": [
         0.005744997956524276,
         0.01855347140430497
        ],
-       "ci95_bca": null
-      },
-      {
-       "domain": "axis3_code_agentic",
+       "coverage_note": "5 windows. A 95%-labelled interval on this few clusters does not deliver 95%: measured 81.3% for BCa and 92.0% for this one over the 42 real cells in registry/tools/coverage_sim.py. Quote it as what it measures, or quote se_clustered_window and build your own.",
+       "deff_window": 48.599402704851514,
+       "df": 4,
+       "domain": "axis2_legal",
+       "interval_kind": "t",
+       "interval_method": "delta_t_log",
+       "mean": 0.010324226620147562,
+       "n": 10235,
+       "n_clusters_window": 5,
+       "pooled_std": 0.0316312094608124,
+       "se_clustered_window": 0.0021796529038721297,
+       "se_naive": 0.00031265967675551097,
+       "small_g": true,
+       "t_critical": 2.7764451051977908,
        "windows": 5,
        "scored_positions": 10235,
-       "mean_kld_nats": 0.010581951115570407,
-       "se_clustered_window": 0.00232936821548005,
-       "interval_method": "delta_t_log",
+       "mean_kld_nats": 0.010324226620147562,
        "ci95": [
+        0.005744997956524276,
+        0.01855347140430497
+       ]
+      },
+      {
+       "bootstrap_b": null,
+       "bootstrap_seed": null,
+       "ci95_bca": null,
+       "ci95_percentile": null,
+       "ci95_t_log": [
         0.00574299349246938,
         0.019498139699993547
        ],
-       "ci95_bca": null
+       "coverage_note": "5 windows. A 95%-labelled interval on this few clusters does not deliver 95%: measured 81.3% for BCa and 92.0% for this one over the 42 real cells in registry/tools/coverage_sim.py. Quote it as what it measures, or quote se_clustered_window and build your own.",
+       "deff_window": 12.784340860179379,
+       "df": 4,
+       "domain": "axis3_code_agentic",
+       "interval_kind": "t",
+       "interval_method": "delta_t_log",
+       "mean": 0.010581951115570407,
+       "n": 10235,
+       "n_clusters_window": 5,
+       "pooled_std": 0.06590872312399303,
+       "se_clustered_window": 0.00232936821548005,
+       "se_naive": 0.0006514768299595354,
+       "small_g": true,
+       "t_critical": 2.7764451051977908,
+       "windows": 5,
+       "scored_positions": 10235,
+       "mean_kld_nats": 0.010581951115570407,
+       "ci95": [
+        0.00574299349246938,
+        0.019498139699993547
+       ]
       }
      ]
     }
@@ -556,6 +956,13 @@
      "mean_kld_nats": 0.020615254540417995,
      "windows": 25,
      "scored_positions": 51175,
+     "not_submittable": true,
+     "inference_unit": "unknown",
+     "window_stats_are": "Descriptive of this fixed panel only; source-document sampling provenance and assumptions are not established.",
+     "source_analysis": {
+      "path": "docs/joint-standard/analysis/fp8-crossstack.panel.json",
+      "sha256": "da8e1a0100bc0c496c75aaf3ffc56a413063044483219285e772c34d966473dc"
+     },
      "se_clustered_window": 0.002348395074265463,
      "ci95_bca": [
       0.016468873471594935,
@@ -571,56 +978,116 @@
      "cluster_unit": "window",
      "by_domain": [
       {
-       "domain": "axis1_general",
-       "windows": 7,
-       "scored_positions": 14329,
-       "mean_kld_nats": 0.019568764759592266,
-       "se_clustered_window": 0.005603126838726583,
-       "interval_method": "delta_t_log",
-       "ci95": [
+       "bootstrap_b": null,
+       "bootstrap_seed": null,
+       "ci95_bca": null,
+       "ci95_percentile": null,
+       "ci95_t_log": [
         0.00971149355609811,
         0.03943127305848894
        ],
-       "ci95_bca": null
+       "coverage_note": "7 windows. A 95%-labelled interval on this few clusters does not deliver 95%: measured 81.3% for BCa and 92.0% for this one over the 42 real cells in registry/tools/coverage_sim.py. Quote it as what it measures, or quote se_clustered_window and build your own.",
+       "df": 6,
+       "domain": "axis1_general",
+       "interval_kind": "t",
+       "interval_method": "delta_t_log",
+       "mean": 0.019568764759592266,
+       "n": 14329,
+       "n_clusters_window": 7,
+       "se_clustered_window": 0.005603126838726583,
+       "small_g": true,
+       "t_critical": 2.446911851144968,
+       "windows": 7,
+       "scored_positions": 14329,
+       "mean_kld_nats": 0.019568764759592266,
+       "ci95": [
+        0.00971149355609811,
+        0.03943127305848894
+       ]
       },
       {
-       "domain": "axis2_legal",
-       "windows": 6,
-       "scored_positions": 12282,
-       "mean_kld_nats": 0.023988326217099922,
-       "se_clustered_window": 0.005207217782918072,
-       "interval_method": "delta_t_log",
-       "ci95": [
+       "bootstrap_b": null,
+       "bootstrap_seed": null,
+       "ci95_bca": null,
+       "ci95_percentile": null,
+       "ci95_t_log": [
         0.0137297280156348,
         0.04191195878335815
        ],
-       "ci95_bca": null
-      },
-      {
-       "domain": "axis3_code_agentic",
+       "coverage_note": "6 windows. A 95%-labelled interval on this few clusters does not deliver 95%: measured 81.3% for BCa and 92.0% for this one over the 42 real cells in registry/tools/coverage_sim.py. Quote it as what it measures, or quote se_clustered_window and build your own.",
+       "df": 5,
+       "domain": "axis2_legal",
+       "interval_kind": "t",
+       "interval_method": "delta_t_log",
+       "mean": 0.023988326217099922,
+       "n": 12282,
+       "n_clusters_window": 6,
+       "se_clustered_window": 0.005207217782918072,
+       "small_g": true,
+       "t_critical": 2.570581835636313,
        "windows": 6,
        "scored_positions": 12282,
-       "mean_kld_nats": 0.020173329632765,
-       "se_clustered_window": 0.005305639742680075,
-       "interval_method": "delta_t_log",
+       "mean_kld_nats": 0.023988326217099922,
        "ci95": [
+        0.0137297280156348,
+        0.04191195878335815
+       ]
+      },
+      {
+       "bootstrap_b": null,
+       "bootstrap_seed": null,
+       "ci95_bca": null,
+       "ci95_percentile": null,
+       "ci95_t_log": [
         0.010260396731948847,
         0.03966349831337333
        ],
-       "ci95_bca": null
-      },
-      {
-       "domain": "axis4_reasoning_termination",
+       "coverage_note": "6 windows. A 95%-labelled interval on this few clusters does not deliver 95%: measured 81.3% for BCa and 92.0% for this one over the 42 real cells in registry/tools/coverage_sim.py. Quote it as what it measures, or quote se_clustered_window and build your own.",
+       "df": 5,
+       "domain": "axis3_code_agentic",
+       "interval_kind": "t",
+       "interval_method": "delta_t_log",
+       "mean": 0.020173329632765,
+       "n": 12282,
+       "n_clusters_window": 6,
+       "se_clustered_window": 0.005305639742680075,
+       "small_g": true,
+       "t_critical": 2.570581835636313,
        "windows": 6,
        "scored_positions": 12282,
-       "mean_kld_nats": 0.01890501251568574,
-       "se_clustered_window": 0.0028153357532178323,
-       "interval_method": "delta_t_log",
+       "mean_kld_nats": 0.020173329632765,
        "ci95": [
+        0.010260396731948847,
+        0.03966349831337333
+       ]
+      },
+      {
+       "bootstrap_b": null,
+       "bootstrap_seed": null,
+       "ci95_bca": null,
+       "ci95_percentile": null,
+       "ci95_t_log": [
         0.012892114908650224,
         0.027722332662302753
        ],
-       "ci95_bca": null
+       "coverage_note": "6 windows. A 95%-labelled interval on this few clusters does not deliver 95%: measured 81.3% for BCa and 92.0% for this one over the 42 real cells in registry/tools/coverage_sim.py. Quote it as what it measures, or quote se_clustered_window and build your own.",
+       "df": 5,
+       "domain": "axis4_reasoning_termination",
+       "interval_kind": "t",
+       "interval_method": "delta_t_log",
+       "mean": 0.01890501251568574,
+       "n": 12282,
+       "n_clusters_window": 6,
+       "se_clustered_window": 0.0028153357532178323,
+       "small_g": true,
+       "t_critical": 2.570581835636313,
+       "windows": 6,
+       "scored_positions": 12282,
+       "mean_kld_nats": 0.01890501251568574,
+       "ci95": [
+        0.012892114908650224,
+        0.027722332662302753
+       ]
       }
      ]
     },
@@ -628,6 +1095,13 @@
      "mean_kld_nats": 0.018665326569455153,
      "windows": 17,
      "scored_positions": 34799,
+     "not_submittable": true,
+     "inference_unit": "unknown",
+     "window_stats_are": "Descriptive of this fixed panel only; source-document sampling provenance and assumptions are not established.",
+     "source_analysis": {
+      "path": "docs/joint-standard/analysis/fp8-crossstack.selected.json",
+      "sha256": "f3e6201cf6d4da97e53f0a29785affd71c2d6ef56cc93817fe234c697497aeed"
+     },
      "se_clustered_window": 0.002739033213087847,
      "ci95_bca": [
       0.014192372880624355,
@@ -643,43 +1117,88 @@
      "cluster_unit": "window",
      "by_domain": [
       {
-       "domain": "axis1_general",
-       "windows": 7,
-       "scored_positions": 14329,
-       "mean_kld_nats": 0.019568764759592266,
-       "se_clustered_window": 0.005603126838726583,
-       "interval_method": "delta_t_log",
-       "ci95": [
+       "bootstrap_b": null,
+       "bootstrap_seed": null,
+       "ci95_bca": null,
+       "ci95_percentile": null,
+       "ci95_t_log": [
         0.00971149355609811,
         0.03943127305848894
        ],
-       "ci95_bca": null
+       "coverage_note": "7 windows. A 95%-labelled interval on this few clusters does not deliver 95%: measured 81.3% for BCa and 92.0% for this one over the 42 real cells in registry/tools/coverage_sim.py. Quote it as what it measures, or quote se_clustered_window and build your own.",
+       "df": 6,
+       "domain": "axis1_general",
+       "interval_kind": "t",
+       "interval_method": "delta_t_log",
+       "mean": 0.019568764759592266,
+       "n": 14329,
+       "n_clusters_window": 7,
+       "se_clustered_window": 0.005603126838726583,
+       "small_g": true,
+       "t_critical": 2.446911851144968,
+       "windows": 7,
+       "scored_positions": 14329,
+       "mean_kld_nats": 0.019568764759592266,
+       "ci95": [
+        0.00971149355609811,
+        0.03943127305848894
+       ]
       },
       {
-       "domain": "axis2_legal",
-       "windows": 5,
-       "scored_positions": 10235,
-       "mean_kld_nats": 0.02067276158943368,
-       "se_clustered_window": 0.004917643984446201,
-       "interval_method": "delta_t_log",
-       "ci95": [
+       "bootstrap_b": null,
+       "bootstrap_seed": null,
+       "ci95_bca": null,
+       "ci95_percentile": null,
+       "ci95_t_log": [
         0.010679811732230869,
         0.040015974293237284
        ],
-       "ci95_bca": null
-      },
-      {
-       "domain": "axis3_code_agentic",
+       "coverage_note": "5 windows. A 95%-labelled interval on this few clusters does not deliver 95%: measured 81.3% for BCa and 92.0% for this one over the 42 real cells in registry/tools/coverage_sim.py. Quote it as what it measures, or quote se_clustered_window and build your own.",
+       "df": 4,
+       "domain": "axis2_legal",
+       "interval_kind": "t",
+       "interval_method": "delta_t_log",
+       "mean": 0.02067276158943368,
+       "n": 10235,
+       "n_clusters_window": 5,
+       "se_clustered_window": 0.004917643984446201,
+       "small_g": true,
+       "t_critical": 2.7764451051977908,
        "windows": 5,
        "scored_positions": 10235,
-       "mean_kld_nats": 0.01539307808328466,
-       "se_clustered_window": 0.002819310607967072,
-       "interval_method": "delta_t_log",
+       "mean_kld_nats": 0.02067276158943368,
        "ci95": [
+        0.010679811732230869,
+        0.040015974293237284
+       ]
+      },
+      {
+       "bootstrap_b": null,
+       "bootstrap_seed": null,
+       "ci95_bca": null,
+       "ci95_percentile": null,
+       "ci95_t_log": [
         0.009257182000212307,
         0.025596002419814627
        ],
-       "ci95_bca": null
+       "coverage_note": "5 windows. A 95%-labelled interval on this few clusters does not deliver 95%: measured 81.3% for BCa and 92.0% for this one over the 42 real cells in registry/tools/coverage_sim.py. Quote it as what it measures, or quote se_clustered_window and build your own.",
+       "df": 4,
+       "domain": "axis3_code_agentic",
+       "interval_kind": "t",
+       "interval_method": "delta_t_log",
+       "mean": 0.01539307808328466,
+       "n": 10235,
+       "n_clusters_window": 5,
+       "se_clustered_window": 0.002819310607967072,
+       "small_g": true,
+       "t_critical": 2.7764451051977908,
+       "windows": 5,
+       "scored_positions": 10235,
+       "mean_kld_nats": 0.01539307808328466,
+       "ci95": [
+        0.009257182000212307,
+        0.025596002419814627
+       ]
       }
      ]
     }
@@ -701,6 +1220,13 @@
      "mean_kld_nats": 0.012711599817250709,
      "windows": 25,
      "scored_positions": 51175,
+     "not_submittable": true,
+     "inference_unit": "unknown",
+     "window_stats_are": "Descriptive of this fixed panel only; source-document sampling provenance and assumptions are not established.",
+     "source_analysis": {
+      "path": "docs/joint-standard/analysis/bf16-floor-crossstack.panel.json",
+      "sha256": "c545d21b1dc69b3c5efa5442b2054655d5765d97bbe2002be256b92558591d2c"
+     },
      "se_clustered_window": 0.001341608627795298,
      "ci95_bca": [
       0.010328695080841702,
@@ -716,56 +1242,116 @@
      "cluster_unit": "window",
      "by_domain": [
       {
-       "domain": "axis1_general",
-       "windows": 7,
-       "scored_positions": 14329,
-       "mean_kld_nats": 0.01147672334551312,
-       "se_clustered_window": 0.0029724902534535814,
-       "interval_method": "delta_t_log",
-       "ci95": [
+       "bootstrap_b": null,
+       "bootstrap_seed": null,
+       "ci95_bca": null,
+       "ci95_percentile": null,
+       "ci95_t_log": [
         0.0060895045683846205,
         0.021629867794710666
        ],
-       "ci95_bca": null
+       "coverage_note": "7 windows. A 95%-labelled interval on this few clusters does not deliver 95%: measured 81.3% for BCa and 92.0% for this one over the 42 real cells in registry/tools/coverage_sim.py. Quote it as what it measures, or quote se_clustered_window and build your own.",
+       "df": 6,
+       "domain": "axis1_general",
+       "interval_kind": "t",
+       "interval_method": "delta_t_log",
+       "mean": 0.01147672334551312,
+       "n": 14329,
+       "n_clusters_window": 7,
+       "se_clustered_window": 0.0029724902534535814,
+       "small_g": true,
+       "t_critical": 2.446911851144968,
+       "windows": 7,
+       "scored_positions": 14329,
+       "mean_kld_nats": 0.01147672334551312,
+       "ci95": [
+        0.0060895045683846205,
+        0.021629867794710666
+       ]
       },
       {
-       "domain": "axis2_legal",
-       "windows": 6,
-       "scored_positions": 12282,
-       "mean_kld_nats": 0.012820487412096968,
-       "se_clustered_window": 0.003166440983445429,
-       "interval_method": "delta_t_log",
-       "ci95": [
+       "bootstrap_b": null,
+       "bootstrap_seed": null,
+       "ci95_bca": null,
+       "ci95_percentile": null,
+       "ci95_t_log": [
         0.006794780537746292,
         0.024189875827579494
        ],
-       "ci95_bca": null
-      },
-      {
-       "domain": "axis3_code_agentic",
+       "coverage_note": "6 windows. A 95%-labelled interval on this few clusters does not deliver 95%: measured 81.3% for BCa and 92.0% for this one over the 42 real cells in registry/tools/coverage_sim.py. Quote it as what it measures, or quote se_clustered_window and build your own.",
+       "df": 5,
+       "domain": "axis2_legal",
+       "interval_kind": "t",
+       "interval_method": "delta_t_log",
+       "mean": 0.012820487412096968,
+       "n": 12282,
+       "n_clusters_window": 6,
+       "se_clustered_window": 0.003166440983445429,
+       "small_g": true,
+       "t_critical": 2.570581835636313,
        "windows": 6,
        "scored_positions": 12282,
-       "mean_kld_nats": 0.011602361431698821,
-       "se_clustered_window": 0.0022491963613079026,
-       "interval_method": "delta_t_log",
+       "mean_kld_nats": 0.012820487412096968,
        "ci95": [
+        0.006794780537746292,
+        0.024189875827579494
+       ]
+      },
+      {
+       "bootstrap_b": null,
+       "bootstrap_seed": null,
+       "ci95_bca": null,
+       "ci95_percentile": null,
+       "ci95_t_log": [
         0.007048987196160465,
         0.01909704004925644
        ],
-       "ci95_bca": null
-      },
-      {
-       "domain": "axis4_reasoning_termination",
+       "coverage_note": "6 windows. A 95%-labelled interval on this few clusters does not deliver 95%: measured 81.3% for BCa and 92.0% for this one over the 42 real cells in registry/tools/coverage_sim.py. Quote it as what it measures, or quote se_clustered_window and build your own.",
+       "df": 5,
+       "domain": "axis3_code_agentic",
+       "interval_kind": "t",
+       "interval_method": "delta_t_log",
+       "mean": 0.011602361431698821,
+       "n": 12282,
+       "n_clusters_window": 6,
+       "se_clustered_window": 0.0022491963613079026,
+       "small_g": true,
+       "t_critical": 2.570581835636313,
        "windows": 6,
        "scored_positions": 12282,
-       "mean_kld_nats": 0.015152639824983528,
-       "se_clustered_window": 0.0025975104681862727,
-       "interval_method": "delta_t_log",
+       "mean_kld_nats": 0.011602361431698821,
        "ci95": [
+        0.007048987196160465,
+        0.01909704004925644
+       ]
+      },
+      {
+       "bootstrap_b": null,
+       "bootstrap_seed": null,
+       "ci95_bca": null,
+       "ci95_percentile": null,
+       "ci95_t_log": [
         0.009752444766981616,
         0.023543070394310858
        ],
-       "ci95_bca": null
+       "coverage_note": "6 windows. A 95%-labelled interval on this few clusters does not deliver 95%: measured 81.3% for BCa and 92.0% for this one over the 42 real cells in registry/tools/coverage_sim.py. Quote it as what it measures, or quote se_clustered_window and build your own.",
+       "df": 5,
+       "domain": "axis4_reasoning_termination",
+       "interval_kind": "t",
+       "interval_method": "delta_t_log",
+       "mean": 0.015152639824983528,
+       "n": 12282,
+       "n_clusters_window": 6,
+       "se_clustered_window": 0.0025975104681862727,
+       "small_g": true,
+       "t_critical": 2.570581835636313,
+       "windows": 6,
+       "scored_positions": 12282,
+       "mean_kld_nats": 0.015152639824983528,
+       "ci95": [
+        0.009752444766981616,
+        0.023543070394310858
+       ]
       }
      ]
     },
@@ -773,6 +1359,13 @@
      "mean_kld_nats": 0.010647639361035206,
      "windows": 17,
      "scored_positions": 34799,
+     "not_submittable": true,
+     "inference_unit": "unknown",
+     "window_stats_are": "Descriptive of this fixed panel only; source-document sampling provenance and assumptions are not established.",
+     "source_analysis": {
+      "path": "docs/joint-standard/analysis/bf16-floor-crossstack.selected.json",
+      "sha256": "09d4abb6bbf72ff852e5d6241faa58dbaec4521dd0f5832400fa8ccc5c4bca8c"
+     },
      "se_clustered_window": 0.0014025316095133238,
      "ci95_bca": [
       0.008124326189112754,
@@ -788,43 +1381,88 @@
      "cluster_unit": "window",
      "by_domain": [
       {
-       "domain": "axis1_general",
-       "windows": 7,
-       "scored_positions": 14329,
-       "mean_kld_nats": 0.01147672334551312,
-       "se_clustered_window": 0.0029724902534535814,
-       "interval_method": "delta_t_log",
-       "ci95": [
+       "bootstrap_b": null,
+       "bootstrap_seed": null,
+       "ci95_bca": null,
+       "ci95_percentile": null,
+       "ci95_t_log": [
         0.0060895045683846205,
         0.021629867794710666
        ],
-       "ci95_bca": null
+       "coverage_note": "7 windows. A 95%-labelled interval on this few clusters does not deliver 95%: measured 81.3% for BCa and 92.0% for this one over the 42 real cells in registry/tools/coverage_sim.py. Quote it as what it measures, or quote se_clustered_window and build your own.",
+       "df": 6,
+       "domain": "axis1_general",
+       "interval_kind": "t",
+       "interval_method": "delta_t_log",
+       "mean": 0.01147672334551312,
+       "n": 14329,
+       "n_clusters_window": 7,
+       "se_clustered_window": 0.0029724902534535814,
+       "small_g": true,
+       "t_critical": 2.446911851144968,
+       "windows": 7,
+       "scored_positions": 14329,
+       "mean_kld_nats": 0.01147672334551312,
+       "ci95": [
+        0.0060895045683846205,
+        0.021629867794710666
+       ]
       },
       {
-       "domain": "axis2_legal",
-       "windows": 5,
-       "scored_positions": 10235,
-       "mean_kld_nats": 0.010085462091388418,
-       "se_clustered_window": 0.001954220431550372,
-       "interval_method": "delta_t_log",
-       "ci95": [
+       "bootstrap_b": null,
+       "bootstrap_seed": null,
+       "ci95_bca": null,
+       "ci95_percentile": null,
+       "ci95_t_log": [
         0.005889164352486551,
         0.017271813029616948
        ],
-       "ci95_bca": null
-      },
-      {
-       "domain": "axis3_code_agentic",
+       "coverage_note": "5 windows. A 95%-labelled interval on this few clusters does not deliver 95%: measured 81.3% for BCa and 92.0% for this one over the 42 real cells in registry/tools/coverage_sim.py. Quote it as what it measures, or quote se_clustered_window and build your own.",
+       "df": 4,
+       "domain": "axis2_legal",
+       "interval_kind": "t",
+       "interval_method": "delta_t_log",
+       "mean": 0.010085462091388418,
+       "n": 10235,
+       "n_clusters_window": 5,
+       "se_clustered_window": 0.001954220431550372,
+       "small_g": true,
+       "t_critical": 2.7764451051977908,
        "windows": 5,
        "scored_positions": 10235,
-       "mean_kld_nats": 0.010049099052412918,
-       "se_clustered_window": 0.0019923328986953216,
-       "interval_method": "delta_t_log",
+       "mean_kld_nats": 0.010085462091388418,
        "ci95": [
+        0.005889164352486551,
+        0.017271813029616948
+       ]
+      },
+      {
+       "bootstrap_b": null,
+       "bootstrap_seed": null,
+       "ci95_bca": null,
+       "ci95_percentile": null,
+       "ci95_t_log": [
         0.005795173327348683,
         0.0174256033531627
        ],
-       "ci95_bca": null
+       "coverage_note": "5 windows. A 95%-labelled interval on this few clusters does not deliver 95%: measured 81.3% for BCa and 92.0% for this one over the 42 real cells in registry/tools/coverage_sim.py. Quote it as what it measures, or quote se_clustered_window and build your own.",
+       "df": 4,
+       "domain": "axis3_code_agentic",
+       "interval_kind": "t",
+       "interval_method": "delta_t_log",
+       "mean": 0.010049099052412918,
+       "n": 10235,
+       "n_clusters_window": 5,
+       "se_clustered_window": 0.0019923328986953216,
+       "small_g": true,
+       "t_critical": 2.7764451051977908,
+       "windows": 5,
+       "scored_positions": 10235,
+       "mean_kld_nats": 0.010049099052412918,
+       "ci95": [
+        0.005795173327348683,
+        0.0174256033531627
+       ]
       }
      ]
     }
@@ -846,6 +1484,13 @@
      "mean_kld_nats": 0.024554564249958208,
      "windows": 25,
      "scored_positions": 51175,
+     "not_submittable": true,
+     "inference_unit": "unknown",
+     "window_stats_are": "Descriptive of this fixed panel only; source-document sampling provenance and assumptions are not established.",
+     "source_analysis": {
+      "path": "docs/joint-standard/analysis/brandonmusic-4bpw.panel.json",
+      "sha256": "c5994618b2282e62a7cfcb49e7271dd06b643c23730fa4eb9f703a22e3c590a7"
+     },
      "se_clustered_window": 0.0038096648053362373,
      "ci95_bca": [
       0.01943300772561162,
@@ -862,56 +1507,128 @@
      "deff_window": 73.89752052684781,
      "by_domain": [
       {
-       "domain": "axis1_general",
-       "windows": 7,
-       "scored_positions": 14329,
-       "mean_kld_nats": 0.02888438570910585,
-       "se_clustered_window": 0.012840972742839154,
-       "interval_method": "delta_t_log",
-       "ci95": [
+       "bootstrap_b": null,
+       "bootstrap_seed": null,
+       "ci95_bca": null,
+       "ci95_percentile": null,
+       "ci95_t_log": [
         0.009732696566442059,
         0.08572215645446683
        ],
-       "ci95_bca": null
+       "coverage_note": "7 windows. A 95%-labelled interval on this few clusters does not deliver 95%: measured 81.3% for BCa and 92.0% for this one over the 42 real cells in registry/tools/coverage_sim.py. Quote it as what it measures, or quote se_clustered_window and build your own.",
+       "deff_window": 201.6856104986039,
+       "df": 6,
+       "domain": "axis1_general",
+       "interval_kind": "t",
+       "interval_method": "delta_t_log",
+       "mean": 0.02888438570910585,
+       "n": 14329,
+       "n_clusters_window": 7,
+       "pooled_std": 0.10823517119900565,
+       "se_clustered_window": 0.012840972742839154,
+       "se_naive": 0.0009041915978944862,
+       "small_g": true,
+       "t_critical": 2.446911851144968,
+       "windows": 7,
+       "scored_positions": 14329,
+       "mean_kld_nats": 0.02888438570910585,
+       "ci95": [
+        0.009732696566442059,
+        0.08572215645446683
+       ]
       },
       {
-       "domain": "axis2_legal",
-       "windows": 6,
-       "scored_positions": 12282,
-       "mean_kld_nats": 0.027608301692711928,
-       "se_clustered_window": 0.005084917973307845,
-       "interval_method": "delta_t_log",
-       "ci95": [
+       "bootstrap_b": null,
+       "bootstrap_seed": null,
+       "ci95_bca": null,
+       "ci95_percentile": null,
+       "ci95_t_log": [
         0.017195793650526706,
         0.044325858860980984
        ],
-       "ci95_bca": null
-      },
-      {
-       "domain": "axis3_code_agentic",
+       "coverage_note": "6 windows. A 95%-labelled interval on this few clusters does not deliver 95%: measured 81.3% for BCa and 92.0% for this one over the 42 real cells in registry/tools/coverage_sim.py. Quote it as what it measures, or quote se_clustered_window and build your own.",
+       "deff_window": 38.22703194317247,
+       "df": 5,
+       "domain": "axis2_legal",
+       "interval_kind": "t",
+       "interval_method": "delta_t_log",
+       "mean": 0.027608301692711928,
+       "n": 12282,
+       "n_clusters_window": 6,
+       "pooled_std": 0.09114507535863536,
+       "se_clustered_window": 0.005084917973307845,
+       "se_naive": 0.0008224294659854013,
+       "small_g": true,
+       "t_critical": 2.570581835636313,
        "windows": 6,
        "scored_positions": 12282,
-       "mean_kld_nats": 0.02162042033684949,
-       "se_clustered_window": 0.0036391061443090543,
-       "interval_method": "delta_t_log",
+       "mean_kld_nats": 0.027608301692711928,
        "ci95": [
+        0.017195793650526706,
+        0.044325858860980984
+       ]
+      },
+      {
+       "bootstrap_b": null,
+       "bootstrap_seed": null,
+       "ci95_bca": null,
+       "ci95_percentile": null,
+       "ci95_t_log": [
         0.014026705282971598,
         0.033325186928218266
        ],
-       "ci95_bca": null
-      },
-      {
-       "domain": "axis4_reasoning_termination",
+       "coverage_note": "6 windows. A 95%-labelled interval on this few clusters does not deliver 95%: measured 81.3% for BCa and 92.0% for this one over the 42 real cells in registry/tools/coverage_sim.py. Quote it as what it measures, or quote se_clustered_window and build your own.",
+       "deff_window": 17.97490752301489,
+       "df": 5,
+       "domain": "axis3_code_agentic",
+       "interval_kind": "t",
+       "interval_method": "delta_t_log",
+       "mean": 0.02162042033684949,
+       "n": 12282,
+       "n_clusters_window": 6,
+       "pooled_std": 0.09512527763091769,
+       "se_clustered_window": 0.0036391061443090543,
+       "se_naive": 0.0008583440298433695,
+       "small_g": true,
+       "t_critical": 2.570581835636313,
        "windows": 6,
        "scored_positions": 12282,
-       "mean_kld_nats": 0.01938351235130761,
-       "se_clustered_window": 0.002648656298750324,
-       "interval_method": "delta_t_log",
+       "mean_kld_nats": 0.02162042033684949,
        "ci95": [
+        0.014026705282971598,
+        0.033325186928218266
+       ]
+      },
+      {
+       "bootstrap_b": null,
+       "bootstrap_seed": null,
+       "ci95_bca": null,
+       "ci95_percentile": null,
+       "ci95_t_log": [
         0.013642175963896754,
         0.027541101365912424
        ],
-       "ci95_bca": null
+       "coverage_note": "6 windows. A 95%-labelled interval on this few clusters does not deliver 95%: measured 81.3% for BCa and 92.0% for this one over the 42 real cells in registry/tools/coverage_sim.py. Quote it as what it measures, or quote se_clustered_window and build your own.",
+       "deff_window": 7.984900832468584,
+       "df": 5,
+       "domain": "axis4_reasoning_termination",
+       "interval_kind": "t",
+       "interval_method": "delta_t_log",
+       "mean": 0.01938351235130761,
+       "n": 12282,
+       "n_clusters_window": 6,
+       "pooled_std": 0.10387843285682556,
+       "se_clustered_window": 0.002648656298750324,
+       "se_naive": 0.0009373263857172866,
+       "small_g": true,
+       "t_critical": 2.570581835636313,
+       "windows": 6,
+       "scored_positions": 12282,
+       "mean_kld_nats": 0.01938351235130761,
+       "ci95": [
+        0.013642175963896754,
+        0.027541101365912424
+       ]
       }
      ]
     },
@@ -919,6 +1636,13 @@
      "mean_kld_nats": 0.024948837055614983,
      "windows": 17,
      "scored_positions": 34799,
+     "not_submittable": true,
+     "inference_unit": "unknown",
+     "window_stats_are": "Descriptive of this fixed panel only; source-document sampling provenance and assumptions are not established.",
+     "source_analysis": {
+      "path": "docs/joint-standard/analysis/brandonmusic-4bpw.selected.json",
+      "sha256": "07aa01602c16264fc76985f4d33be2512e8abd49cda4dd6744d91fa29a64a26d"
+     },
      "se_clustered_window": 0.0053478921956119346,
      "ci95_bca": [
       0.018140680375487554,
@@ -935,43 +1659,97 @@
      "deff_window": 104.99945042128226,
      "by_domain": [
       {
-       "domain": "axis1_general",
-       "windows": 7,
-       "scored_positions": 14329,
-       "mean_kld_nats": 0.02888438570910585,
-       "se_clustered_window": 0.012840972742839154,
-       "interval_method": "delta_t_log",
-       "ci95": [
+       "bootstrap_b": null,
+       "bootstrap_seed": null,
+       "ci95_bca": null,
+       "ci95_percentile": null,
+       "ci95_t_log": [
         0.009732696566442059,
         0.08572215645446683
        ],
-       "ci95_bca": null
+       "coverage_note": "7 windows. A 95%-labelled interval on this few clusters does not deliver 95%: measured 81.3% for BCa and 92.0% for this one over the 42 real cells in registry/tools/coverage_sim.py. Quote it as what it measures, or quote se_clustered_window and build your own.",
+       "deff_window": 201.6856104986039,
+       "df": 6,
+       "domain": "axis1_general",
+       "interval_kind": "t",
+       "interval_method": "delta_t_log",
+       "mean": 0.02888438570910585,
+       "n": 14329,
+       "n_clusters_window": 7,
+       "pooled_std": 0.10823517119900565,
+       "se_clustered_window": 0.012840972742839154,
+       "se_naive": 0.0009041915978944862,
+       "small_g": true,
+       "t_critical": 2.446911851144968,
+       "windows": 7,
+       "scored_positions": 14329,
+       "mean_kld_nats": 0.02888438570910585,
+       "ci95": [
+        0.009732696566442059,
+        0.08572215645446683
+       ]
       },
       {
-       "domain": "axis2_legal",
-       "windows": 5,
-       "scored_positions": 10235,
-       "mean_kld_nats": 0.023508184008518444,
-       "se_clustered_window": 0.003683495440006614,
-       "interval_method": "delta_t_log",
-       "ci95": [
+       "bootstrap_b": null,
+       "bootstrap_seed": null,
+       "ci95_bca": null,
+       "ci95_percentile": null,
+       "ci95_t_log": [
         0.01521539369586779,
         0.036320763459998226
        ],
-       "ci95_bca": null
-      },
-      {
-       "domain": "axis3_code_agentic",
+       "coverage_note": "5 windows. A 95%-labelled interval on this few clusters does not deliver 95%: measured 81.3% for BCa and 92.0% for this one over the 42 real cells in registry/tools/coverage_sim.py. Quote it as what it measures, or quote se_clustered_window and build your own.",
+       "deff_window": 24.126544559685616,
+       "df": 4,
+       "domain": "axis2_legal",
+       "interval_kind": "t",
+       "interval_method": "delta_t_log",
+       "mean": 0.023508184008518444,
+       "n": 10235,
+       "n_clusters_window": 5,
+       "pooled_std": 0.07586762642133558,
+       "se_clustered_window": 0.003683495440006614,
+       "se_naive": 0.0007499159203030174,
+       "small_g": true,
+       "t_critical": 2.7764451051977908,
        "windows": 5,
        "scored_positions": 10235,
-       "mean_kld_nats": 0.020879721987824302,
-       "se_clustered_window": 0.004363678405651466,
-       "interval_method": "delta_t_log",
+       "mean_kld_nats": 0.023508184008518444,
        "ci95": [
+        0.01521539369586779,
+        0.036320763459998226
+       ]
+      },
+      {
+       "bootstrap_b": null,
+       "bootstrap_seed": null,
+       "ci95_bca": null,
+       "ci95_percentile": null,
+       "ci95_t_log": [
         0.011687569258065453,
         0.03730140807405102
        ],
-       "ci95_bca": null
+       "coverage_note": "5 windows. A 95%-labelled interval on this few clusters does not deliver 95%: measured 81.3% for BCa and 92.0% for this one over the 42 real cells in registry/tools/coverage_sim.py. Quote it as what it measures, or quote se_clustered_window and build your own.",
+       "deff_window": 19.426894959434357,
+       "df": 4,
+       "domain": "axis3_code_agentic",
+       "interval_kind": "t",
+       "interval_method": "delta_t_log",
+       "mean": 0.020879721987824302,
+       "n": 10235,
+       "n_clusters_window": 5,
+       "pooled_std": 0.10016014947238273,
+       "se_clustered_window": 0.004363678405651466,
+       "se_naive": 0.000990036122286629,
+       "small_g": true,
+       "t_critical": 2.7764451051977908,
+       "windows": 5,
+       "scored_positions": 10235,
+       "mean_kld_nats": 0.020879721987824302,
+       "ci95": [
+        0.011687569258065453,
+        0.03730140807405102
+       ]
       }
      ]
     }
@@ -994,32 +1772,30 @@
   "rises": [
    "brandonmusic tr3-4bpw (his artifact, our scorer)"
   ],
-  "note": "His artifact rising while ours fall is not a paradox: the excluded windows are ones his quant happens to score well on and ours score badly on, which is exactly why a contaminated scope flatters some codecs and not others."
+  "note": "Scope selection changes the finite-panel estimand. Opposite movements do not identify a causal contamination effect or establish a population ordering."
  },
- "attributable": {
-  "lane": "cross_stack (both sides)",
+ "descriptive_fp8_bf16_contrast": {
+  "lane": "cross_stack (both sides; not sufficient for causal subtraction)",
   "by_scope": {
    "panel25": {
     "fp8": 0.020615254540417995,
     "same_lane_floor": 0.012711599817250709,
-    "attributable_nats": 0.007903654723167286,
-    "ratio": 1.6217671132504787
+    "difference_nats": 0.007903654723167286
    },
    "clean17": {
     "fp8": 0.018665326569455153,
     "same_lane_floor": 0.010647639361035206,
-    "attributable_nats": 0.008017687208419947,
-    "ratio": 1.7530013871206505
+    "difference_nats": 0.008017687208419947
    }
   },
-  "attributable_move_pct": 1.4427817161395935,
+  "difference_move_pct": 1.4427817161395935,
   "fp8_move_pct": -9.4586655097556,
   "floor_move_pct": -16.236826881652892,
-  "reading": "Both inputs move by 9-16% between scopes and their difference moves by 1.4%. The subtraction is the stable quantity. This is a measured answer to the objection that subtracted numbers should not be published.",
-  "what_cannot_be_recomputed": "The same-lane K6/K8 attributable table has no clean-scope form: its floor is the STREAMING BF16 floor, whose receipt is scalar-only (run means and a tokenwise digest, no per-window array). Substituting the cross-stack floor would be the cross-lane subtraction invariant BIAS-006 refuses, so it is not done. The published panel25 attributable ratio (K6 0.002209 / K8 0.000878 = 2.52x) stands as a panel25 number only."
+  "reading": "Both inputs move by 9-16% between these scopes and their difference moves by 1.4%. This is descriptive arithmetic on two fixed panels, not evidence of stable subtraction or an additive, causal quantization-error component.",
+  "what_cannot_be_recomputed": "The same-lane K6/K8 floor has a scalar-only receipt, so it cannot be recomputed on clean17. The historical 2.52x residual ratio remains withdrawn: uncertainty of the small control residuals was not established. A signed control contrast is not itself KL or automatically causal quantization error. No cross-lane floor is substituted."
  },
  "paired": {
-  "method": "paired per-window differences, BCa on the differences, B=5000, seed 20260829; ranking by paired differences rather than by eyeballing overlapping marginal intervals is brandonmusic's rule and it is adopted here",
+  "method": "Finite-panel paired differences are descriptive. Document-level summaries retain their provenance, weighting and assumptions; no unconditional significance or codec ranking is inferred.",
   "comparisons": [
    {
     "comparison": "K6 - K8",
@@ -1031,26 +1807,98 @@
       "mean_b": 0.012384191023436866,
       "mean_diff": 0.0013391936422642808,
       "mean_diff_se": 0.0004113627565877189,
-      "ratio_a_over_b": 1.1081373534799228,
-      "ci95_diff_bca": [
-       0.0006950254663237393,
-       0.002330012568459839
-      ],
-      "ci95_diff_percentile": [
-       0.0006086850953940536,
-       0.002155431593397423
-      ],
-      "ci95_ratio_percentile": [
-       1.0472020107189215,
-       1.182749286848613
-      ],
-      "bca_excludes_zero": true,
       "n_windows": 25,
       "windows_a_better": 5,
       "windows_b_better": 20,
-      "sign_test_p": 0.004077315330505371,
-      "bootstrap_b": 2000,
-      "seed": 20260829,
+      "windows_tied": 0,
+      "sign_test_n": 25,
+      "document_level": {
+       "ci95_diff_t": [
+        4.8733040616930415e-05,
+        0.0027101988416988743
+       ],
+       "df": 3,
+       "documents_a_better": 0,
+       "documents_b_better": 4,
+       "documents_tied": 0,
+       "mean_diff_equal_documents": 0.0013794659411579023,
+       "n_documents": 4,
+       "note": "the panel's windows derive from 4 source documents; the document is the independent sampling unit, and this block is the inferential statement. Window-level intervals and sign tests above it are DESCRIPTIVE of this fixed panel only.",
+       "per_document": [
+        {
+         "document_id": "reap-recall-packed-axis1_general-4",
+         "mean_diff": 0.00037265846881736573,
+         "n_windows": 7
+        },
+        {
+         "document_id": "reap-recall-packed-axis2_legal-2",
+         "mean_diff": 0.001258037834068727,
+         "n_windows": 6
+        },
+        {
+         "document_id": "reap-recall-packed-axis3_code_agentic-3",
+         "mean_diff": 0.002409044305884705,
+         "n_windows": 6
+        },
+        {
+         "document_id": "reap-recall-packed-axis4_reasoning_termination-0",
+         "mean_diff": 0.001478123155860811,
+         "n_windows": 6
+        }
+       ],
+       "se_equal_documents": 0.0004181477935170823,
+       "sign_test_n": 4,
+       "sign_test_p": 0.125,
+       "t_critical": 3.1824463052837046,
+       "t_interval_note": "equal-document-weight Student-t; at 4 documents this is illustrative, not calibrated -- a domain-population interval is not estimable from one document per domain",
+       "unit": "source_document"
+      },
+      "document_map_source": "producer-local-path-sha256:7f6da51b804ae107c573383609e328295c1360e8bf9b2ce0e40d43a989265906",
+      "inference_unit": "source_document",
+      "window_stats_are": "descriptive of this fixed panel only: 25 windows derive from 4 source document(s), so window-level bootstrap intervals and the window-level sign test treat pseudoreplicates as independent evidence (P1-15). The inferential statement is document_level.",
+      "cross_lane": {
+       "bridge": "measured streaming<->sealed bridge for K6 on this exact panel, recorded on pipeline--malaiwah.glm53-stream-packed-kld: signed delta -8.4958e-06 nats on the panel mean, worst single window 2.8735e-04, tokenwise KL array does NOT match the sealed run (publishable_as_reproduction=false). K8 has no sealed-lane sibling, so its lane offset is direction-unknown. The same-lane contrast is published beside this one as paired.K6stream-vs-K8.",
+       "lane_a": "sealed-ep8 / same_stack",
+       "lane_b": "streaming / same_stack",
+       "mixed": true,
+       "note": "this contrast crosses measurement lanes; the bridge is context, not a correction, and every statistic here describes the mixed design"
+      },
+      "contract_a": {
+       "estimator": null,
+       "lane": "sealed-ep8 / same_stack",
+       "reference": null,
+       "scope": null,
+       "series": "K6 sealed (5-run)",
+       "source": "producer-local-path-sha256:27b9a443dfdedea522dd9b8760b0e4e54a1418eee6853b230953156b19ee35ce"
+      },
+      "contract_b": {
+       "estimator": null,
+       "lane": "streaming / same_stack",
+       "reference": null,
+       "scope": null,
+       "series": "K8 streaming (2-run)",
+       "source": "producer-local-path-sha256:a0e1a8002ad47316884c78d907f9111960caca1421fcf46eda7c78ac50f7441f"
+      },
+      "not_submittable": true,
+      "scope_complete": true,
+      "source_analysis": {
+       "path": "docs/joint-standard/analysis/paired.K6-vs-K8.panel.json",
+       "sha256": "b4b22c4e13b61e04c78e624c4ff767860e805a3a4c8d4061d7c267b73e7d5646"
+      },
+      "interpretation": "Descriptive mixed-design contrast; not a codec ranking.",
+      "descriptive_window_diagnostics": {
+       "ci95_diff_bca": [
+        0.0006950254663237393,
+        0.002330012568459839
+       ],
+       "ci95_diff_percentile": [
+        0.0006086850953940536,
+        0.002155431593397423
+       ],
+       "sign_test_p": 0.004077315330505371,
+       "bootstrap_b": 2000,
+       "seed": 20260829
+      },
       "mcnemar": {
        "available": false,
        "reason": "McNemar needs per-position top-1 agreement for BOTH runs; per-window means cannot supply a contingency table. Pass --a-only-correct/--b-only-correct from a run that emits them."
@@ -1063,26 +1911,93 @@
       "mean_b": 0.010829419869882874,
       "mean_diff": 0.0008478664988124246,
       "mean_diff_se": 0.00037094614244505514,
-      "ratio_a_over_b": 1.0782928826289562,
-      "ci95_diff_bca": [
-       0.00015263386794256493,
-       0.0015726736943635375
-      ],
-      "ci95_diff_percentile": [
-       0.00014080495453142413,
-       0.001543381354877994
-      ],
-      "ci95_ratio_percentile": [
-       1.01302086874327,
-       1.1459499730414509
-      ],
-      "bca_excludes_zero": true,
       "n_windows": 17,
       "windows_a_better": 4,
       "windows_b_better": 13,
-      "sign_test_p": 0.049041748046875,
-      "bootstrap_b": 2000,
-      "seed": 20260829,
+      "windows_tied": 0,
+      "sign_test_n": 17,
+      "document_level": {
+       "ci95_diff_t": [
+        -0.00025574816229383894,
+        0.002078203301250704
+       ],
+       "df": 2,
+       "documents_a_better": 0,
+       "documents_b_better": 3,
+       "documents_tied": 0,
+       "mean_diff_equal_documents": 0.0009112275694784325,
+       "n_documents": 3,
+       "note": "the panel's windows derive from 3 source documents; the document is the independent sampling unit, and this block is the inferential statement. Window-level intervals and sign tests above it are DESCRIPTIVE of this fixed panel only.",
+       "per_document": [
+        {
+         "document_id": "reap-recall-packed-axis1_general-4",
+         "mean_diff": 0.00037265846881736573,
+         "n_windows": 7
+        },
+        {
+         "document_id": "reap-recall-packed-axis2_legal-2",
+         "mean_diff": 0.0011244564515612804,
+         "n_windows": 5
+        },
+        {
+         "document_id": "reap-recall-packed-axis3_code_agentic-3",
+         "mean_diff": 0.0012365677880566515,
+         "n_windows": 5
+        }
+       ],
+       "se_equal_documents": 0.0002712223842058071,
+       "sign_test_n": 3,
+       "sign_test_p": 0.25,
+       "t_critical": 4.302652729749456,
+       "t_interval_note": "equal-document-weight Student-t; at 3 documents this is illustrative, not calibrated -- a domain-population interval is not estimable from one document per domain",
+       "unit": "source_document"
+      },
+      "document_map_source": "producer-local-path-sha256:7f6da51b804ae107c573383609e328295c1360e8bf9b2ce0e40d43a989265906",
+      "inference_unit": "source_document",
+      "window_stats_are": "descriptive of this fixed panel only: 17 windows derive from 3 source document(s), so window-level bootstrap intervals and the window-level sign test treat pseudoreplicates as independent evidence (P1-15). The inferential statement is document_level.",
+      "cross_lane": {
+       "bridge": "measured streaming<->sealed bridge for K6 on this exact panel, recorded on pipeline--malaiwah.glm53-stream-packed-kld: signed delta -8.4958e-06 nats on the panel mean, worst single window 2.8735e-04, tokenwise KL array does NOT match the sealed run (publishable_as_reproduction=false). K8 has no sealed-lane sibling, so its lane offset is direction-unknown. The same-lane contrast is published beside this one as paired.K6stream-vs-K8.",
+       "lane_a": "sealed-ep8 / same_stack",
+       "lane_b": "streaming / same_stack",
+       "mixed": true,
+       "note": "this contrast crosses measurement lanes; the bridge is context, not a correction, and every statistic here describes the mixed design"
+      },
+      "contract_a": {
+       "estimator": null,
+       "lane": "sealed-ep8 / same_stack",
+       "reference": null,
+       "scope": null,
+       "series": "K6 sealed (5-run)",
+       "source": "producer-local-path-sha256:27b9a443dfdedea522dd9b8760b0e4e54a1418eee6853b230953156b19ee35ce"
+      },
+      "contract_b": {
+       "estimator": null,
+       "lane": "streaming / same_stack",
+       "reference": null,
+       "scope": null,
+       "series": "K8 streaming (2-run)",
+       "source": "producer-local-path-sha256:a0e1a8002ad47316884c78d907f9111960caca1421fcf46eda7c78ac50f7441f"
+      },
+      "not_submittable": true,
+      "scope_complete": true,
+      "source_analysis": {
+       "path": "docs/joint-standard/analysis/paired.K6-vs-K8.selected.json",
+       "sha256": "2ab29d1c7caf78a3195e2b412c8a354618044557988ed8cc50bcff09192065aa"
+      },
+      "interpretation": "Descriptive mixed-design contrast; not a codec ranking.",
+      "descriptive_window_diagnostics": {
+       "ci95_diff_bca": [
+        0.00015263386794256493,
+        0.0015726736943635375
+       ],
+       "ci95_diff_percentile": [
+        0.00014080495453142413,
+        0.001543381354877994
+       ],
+       "sign_test_p": 0.049041748046875,
+       "bootstrap_b": 2000,
+       "seed": 20260829
+      },
       "mcnemar": {
        "available": false,
        "reason": "McNemar needs per-position top-1 agreement for BOTH runs; per-window means cannot supply a contingency table. Pass --a-only-correct/--b-only-correct from a run that emits them."
@@ -1100,26 +2015,98 @@
       "mean_b": 0.020615254540417995,
       "mean_diff": -0.006891869874716846,
       "mean_diff_se": 0.001301752907754084,
-      "ratio_a_over_b": 0.6656907698517746,
-      "ci95_diff_bca": [
-       -0.00998188991080092,
-       -0.004871771853581246
-      ],
-      "ci95_diff_percentile": [
-       -0.009551549548161847,
-       -0.004656731199619706
-      ],
-      "ci95_ratio_percentile": [
-       0.5988570331372767,
-       0.7385656317080437
-      ],
-      "bca_excludes_zero": true,
       "n_windows": 25,
       "windows_a_better": 25,
       "windows_b_better": 0,
-      "sign_test_p": 5.960464477539063e-08,
-      "bootstrap_b": 2000,
-      "seed": 20260829,
+      "windows_tied": 0,
+      "sign_test_n": 25,
+      "document_level": {
+       "ci95_diff_t": [
+        -0.011179329773164243,
+        -0.0025263099071862662
+       ],
+       "df": 3,
+       "documents_a_better": 4,
+       "documents_b_better": 0,
+       "documents_tied": 0,
+       "mean_diff_equal_documents": -0.0068528198401752545,
+       "n_documents": 4,
+       "note": "the panel's windows derive from 4 source documents; the document is the independent sampling unit, and this block is the inferential statement. Window-level intervals and sign tests above it are DESCRIPTIVE of this fixed panel only.",
+       "per_document": [
+        {
+         "document_id": "reap-recall-packed-axis1_general-4",
+         "mean_diff": -0.007829070703715042,
+         "n_windows": 7
+        },
+        {
+         "document_id": "reap-recall-packed-axis2_legal-2",
+         "mean_diff": -0.009330572332513916,
+         "n_windows": 6
+        },
+        {
+         "document_id": "reap-recall-packed-axis3_code_agentic-3",
+         "mean_diff": -0.007261377285536777,
+         "n_windows": 6
+        },
+        {
+         "document_id": "reap-recall-packed-axis4_reasoning_termination-0",
+         "mean_diff": -0.002990259038935284,
+         "n_windows": 6
+        }
+       ],
+       "se_equal_documents": 0.001359491887044829,
+       "sign_test_n": 4,
+       "sign_test_p": 0.125,
+       "t_critical": 3.1824463052837046,
+       "t_interval_note": "equal-document-weight Student-t; at 4 documents this is illustrative, not calibrated -- a domain-population interval is not estimable from one document per domain",
+       "unit": "source_document"
+      },
+      "document_map_source": "producer-local-path-sha256:7f6da51b804ae107c573383609e328295c1360e8bf9b2ce0e40d43a989265906",
+      "inference_unit": "source_document",
+      "window_stats_are": "descriptive of this fixed panel only: 25 windows derive from 4 source document(s), so window-level bootstrap intervals and the window-level sign test treat pseudoreplicates as independent evidence (P1-15). The inferential statement is document_level.",
+      "cross_lane": {
+       "bridge": "no measured bridge exists between the checkpoint lanes and the cross-stack replay lane; the cross-stack side carries its own measured floor (0.012712 nats, printed as context, never subtracted across lanes -- BIAS-006). Descriptive contrast of the mixed design only.",
+       "lane_a": "sealed-ep8 / same_stack",
+       "lane_b": "cross_stack replay",
+       "mixed": true,
+       "note": "this contrast crosses measurement lanes; the bridge is context, not a correction, and every statistic here describes the mixed design"
+      },
+      "contract_a": {
+       "estimator": null,
+       "lane": "sealed-ep8 / same_stack",
+       "reference": null,
+       "scope": null,
+       "series": "K6 sealed (5-run)",
+       "source": "producer-local-path-sha256:27b9a443dfdedea522dd9b8760b0e4e54a1418eee6853b230953156b19ee35ce"
+      },
+      "contract_b": {
+       "estimator": null,
+       "lane": "cross_stack replay",
+       "reference": null,
+       "scope": null,
+       "series": "official FP8 (cross-stack)",
+       "source": "producer-local-path-sha256:ab5c67414f775ea07e0d136b7512864a58111f21f1e090b5828bc89c498d53d6"
+      },
+      "not_submittable": true,
+      "scope_complete": true,
+      "source_analysis": {
+       "path": "docs/joint-standard/analysis/paired.K6-vs-FP8.panel.json",
+       "sha256": "725603006108e422d458aad990f055d0a5767aed05cee2f2268cb4f095894c99"
+      },
+      "interpretation": "Descriptive mixed-design contrast; not a codec ranking.",
+      "descriptive_window_diagnostics": {
+       "ci95_diff_bca": [
+        -0.00998188991080092,
+        -0.004871771853581246
+       ],
+       "ci95_diff_percentile": [
+        -0.009551549548161847,
+        -0.004656731199619706
+       ],
+       "sign_test_p": 5.960464477539063e-08,
+       "bootstrap_b": 2000,
+       "seed": 20260829
+      },
       "mcnemar": {
        "available": false,
        "reason": "McNemar needs per-position top-1 agreement for BOTH runs; per-window means cannot supply a contingency table. Pass --a-only-correct/--b-only-correct from a run that emits them."
@@ -1132,26 +2119,93 @@
       "mean_b": 0.018665326569455153,
       "mean_diff": -0.006988040200759852,
       "mean_diff_se": 0.0014220776635363343,
-      "ratio_a_over_b": 0.6256138260020897,
-      "ci95_diff_bca": [
-       -0.010505581002404119,
-       -0.004798315410995557
-      ],
-      "ci95_diff_percentile": [
-       -0.010047083166893423,
-       -0.00454810543437745
-      ],
-      "ci95_ratio_percentile": [
-       0.5677690284535463,
-       0.7004716381926112
-      ],
-      "bca_excludes_zero": true,
       "n_windows": 17,
       "windows_a_better": 17,
       "windows_b_better": 0,
-      "sign_test_p": 1.52587890625e-05,
-      "bootstrap_b": 2000,
-      "seed": 20260829,
+      "windows_tied": 0,
+      "sign_test_n": 17,
+      "document_level": {
+       "ci95_diff_t": [
+        -0.014186473177657026,
+        0.0004346675769253709
+       ],
+       "df": 2,
+       "documents_a_better": 3,
+       "documents_b_better": 0,
+       "documents_tied": 0,
+       "mean_diff_equal_documents": -0.006875902800365828,
+       "n_documents": 3,
+       "note": "the panel's windows derive from 3 source documents; the document is the independent sampling unit, and this block is the inferential statement. Window-level intervals and sign tests above it are DESCRIPTIVE of this fixed panel only.",
+       "per_document": [
+        {
+         "document_id": "reap-recall-packed-axis1_general-4",
+         "mean_diff": -0.007829070703715042,
+         "n_windows": 7
+        },
+        {
+         "document_id": "reap-recall-packed-axis2_legal-2",
+         "mean_diff": -0.009224078517724837,
+         "n_windows": 5
+        },
+        {
+         "document_id": "reap-recall-packed-axis3_code_agentic-3",
+         "mean_diff": -0.0035745591796576028,
+         "n_windows": 5
+        }
+       ],
+       "se_equal_documents": 0.001699084457070951,
+       "sign_test_n": 3,
+       "sign_test_p": 0.25,
+       "t_critical": 4.302652729749456,
+       "t_interval_note": "equal-document-weight Student-t; at 3 documents this is illustrative, not calibrated -- a domain-population interval is not estimable from one document per domain",
+       "unit": "source_document"
+      },
+      "document_map_source": "producer-local-path-sha256:7f6da51b804ae107c573383609e328295c1360e8bf9b2ce0e40d43a989265906",
+      "inference_unit": "source_document",
+      "window_stats_are": "descriptive of this fixed panel only: 17 windows derive from 3 source document(s), so window-level bootstrap intervals and the window-level sign test treat pseudoreplicates as independent evidence (P1-15). The inferential statement is document_level.",
+      "cross_lane": {
+       "bridge": "no measured bridge exists between the checkpoint lanes and the cross-stack replay lane; the cross-stack side carries its own measured floor (0.012712 nats, printed as context, never subtracted across lanes -- BIAS-006). Descriptive contrast of the mixed design only.",
+       "lane_a": "sealed-ep8 / same_stack",
+       "lane_b": "cross_stack replay",
+       "mixed": true,
+       "note": "this contrast crosses measurement lanes; the bridge is context, not a correction, and every statistic here describes the mixed design"
+      },
+      "contract_a": {
+       "estimator": null,
+       "lane": "sealed-ep8 / same_stack",
+       "reference": null,
+       "scope": null,
+       "series": "K6 sealed (5-run)",
+       "source": "producer-local-path-sha256:27b9a443dfdedea522dd9b8760b0e4e54a1418eee6853b230953156b19ee35ce"
+      },
+      "contract_b": {
+       "estimator": null,
+       "lane": "cross_stack replay",
+       "reference": null,
+       "scope": null,
+       "series": "official FP8 (cross-stack)",
+       "source": "producer-local-path-sha256:ab5c67414f775ea07e0d136b7512864a58111f21f1e090b5828bc89c498d53d6"
+      },
+      "not_submittable": true,
+      "scope_complete": true,
+      "source_analysis": {
+       "path": "docs/joint-standard/analysis/paired.K6-vs-FP8.selected.json",
+       "sha256": "6dec635c9784130b9d53e99a08fe1c025bffc552bd394915506f92b2db7df349"
+      },
+      "interpretation": "Descriptive mixed-design contrast; not a codec ranking.",
+      "descriptive_window_diagnostics": {
+       "ci95_diff_bca": [
+        -0.010505581002404119,
+        -0.004798315410995557
+       ],
+       "ci95_diff_percentile": [
+        -0.010047083166893423,
+        -0.00454810543437745
+       ],
+       "sign_test_p": 1.52587890625e-05,
+       "bootstrap_b": 2000,
+       "seed": 20260829
+      },
       "mcnemar": {
        "available": false,
        "reason": "McNemar needs per-position top-1 agreement for BOTH runs; per-window means cannot supply a contingency table. Pass --a-only-correct/--b-only-correct from a run that emits them."
@@ -1169,26 +2223,98 @@
       "mean_b": 0.020615254540417995,
       "mean_diff": -0.008231063516981128,
       "mean_diff_se": 0.0015730581502276402,
-      "ratio_a_over_b": 0.6007294743393338,
-      "ci95_diff_bca": [
-       -0.012363393795458423,
-       -0.005958279789258152
-      ],
-      "ci95_diff_percentile": [
-       -0.01146855427737559,
-       -0.005601543439388204
-      ],
-      "ci95_ratio_percentile": [
-       0.5165808904085457,
-       0.6874500782316917
-      ],
-      "bca_excludes_zero": true,
       "n_windows": 25,
       "windows_a_better": 25,
       "windows_b_better": 0,
-      "sign_test_p": 5.960464477539063e-08,
-      "bootstrap_b": 2000,
-      "seed": 20260829,
+      "windows_tied": 0,
+      "sign_test_n": 25,
+      "document_level": {
+       "ci95_diff_t": [
+        -0.012520566061415434,
+        -0.00394400550125088
+       ],
+       "df": 3,
+       "documents_a_better": 4,
+       "documents_b_better": 0,
+       "documents_tied": 0,
+       "mean_diff_equal_documents": -0.008232285781333157,
+       "n_documents": 4,
+       "note": "the panel's windows derive from 4 source documents; the document is the independent sampling unit, and this block is the inferential statement. Window-level intervals and sign tests above it are DESCRIPTIVE of this fixed panel only.",
+       "per_document": [
+        {
+         "document_id": "reap-recall-packed-axis1_general-4",
+         "mean_diff": -0.008201729172532408,
+         "n_windows": 7
+        },
+        {
+         "document_id": "reap-recall-packed-axis2_legal-2",
+         "mean_diff": -0.010588610166582644,
+         "n_windows": 6
+        },
+        {
+         "document_id": "reap-recall-packed-axis3_code_agentic-3",
+         "mean_diff": -0.009670421591421481,
+         "n_windows": 6
+        },
+        {
+         "document_id": "reap-recall-packed-axis4_reasoning_termination-0",
+         "mean_diff": -0.004468382194796096,
+         "n_windows": 6
+        }
+       ],
+       "se_equal_documents": 0.00134747922469661,
+       "sign_test_n": 4,
+       "sign_test_p": 0.125,
+       "t_critical": 3.1824463052837046,
+       "t_interval_note": "equal-document-weight Student-t; at 4 documents this is illustrative, not calibrated -- a domain-population interval is not estimable from one document per domain",
+       "unit": "source_document"
+      },
+      "document_map_source": "producer-local-path-sha256:7f6da51b804ae107c573383609e328295c1360e8bf9b2ce0e40d43a989265906",
+      "inference_unit": "source_document",
+      "window_stats_are": "descriptive of this fixed panel only: 25 windows derive from 4 source document(s), so window-level bootstrap intervals and the window-level sign test treat pseudoreplicates as independent evidence (P1-15). The inferential statement is document_level.",
+      "cross_lane": {
+       "bridge": "no measured bridge exists between the checkpoint lanes and the cross-stack replay lane; the cross-stack side carries its own measured floor (0.012712 nats, printed as context, never subtracted across lanes -- BIAS-006). Descriptive contrast of the mixed design only.",
+       "lane_a": "streaming / same_stack",
+       "lane_b": "cross_stack replay",
+       "mixed": true,
+       "note": "this contrast crosses measurement lanes; the bridge is context, not a correction, and every statistic here describes the mixed design"
+      },
+      "contract_a": {
+       "estimator": null,
+       "lane": "streaming / same_stack",
+       "reference": null,
+       "scope": null,
+       "series": "K8 streaming (2-run)",
+       "source": "producer-local-path-sha256:a0e1a8002ad47316884c78d907f9111960caca1421fcf46eda7c78ac50f7441f"
+      },
+      "contract_b": {
+       "estimator": null,
+       "lane": "cross_stack replay",
+       "reference": null,
+       "scope": null,
+       "series": "official FP8 (cross-stack)",
+       "source": "producer-local-path-sha256:ab5c67414f775ea07e0d136b7512864a58111f21f1e090b5828bc89c498d53d6"
+      },
+      "not_submittable": true,
+      "scope_complete": true,
+      "source_analysis": {
+       "path": "docs/joint-standard/analysis/paired.K8-vs-FP8.panel.json",
+       "sha256": "d0a202ab54864156b23782c1c134335d9967dcbc29ffd34f69d7ef2cca05473f"
+      },
+      "interpretation": "Descriptive mixed-design contrast; not a codec ranking.",
+      "descriptive_window_diagnostics": {
+       "ci95_diff_bca": [
+        -0.012363393795458423,
+        -0.005958279789258152
+       ],
+       "ci95_diff_percentile": [
+        -0.01146855427737559,
+        -0.005601543439388204
+       ],
+       "sign_test_p": 5.960464477539063e-08,
+       "bootstrap_b": 2000,
+       "seed": 20260829
+      },
       "mcnemar": {
        "available": false,
        "reason": "McNemar needs per-position top-1 agreement for BOTH runs; per-window means cannot supply a contingency table. Pass --a-only-correct/--b-only-correct from a run that emits them."
@@ -1201,26 +2327,93 @@
       "mean_b": 0.018665326569455153,
       "mean_diff": -0.007835906699572277,
       "mean_diff_se": 0.0016135223133465616,
-      "ratio_a_over_b": 0.5801891453431446,
-      "ci95_diff_bca": [
-       -0.011965929569340398,
-       -0.00549332459728512
-      ],
-      "ci95_diff_percentile": [
-       -0.011309869933934565,
-       -0.005116241289488721
-      ],
-      "ci95_ratio_percentile": [
-       0.5089075590288945,
-       0.6629650019233225
-      ],
-      "bca_excludes_zero": true,
       "n_windows": 17,
       "windows_a_better": 17,
       "windows_b_better": 0,
-      "sign_test_p": 1.52587890625e-05,
-      "bootstrap_b": 2000,
-      "seed": 20260829,
+      "windows_tied": 0,
+      "sign_test_n": 17,
+      "document_level": {
+       "ci95_diff_t": [
+        -0.014722565689698725,
+        -0.0008516950499897957
+       ],
+       "df": 2,
+       "documents_a_better": 3,
+       "documents_b_better": 0,
+       "documents_tied": 0,
+       "mean_diff_equal_documents": -0.00778713036984426,
+       "n_documents": 3,
+       "note": "the panel's windows derive from 3 source documents; the document is the independent sampling unit, and this block is the inferential statement. Window-level intervals and sign tests above it are DESCRIPTIVE of this fixed panel only.",
+       "per_document": [
+        {
+         "document_id": "reap-recall-packed-axis1_general-4",
+         "mean_diff": -0.008201729172532408,
+         "n_windows": 7
+        },
+        {
+         "document_id": "reap-recall-packed-axis2_legal-2",
+         "mean_diff": -0.010348534969286118,
+         "n_windows": 5
+        },
+        {
+         "document_id": "reap-recall-packed-axis3_code_agentic-3",
+         "mean_diff": -0.004811126967714254,
+         "n_windows": 5
+        }
+       ],
+       "se_equal_documents": 0.001611897532864177,
+       "sign_test_n": 3,
+       "sign_test_p": 0.25,
+       "t_critical": 4.302652729749456,
+       "t_interval_note": "equal-document-weight Student-t; at 3 documents this is illustrative, not calibrated -- a domain-population interval is not estimable from one document per domain",
+       "unit": "source_document"
+      },
+      "document_map_source": "producer-local-path-sha256:7f6da51b804ae107c573383609e328295c1360e8bf9b2ce0e40d43a989265906",
+      "inference_unit": "source_document",
+      "window_stats_are": "descriptive of this fixed panel only: 17 windows derive from 3 source document(s), so window-level bootstrap intervals and the window-level sign test treat pseudoreplicates as independent evidence (P1-15). The inferential statement is document_level.",
+      "cross_lane": {
+       "bridge": "no measured bridge exists between the checkpoint lanes and the cross-stack replay lane; the cross-stack side carries its own measured floor (0.012712 nats, printed as context, never subtracted across lanes -- BIAS-006). Descriptive contrast of the mixed design only.",
+       "lane_a": "streaming / same_stack",
+       "lane_b": "cross_stack replay",
+       "mixed": true,
+       "note": "this contrast crosses measurement lanes; the bridge is context, not a correction, and every statistic here describes the mixed design"
+      },
+      "contract_a": {
+       "estimator": null,
+       "lane": "streaming / same_stack",
+       "reference": null,
+       "scope": null,
+       "series": "K8 streaming (2-run)",
+       "source": "producer-local-path-sha256:a0e1a8002ad47316884c78d907f9111960caca1421fcf46eda7c78ac50f7441f"
+      },
+      "contract_b": {
+       "estimator": null,
+       "lane": "cross_stack replay",
+       "reference": null,
+       "scope": null,
+       "series": "official FP8 (cross-stack)",
+       "source": "producer-local-path-sha256:ab5c67414f775ea07e0d136b7512864a58111f21f1e090b5828bc89c498d53d6"
+      },
+      "not_submittable": true,
+      "scope_complete": true,
+      "source_analysis": {
+       "path": "docs/joint-standard/analysis/paired.K8-vs-FP8.selected.json",
+       "sha256": "6d265935593a35b7fdecb5de2613ec676775c431f5521c941e88a072b7ccb406"
+      },
+      "interpretation": "Descriptive mixed-design contrast; not a codec ranking.",
+      "descriptive_window_diagnostics": {
+       "ci95_diff_bca": [
+        -0.011965929569340398,
+        -0.00549332459728512
+       ],
+       "ci95_diff_percentile": [
+        -0.011309869933934565,
+        -0.005116241289488721
+       ],
+       "sign_test_p": 1.52587890625e-05,
+       "bootstrap_b": 2000,
+       "seed": 20260829
+      },
       "mcnemar": {
        "available": false,
        "reason": "McNemar needs per-position top-1 agreement for BOTH runs; per-window means cannot supply a contingency table. Pass --a-only-correct/--b-only-correct from a run that emits them."
@@ -1238,26 +2431,96 @@
       "mean_b": 0.012711599817250709,
       "mean_diff": 0.007903654723167284,
       "mean_diff_se": 0.0013514689584912015,
-      "ratio_a_over_b": 1.6217671132504787,
-      "ci95_diff_bca": [
-       0.005823013130950891,
-       0.011253055396632681
-      ],
-      "ci95_diff_percentile": [
-       0.005590520585988117,
-       0.010668339688496982
-      ],
-      "ci95_ratio_percentile": [
-       1.4590025822293584,
-       1.7919222367834746
-      ],
-      "bca_excludes_zero": true,
       "n_windows": 25,
       "windows_a_better": 0,
       "windows_b_better": 25,
-      "sign_test_p": 5.960464477539063e-08,
-      "bootstrap_b": 2000,
-      "seed": 20260829,
+      "windows_tied": 0,
+      "sign_test_n": 25,
+      "document_level": {
+       "ci95_diff_t": [
+        0.003002646123289307,
+        0.012788964432135938
+       ],
+       "df": 3,
+       "documents_a_better": 0,
+       "documents_b_better": 4,
+       "documents_tied": 0,
+       "mean_diff_equal_documents": 0.007895805277712623,
+       "n_documents": 4,
+       "note": "the panel's windows derive from 4 source documents; the document is the independent sampling unit, and this block is the inferential statement. Window-level intervals and sign tests above it are DESCRIPTIVE of this fixed panel only.",
+       "per_document": [
+        {
+         "document_id": "reap-recall-packed-axis1_general-4",
+         "mean_diff": 0.008092041414079145,
+         "n_windows": 7
+        },
+        {
+         "document_id": "reap-recall-packed-axis2_legal-2",
+         "mean_diff": 0.011167838805002954,
+         "n_windows": 6
+        },
+        {
+         "document_id": "reap-recall-packed-axis3_code_agentic-3",
+         "mean_diff": 0.008570968201066178,
+         "n_windows": 6
+        },
+        {
+         "document_id": "reap-recall-packed-axis4_reasoning_termination-0",
+         "mean_diff": 0.0037523726907022097,
+         "n_windows": 6
+        }
+       ],
+       "se_equal_documents": 0.001537546492551775,
+       "sign_test_n": 4,
+       "sign_test_p": 0.125,
+       "t_critical": 3.1824463052837046,
+       "t_interval_note": "equal-document-weight Student-t; at 4 documents this is illustrative, not calibrated -- a domain-population interval is not estimable from one document per domain",
+       "unit": "source_document"
+      },
+      "document_map_source": "producer-local-path-sha256:7f6da51b804ae107c573383609e328295c1360e8bf9b2ce0e40d43a989265906",
+      "inference_unit": "source_document",
+      "window_stats_are": "descriptive of this fixed panel only: 25 windows derive from 4 source document(s), so window-level bootstrap intervals and the window-level sign test treat pseudoreplicates as independent evidence (P1-15). The inferential statement is document_level.",
+      "cross_lane": {
+       "lane_a": "cross_stack replay",
+       "lane_b": "cross_stack replay",
+       "mixed": false
+      },
+      "contract_a": {
+       "estimator": null,
+       "lane": "cross_stack replay",
+       "reference": null,
+       "scope": null,
+       "series": "official FP8 (cross-stack)",
+       "source": "producer-local-path-sha256:ab5c67414f775ea07e0d136b7512864a58111f21f1e090b5828bc89c498d53d6"
+      },
+      "contract_b": {
+       "estimator": null,
+       "lane": "cross_stack replay",
+       "reference": null,
+       "scope": null,
+       "series": "BF16 floor (cross-stack)",
+       "source": "producer-local-path-sha256:fe74166f9dc49b5c76b2a5b7aef6a2506685932f6da7215aa99f29bf880cd00a"
+      },
+      "not_submittable": true,
+      "scope_complete": true,
+      "source_analysis": {
+       "path": "docs/joint-standard/analysis/paired.FP8-vs-BF16floor.panel.json",
+       "sha256": "0e3e256e42bbc9f43944291f525336e0b6c31958422cd8f987d273904c34c0fc"
+      },
+      "interpretation": "Descriptive finite-panel contrast; a ranking requires the registry's actual pair predicate, not shared windows alone.",
+      "descriptive_window_diagnostics": {
+       "ci95_diff_bca": [
+        0.005823013130950891,
+        0.011253055396632681
+       ],
+       "ci95_diff_percentile": [
+        0.005590520585988117,
+        0.010668339688496982
+       ],
+       "sign_test_p": 5.960464477539063e-08,
+       "bootstrap_b": 2000,
+       "seed": 20260829
+      },
       "mcnemar": {
        "available": false,
        "reason": "McNemar needs per-position top-1 agreement for BOTH runs; per-window means cannot supply a contingency table. Pass --a-only-correct/--b-only-correct from a run that emits them."
@@ -1270,26 +2533,91 @@
       "mean_b": 0.010647639361035206,
       "mean_diff": 0.008017687208419945,
       "mean_diff_se": 0.0015537966868837015,
-      "ratio_a_over_b": 1.7530013871206505,
-      "ci95_diff_bca": [
-       0.005662547163198646,
-       0.012022096581834504
-      ],
-      "ci95_diff_percentile": [
-       0.005394237003947808,
-       0.011323734349656705
-      ],
-      "ci95_ratio_percentile": [
-       1.573476765949015,
-       1.9440707664213417
-      ],
-      "bca_excludes_zero": true,
       "n_windows": 17,
       "windows_a_better": 0,
       "windows_b_better": 17,
-      "sign_test_p": 1.52587890625e-05,
-      "bootstrap_b": 2000,
-      "seed": 20260829,
+      "windows_tied": 0,
+      "sign_test_n": 17,
+      "document_level": {
+       "ci95_diff_t": [
+        0.0014926855187667514,
+        0.01452286110989735
+       ],
+       "df": 2,
+       "documents_a_better": 0,
+       "documents_b_better": 3,
+       "documents_tied": 0,
+       "mean_diff_equal_documents": 0.008007773314332051,
+       "n_documents": 3,
+       "note": "the panel's windows derive from 3 source documents; the document is the independent sampling unit, and this block is the inferential statement. Window-level intervals and sign tests above it are DESCRIPTIVE of this fixed panel only.",
+       "per_document": [
+        {
+         "document_id": "reap-recall-packed-axis1_general-4",
+         "mean_diff": 0.008092041414079145,
+         "n_windows": 7
+        },
+        {
+         "document_id": "reap-recall-packed-axis2_legal-2",
+         "mean_diff": 0.010587299498045263,
+         "n_windows": 5
+        },
+        {
+         "document_id": "reap-recall-packed-axis3_code_agentic-3",
+         "mean_diff": 0.005343979030871744,
+         "n_windows": 5
+        }
+       ],
+       "se_equal_documents": 0.0015142025640411548,
+       "sign_test_n": 3,
+       "sign_test_p": 0.25,
+       "t_critical": 4.302652729749456,
+       "t_interval_note": "equal-document-weight Student-t; at 3 documents this is illustrative, not calibrated -- a domain-population interval is not estimable from one document per domain",
+       "unit": "source_document"
+      },
+      "document_map_source": "producer-local-path-sha256:7f6da51b804ae107c573383609e328295c1360e8bf9b2ce0e40d43a989265906",
+      "inference_unit": "source_document",
+      "window_stats_are": "descriptive of this fixed panel only: 17 windows derive from 3 source document(s), so window-level bootstrap intervals and the window-level sign test treat pseudoreplicates as independent evidence (P1-15). The inferential statement is document_level.",
+      "cross_lane": {
+       "lane_a": "cross_stack replay",
+       "lane_b": "cross_stack replay",
+       "mixed": false
+      },
+      "contract_a": {
+       "estimator": null,
+       "lane": "cross_stack replay",
+       "reference": null,
+       "scope": null,
+       "series": "official FP8 (cross-stack)",
+       "source": "producer-local-path-sha256:ab5c67414f775ea07e0d136b7512864a58111f21f1e090b5828bc89c498d53d6"
+      },
+      "contract_b": {
+       "estimator": null,
+       "lane": "cross_stack replay",
+       "reference": null,
+       "scope": null,
+       "series": "BF16 floor (cross-stack)",
+       "source": "producer-local-path-sha256:fe74166f9dc49b5c76b2a5b7aef6a2506685932f6da7215aa99f29bf880cd00a"
+      },
+      "not_submittable": true,
+      "scope_complete": true,
+      "source_analysis": {
+       "path": "docs/joint-standard/analysis/paired.FP8-vs-BF16floor.selected.json",
+       "sha256": "1eb34dcd77776a44256883918fb555c5b0a234cca2cbe5703f39977fd42d6ad5"
+      },
+      "interpretation": "Descriptive finite-panel contrast; a ranking requires the registry's actual pair predicate, not shared windows alone.",
+      "descriptive_window_diagnostics": {
+       "ci95_diff_bca": [
+        0.005662547163198646,
+        0.012022096581834504
+       ],
+       "ci95_diff_percentile": [
+        0.005394237003947808,
+        0.011323734349656705
+       ],
+       "sign_test_p": 1.52587890625e-05,
+       "bootstrap_b": 2000,
+       "seed": 20260829
+      },
       "mcnemar": {
        "available": false,
        "reason": "McNemar needs per-position top-1 agreement for BOTH runs; per-window means cannot supply a contingency table. Pass --a-only-correct/--b-only-correct from a run that emits them."
@@ -1307,26 +2635,98 @@
       "mean_b": 0.013723384665701145,
       "mean_diff": 0.010831179584257057,
       "mean_diff_se": 0.002988063105448762,
-      "ratio_a_over_b": 1.789249871522397,
-      "ci95_diff_bca": [
-       0.007168229527067136,
-       0.02142276050623659
-      ],
-      "ci95_diff_percentile": [
-       0.006399080487370276,
-       0.01817594094802104
-      ],
-      "ci95_ratio_percentile": [
-       1.493535291750217,
-       2.236810037096485
-      ],
-      "bca_excludes_zero": true,
       "n_windows": 25,
       "windows_a_better": 0,
       "windows_b_better": 25,
-      "sign_test_p": 5.960464477539063e-08,
-      "bootstrap_b": 2000,
-      "seed": 20260829,
+      "windows_tied": 0,
+      "sign_test_n": 25,
+      "document_level": {
+       "ci95_diff_t": [
+        0.0012540683651769812,
+        0.019882164797589502
+       ],
+       "df": 3,
+       "documents_a_better": 0,
+       "documents_b_better": 4,
+       "documents_tied": 0,
+       "mean_diff_equal_documents": 0.01056811658138324,
+       "n_documents": 4,
+       "note": "the panel's windows derive from 4 source documents; the document is the independent sampling unit, and this block is the inferential statement. Window-level intervals and sign tests above it are DESCRIPTIVE of this fixed panel only.",
+       "per_document": [
+        {
+         "document_id": "reap-recall-packed-axis1_general-4",
+         "mean_diff": 0.017144691653228624,
+         "n_windows": 7
+        },
+        {
+         "document_id": "reap-recall-packed-axis2_legal-2",
+         "mean_diff": 0.012950547808125922,
+         "n_windows": 6
+        },
+        {
+         "document_id": "reap-recall-packed-axis3_code_agentic-3",
+         "mean_diff": 0.008708467989621263,
+         "n_windows": 6
+        },
+        {
+         "document_id": "reap-recall-packed-axis4_reasoning_termination-0",
+         "mean_diff": 0.0034687588745571565,
+         "n_windows": 6
+        }
+       ],
+       "se_equal_documents": 0.0029266945370743478,
+       "sign_test_n": 4,
+       "sign_test_p": 0.125,
+       "t_critical": 3.1824463052837046,
+       "t_interval_note": "equal-document-weight Student-t; at 4 documents this is illustrative, not calibrated -- a domain-population interval is not estimable from one document per domain",
+       "unit": "source_document"
+      },
+      "document_map_source": "producer-local-path-sha256:7f6da51b804ae107c573383609e328295c1360e8bf9b2ce0e40d43a989265906",
+      "inference_unit": "source_document",
+      "window_stats_are": "descriptive of this fixed panel only: 25 windows derive from 4 source document(s), so window-level bootstrap intervals and the window-level sign test treat pseudoreplicates as independent evidence (P1-15). The inferential statement is document_level.",
+      "cross_lane": {
+       "bridge": "no measured bridge between brandonmusic's k4-tp2 runtime and the sealed-ep8 lane. Panel and teacher identity are byte-verified (his receipt's token_panel_receipt_sha256 and teacher_receipt_sha256 are identical to ours); his lane's FP8 runs show non-zero run spread, and no cross-runtime offset has been measured. Descriptive contrast of the mixed design only; the registry row is advisory.",
+       "lane_a": "his k4-tp2 / same_stack",
+       "lane_b": "sealed-ep8 / same_stack",
+       "mixed": true,
+       "note": "this contrast crosses measurement lanes; the bridge is context, not a correction, and every statistic here describes the mixed design"
+      },
+      "contract_a": {
+       "estimator": null,
+       "lane": "his k4-tp2 / same_stack",
+       "reference": null,
+       "scope": null,
+       "series": "brandonmusic 4bpw (k4)",
+       "source": "producer-local-path-sha256:148b3a4f0c50fbbdcd903404c87978f4004d6a35184acf154a312f8a1b92dac9"
+      },
+      "contract_b": {
+       "estimator": null,
+       "lane": "sealed-ep8 / same_stack",
+       "reference": null,
+       "scope": null,
+       "series": "K6 sealed (5-run)",
+       "source": "producer-local-path-sha256:27b9a443dfdedea522dd9b8760b0e4e54a1418eee6853b230953156b19ee35ce"
+      },
+      "not_submittable": true,
+      "scope_complete": true,
+      "source_analysis": {
+       "path": "docs/joint-standard/analysis/paired.BM4bpw-vs-K6.panel.json",
+       "sha256": "089daa10490c6d35e40eaefcaff16c054f8b34235e76a3c808beeb1c823e423c"
+      },
+      "interpretation": "Descriptive mixed-design contrast; not a codec ranking.",
+      "descriptive_window_diagnostics": {
+       "ci95_diff_bca": [
+        0.007168229527067136,
+        0.02142276050623659
+       ],
+       "ci95_diff_percentile": [
+        0.006399080487370276,
+        0.01817594094802104
+       ],
+       "sign_test_p": 5.960464477539063e-08,
+       "bootstrap_b": 2000,
+       "seed": 20260829
+      },
       "mcnemar": {
        "available": false,
        "reason": "McNemar needs per-position top-1 agreement for BOTH runs; per-window means cannot supply a contingency table. Pass --a-only-correct/--b-only-correct from a run that emits them."
@@ -1339,26 +2739,93 @@
       "mean_b": 0.011677286368695299,
       "mean_diff": 0.013271550686919681,
       "mean_diff_se": 0.0042092133523146565,
-      "ratio_a_over_b": 2.1365269522291004,
-      "ci95_diff_bca": [
-       0.008429901162114532,
-       0.028684493424825933
-      ],
-      "ci95_diff_percentile": [
-       0.007544346414062993,
-       0.02239005753803982
-      ],
-      "ci95_ratio_percentile": [
-       1.7259761757388528,
-       2.73184925171125
-      ],
-      "bca_excludes_zero": true,
       "n_windows": 17,
       "windows_a_better": 0,
       "windows_b_better": 17,
-      "sign_test_p": 1.52587890625e-05,
-      "bootstrap_b": 2000,
-      "seed": 20260829,
+      "windows_tied": 0,
+      "sign_test_n": 17,
+      "document_level": {
+       "ci95_diff_t": [
+        0.002603964093205159,
+        0.022906299689618485
+       ],
+       "df": 2,
+       "documents_a_better": 0,
+       "documents_b_better": 3,
+       "documents_tied": 0,
+       "mean_diff_equal_documents": 0.012755131891411822,
+       "n_documents": 3,
+       "note": "the panel's windows derive from 3 source documents; the document is the independent sampling unit, and this block is the inferential statement. Window-level intervals and sign tests above it are DESCRIPTIVE of this fixed panel only.",
+       "per_document": [
+        {
+         "document_id": "reap-recall-packed-axis1_general-4",
+         "mean_diff": 0.017144691653228624,
+         "n_windows": 7
+        },
+        {
+         "document_id": "reap-recall-packed-axis2_legal-2",
+         "mean_diff": 0.0120595009368096,
+         "n_windows": 5
+        },
+        {
+         "document_id": "reap-recall-packed-axis3_code_agentic-3",
+         "mean_diff": 0.009061203084197242,
+         "n_windows": 5
+        }
+       ],
+       "se_equal_documents": 0.0023592812238876102,
+       "sign_test_n": 3,
+       "sign_test_p": 0.25,
+       "t_critical": 4.302652729749456,
+       "t_interval_note": "equal-document-weight Student-t; at 3 documents this is illustrative, not calibrated -- a domain-population interval is not estimable from one document per domain",
+       "unit": "source_document"
+      },
+      "document_map_source": "producer-local-path-sha256:7f6da51b804ae107c573383609e328295c1360e8bf9b2ce0e40d43a989265906",
+      "inference_unit": "source_document",
+      "window_stats_are": "descriptive of this fixed panel only: 17 windows derive from 3 source document(s), so window-level bootstrap intervals and the window-level sign test treat pseudoreplicates as independent evidence (P1-15). The inferential statement is document_level.",
+      "cross_lane": {
+       "bridge": "no measured bridge between brandonmusic's k4-tp2 runtime and the sealed-ep8 lane. Panel and teacher identity are byte-verified (his receipt's token_panel_receipt_sha256 and teacher_receipt_sha256 are identical to ours); his lane's FP8 runs show non-zero run spread, and no cross-runtime offset has been measured. Descriptive contrast of the mixed design only; the registry row is advisory.",
+       "lane_a": "his k4-tp2 / same_stack",
+       "lane_b": "sealed-ep8 / same_stack",
+       "mixed": true,
+       "note": "this contrast crosses measurement lanes; the bridge is context, not a correction, and every statistic here describes the mixed design"
+      },
+      "contract_a": {
+       "estimator": null,
+       "lane": "his k4-tp2 / same_stack",
+       "reference": null,
+       "scope": null,
+       "series": "brandonmusic 4bpw (k4)",
+       "source": "producer-local-path-sha256:148b3a4f0c50fbbdcd903404c87978f4004d6a35184acf154a312f8a1b92dac9"
+      },
+      "contract_b": {
+       "estimator": null,
+       "lane": "sealed-ep8 / same_stack",
+       "reference": null,
+       "scope": null,
+       "series": "K6 sealed (5-run)",
+       "source": "producer-local-path-sha256:27b9a443dfdedea522dd9b8760b0e4e54a1418eee6853b230953156b19ee35ce"
+      },
+      "not_submittable": true,
+      "scope_complete": true,
+      "source_analysis": {
+       "path": "docs/joint-standard/analysis/paired.BM4bpw-vs-K6.selected.json",
+       "sha256": "b649fc855526d912413c40d0b2b4520f377d761cbf3558c9c459dbe73508dedc"
+      },
+      "interpretation": "Descriptive mixed-design contrast; not a codec ranking.",
+      "descriptive_window_diagnostics": {
+       "ci95_diff_bca": [
+        0.008429901162114532,
+        0.028684493424825933
+       ],
+       "ci95_diff_percentile": [
+        0.007544346414062993,
+        0.02239005753803982
+       ],
+       "sign_test_p": 1.52587890625e-05,
+       "bootstrap_b": 2000,
+       "seed": 20260829
+      },
       "mcnemar": {
        "available": false,
        "reason": "McNemar needs per-position top-1 agreement for BOTH runs; per-window means cannot supply a contingency table. Pass --a-only-correct/--b-only-correct from a run that emits them."
@@ -1377,9 +2844,7 @@
     "k6-sealed": 0.011739694055877225,
     "k8-streaming": 0.01136703558705986,
     "fp8-crossstack": 0.019568764759592266,
-    "bf16-floor-crossstack": 0.01147672334551312,
-    "fp8_over_k6": 1.6668888189463154,
-    "fp8_over_floor_same_lane": 1.7050829030607215
+    "bf16-floor-crossstack": 0.01147672334551312
    },
    {
     "domain": "axis2_legal",
@@ -1388,9 +2853,7 @@
     "k6-sealed": 0.011448683071708841,
     "k8-streaming": 0.010324226620147562,
     "fp8-crossstack": 0.02067276158943368,
-    "bf16-floor-crossstack": 0.010085462091388418,
-    "fp8_over_k6": 1.8056890438795283,
-    "fp8_over_floor_same_lane": 2.04975849416809
+    "bf16-floor-crossstack": 0.010085462091388418
    },
    {
     "domain": "axis3_code_agentic",
@@ -1399,13 +2862,10 @@
     "k6-sealed": 0.011818518903627059,
     "k8-streaming": 0.010581951115570407,
     "fp8-crossstack": 0.01539307808328466,
-    "bf16-floor-crossstack": 0.010049099052412918,
-    "fp8_over_k6": 1.302454073036223,
-    "fp8_over_floor_same_lane": 1.5317868798983112
+    "bf16-floor-crossstack": 0.010049099052412918
    }
   ],
-  "spread": 1.3863744459489356,
-  "worst_domain": "axis2_legal",
-  "reading": "He measured NVFP4-over-EXL3 ratios of 1.50x general / 1.97x legal / 1.65x code-agentic and concluded that a single-corpus mean hides where a codec hurts. Same test on our artifacts reproduces the shape: legal is the worst domain here as it is on his data. A per-domain table is therefore not decoration -- one number cannot carry this."
- }
+  "reading": "Finite-panel domain means only. Cross-lane ratios, their spread and a worst-codec/domain ranking are not identified by this mixed measurement design."
+ },
+ "producer_path_policy": "Producer-local absolute path labels are replaced by distinct opaque hashes. source_analysis names the original committed analysis by portable path and file digest; no replacement path is guessed to contain the old bytes."
 }

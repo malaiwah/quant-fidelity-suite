@@ -31,9 +31,14 @@ aggregate because they document a failure mode rather than a card:
   bandwidth *fell* under sustained load, 27.6 GB/s cold to 13.8 GB/s warm.
 
 **`lambda-capacity-poll.jsonl`** is a two-minute poll of Lambda's
-`regions_with_capacity_available` for eight single-GPU instance types, taken
-across the survey. It is the evidence for the capacity claims in the comparison
-document — in particular that `gpu_1x_h100_sxm5` was never available in any
-poll.
+`regions_with_capacity_available` for eight single-GPU instance types.
+The dated survey reports `gpu_1x_h100_sxm5` absent in the first 21 polls but
+available in 15 of the remaining 45 (15/66 overall); the former "never
+available in any poll" statement was wrong. See the comparison's postscript
+for the failed launches and healthy-host counterexample.
 
-Snapshot: 2026-08-31 UTC. Prices move; re-run before trusting the numbers.
+Snapshot: 2026-08-31 UTC. Prices, capacity and software change. These receipts
+measure an inner loop, not end-to-end root/candidate captures or universal
+provider performance. Regenerate tables offline if needed; do **not** rerun
+the historical paid benchmark paths. Current admitted operation is documented
+in [`../../docs/THIRD-PARTY-QUICKSTART.md`](../../docs/THIRD-PARTY-QUICKSTART.md).

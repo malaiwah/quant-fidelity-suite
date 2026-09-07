@@ -2,6 +2,13 @@
 
 Approved by the maintainer, 2026-09-01.
 
+**Implementation status, 2026-09-07:** this is an authorization policy, not a
+shipped general remote-code loader. `hf_capture.py` resolves native
+transformers configs/classes; it does not enable `trust_remote_code`.
+Repository modeling code and `auto_map` alone therefore do not admit a target
+to capture or the paid route. The requirements below must be implemented and
+verified before enabling such execution.
+
 ## The situation this answers
 
 Model vendors do not wait for `transformers`. At launch, an architecture is
@@ -28,21 +35,24 @@ conditions, all mandatory:
    enters `harness.code_digests` with its sha256, alongside the suite's own
    estimator closure. The registry's whole claim is "we hashed what ran"; the
    origin of the code changes nothing about that obligation.
-3. **Token-absent capture.** The HF token is needed for *fetch*, not for
-   *capture*. The capture stage runs with the token unset and the 0600 token
-   file already shredded from the environment the remote code can reach.
-   Remote code that exfiltrates has nothing to exfiltrate.
+3. **Credential-isolated capture.** Fetch and capture must be separated, with
+   no HF credential in the capture environment or accessible token files.
+   Merely unsetting a variable or unlinking one file is not a sandbox:
+   arbitrary code could still read other mounts, model bytes or credentials,
+   communicate over the network, or alter results. The loader's eventual
+   isolation boundary must cover those risks; this policy is not evidence
+   that such isolation currently exists.
 4. **Disclosed on every row.** A `remote_code` disclosure
    (`affects_comparability: true`) on every measurement it produces.
 
 ## Enforcement, not convention
 
-**RC-001** (schema/invariants.json, enforced in `registry_validate.py`,
-selftest `remote-code-unrecorded-harness`): a row carrying a `remote_code`
-disclosure with an **unrecorded harness** is refused as an error. A remote-code
-row asserts "we executed code X"; an unrecorded harness asserts "we did not
-hash what we executed". Together they are the one sentence this registry
-exists to make unwritable.
+**RC-001** (schema/invariants.json, enforced in `registry_validate.py`) refuses
+a `remote_code` disclosure without a recorded harness and a
+`remote_model_code` role. That is a necessary metadata gate, not proof that
+every executable transitive file was hashed, that credentials were absent,
+or that remote code ran safely. The complete closure and execution boundary
+remain requirements of any future loader.
 
 ## What this does not change
 

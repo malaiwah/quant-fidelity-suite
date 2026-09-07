@@ -664,8 +664,12 @@ def _body(work):
                    "--self-compare", "--force-compute", "--out", destination])
     receipt = os.path.join(destination, "comparison-receipt.json")
     doc = json.load(open(receipt)) if os.path.isfile(receipt) else {}
-    check("L14c window-outer vs layer-outer scores exactly 0.0 under --force-compute",
-          compare.returncode == 0
+    check("L14c schedules compute exact zero while disclosing different capture closures",
+          compare.returncode == 2
+          and (doc.get("comparability") or {}).get("class") == "advisory"
+          and (doc.get("comparability") or {}).get("usable_as_floor") is False
+          and (doc.get("estimator") or {}).get("stack_relation") == "cross_stack"
+          and (doc.get("comparator") or {}).get("short_circuited") is False
           and (doc.get("metric") or {}).get("value") == 0.0
           and (doc.get("kl") or {}).get("max") == 0.0
           and doc.get("top1_agreement") == 1.0,

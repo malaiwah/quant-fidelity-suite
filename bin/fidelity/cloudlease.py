@@ -955,8 +955,8 @@ def _validate_billing(
         amount = billing["total_amount"]
         if not isinstance(amount, str):
             raise InvalidLease("billing total_amount must be an exact decimal string")
+        from decimal import Decimal, InvalidOperation
         try:
-            from decimal import Decimal, InvalidOperation
             parsed = Decimal(amount)
         except (InvalidOperation, ValueError):
             raise InvalidLease("billing total_amount is not decimal")

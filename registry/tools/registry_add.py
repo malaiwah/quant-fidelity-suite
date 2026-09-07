@@ -1083,6 +1083,7 @@ def adapt_report(receipt, path, position_selector=None):
         "metric_name": "mean_tokenwise_kld", "direction": "reference_to_candidate",
         "accumulation": _acc(cmp_.get("accumulation")),
         "two_pass": cmp_.get("two_pass"), "vocab_chunk": cmp_.get("vocab_chunk"),
+        **{k: cmp_[k] for k in ("replay_backend", "replay_env", "replay_applicable") if k in cmp_},
         "top1": receipt.get("top1_agreement"),
         "scored_positions": receipt.get("scored_positions"), "contexts": receipt.get("contexts"),
         "ci": ((cb.get("ci95_low"), cb.get("ci95_high")) if cb.get("ci95_low") is not None else None),
@@ -1732,6 +1733,8 @@ def build_row(args, adapted, receipt_sources, registry):
                         "clusters": adapted.get("clusters"), "samples": adapted.get("samples")},
         "estimator": {"accumulation_dtype": ki["accumulation_dtype"], "logits_dtype": "fp32",
                       "two_pass": adapted.get("two_pass"), "vocab_chunk": adapted.get("vocab_chunk"),
+                      **{k: adapted[k] for k in ("replay_backend", "replay_env", "replay_applicable")
+                         if k in adapted},
                       "stack_relation": stack, "head_policy": head},
         "determinism": det,
         "measurement_scope": {"scored_positions": adapted.get("scored_positions"),
@@ -1760,12 +1763,14 @@ def build_row(args, adapted, receipt_sources, registry):
                                                 and not any(d.get("affects_comparability")
                                                             for d in disclosures)) else "advisory",
                           "bias": (lane_bias if lane_bias
-                                   else {"kind": "cross_stack_capture_replay", "direction": "upward",
+                                   else {"kind": "cross_stack_capture_replay", "direction": "unknown",
                                     "floor_measurement_ref": args.floor_measurement,
                                     "estimated_magnitude": None,
                                     "detail": args.disclosure or
-                                              "Cross-stack replay; see the named floor."}
-                                   if stack == "cross_stack" else None)},
+                                              "Cross-stack replay has unknown bias direction; any "
+                                              "named unquantized control is context, not a bound."}
+                                   if stack == "cross_stack" else None),
+                          **({"usable_as_floor": False} if stack == "cross_stack" else {})},
         "quality_gate": adapted.get("gate"),
         "cross_refs": {"local_ai_registry": {"model_id": None, "model_instance_id": None,
                                              "url": None, "match_confidence": "unverified"}},
@@ -2605,6 +2610,8 @@ def submission_to_records(sub, path, fsha, registry, strict_new=False,
         "estimator": {"accumulation_dtype": est["accumulation_dtype"],
                       "logits_dtype": est.get("logits_dtype") or "fp32",
                       "two_pass": est.get("two_pass"), "vocab_chunk": est.get("vocab_chunk"),
+                      **{k: est[k] for k in ("replay_backend", "replay_env", "replay_applicable")
+                         if k in est},
                       "stack_relation": est["stack_relation"], "head_policy": est["head_policy"],
                       "zero_handling": est.get("zero_handling")},
         "determinism": det,
@@ -2626,16 +2633,17 @@ def submission_to_records(sub, path, fsha, registry, strict_new=False,
             else "advisory",
             # A submission MAY declare its own bias and floor usability. When it
             # does, that wins: the tool that computed the number knows things
-            # stack_relation cannot express -- a head substitution biases the
-            # number DOWNWARD and is not a cross-stack effect at all, so deriving
-            # the bias from stack_relation alone would file it as `bias: null`.
+            # stack_relation cannot express -- a head substitution is a separate
+            # intervention whose direction is not guaranteed. Deriving the bias
+            # from stack_relation alone would lose that disclosure.
             "bias": (declared_bias if declared_bias is not None else
-                     ({"kind": "cross_stack_capture_replay", "direction": "upward",
+                     ({"kind": "cross_stack_capture_replay", "direction": "unknown",
                        "floor_measurement_ref": None, "estimated_magnitude": None,
-                       "detail": "Cross-stack capture declared by the submission; a floor measurement "
-                                 "on this panel must be named before this row can be published."}
+                       "detail": "Cross-stack capture declared by the submission; no matched "
+                                 "control or direction of the stack contribution is known."}
                       if est["stack_relation"] == "cross_stack" else None)),
-            "usable_as_floor": declared_floor},
+            "usable_as_floor": (False if declared_bias is None and est["stack_relation"] == "cross_stack"
+                                else declared_floor)},
         "quality_gate": None,
         "cross_refs": {"local_ai_registry": {"model_id": None, "model_instance_id": None,
                                              "url": None, "match_confidence": "unverified"}},

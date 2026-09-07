@@ -16,21 +16,20 @@ TWO HALVES, AND ONLY THE FIRST ONE IS REAL DATA.
 
   ``teacher`` and ``canary`` read brandonmusic's PUBLISHED teacher window and
   nothing else.  No lm_head, no reconstruction, no simulation.  They produce the
-  load-bearing result -- how much probability mass the padded columns actually
-  hold on a real window of a real teacher -- and anyone who downloads that one
-  1.27 GB file can re-derive every number in them.  This is the half the
-  conclusion rests on.
+  observed result -- padded probability mass on ONE real teacher window.
+  Anyone with that file can reproduce it. It does not bound every candidate's
+  padded mass or establish masked equivalents for all published measurements.
 
   ``recon``, ``shared``, ``quantized`` and ``sweep`` build SYNTHETIC students.
   There are no K6 or FP8 student logits on his panel without a GPU run we did
   not do, so the hidden states are reconstructed from his teacher tensor by
   least squares against a real ``lm_head.weight`` and students are built on top
-  of them.  They are a stress test of the bound -- does it survive a student
-  whose padded logits sit nowhere near the teacher's? -- and NOT a
+  of them. They are a sensitivity study of selected perturbations, NOT a bound
+  on arbitrary candidates and NOT a
   re-measurement of any published row.  The receipt labels them
   ``synthetic: true`` for that reason.
 
-THE BOUND, which is what actually settles it.  Writing ``e_p`` and ``e_q`` for
+THE EXACT DECOMPOSITION. Writing ``e_p`` and ``e_q`` for
 the padded probability mass on the teacher and student sides,
 
     KL_masked - KL_unmasked
@@ -38,14 +37,14 @@ the padded probability mass on the teacher and student sides,
     where
         D_pad = e_p*log(e_p/e_q) + e_p*KL(pbar||qbar)
 
-Every term carries a factor of ``e_p``.  So the general cap is order ``e_p``
-itself -- measured at ~1.6e-8 on his real window -- times however many nats the
-student's padded logits are displaced; a student off by a factor of e^4 is still
-bounded around 1e-7.  In the special case where teacher and student SHARE the
-head, ``e_q = e_p``, ``D_pad = 0``, and the whole expression collapses to
-``KL*e_p``, i.e. 1e-10 at our KLDs.  Every malaiwah row on his panel is in that
-special case.  Both halves are quoted in the document; do not quote the 1e-10
-one as if it were general.
+The term ``log(1-e_q)`` requires candidate-side evidence; small teacher mass
+alone does not provide a universal bound. Sharing head WEIGHTS does not imply
+equal hidden states, logits, normalizers or padded mass. Indeed the committed
+shared-head simulation has different teacher/candidate mean padded masses.
+Only if the padded subdistributions themselves agree can the corresponding
+terms cancel; shared W is insufficient. The measured synthetic cases are not
+actual all-window K6/FP8 masked equivalents. See the dated correction in
+docs/PROTOCOL-ALIGNMENT.md before interpreting the historical study receipt.
 
 USAGE
 

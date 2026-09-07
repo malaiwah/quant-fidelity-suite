@@ -1,10 +1,17 @@
 # The layer-outer, window-inner capture engine
 
-**Status: built, and proven bit-identical on two architectures and two devices.**
-Run date 2026-08-30. Cost of the proofs: one L4 spot instance, created and
-destroyed the same hour (§6). **No GLM-5.3 capture was run** — that is Stage B,
-a separate budgeted decision, and nothing in this document is a GLM-5.3
-measurement.
+**Historical schedule study, run 2026-08-30:** independent captures matched
+bitwise on the small models/devices listed below, including a four-layer
+MiniMax truncation. Cost of these proofs: one L4 spot instance, created and
+destroyed the same hour (§6). No full GLM-5.3 capture was part of that study.
+
+**Current status, 2026-09-07:** full GLM-5.3 layer-outer captures and supported
+FP8/trellis/NVFP4/GGUF decoded weight paths subsequently landed. The dated
+blanket quantized-checkpoint refusal in §7.8 is superseded for supported
+surfaces, not for arbitrary quantizers. See the [support matrix](../README.md#before-you-rent-what-is-measurable-today)
+and [candidate route](THIRD-PARTY-QUICKSTART.md). Full-model captures do not
+retroactively prove window-outer equivalence on that full model; the direct
+schedule controls here remain fixture/Fruit/truncated-MiniMax evidence.
 
 > **Amended 2026-08-30.** §7 items 8 and 9 changed after this schedule was run
 > against three new architectures: quantized checkpoints are now a REFUSAL
@@ -366,19 +373,20 @@ Stated plainly, because a list of limits is part of the deliverable.
    A build that does not expose them gets a refusal naming exactly what is
    missing and pointing at `--layer-residency resident`, not a silent fallback
    to hand-rolled loading.
-8. **Quantized checkpoints are REFUSED on this path** (amended 2026-08-30,
-   `docs/NEW-ARCHITECTURES-FEASIBILITY.md` §2.6c). This item used to read
-   "untested"; running the schedule at `deepseek-ai/DeepSeek-V4-Flash-0731`
-   showed that "untested" was too kind. The loader passes `hf_quantizer=None`,
+8. **Historical blanket quantized-checkpoint refusal** (amended 2026-08-30,
+   superseded for supported decoded weight sources; see current status above).
+   This was initially called "untested"; running the August schedule at
+   `deepseek-ai/DeepSeek-V4-Flash-0731` exposed the missing quantizer. It passed `hf_quantizer=None`,
    so the quantizer's module replacement, its `*.scale` ->
    `*.weight_scale_inv` rename and its dequantization op are all absent. For a
    packed format that raises a shape mismatch; **for a plain FP8 E4M3 weight the
    shape MATCHES the bf16 parameter it lands in, the payload is read as bf16 and
    the block scale is never applied** — the M1 Qwen3.8-27B-FP8 defect, whose
    only signal is `unexpected_keys`, behind the flag a truncated tree already
-   needs. `build_streamed_model` now refuses on the config's own
-   `quantization_config` before any weight is read. `selftest_layer_outer.py`
-   L15; on the pre-amendment tree that rung captures and says nothing.
+   needs. The August guard refused `quantization_config` before reading weights.
+   Current code selects supported weight-source plans and refuses unsupported
+   forms; a decoder's presence still does not qualify every architecture or
+   native served forward.
 9. **Layer routing is done on the RENAMED checkpoint key** (added 2026-08-30).
    `layer_pattern` comes from the MODEL's stack path; a VL checkpoint may spell
    that path differently (`MiniMaxAI/MiniMax-M3` ships
@@ -390,16 +398,14 @@ Stated plainly, because a list of limits is part of the deliverable.
    construction, and `minimax_m3_vl` now reproduces the window-outer capture
    bit-for-bit (same `capture_content_digest`, `--force-compute` self-compare
    exactly 0.0).
-10. **On GLM-5.3 itself the schedule-equivalence claim is structural, never
-   measured — and it cannot be.** Every GLM-5.3 row (the root and the six
-   candidates, 2026-09-04/05) was captured layer-outer; the bit-identity gate
-   against a window-outer forward was proven on Qwen3.8 and on the Fruit
-   `glm_moe_dsa` model (`layer-outer-evidence/bit-identity.json`, gate 2), and
-   GLM-5.3 is the same `glm_moe_dsa` architecture at 78 layers. A window-outer
-   GLM-5.3 forward would need the whole ~1.5 TB checkpoint resident, which no
-   single box on this project has, so the equivalence on GLM-5.3 is inherited
-   from the architecture proof plus the two-fresh-process bitwise reproduction
-   of each capture, not from a GLM-5.3 window-outer run.
+10. **Full GLM-5.3 schedule equivalence was not directly measured here.**
+   The full-model root/candidate runs of 2026-09-04/05 used layer-outer.
+   Independent cross-schedule controls used the small `glm5_next` fixture,
+   Fruit `glm_moe_dsa`, and truncated MiniMax, not the full 78-layer GLM model.
+   A full window-outer control exceeded this project's available memory.
+   Shared code structure supports an extrapolation, but neither that argument
+   nor two matching cold layer-outer runs proves a full-model window-outer
+   equivalence experiment. It is untested here, not physically impossible.
 
 ---
 
@@ -426,12 +432,12 @@ only `embed_tokens + lm_head + model.norm`:
 | carried state, 25 windows (hidden 2048×6144 bf16 + topk_indices 2048×2048 int64) | 1.47 | arithmetic, int64 assumed |
 | epilogue logits buffer, 2048 × 154,880 × 2 B | 0.63 | arithmetic |
 | within-layer activations/workspace at hidden 6144, 64 heads, ctx 2048 | 2.0–3.0 | budgeted |
-| **expert-fusion transient during a layer load** | **19.3–22.3** | Stage A §9.5, upper-bounded |
+| **expert-fusion transient during a layer load** | **19.3–22.3** | historical CPU-RSS-based projection, not a universal GPU bound |
 | **peak** | **47.0–50.9** | |
 
 **Measured since (additive; the projection above is left as written).** The
 GLM-5.3 pod runs of 2026-09-04/05 (`{"stage": "peak_memory"}` lines of the
-sealed capture logs, H200 SXM 141 GB, quoted in `review-efficiency.md` §2):
+sealed capture logs, H200 SXM 141 GB):
 `peak_resident_weight_bytes` = 23,561,229,056 in every run — the 3.81 + 19.76
 GB above, exactly. Peak CUDA allocated / reserved: bf16 root **37.53 / 57.08
 GB**, official FP8 **37.53 / 57.09 GB**, the wrldsuksgo2mars K4 trellis
@@ -480,17 +486,18 @@ schedule stands, and §6 lets two of its assumed terms be replaced by observatio
 |---|---:|---|
 | read 1,486.8 GB once | 8.3–23.6 | §4, at 3.0–1.05 GB/s |
 | compute, 25-window panel (4.11 PFLOP) | 0.3–0.9 | §4, H200 |
-| per-tensor fusion overhead, 75 sparse layers | **0–12.5** | see below |
-| **total per cold run** | **~9–37** | |
-| **per window at 25 windows** | **0.4–1.6** | vs 13–26 window-outer |
+| per-tensor fusion overhead, 75 sparse layers | not established | former 0–12.5 min term used an erroneous 100x tensor count |
+| **historical total per cold run** | **~9–37** | projection retained for history, not a corrected bound |
+| **historical per-window projection at 25 windows** | **0.4–1.6** | not measured per-window; see later full-run timings in `CAPTURE-SCALING-PLAN.md` |
 
-**The fusion-overhead term is new and is a warning, not a reassurance.** Fruit's
-per-layer load cost 0.086–0.120 s for 786 checkpoint tensors reading from page
-cache — about 0.13 ms per tensor of pure per-tensor overhead, independent of
-size. A GLM-5.3 sparse layer has **76,800** source expert tensors (256 experts ×
-3 matrices × 100 shards' worth of addressing), which extrapolates to ~10 s per
-layer, ~12.5 minutes over 75 layers — the *same order as the IO*. It may
-overlap with IO (the loader uses a thread pool) or it may not.
+**Correction, 2026-09-07: the old fusion-overhead extrapolation was wrong.**
+A GLM-5.3 sparse layer has **768** source expert matrices (256 × 3), not
+76,800. Shard addressing does not multiply the tensor count by 100.
+Fruit's 0.086–0.120 s for loading 786 tensors includes data movement and
+conversion; it does not isolate a size-independent 0.13 ms overhead.
+Even applying that rate mechanically to 75 × 768 gives about 7.5 seconds,
+not 12.5 minutes, and is still not a measured GLM-5.3 overhead or a bound.
+Use the actual `layer_load` timings; no replacement performance claim follows.
 
 **This is the single thing Stage B should measure and not trust.** It is also
 cheap to measure: the first sparse layer's `layer_load` log line reports its own

@@ -1,115 +1,128 @@
-# quant-fidelity-suite — a receipt-backed yardstick for quantization quality
+# quant-fidelity-suite — receipt-backed distribution-fidelity measurements
 
-> Tools, published measurements, and a schema-enforced registry for measuring how far a
-> quantized model's output distribution has moved from its unquantized reference, using
-> KL divergence over the full vocabulary. Five model families (GLM-5.3, GLM-5.2,
-> GLM-5.3-Flash, Qwen3.8-27B, and a 5B MoE CI fixture), six storage formats, 95 published
-> rows. Every number links to a JSON receipt with pinned revisions and sha256 digests.
-> MIT licensed.
-> The registry is a public HF dataset.
+> Python/Bash measurement CLIs, capture datasets, and a schema-enforced registry
+> for teacher-forced next-token KL divergence. The measured object is an exact
+> reference/candidate pair on a pinned token panel and computational pipeline,
+> not a universal model-quality score. MIT licensed.
 >
-> **If you are about to measure something, read "Before you rent" in the README first.**
-> A measurement needs a panel you can download, a reader for the artifact's storage
-> surface *on the lane you can run*, and a profile for that surface at that bit rate.
-> Only one panel is fetchable today (`panel--glm53.brandonmusic.final25`); the
-> Qwen3.8-27B panels are private; the local lanes read only unquantized or
-> payload-store trees, so `bin/measure` cannot execute a third-party quant measurement
-> and hands off to `bin/measure-cloud`.
+> Start with WHAT-WE-MEASURE.md before citing a result. Use AGENTS.md when changing
+> the repository. Historical plans, model-card prose, self-seals and green tests
+> are not substitutes for the actual measurement and its disclosed limits.
+>
+> [QFS Explorer](https://huggingface.co/spaces/malaiwah/qfs-explorer) is the optional
+> read-only web interface. Its cost calculator is not a runtime prediction or a
+> spending cap; it neither rents compute nor accepts measurement credentials.
 
-If you are an agent asked to compare quantizations, rank them, or produce a fidelity number,
-read the five rules below before you use any number from this project. They are not style
-preferences: each one exists because violating it produced a wrong answer that we published
-or nearly published, and each is enforced mechanically by the tooling.
+## Rules for reading a number
 
-**Rule 1 — a KLD number is meaningless without its tuple.** Two numbers are comparable only
-if they share panel, reference/teacher (weights *and* the runtime that captured its logits),
-KL direction, estimator precision, scope policy (what was quantized vs left native), and
-measurement lane. The registry encodes this in two layers: the seven-field
-`comparability.key` is a NECESSARY partition key -- rows with different keys render in
-separate tables and must never be ranked against each other -- and a per-group
-machine-readable predicate in the registry's `index.json` (`comparable: true/false/unknown`
-plus reasons) covers what the key deliberately omits: lane, candidate pipeline, hardware,
-artifact scope. Equal keys alone are NOT a license to rank; check the predicate. If you
-cannot state the tuple for a number you found in the wild, it is an anecdote, not a
-measurement.
+1. **Name the complete comparison.** Pin reference/candidate revisions, tokenizer,
+   token histories, masks, scored positions, vocabulary policy, KL direction,
+   estimator precision, capture lane, hardware, replay backend and quantization
+   scope. The registry's comparability.key is a necessary partition, not a
+   sufficient certificate. Check the secondary predicate and its reasons;
+   unknown evidence does not authorize ranking. A different quantized scope can
+   answer a product-comparison question, but not isolate codec superiority.
 
-**Rule 2 — never quote a single window as a rate comparison.** On our sealed panel the
-per-window KLD scatter is sd ≈ 7.2e-3, and even the paired per-window K6−K8 delta has
-sd ≈ 2.0e-3 against an effect of ≈ 1.33e-3 (the 1.7e-3 / 1.2e-3 pair quoted here before
-2026-08-31 was mis-scoped from an eleven-window subset and is retracted — CC-01).
-One unlucky window made our 8-bit quant look *worse* than our 6-bit; the full 25-window panel
-showed it winning decisively. Previews are for "is the pipeline alive", never for ranking.
+2. **Separate a panel census from inference.** More tokens are not automatically
+   more independent observations. The historical Flash final25 panel has four
+   source documents; clean17 has three. The newer corpus5x5 panel has 25 distinct
+   document IDs, selected deterministically, and its receipt says calibration
+   separation was not scanned. Other panels have other designs. Use actual
+   document provenance, identify the sampling assumptions, and treat missing
+   provenance as descriptive-only. Never use a single window or preview for a
+   general rate ranking. A fitted-model coverage simulation does not establish
+   deployment-population coverage.
 
-**Rule 3 — subtract only a same-lane floor.** Scoring the *unquantized* weights against the
-teacher already costs 0.011506 nats on our streaming lane (0.012712 cross-stack): that is the
-price of the comparison itself, not quantization error. Excess over control = row − same-lane
-floor (renamed from "attributable error" 2026-08-31, peer-review P1-05: the difference is an
-estimate of excess divergence over the control, not a causal attribution — it is not itself a
-divergence and can be negative). Subtracting a floor measured on a different lane is invalid
-and the validator refuses it (invariant BIAS-006).
+3. **A control difference is not causal attribution.** Subtract only a control
+   measured on the same panel, reference, scope of scored positions and lane.
+   Report raw KL alongside any excess-over-control contrast. The difference is
+   signed, can be negative, and is not itself KL or necessarily the part caused
+   by quantization. The old 2.52x residual-ratio headline was withdrawn; do not
+   resurrect it from a historical receipt, changelog or report.
 
-**Rule 4 — raw KLD understates differences between good quants.** Because the floor is common
-to both, two strong quants look closer than they are: ours read 1.11× apart raw, while their
-excess-over-control residuals are 0.002209 vs 0.000878 nats. Report the raw value and the
-excess together and name the floor; never quote a RATIO of two residuals without uncertainty
-(the once-published "2.52×" is withdrawn for exactly that reason).
+4. **Say which computation was measured.** A checkpoint/reference-forward row
+   reconstructs weights and measures that path. It does not automatically
+   contain a native serving kernel's activation quantization or cache numerics.
+   A hidden-form comparison applies the declared head to each sealed capture at
+   the declared replay precision; it need not equal native bf16 logits. Retain
+   weights_reconstructed / activation_quantization_not_captured disclosures.
+   Pre-Hadamard decoder parity is not full native reconstruction parity.
+   Weights-only KL is not a mathematical lower bound on served KL: additional
+   perturbations can cancel as well as amplify differences.
 
-**Rule 5 — measure the artifact or the serving stack, and say which.** The *checkpoint lane*
-runs a reference `transformers` forward and characterizes the weights. It is bitwise
-deterministic, and the receipts prove it two ways: the GLM-5.3-Flash rows carry five cold
-runs with population stddev exactly 0.0; the GLM-5.3 rows (root and every candidate) carry
-**two fresh-process cold runs** whose captures are bitwise equal (`capture_content_digest`
-identical, `reduced_run_count` disclosed, the self-comparison exactly 0.0) — a same-GPU-model
-statement, not a cross-device one. A trellis or FP8 candidate on this lane is a *weights-only
-reconstruction*: the served kernel's activations are not in the number, the receipt is
-`advisory` (`weights_reconstructed` / `activation_quantization_not_captured`), and the
-hidden-form rows are scored on fp32 logits replayed from bf16 hidden states
-(`WHAT-WE-MEASURE.md` §2c). The *serving lane* runs the real engine and characterizes weights
-\+ kernels + activation quantization together. Neither is wrong; mixing them silently is.
+5. **Repeatability is conditional.** Read run count, independent cold-capture
+   evidence and tensor-content hashes. A zero self-comparison tests identity;
+   it does not prove the capture is a correct model forward. Matching cold runs
+   do not imply cross-device identity or add independent textual samples.
+   Runtime and replay changes can move values; fingerprints cover only their
+   recorded fields, not every possible confounder.
 
-**The one safe claim shape** (adopted from independent peer review, 2026-08-31): "On panel X,
-under pipeline/lane/hardware configuration Y, this exact candidate's teacher-forced next-token
-distribution had lower mean teacher-to-candidate KL than candidate Z, with the reported sampling
-and run uncertainty." Unsafe without further evidence: "this is the best quant"; any residual
-ratio without uncertainty (the once-published "2.52x" is withdrawn); "the residual is the amount
-caused by quantization"; "lower KL means higher task accuracy"; "the result applies to long
-context or served generation".
+6. **Check the row's evidence class.** The registry includes modern pinned rows,
+   historical float32_reduce_legacy measurements, unknown-precision third-party
+   results, missing harnesses and incompletely available captures. Do not call
+   all rows fp64, independently reproduced, or fully reproducible. A self-seal
+   detects changes relative to a known digest; it does not authenticate who ran
+   the computation or prove its correctness. Public reference data and candidate
+   data are separate prerequisites for re-deriving a number.
+
+7. **Do not substitute task quality for fidelity.** Lower reference-to-candidate
+   KL on teacher-forced 2,048-token contexts does not establish higher task
+   accuracy, safer output, better free-running generation, long-context behavior
+   or a universal ranking of quantization formats. Unknown cross-stack or
+   quantized-proxy bias has no guaranteed direction.
+
+Safe claim shape: "On panel X, under capture/replay/hardware configuration Y,
+this exact candidate had lower mean teacher-to-candidate KL than candidate Z."
+Add uncertainty only with its actual unit, assumptions and evidence. Do not turn
+that sentence into "the best quant" or a causal quality-loss ratio.
 
 ## Start here
 
-- [WHAT-WE-MEASURE.md](https://raw.githubusercontent.com/malaiwah/quant-fidelity-suite/main/WHAT-WE-MEASURE.md): the definitive answer to *what* a number here is — the measured quantity, whether the lm_head is included (yes in the computation, no in the quantization), the two lanes, floors, and the comparability rules. Read this before citing any number.
-- [README.md](https://raw.githubusercontent.com/malaiwah/quant-fidelity-suite/main/README.md): repository overview and the copy-paste measurement recipes.
-- [registry README](https://raw.githubusercontent.com/malaiwah/quant-fidelity-suite/main/registry/README.md): the measurement tables, grouped by comparability key, generated from the data (never hand-written).
+- [Measurement semantics](https://raw.githubusercontent.com/malaiwah/quant-fidelity-suite/main/WHAT-WE-MEASURE.md): estimand, heads, lanes, controls and inference limits.
+- [Repository overview](https://raw.githubusercontent.com/malaiwah/quant-fidelity-suite/main/README.md): navigation, capability matrix and entrypoints.
+- [Contributor rules](https://raw.githubusercontent.com/malaiwah/quant-fidelity-suite/main/AGENTS.md): editing, verification, money and publication boundaries.
+- [Registry tables](https://raw.githubusercontent.com/malaiwah/quant-fidelity-suite/main/registry/README.md): generated results and disclosures, not one universal leaderboard.
+- [Published corrections](https://raw.githubusercontent.com/malaiwah/quant-fidelity-suite/main/docs/PUBLISHED-CORRECTIONS.md): additive corrections to prior claims; immutable receipts retain their historical bytes.
 
-## Measure a quant
+## Measure, inspect or contribute
 
-- [bin/README.md](https://raw.githubusercontent.com/malaiwah/quant-fidelity-suite/main/bin/README.md): every CLI, its flags, and what each refusal means.
-- `bin/measure --model <hf-repo>`: one command. Resolves the revision and lineage, checks whether the artifact is **already measured** (prints the existing rows and exits rather than spending), picks the panel, and runs. Start with `--dry-run`.
-- `bin/measure-cloud`: rents one RunPod GPU pod, measures, pulls the sealed result back, destroys the pod. Always enforced: `--max-cost` caps the run's liability, `--max-runtime` is an absolute deadline, teardown runs on success, failure, exception and Ctrl-C, and an installed user-systemd reaper destroys the pod at the deadline even if the controller dies. Setup is one `reaper --provider runpod --install`; a shared campaign ledger and drill proof are opt-in. Start with `--dry-run` ($0.00).
-- `bin/measure-local`: your own hardware. Works on Apple Silicon via MPS (decode is bitwise identical to CPU) and on a 32 GB consumer CUDA card under a `--vram-budget` that is a hard bound.
-- `bin/registry-view`: query the published registry — filter by model, artifact, panel, lane, or who measured it — against a local clone or the live dataset.
-- [FIDELITY-DATASET-SPEC.md](https://raw.githubusercontent.com/malaiwah/quant-fidelity-suite/main/docs/FIDELITY-DATASET-SPEC.md): the three-step model — capture a reference dataset, capture a candidate dataset, compare them. Captures are publishable artifacts, so a comparison needs no GPU and no access to our infrastructure.
+Probe the actual command's --help before using a flag. Capability is route- and
+artifact-specific: a decoder's existence, a published root, and paid admission
+are three different facts. Panel fetch descriptors and dataset-route token
+panels are also different mechanisms; there is no universal "one public panel"
+rule. Inspect the current registry and exact pinned inputs.
 
-## Machine-readable data (prefer these over parsing prose)
+- `bin/measure <hf-repo-or-url> --plan-only`: registry-first local planning, no rental. The target is positional; this command has neither --model nor --dry-run.
+- `bin/measure-local`: local planning; --execute opts into execution and needs local inputs. A named GPU or memory budget is not a promise every model fits.
+- `bin/measure-cloud --help`: paid controller contracts. Only run when explicitly authorized, first with --dry-run, explicit --max-cost and --max-runtime. Provider/parser support is not admission for every target or transport. Watchdog/reaper/provider guarantees have declared dependencies; do not promise an unconditional financial cap.
+- `bin/fidelity-dataset`: capture, verify, compare and qualified publication. Capture once, compare retained datasets without re-running weights. Own-head comparisons include each capture's declared head; sharing a reference head can erase candidate head error.
+- `bin/registry-view rows --model glm --lane streaming --registry local`: inspect the local snapshot without merging comparison groups.
+- `bin/registry-submit <receipt.json>`: validate a submission locally; publishes nothing. Candidate comparison receipts and legacy submission receipts have distinct ingestion paths.
+- [CLI reference](https://raw.githubusercontent.com/malaiwah/quant-fidelity-suite/main/bin/README.md): route-specific commands and refusals.
+- [First-time walkthrough](https://raw.githubusercontent.com/malaiwah/quant-fidelity-suite/main/docs/THIRD-PARTY-QUICKSTART.md): prerequisites, safe dry-run and submission destination.
+- [Contribution contract](https://raw.githubusercontent.com/malaiwah/quant-fidelity-suite/main/registry/CONTRIBUTING.md): accepted receipt types, provenance and attribution.
 
-- [measurements.jsonl](https://huggingface.co/datasets/malaiwah/quant-fidelity-registry/raw/main/data/measurements.jsonl): every measurement with its comparability key, lane, run count, determinism evidence, disclosed deviations and receipt link.
-- [artifacts.jsonl](https://huggingface.co/datasets/malaiwah/quant-fidelity-registry/raw/main/data/artifacts.jsonl), [panels.jsonl](https://huggingface.co/datasets/malaiwah/quant-fidelity-registry/raw/main/data/panels.jsonl), [references.jsonl](https://huggingface.co/datasets/malaiwah/quant-fidelity-registry/raw/main/data/references.jsonl), [pipelines.jsonl](https://huggingface.co/datasets/malaiwah/quant-fidelity-registry/raw/main/data/pipelines.jsonl): the records a measurement points at. A measurement cannot exist without a panel and a reference.
-- [JSON Schemas + invariants](https://github.com/malaiwah/quant-fidelity-suite/tree/main/registry/schema): the rules the validator enforces, including the ones that refuse cross-lane floor subtraction and unbacked determinism claims.
-- [CARD-ANNOTATION-SPEC.md](https://raw.githubusercontent.com/malaiwah/quant-fidelity-suite/main/docs/CARD-ANNOTATION-SPEC.md): how a model card declares its fidelity provenance, as a conformant HF `model-index` result plus an `x_fidelity` block. Read a card's `model-index` to get its KLD without bespoke code.
+## Machine-readable evidence
 
-## Contribute a measurement
+Prefer structured records to prose, but inspect disclosed unknowns and the
+underlying receipts. The public mirror and this checkout can represent different
+snapshots; state which one answered.
 
-- [docs/THIRD-PARTY-QUICKSTART.md](https://raw.githubusercontent.com/malaiwah/quant-fidelity-suite/main/docs/THIRD-PARTY-QUICKSTART.md): the unaided first-time path — prerequisites with install commands, `bin/fidelity-doctor` as the one verification command, a named measurable target with a pinned revision, the fail-closed dry-run, the exact spend-confirmation prompt, and the one live submission destination.
-- [registry/CONTRIBUTING.md](https://raw.githubusercontent.com/malaiwah/quant-fidelity-suite/main/registry/CONTRIBUTING.md): what a receipt must contain, the submission template, and how you are credited. A measurement costs roughly $6–15 of rented GPU time. The sealed `measurement-receipt.json` a runner writes IS the submission receipt — one noun, one file.
-- `bin/registry-submit <receipt.json>`: prints the row your receipt generates, its comparability key, and which existing rows it may be ranked against — or exactly which check it failed.
+- [measurements.jsonl](https://huggingface.co/datasets/malaiwah/quant-fidelity-registry/raw/main/data/measurements.jsonl): values, estimator precision, uncertainty, determinism, evidence and disclosures.
+- [artifacts.jsonl](https://huggingface.co/datasets/malaiwah/quant-fidelity-registry/raw/main/data/artifacts.jsonl): exact artifact and scope records.
+- [panels.jsonl](https://huggingface.co/datasets/malaiwah/quant-fidelity-registry/raw/main/data/panels.jsonl): panel identity and declared availability.
+- [references.jsonl](https://huggingface.co/datasets/malaiwah/quant-fidelity-registry/raw/main/data/references.jsonl): reference capture identity and availability.
+- [pipelines.jsonl](https://huggingface.co/datasets/malaiwah/quant-fidelity-registry/raw/main/data/pipelines.jsonl): declared runtime/hardware configuration.
+- [index.json](https://huggingface.co/datasets/malaiwah/quant-fidelity-registry/raw/main/index.json): collection digests and group comparability predicates.
+- [Schemas and invariants](https://github.com/malaiwah/quant-fidelity-suite/tree/main/registry/schema): validator contracts.
+- [Dataset format](https://raw.githubusercontent.com/malaiwah/quant-fidelity-suite/main/docs/FIDELITY-DATASET-SPEC.md): capture seals, head policies and comparison gates.
+- [Card format](https://raw.githubusercontent.com/malaiwah/quant-fidelity-suite/main/docs/CARD-ANNOTATION-SPEC.md): machine-readable model-card provenance; a discoverable score is not automatically rankable.
 
-## Optional
+## Deeper review
 
-- [JOURNAL.md](https://raw.githubusercontent.com/malaiwah/quant-fidelity-suite/main/JOURNAL.md): the campaign log — every decision, failure, cost, and 30+ numbered lessons. Useful if you are debugging a similar pipeline; most lessons are about ways a measurement can be silently wrong.
-- [engines/BF16-FLOOR.md](https://raw.githubusercontent.com/malaiwah/quant-fidelity-suite/main/engines/BF16-FLOOR.md): how the floor was measured and the ways subtracting it can be misused.
-- [engines/K8-ANOMALY.md](https://raw.githubusercontent.com/malaiwah/quant-fidelity-suite/main/engines/K8-ANOMALY.md): the investigation behind Rule 2 — why an 8-bit quant appeared worse than a 6-bit one on one window.
-- [docs/PROTOCOL-ALIGNMENT.md](https://raw.githubusercontent.com/malaiwah/quant-fidelity-suite/main/docs/PROTOCOL-ALIGNMENT.md): element-by-element alignment with brandonmusic's proposed community standard, including where his protocol is stricter than ours and what we adopted.
-- [docs/GGUF-MEASUREMENT.md](https://raw.githubusercontent.com/malaiwah/quant-fidelity-suite/main/docs/GGUF-MEASUREMENT.md): why a llama.cpp GGUF row answers a different question from every other row in the streaming lane. A GGUF quantizes the whole forward -- embeddings, attention, dense MLPs and lm_head as well as the routed experts -- so it is not rankable against a routed-experts-only quant at "the same" bpw, and its nominal rate is not its measured one (a "Q4_K_XL" build measures 4.98 bits/weight). Also: why a build NAME does not tell you what types are inside it.
-- [docs/ARCHITECTURE-DETERMINISM.md](https://raw.githubusercontent.com/malaiwah/quant-fidelity-suite/main/docs/ARCHITECTURE-DETERMINISM.md): the same artifact, the same sealed panel, the same software stack -- and a different number on a different GPU. Two A100s in two clouds agree bitwise; an H200 is 2.973e-04 nats away, which is 13x the gap this registry publishes between two 4-bit quantizers. Eight cards were probed layer by layer: the divergence starts in the GEMM, no divergent quantity is a function of compute capability alone, and `use_deterministic_algorithms(True)` changes nothing across devices. Read it before comparing two numbers measured on different hardware.
-- [engines/HANDOFF.md](https://raw.githubusercontent.com/malaiwah/quant-fidelity-suite/main/engines/HANDOFF.md): twenty operational lessons for running a quantization or measurement campaign.
-- [docs/CAPTURE-SCALING-PLAN.md](https://raw.githubusercontent.com/malaiwah/quant-fidelity-suite/main/docs/CAPTURE-SCALING-PLAN.md): how a capture is scaled and what it costs — including why splitting a layer across GPUs produces a different measurement rather than a faster one.
+- [Joint protocol](https://raw.githubusercontent.com/malaiwah/quant-fidelity-suite/main/docs/PROTOCOL-ALIGNMENT.md): sampling, masking, intervals and explicitly bounded interop evidence.
+- [Control experiment](https://raw.githubusercontent.com/malaiwah/quant-fidelity-suite/main/engines/BF16-FLOOR.md): same-lane controls and limits of subtraction.
+- [Hardware sensitivity](https://raw.githubusercontent.com/malaiwah/quant-fidelity-suite/main/docs/ARCHITECTURE-DETERMINISM.md): measured devices, shapes and remaining extrapolation limits.
+- [GGUF scope](https://raw.githubusercontent.com/malaiwah/quant-fidelity-suite/main/docs/GGUF-MEASUREMENT.md): whole-model versus routed-only quantization and effective bit rates.
+- [Capture scaling](https://raw.githubusercontent.com/malaiwah/quant-fidelity-suite/main/docs/CAPTURE-SCALING-PLAN.md): measured scheduling experiments versus projected costs.
+- [Campaign journal](https://raw.githubusercontent.com/malaiwah/quant-fidelity-suite/main/JOURNAL.md): historical decisions, failed hypotheses and operational lessons; not current instructions.

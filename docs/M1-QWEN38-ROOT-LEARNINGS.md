@@ -3,6 +3,13 @@
 **Status:** rung complete, 2026-08-30. True cost **$5.12** on one on-demand
 RTX PRO 6000 (target was $8-15).
 
+This is dated run history: timings, package failures and commands describe
+that experiment, not a current install/rental recipe. Use
+[`THIRD-PARTY-QUICKSTART.md`](THIRD-PARTY-QUICKSTART.md) for admission. Public
+root/token evidence below does not automatically update private/no-URI panel
+metadata used by the planner. Reported panel means are descriptive;
+generalization needs source-document provenance and explicit assumptions.
+
 ## The sealed numbers
 
 Panel `panel--qwen38.malaiwah.suite-v5-shard0-1m` — 512 contexts x 2048 tokens,
@@ -69,18 +76,17 @@ cheap; each candidate comparison against it is not.
 **FIXED in M1.5, and the projection was right.** `compare --replay-device cuda`
 runs the head matmul on the device the estimator already uses, one position
 block at a time, so the full `[positions x vocab]` fp32 logit array is never
-materialised on the host. Same box, same 512-window comparison, end to end
-through the CLI: **1,754.71 s (29 min 15 s) -> 173.27 s, 10.13x**, peak **7.13 GB**
-of device memory, GPU at 88% where the numpy path leaves it at 0% (watched
-live). The comparison is no longer 10.8x the capture; it is
-0.52x of it.
+materialised on the host. Same box, same **force-computed root self-comparison**,
+end to end through the CLI: **1,754.71 s (29 min 15 s) -> 173.27 s, 10.13x**,
+peak **7.13 GB** of device memory. That workload used identical root bytes on
+both sides, not a nonzero candidate comparison. Its observed throughput and
+GPU utilization do not promise the same gain on arbitrary workloads.
 
-It is **opt-in**: an fp32 GEMM accumulates in an order the BLAS chooses, so
-switching backends moves the value. Measured on real root data, 32,752
-positions, `KLD(numpy replay || cuda replay)` = **5.237e-12 nats** mean,
-1.791e-10 max, **top-1 agreement 1.000000** — 1.75e-9 relative to the smallest
-published row here, and 2.2e9 below the streaming lane floor. Small, not zero,
-so the 16-digit rows above would not reproduce and the default stays numpy.
+It is **opt-in**: fp32 GEMM reduction order can change with the BLAS backend.
+Over 16 real root windows (32,752 positions), the replay-backend divergence was
+**5.237e-12 nats** mean, 1.791e-10 max, **top-1 agreement 1.000000**.
+This is not a bound on the change to a nonzero candidate KLD or a guarantee
+of nine-digit agreement. The default stays numpy.
 **The floor is immune and was re-verified**: the same self-compare through the
 GPU path returns exactly 0.0 with `tokenwise-kld.npy` digest `8be5dcca...`
 byte for byte. See `docs/CAPTURE-SCALING-PLAN.md` §3.
@@ -88,20 +94,19 @@ byte for byte. See `docs/CAPTURE-SCALING-PLAN.md` §3.
 **3. Fetch is not the bottleneck.** 52 GiB pulled in 85 s ≈ **627 MB/s** with
 `HF_HUB_ENABLE_HF_TRANSFER=1` on a 28-core IN1 box — at or above the top of the
 plan's 430–600 MB/s band. For a 642.7 GB Flash re-capture that projects to
-~17 min of fetch, which overlaps with compute under layer-outer.
+~17 min of fetch. Fetch overlap requires a separate supported schedule;
+plain layer-outer does not guarantee it and the paid route refuses race mode.
 
-**4. Captures can run concurrently with compares at no correctness cost.** Root
-run 3 was captured while a compare saturated the CPU and still produced a digest
-bitwise identical to runs 1 and 2. Capture is GPU-bound, comparison is CPU-bound;
-packing them is free wall-clock. Do it.
+**4. One capture retained its digest while a comparison ran concurrently.**
+Root run 3 matched runs 1 and 2 while a comparison saturated the CPU.
+That is a repeatability observation under concurrency, not a controlled
+proof of zero throughput contention.
 
-*Amended by M1.5:* the correctness half stands — a concurrent compare did not
-move a capture digest. The **free wall-clock** half was a property of the
-comparison being CPU-bound, and `--replay-device cuda` makes it GPU-bound (88%
-utilisation). Under the fast path they contend. Pack a comparison against a
-*fetch* instead, or leave the comparison on the numpy path while a capture is
-running — which is also the right choice when the comparison belongs to an
-already-published group.
+*Amended by M1.5:* the matching digest stands. The **free wall-clock** claim
+was not established by that control. CUDA replay was GPU-bound (88% observed
+utilization), so capture and comparison can contend. Overlap with fetch may
+help, but measure the actual resource contention and keep the replay profile
+fixed when reproducing an already-published comparison set.
 
 **5. Spot capacity for a named GPU can be zero even when `jl gpus` shows the row
 available.** `jl gpus` showed RTX-PRO6000 IN1 with a green dot; `jl create --spot`
@@ -154,16 +159,16 @@ capture surface on this lane or the dequantize-and-run road (7/9 below). Plan
 the candidate list around what the engine can load, and check it *before*
 renting.
 
-**9. Dequantize-and-run is the general fallback and it needs validating, not
-trusting.** Where the vendor kernel is unavailable or wrong, decode the stored
-weights and run densely — the methodology the campaign's GGUF/EXL3/MLX rows
-already use. Validate the decode before spending a capture: compare per-tensor
-`rel_L2` against the root. FP8 E4M3 came out at **0.0265 uniformly across
-gate/up/down/q**, which both confirms the scale convention (multiply by
-`weight_scale_inv`) and proves `gate_proj` was fixed — a dropped scale would have
-shown a wildly different error for that one projection. **State the limit on the
-row:** the checkpoint declares `activation_scheme: "dynamic"`, so a weights-only
-number is a LOWER BOUND on the served model's divergence.
+**9. Dequantize-and-run is a distinct measurement and needs validation.**
+Where supported, decode stored weights and run densely; that measures the
+reconstructed weights under this forward path, not necessarily native serving.
+The observed FP8 per-tensor `rel_L2` of **0.0265** across gate/up/down/q was
+a useful scale sanity check, not sufficient proof of the complete decoder.
+Native reconstruction caveats remain unless full decode/forward equivalence
+is established; pre-Hadamard parity alone is insufficient.
+The checkpoint declares `activation_scheme: "dynamic"` but this path omits
+activation quantization. A weights-only number is **not a lower bound** on
+served divergence: further perturbations can cancel or amplify it.
 
 **10. Pin optional-kernel packages; an unconstrained upgrade bricks the box.**
 `pip install -U kernels` installed 0.16.1 and **broke `import transformers`
@@ -197,9 +202,10 @@ laptop. Its token ids are nonetheless public, in
 `malaiwah/qwen38-27b-fidelity-suite-v5` under `suite/tokens/`. Transporting them
 (never re-tokenizing) and checking two seals — every context file's sha256 against
 the sealed suite manifest, then the concatenated digest against the registry's
-`panel_token_sha256` — reproduced `caef8a46…` exactly. **Reuse beats minting**: it
-holds the tokens fixed so a new-lane row and an old-lane row differ by the lane
-alone.
+`panel_token_sha256` — reproduced `caef8a46…` exactly. **Reuse beats minting**:
+it holds tokens fixed, removing one confounder. Different artifact identities,
+runtime, head or replay policy can still differ; a shared panel does not
+identify a causal lane term.
 
 **15. Same panel does NOT mean rankable, and a same-lane root does NOT
 retroactively upgrade anything.** The comparability key binds the reference. The
@@ -265,17 +271,16 @@ written and valid. Check `validate` output before re-running anything.
 
 ## What the same-lane capture actually bought
 
-**21. The lane term is now a measured quantity, not a caveat.** The registry's
+**21. The observed row difference is not an identified lane term.** The registry's
 older AWQ-INT4 row reads **0.022817869486410007** nats at top-1 **0.939436904616512**,
 scored against a vLLM-captured teacher with an unmeasured cross-stack term inside
 it. The same-lane row reads **0.022449361029279465** at top-1 **0.940180179836346**,
 against a floor measured at exactly 0.0.
 
-The same-lane number is **3.685e-4 nats LOWER**, and its top-1 is *higher* — both
-in the direction a cross-stack term predicts, since such a term can only inflate
-divergence and depress agreement. That is the first time this campaign can put a
-number on what the lane was contributing to a Qwen3.8 row rather than describing
-it.
+The same-lane number is **3.685e-4 nats LOWER**, with *higher* top-1.
+These are descriptive differences between the two rows. A cross-stack
+perturbation can increase or decrease KL and agreement; neither metric has
+the monotonicity previously asserted here.
 
 Two cautions on reading it. The two rows name **different artifacts** — the older
 one's identity was never established (its receipt records only a local path), so
@@ -291,10 +296,10 @@ the comparison cheap.** This rung's bill was dominated by three comparisons at
 re-capture will be roughly 12x this model's weights to fetch (~17 min at the
 measured 627 MB/s) and a similar per-window cost if it stays resident.
 
-With `--replay-device cuda` the same 512-window comparison runs in **173.27 s**,
-so the term that dominated this rung stops dominating the next one. What is left
-to budget is the **capture** — streaming-regime for a 642.7 GB root, and
-fetch-overlapped under layer-outer — and the **candidate count**, which is now
-bounded by what the engine can load (learning 8) rather than by what the
-comparisons cost. `docs/CAPTURE-SCALING-PLAN.md` §3 carries the revised model
-and the M2/M3 projections.
+M1.5's **root self-comparison** took **173.27 s** with CUDA replay.
+That does not establish the next rung's candidate-comparison throughput.
+Budget root and every candidate's checkpoint fetch, decode, cold captures,
+qualification, comparison, retrieval, storage and unsuccessful attempts
+separately. Layer-outer does not itself guarantee fetch overlap, and the paid
+route refuses race mode. [`CAPTURE-SCALING-PLAN.md`](CAPTURE-SCALING-PLAN.md)
+distinguishes measured terms from incomplete projections.

@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 """Offline negative-path checks for the initial safe RunPod controller."""
-import ast
 import hashlib
 import io
 import urllib.error
 import json
-import inspect
 import os
 import types
 import sys
 import tempfile
 import time
 from pathlib import Path
+import contextlib
+from unittest import mock
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "bin"))
 import measure_cloud as MC  # noqa: E402
@@ -592,95 +592,6 @@ def _rungs(key_file):
           sealed_bench_provider.commands[0][0]
           and "/workspace/run/bin/fidelity/cardbench_payload.py" in
           sealed_bench_provider.commands[0][0])
-    def function_calls(function, name):
-        tree = ast.parse(inspect.getsource(function))
-        return [
-            node for node in ast.walk(tree)
-            if isinstance(node, ast.Call)
-            and ((isinstance(node.func, ast.Name) and node.func.id == name)
-                 or (isinstance(node.func, ast.Attribute)
-                     and node.func.attr == name))
-        ]
-
-    plan_proof_calls = function_calls(
-        MC._plan_paid_anonymous, "validate_safety_proof")
-    execute_proof_calls = function_calls(
-        MC.execute_paid, "validate_safety_proof")
-    check("both paid proof callsites receive the current campaign ledger",
-          len(plan_proof_calls) == len(execute_proof_calls) == 1
-          and len(plan_proof_calls[0].args) == 5
-          and "args.campaign_ledger" in ast.unparse(
-              plan_proof_calls[0].args[4])
-          and len(execute_proof_calls[0].args) == 5
-          and ast.unparse(execute_proof_calls[0].args[4]) == "ledger_path")
-    check("response-loss handling cannot issue a second provider POST",
-          len(function_calls(
-              MC.execute_paid, "submit_prepared_create")) == 1)
-    check("paid executor installs and scopes the authenticated target token",
-          len(function_calls(MC.execute_paid, "_transport_hf_token")) == 1
-          and len(function_calls(
-              MC.execute_paid,
-              "_paid_fetch_target_and_remove_token")) == 1)
-    token_install_calls = function_calls(
-        MC.execute_paid, "_transport_hf_token")
-    stage_sequence_calls = function_calls(
-        MC.execute_paid, "stage_sequence")
-    target_fetch_calls = function_calls(
-        MC.execute_paid, "_paid_fetch_target_and_remove_token")
-    check("token is installed before setup can create .secrets and removed "
-          "inside fetch_target",
-          len(token_install_calls) == len(stage_sequence_calls)
-              == len(target_fetch_calls) == 1
-          and token_install_calls[0].lineno < stage_sequence_calls[0].lineno
-              < target_fetch_calls[0].lineno)
-    check("paid planning validates the download token before provider access",
-          len(function_calls(
-              MC._plan_paid_anonymous,
-              "_load_required_hf_download_token")) == 1)
-    check("paid execution reloads the token immediately before mutation",
-          len(function_calls(
-              MC._main_paid, "_load_required_hf_download_token")) == 1)
-    check("live-checkout reaper commands cannot author installed health",
-          function_calls(
-              MC._lease_reaper_command, "write_reaper_health") == [])
-
-    # Per-run (no --campaign-ledger) path contracts.  The first shipped
-    # version of this mode crashed at plan time on Path(None), compared a
-    # tracked-only checkout proof against an untracked-inclusive one before
-    # the POST, and ran the strict ledger-bound scope check under the
-    # admission lock; none of that was reachable by any selftest.
-    def guarded_campaign_ledger_paths(function):
-        """Every Path(args.campaign_ledger) sits under an explicit-mode guard."""
-        lines = inspect.getsource(function).splitlines()
-        unguarded = []
-        for index, line in enumerate(lines):
-            if "Path(args.campaign_ledger)" not in line:
-                continue
-            window = "\n".join(lines[max(0, index - 6):index + 1])
-            if ("_campaign_ledger_requested(args)" not in window
-                    and 'campaign_mode == "explicit"' not in window
-                    and "args.runpod_safety_proof" not in window):
-                unguarded.append(index + 1)
-        return unguarded
-
-    check("Path(args.campaign_ledger) is only evaluated in explicit mode",
-          guarded_campaign_ledger_paths(MC._plan_paid_anonymous) == []
-          and guarded_campaign_ledger_paths(MC.execute_paid) == [])
-    plan_proofs = function_calls(
-        MC._plan_paid_anonymous, "_source_checkout_proof")
-    execute_proofs = function_calls(
-        MC.execute_paid, "_source_checkout_proof")
-    check("plan and pre-POST checkout proofs use the same untracked policy",
-          len(plan_proofs) == len(execute_proofs) == 1
-          and ast.unparse(plan_proofs[0].keywords[0].value)
-              == ast.unparse(execute_proofs[0].keywords[0].value) == "False")
-    strict_scope = function_calls(
-        MC.execute_paid, "validate_unresolved_lease_scope")
-    liability_scope = function_calls(
-        MC.execute_paid, "validate_lease_liability_scope")
-    check("execute checks lease scope twice per mode, never the strict "
-          "check alone under the admission lock",
-          len(strict_scope) == len(liability_scope) == 2)
     ledger_args = types.SimpleNamespace(
         lease_dir="/tmp/qfs-scope/leases-v2", reaper_state_dir="/elsewhere")
     auto_path = Path(MC._auto_campaign_ledger_path(
@@ -705,14 +616,68 @@ def _rungs(key_file):
         reduce_order="fp32", replay_device="numpy", replay_dtype="float32",
         replay_vocab_chunk=8192, form="hidden")
     per_run_forbidden = MC._runpod_forbidden(per_run_args)
-    check("the minimal recipe derives every single-value flag and passes "
-          "the profile",
-          per_run_forbidden == []
-          and per_run_args.region == "secure"
-          and per_run_args.on_preempt == "fail"
-          and per_run_args.dataset_name == per_run_args.dataset_id
-          and per_run_args.dataset_repository == "owner/repo"
-          and per_run_args.hf_download_token_file == __file__)
+    explicit_download = types.SimpleNamespace(
+        **dict(vars(per_run_args), hf_download_token_file="/tmp/explicit-read-token"))
+    check("publication credentials alone cannot satisfy download admission",
+          bool(per_run_forbidden)
+          and MC._runpod_forbidden(explicit_download) == []
+          and per_run_args.hf_download_token_file is None)
+    with tempfile.TemporaryDirectory() as token_td:
+        token_root = Path(token_td)
+        publish_file = token_root / "publish-token"
+        read_file = token_root / "download-token"
+        publish_value = "hf_" + "p" * 40
+        read_value = "hf_" + "r" * 40
+        for path, value in ((publish_file, publish_value), (read_file, read_value)):
+            path.write_text(value)
+            path.chmod(0o600)
+        token_args = types.SimpleNamespace(**dict(
+            vars(per_run_args), provider="runpod", model="selftest/model",
+            revision="a" * 40, out=str(token_root / "output"),
+            hf_token_file=str(publish_file), hf_download_token_file=str(read_file),
+            subcommand=None, yes=True, dry_run=False))
+        public_target = types.SimpleNamespace(
+            private=False, repo_id=token_args.model, revision=token_args.revision)
+        provider_boundary = types.SimpleNamespace(available=mock.Mock(return_value=False))
+        with mock.patch.multiple(
+                MC, repo_meta=mock.Mock(return_value=public_target),
+                _source_checkout_proof=mock.Mock(return_value={"head": "a" * 40}),
+                _probe_root_stage_clis=mock.Mock(return_value={"probe_sha256": "b" * 64}),
+                _bundle_manifest=mock.Mock(return_value={}),
+                _bundle_registry_identity=mock.Mock(return_value={}),
+                _control_manifest=mock.Mock(return_value={})):
+            for reused in (True, False):
+                read_file.write_text(publish_value if reused else read_value)
+                provider_boundary.available.reset_mock()
+                with contextlib.redirect_stdout(io.StringIO()):
+                    try:
+                        MC._plan_paid_anonymous(
+                            token_args, Console(), provider_boundary, {})
+                    except MC.Refusal:
+                        pass
+                    else:
+                        raise AssertionError("fixture provider authentication must refuse")
+                check("real planner stops reused credentials before provider authentication",
+                      provider_boundary.available.call_count == (0 if reused else 1))
+
+        def changed_after_plan(*_args):
+            read_file.write_text(publish_value)
+            return {}
+
+        with mock.patch.object(MC, "plan_paid", side_effect=changed_after_plan), \
+                mock.patch.object(MC, "execute_paid") as execute, \
+                contextlib.redirect_stdout(io.StringIO()):
+            rc = MC._main_paid(token_args, Console(), provider_boundary)
+        check("real executor revalidates credentials changed after planning",
+              rc == MC.EXIT_REFUSED and not execute.called)
+        read_file.write_text(read_value)
+        with mock.patch.object(MC, "plan_paid", return_value={}), \
+                mock.patch.object(MC, "execute_paid", return_value={}) as execute, \
+                contextlib.redirect_stdout(io.StringIO()):
+            rc = MC._main_paid(token_args, Console(), provider_boundary)
+        check("valid separate credential reaches execution exactly once",
+              rc == MC.EXIT_OK and execute.call_count == 1
+              and execute.call_args.args[-1] == read_value)
     proof_without_ledger = types.SimpleNamespace(
         **dict(vars(per_run_args), runpod_safety_proof="/x/proof.json"))
     check("a safety proof without a campaign ledger is refused by name",

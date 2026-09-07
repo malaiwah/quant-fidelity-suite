@@ -9,15 +9,17 @@ Keep it self-contained: on HF this is often the only page a contributor reads.
 
 **Discussions are the primary channel.** No git, no fork, no CI.
 
-1. Run the measurement. Either runner in
-   [malaiwah/quant-fidelity-suite](https://github.com/malaiwah/quant-fidelity-suite)
-   seals a submission receipt for you — `bin/measure-cloud` on a rented GPU (it
-   destroys the instance for you, on every exit path, and prints the real dollar
-   cost), or `bin/measure-local` on your own Mac or CUDA box. Both write the
-   receipt to `<out>/receipts/measurement-receipt.json` — **that file is your
-   submission receipt**, the one and only thing you submit.
+1. Choose the route in the suite's
+   [third-party quickstart](https://github.com/malaiwah/quant-fidelity-suite/blob/main/docs/THIRD-PARTY-QUICKSTART.md).
+   The admitted cloud `--role quant` route writes a sealed registry submission
+   at `<out>/receipts/measurement-receipt.json`. The cloud `--role candidate`
+   route instead writes a fidelity dataset and
+   `<out>/result/receipts/reference-comparison/comparison-receipt.json`;
+   send that comparison evidence through the maintainer workflow rather than
+   renaming it to a submission receipt. Local outputs may be **preview** class
+   and are not automatically eligible for registry publication.
 
-2. Verify the receipt sealed correctly. Four lines, no dependencies:
+2. For the legacy submission receipt, verify the seal. Four lines, no dependencies:
 
    ```python
    import json, hashlib
@@ -49,10 +51,10 @@ Keep it self-contained: on HF this is often the only page a contributor reads.
    </details>
    ````
 
-That is the whole submission. We validate it, generate the registry rows from
-it, and reply in your thread with the row id, its comparability key, and which
-existing rows yours can be compared against — or with exactly which check failed
-and what to change.
+For an eligible legacy submission, that is the whole file we need. For a
+candidate-route comparison, attach the comparison evidence instead. We validate
+the evidence, generate rows, and reply with the row id, key and pair-predicate
+verdict — or the failing check. A key alone is not a ranking certificate.
 
 **You are credited by HF handle.** The measurer of a number and the producer of
 a quant are separate fields and neither is transferable: if you measured someone

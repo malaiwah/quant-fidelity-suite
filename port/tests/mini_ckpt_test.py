@@ -108,7 +108,7 @@ print("mini checkpoint written:", mini, f"({len(t)} tensors)")
 sys.argv = ["glm5_layer_parity.py", "--model-dir", mini, "--ref-only",
             "--seq", "16", "--moe-tokens", "8", "--moe-experts", "8",
             "--kda-layer", "0", "--dsa-layer", "1", "--moe-layer", "1", "--device", "cpu"]
-sys.path.insert(0, os.path.join(root, "exllamav3-src", "tests", "glm5_parity"))
+sys.path.insert(0, root)
 import glm5_layer_parity as hp
 
 # direct oracle exercises beyond main(): sparse indexer ref + hc refs

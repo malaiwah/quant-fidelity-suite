@@ -9,17 +9,22 @@ governed by `kld quantization fidelity report.md`
 file `80df521eb46fba68538dd90aa3f2baf22b1e440b8b560555646ff9bbeb35961b`,
 scoring `20ea68c0c730a9d2444148b234a610a5821a50dfa9980e2446c02723317b5e98`
 
+**Historical snapshot, corrected 2026-09-07.** Upstream source descriptions
+and test counts are those inspected for the original campaign, not a current
+remote check. The dated mathematical/statistical corrections below govern
+interpretation; frozen receipts and metric values are preserved.
+
 Short version: the table below has eighteen rows. **He is ahead on eight of
 them and we took his design on all eight** — rows 6-13, which are the core of
 the standard. Four rows we already had under another name. Five are ours with no
 equivalent on his side. Three are genuine divergences (padded columns §3, the
-clean scope §4, floors and subtraction §7), and all three are now measured or
-bounded rather than argued about. One of his own rules broke inside his own
-campaign and we propose a fix.
+clean scope §4, floors and subtraction §7). **Correction, 2026-09-07:**
+the padding study is synthetic on one real teacher window, not a universal
+bound; subtraction and interval interpretation are qualified below.
 
-Everything below is reproducible offline from this repository:
-`bin/selftest_joint_standard.py` (112 cases) and `registry/ make check`
-(62 cases + 433 joint-invariant checks).
+Historical test counts below record the original investigation, not fresh
+validation. Reproducing empirical tensor work needs its named inputs; reading
+committed receipts alone does not re-execute their experiments.
 
 ---
 
@@ -34,17 +39,17 @@ it under another name. **DIVERGENT** — we differ, with a measured reason.
 | 1 | Direction and units: KL(teacher‖student), nats | yes | yes | EQUIVALENT | `metric.direction = reference_to_candidate` on all 66 registry rows |
 | 2 | Full-vocabulary FP32 teacher logits | yes | yes | EQUIVALENT | same teacher artifact, same `teacher_receipt_sha256 2ae08117…` |
 | 3 | FP32+ log-softmax, FP64 accumulation | fp64 both | fp64 both | EQUIVALENT | `estimator.accumulation_dtype = float64` |
-| 4 | **Padded lm_head columns masked on both sides** | yes | **no** | **DIVERGENT — measured, §3** | new field `estimator.vocab_masking_policy`; effect ≈ 1e-10 nats |
+| 4 | **Padded lm_head columns masked on both sides** | yes | **no** | **DIVERGENT — studied synthetically, §3** | masking policy disclosed; ≈1e-10 only in studied synthetic shared-head perturbations, not actual all-row masking |
 | 5 | Frozen token ids, published hashes, teacher-forced, bs=1, eager, no MTP/spec/prefix-cache | yes | yes | EQUIVALENT | our panel record pins the same `token_ids_sha256` values |
 | 6 | **R0 canary: self-KLD exactly 0.0 AND a one-position shift explodes** | half — the shift half is a synthetic unit test, not a session gate | self-KLD only | **ADOPTED, and extended** — §5.1 | `bin/joint-standard canary`; 5 FIRE cases in the selftest |
 | 7 | **≥3 cold runs, report `sigma_run` beside the statistical SE, combine in quadrature** | yes | run means recorded, sigma never reported | **ADOPTED** — §5.4 | `uncertainty.sigma_run`, `.se_total`, invariant JOINT-002/003 |
 | 8 | **Window-clustered block bootstrap, BCa, B=5000** | yes | `uncertainty.method = "none"` on **all 16 of our rows on his two panels** (39 of our 60 rows elsewhere already carried a context-cluster bootstrap) | **ADOPTED** — §5.3 | 12 rows now carry a BCa interval; 16/16 of his published endpoints reproduced |
 | 9 | **Percentile only with ≥100 exceedances; never compare max across different N** | yes | not enforced | **ADOPTED** — §5.5 | `percentile_guard`, plus a refusal our data needs (§5.5) |
-| 10 | **Per-domain and per-position tables** | yes | computed in every kld-report, never published | **ADOPTED** — §5.2 | `by_domain` on 12 rows; his non-uniformity finding reproduces on our data |
+| 10 | **Per-domain and per-position tables** | yes | computed in every kld-report, never published | **ADOPTED** — §5.2 | historical domain means retained; one document/domain does not support domain population inference |
 | 11 | **Calibration-overlap scan: document hash AND 13-gram** | yes | document/shingle scan on OUR panels, none on his | **ADOPTED** — §4 | our scan reproduces his 25/25 exactly |
 | 12 | **One frozen protocol file, hash in every output** | yes — but it broke, §6 | no protocol file at all | **ADOPTED, with a fix** — §6 | two hashes: file + scoring-subset |
-| 13 | **Rank by paired differences + McNemar, never by overlapping CIs** | yes | paired per-window t-interval | **ADOPTED** — §5.6 | his 5 published McNemar p-values reproduced; ours upgraded to BCa + sign test |
-| 14 | Measured BF16 **floor** and excess over control (formerly "attributable error", P1-05) | no equivalent; §5.3 of his report argues against subtraction | yes | **OURS — divergent, §7** | the floor framing is scope-stable where its inputs are not (+1.4% vs −9% / −16%) |
+| 13 | **Paired differences + McNemar, not overlapping marginal CIs** | yes | paired per-window t-interval | **ADOPTED, qualified** — §5.6 | arithmetic reproduction is not inference validation; independent units and actual pair predicates still required |
+| 14 | Measured BF16 **control** and descriptive excess (formerly "attributable error", P1-05) | subtraction discouraged | yes | **OURS — qualified, §7** | +1.4% versus −9%/−16% is observed scope sensitivity, not causal isolation or general stability |
 | 15 | Schema-enforced registry with mechanical refusals | no | yes | **OURS** | 90 invariants, 8 new; CMP-003 caught a real error in this very work (§4.3) |
 | 16 | Lane separation (`same_stack` / `cross_stack`) | no field | yes, on the teacher-vs-student axis only | **OURS, but narrower than we first claimed — §8** | our two BF16 floors, 0.011506 vs 0.012712, same panel and teacher. It does **not** separate his 0.0305 from his 0.024555: that is a pipeline difference and `pipeline_ref` is not a key input |
 | 17 | Multi-format decode surfaces (TR3/EXL3, dione, MLX, GGUF, NVFP4) | EXL3 + NVFP4 | 5 surfaces | OURS | `engines/tools/stream_score.py --source` |
@@ -84,7 +89,7 @@ registry/tools/registry_joint_check.py   JOINT-001..008, the arithmetic JSON Sch
 
 GLM-5.3-Flash stores 154,880 lm_head columns for a 154,856-token vocabulary.
 His protocol masks the 24 padded columns out of both sides before the
-log-softmax. Ours never has: `engines/tools/k6_kld_report.py::_token_kld` takes a
+log-softmax. The historical unmasked scorer (now `engines/tools/kld_report.py::_token_kld`) takes a
 log-softmax over the full last dimension.
 
 We did not argue about the size of this, but we could not measure it directly
@@ -99,7 +104,7 @@ panel, which needs a GPU run we did not do. So we reconstructed the 4096-dim
 hidden states from his teacher tensor by least squares against a real
 `lm_head.weight` (relative rms residual 1.6e-3) and built thirteen **synthetic**
 students on top of them, spanning mean KLD 4.8e-5 to 1.0 nats and tuned so that
-four of them land near our published values. They are a stress test of the bound,
+four of them land near our published values. They are a sensitivity study,
 not a re-measurement of our quants. The table's row labels name the configuration
 each synthetic student imitates, not a re-run of that row.
 
@@ -141,57 +146,44 @@ exactly
     where  D_pad = e_p*log(e_p/e_q) + e_p*KL(pbar||qbar)
 ```
 
-so **every term is `e_p` times either the KLD or a log-ratio.** Two consequences,
-and only the second one is 1e-10:
+**Correction, 2026-09-07 — no universal padding bound.** A shared head matrix
+does not imply shared hidden states, logits, normalization, padded mass
+(`e_q = e_p`), or padded conditional distribution. In particular the
+`log(1-e_q)` term is not controlled by the teacher's small `e_p`: it diverges
+as the student's padded mass approaches one. Even equal padded masses do not
+make `D_pad` zero unless the padded conditional distributions also agree.
 
-* In general the cap is **order `e_p` itself, ~1e-8 nats**, times however many
-  nats the student's padded logits are displaced. A student whose padded mass is
-  off by a factor of e^4 is still bounded by ~1e-7.
-* When teacher and student **share the head**, `e_q = e_p` and `D_pad = 0`, and
-  the whole thing collapses to `KL * e_p` — 2.2e-10 at K6's KLD, and 1.0e-10
-  measured, because the per-position average weights `e_p` by KLD rather than
-  uniformly. Every malaiwah row on his panel is in this case.
+The receipt itself refutes the old shared-head equality: synthetic K6 has
+`Pm_mean = 1.6021273967482534e-8` versus
+`Qm_mean = 1.554894865370624e-8`. The real teacher's mean padded mass is
+1.6006386701531373e-8, but its maximum on that window is
+1.2298122759907192e-6; the mean is not a per-position cap.
 
-The thirteen synthetic students exist
-to check that the cap survives a student whose padded logits do *not* sit near
-the teacher's — the adversarial row moves them by 2-4 nats and the answer still
-does not reach 1e-7. That is the argument. The per-row numbers are illustration.
+The thirteen synthetic students demonstrate small masking effects **only for
+the studied perturbations on final-0000**. The teacher's measured ~1.6e-8 padded
+mass and the synthetic table above remain valid historical evidence; they do
+not bound arbitrary students or establish actual K6/K8/FP8 masking deltas.
 
-**Verdict for every published malaiwah number: neither a correction nor a bias
-disclosure. A protocol-policy disclosure only.** Each of our eight published
-values changes at the 8th or 9th significant figure and nowhere earlier:
+The former table headed "masked equivalent" is withdrawn. Its values were
+manufactured by transferring synthetic deltas to published full-panel means,
+not by masking real student logits on all scored rows. Historical unmasked
+measurements remain unchanged:
 
-| published row | as published (unmasked) | masked equivalent | first sig. figure that moves |
-|---|---|---|---|
-| BF16 floor (streaming) | 0.011505922619330299 | 0.011505922704933474 | 9th |
-| K8 tr3-8bpw | 0.012384191023436866 | 0.012384191115368088 | 9th |
-| BF16 floor (cross-stack) | 0.012711599817250709 | 0.012711599911537296 | 9th |
-| K6 streaming | 0.013714888822596553 | 0.013714888924089065 | 9th |
-| K6 sealed | 0.013723384665701147 | 0.013723384767254605 | 9th |
-| official FP8 | 0.020615254540417995 | 0.020615254691072615 | 9th |
+| published row | as published (unmasked) | actual masked equivalent |
+|---|---|---|
+| BF16 floor (streaming) | 0.011505922619330299 | not measured |
+| K8 tr3-8bpw | 0.012384191023436866 | not measured |
+| BF16 floor (cross-stack) | 0.012711599817250709 | not measured |
+| K6 streaming | 0.013714888822596553 | not measured |
+| K6 sealed | 0.013723384665701147 | not measured |
+| official FP8 | 0.020615254540417995 | not measured |
 
-For scale, in nats: padded-masking delta **1.0e-10**; our own sealed-vs-streaming
-bridge **8.5e-6**; his window-clustered SE on this panel **3.19e-3**. The
-divergence is 83,000× smaller than the tightest real uncertainty we publish and
-31,000,000× smaller than his interval.
-
-**We are adopting masking anyway**, as a zero-cost convergence on his standard,
-not as a fix. Going forward `estimator.vocab_masking_policy` is a required-to-be-
-stated field (invariant JOINT-007) and the protocol file sets
-`padded_column_policy: mask_both_sides`.
-
-**It is deliberately NOT a comparability key input.** A key input is something
-that can move a comparison. This cannot: it is four orders of magnitude below
-the smallest difference any of our tables resolve. Adding it to the key would
-re-key all 66 rows and break every published cross-reference for nothing.
-
-**Where it would have mattered and did not:** we worried about stock-EXL3 quants
-with `head_bits=6..8` and about the Dione Q4, where teacher and student have
-different head weights so the padded columns can genuinely differ. The quantized-head
-rows above cover exactly that shape — per-row RTN and group-128 affine — and the
-answer is the same to within a factor of two. The Dione Q4 turns out to keep
-`lm_head` native BF16 anyway, so every malaiwah number on his panel has a shared
-unquantized head.
+Masking policy must be disclosed; adopting masking changes the estimator and
+does not silently correct or re-seal old receipts. The protocol file's
+`padded_column_policy: mask_both_sides` is not evidence that every historical
+scorer applied it. It is not currently a comparability-key input; equality of
+that key is only necessary, and the actual estimator policies must be checked
+before ranking. No claim that masking can never affect comparability remains.
 
 **Reproducibility gap, now closed.** An earlier draft of this section shipped
 without its script or its receipt — the reconstruction and the synthetic students
@@ -361,63 +353,50 @@ Paired per-window comparisons, BCa on the differences, on both scopes —
 | K8 − FP8 | clean17 | 0.010829420 | 0.018665327 | 0.580 | [−0.011966, −0.005493] | 17/17 | 1.5e-05 |
 | his 4bpw − K6 | clean17 | 0.024948837 | 0.011677286 | 2.137 | [+0.008430, +0.028684] | 0/17 | 1.5e-05 |
 
-- **K8 better than K6 SURVIVES as a description of this panel, weakened on the
-  clean scope.** The paired BCa still excludes zero on the clean scope, but the
-  interval lower bound falls from +0.000695 to +0.000153, and the headline gap
-  shrinks by about a third. As *inference beyond this panel* the evidence is
-  four (three) source documents, all favouring K8: sign test p = 0.125 (0.25).
-  We will not restate "K8 is better than K6" without the scope attached, and
-  not as a population claim at all until the panel has many independent source
-  documents per domain.
-- **K6 better than FP8 STRENGTHENS.** 17/17 windows on the clean scope, ratio
-  0.666 → 0.626.
-- Note the two marginal CIs for K6 and K8 overlap almost completely on both
-  scopes. Anyone eyeballing them would call it a tie. The paired interval says
-  otherwise, and it is **4.2× tighter** on clean17 (width 1.420e-03 against
-  5.929e-03 and 5.775e-03 for the two marginals) and 3.4× on panel25. The paired
-  SE moves the same way: 3.71e-04 against a marginal 1.56e-03. That is exactly his
-  point about ranking, and our data demonstrates it.
+**Correction, 2026-09-07.** These historical mixed-design contrasts are not a
+codec ranking. The K6−K8 rows use sealed K6 versus streaming K8; the FP8 and
+author-reported 4bpw contrasts additionally change runtime/pipeline. The
+same-lane `paired.K6stream-vs-K8` receipt supports a finite-panel ordering,
+not a population quality claim. Document-level tests require explicit
+independent-document assumptions; four selected documents (three in clean17)
+do not calibrate population confidence. Neither narrow paired intervals nor
+overlapping marginal intervals cure a design mismatch.
 
-### 4.5 Attributable error on the clean scope, and a result that argues for it
+### 4.5 Historical excess over control on the clean scope
 
-Same-lane only. The cross-stack pair (official FP8 minus the cross-stack BF16
-replay floor, both `cross_stack`) is the one we can recompute on both scopes:
+The cross-stack FP8 and BF16-control rows permit the following descriptive
+subtraction on each named scope. Matching a lane label alone does not prove
+a valid causal control or satisfy the full pair predicate:
 
-| scope | FP8 | same-lane floor | attributable | BCa 95 % | ratio |
+| scope | FP8 | BF16 control | excess over control | historical window BCa 95 % | raw/control ratio (descriptive) |
 |---|---|---|---|---|---|
 | panel25 | 0.020615255 | 0.012711600 | **0.007903655** | [+0.005823, +0.011253] | 1.622 |
 | clean17 | 0.018665327 | 0.010647639 | **0.008017687** | [+0.005663, +0.012022] | 1.753 |
 
-**The attributable error moves +1.44 % between scopes while its two inputs move
-−9.46 % and −16.24 %.** The subtraction is the stable quantity here; the raw
-numbers are the unstable ones. That is a direct, measured answer to §5.3 of his
-report ("do not publish subtracted numbers"), and §7 below takes it up properly.
+**Correction, 2026-09-07.** The difference moves +1.44 % while the two inputs
+move −9.46 % and −16.24 %. That is an observed sensitivity result, not evidence
+that subtraction isolates quantization or generalizes across scope changes.
+`KL(P||Q_quant) − KL(P||Q_control) = E_P[log Q_control − log Q_quant]`
+is not a KL divergence, can be negative, and retains interactions with the
+reference and runtime.
 
-The **same-lane K6/K8 attributable table cannot be recomputed** on the clean
-scope: their same-lane floor is the streaming BF16 floor, whose receipt is
-scalar-only. Borrowing the cross-stack floor instead would be exactly the
-cross-lane subtraction BIAS-006 refuses, so we do not. The published
-panel25 attributable ratio (K6 0.002209 / K8 0.000878 = 2.52×) therefore stands
-as a panel25 number only, and re-deriving it on the clean scope needs one
-re-measurement of the streaming BF16 floor with per-window output — cheap, and
-on the list.
+The streaming BF16 control is scalar-only, so no clean17 K6/K8 excess can be
+recomputed. The former 2.52× residual-ratio headline is withdrawn, not a
+standing panel25 quality claim. No raw published metric has been rewritten.
 
-### 4.6 His non-uniformity finding reproduces on our data
+### 4.6 Historical domain means, not domain quality rankings
 
-He measured NVFP4-over-EXL3 ratios of 1.50× general / 1.97× legal / 1.65×
-code-agentic and concluded a single-corpus mean hides where a codec hurts. Same
-test, our artifacts, clean scope:
+| domain | K6 sealed | K8 stream | FP8 x-stack |
+|---|---|---|---|
+| axis1_general (7 w) | 0.011739694 | 0.011367036 | 0.019568765 |
+| axis2_legal (5 w) | 0.011448683 | 0.010324227 | 0.020672762 |
+| axis3_code_agentic (5 w) | 0.011818519 | 0.010581951 | 0.015393078 |
 
-| domain | K6 sealed | K8 stream | FP8 x-stack | FP8/K6 | FP8/floor (same lane) |
-|---|---|---|---|---|---|
-| axis1_general (7 w) | 0.011739694 | 0.011367036 | 0.019568765 | 1.667× | 1.705× |
-| axis2_legal (5 w) | 0.011448683 | 0.010324227 | 0.020672762 | **1.806×** | 2.050× |
-| axis3_code_agentic (5 w) | 0.011818519 | 0.010581951 | 0.015393078 | **1.302×** | 1.532× |
-
-A 1.39× spread across domains, and legal is the worst domain on our data as it
-is on his. On the panel25 scope the contaminated axis4 domain shows the smallest
-ratio of all (1.19×), which is what contamination should look like: it compresses
-the differences it touches.
+**Correction, 2026-09-07.** Cross-stack FP8/K6 ratios, their 1.39× spread and
+the "legal is worst" quality conclusion are withdrawn. Each domain here is
+one source document. These are measured means of selected windows, not
+independent-document domain estimates. Calibration overlap may matter, but
+these uncontrolled contrasts do not identify its causal effect or direction.
 
 ---
 
@@ -466,19 +445,17 @@ published it. Now every enriched registry row carries `by_domain` with a
 window-clustered SE and an interval, and invariant JOINT-006 requires the
 per-domain positions to sum to `measurement_scope.scored_positions`.
 
-**The interval on a stratum is not the interval on the panel, and since
-2026-08-30 it is not BCa.** A domain has 5 to 7 windows. Simulated against a
-lognormal fitted to each cell's own windows, 4000 replications per cell, the BCa
-interval those cells originally published measures **81.3%** coverage while
-saying 95% — and it misses in the harmful direction, with truth landing *above*
-the interval far more often than below, so the endpoints understate divergence.
-Raising B does not touch it (81.5% at B=20000): the deficit is small-`g`, not
-Monte Carlo. The published interval is now a Student-t interval on `log(mean)`
-with the delta-method SE, exponentiated (`interval_method: delta_t_log`), which
-measures **92.0%**, is non-negative by construction, and uses no resampling at
-all. Each cell carries `coverage_measured` stating what it actually delivers,
-because 92.0% is not 95% and at five windows nothing is. See
-`registry/tools/coverage_sim.py` and `docs/PUBLISHED-CORRECTIONS.md` §3.
+**Correction, 2026-09-07 — simulation coverage is not population confidence.**
+The historical per-domain intervals used 5–7 windows as resampling units.
+In fitted-lognormal simulations (4000 replications per cell), BCa achieved
+81.3% coverage (81.5% at B=20000), and delta-t-log achieved 92.0%.
+Those numbers describe the assumed synthetic populations and fitted cells,
+not coverage for new real source documents. They cannot calibrate domain
+inference when each domain contains only one document. Nor does marginal
+undercoverage determine a false domain-separation rate. No theorem says
+95% coverage is impossible at five observations; validity depends on the
+sampling/model assumptions. Historical endpoints and simulation receipts stay
+unchanged; current commentary must label their studied scope.
 
 ### 5.3 Window block bootstrap with BCa
 
@@ -566,8 +543,9 @@ number:
 > pooled token percentiles are not derivable from per-window summaries; a panel
 > p95 is not a function of per-window p95s
 
-The remedy is the same thing we would ask of him (§10): publish per-window
-sufficient statistics.
+Exact pooled percentiles require per-token values or lossless order-statistic
+information, not just per-window n/sums/variances/quantiles. Such summaries
+help recompute means but cannot recover the missing pooled tails.
 
 ### 5.6 McNemar
 
@@ -631,9 +609,9 @@ why the fix below is a proposal and not a criticism.
   (`sort_keys`, `separators=(',',':')`, ASCII, UTF-8) of exactly
   `{scoring, selection, uncertainty, determinism, canary_r0, lane, reporting}`.
 
-Two receipts are comparable when the **scoring** hashes match. A file hash that
-moved while the scoring hash held is a provenance note, not an incomparability.
-Proven in the selftest, both directions:
+Matching scoring hashes establishes only the scoring-policy component of
+comparability, not the full pair predicate. A file hash that moved while the
+scoring hash held records a provenance change. Historical selftest evidence:
 
 ```
   PASS  identity-only edit: file hash MOVES, scoring hash HOLDS  80df521eb46f -> 1c64ad3aada8
@@ -667,20 +645,19 @@ Our position, and what we changed:
    floor rows are for. The disagreement is narrower than it looks: it is about
    whether the *difference* may be quoted as a headline, not about whether the
    floor should be measured.
-3. **New evidence, from §4.5.** Across the panel25→clean17 scope change, the
-   cross-stack FP8 excess over control moves **+1.44 %** while its two inputs move
-   **−9.46 %** and **−16.24 %**. The subtraction is the quantity that survives a
-   contamination correction; the raw numbers are the ones that do not. That is an
-   argument *for* publishing the decomposition, and it is measured rather than
-   asserted.
-4. **What we concede.** A subtracted number is only meaningful when the floor is
-   same-lane, same-scope, same-teacher and same-panel. Three of those four
-   constraints are now mechanical refusals. The fourth (same-scope) was added
-   this week because his scan showed why it was needed.
+3. **Scope sensitivity, not causal validation.** The +1.44 % residual change
+   in §4.5 is descriptive. The two raw inputs moving −9.46 % and −16.24 %
+   does not establish a generally stable or quantization-only decomposition.
+4. **The full comparison contract still applies.** Same lane, scope, teacher
+   and panel are necessary; source/forward identity, scope policy, replay
+   arithmetic and the actual `pair_predicate` must also support the contrast.
+   An unknown cross-stack bias direction is legitimate disclosure but does not
+   make the row `usable_as_floor`.
 
-Proposal: publish the raw row, the floor, and the difference-with-interval, and
-never the difference alone. His §5.3 item 2 (difference-in-differences) is
-compatible with that.
+Publish raw values and, where the control contract permits it, a clearly
+labelled descriptive excess. Population intervals additionally require
+provenance-supported independent units and explicit sampling assumptions.
+Never present subtraction alone as causal quantization error.
 
 ---
 
@@ -863,7 +840,7 @@ answer removes the ambiguity entirely.
 2. No per-domain publication despite computing it — **fixed** (`by_domain`).
 3. No protocol file — **fixed** (`registry/protocol/glm53-joint-kld-protocol.v1.json`).
 4. No masking policy recorded — **fixed** (`estimator.vocab_masking_policy`,
-   invariant JOINT-007); the numbers themselves need no correction (§3).
+   invariant JOINT-007); actual all-row masked deltas remain unmeasured (§3).
 5. The excess-over-control residuals (K6 0.002209 / K8 0.000878) are
    **panel25** numbers, their once-published ratio ("2.52×") is withdrawn
    (P1-05), and the clean-scope version needs a re-measured streaming BF16

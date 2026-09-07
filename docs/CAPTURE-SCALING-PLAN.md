@@ -1,13 +1,16 @@
 # Plan of record — how we scale captures, and what it costs
 
-**Status:** plan of record, 2026-08-30.
+**Historical plan of record, 2026-08-30, corrected 2026-09-07.** The measured
+single-device schedule and replay experiments below remain evidence at their
+recorded scope. Pipeline parallel and production fetch overlap were design
+directions, not shipped/proven automatic speedups. The admitted paid route
+still refuses race mode; see [`CLOUD-RECIPES.md`](CLOUD-RECIPES.md).
 
-**Amended 2026-08-30 (M1.5).** §3 is rewritten around measurement rather than
-extrapolation: the comparison term, which the old model omitted entirely, was
-the dominant one, and `compare --replay-device cuda` cuts it **10.13x**
-(1,754.71 s -> 173.27 s on the real Qwen3.8 panel, same box, peak 7.13 GB). It
-is opt-in and named on every receipt because it moves the last digits by
-5.24e-12 nats. Receipts in `reports/m15-replay-backend/`.
+M1.5 measured **10.13x** faster replay on a force-computed **root
+self-comparison** (1,754.71 s → 173.27 s, peak 7.13 GB), not arbitrary
+nonzero candidate comparisons. A separate 16-window root replay experiment
+measured 5.24e-12 nats between backends, not a bound on any candidate row's
+change. Receipts: [`reports/m15-replay-backend/`](../reports/m15-replay-backend/).
 
 **Measured 2026-08-30** (`766a7e8`). The layer-outer engine is built and
 bit-identical to the window-outer schedule on two architectures and two devices;
@@ -16,17 +19,18 @@ peak CUDA allocated **10.409 -> 2.167 GB (4.80x)**, resident weights **9.144 ->
 1.471 GB**. The GLM-5.3 projection below is revised accordingly and is now an
 extrapolation from measurement rather than from arithmetic alone.
 
-Revised GLM-5.3 root capture: peak VRAM **~47-51 GB** (not 81.7 -- the engine
-streams whole layers, so only embed+head+norm, 3.81 GB, stays resident),
-**0.4-1.6 min/window** (not 13-26), **Stage C $1.08-3.52** (not $38-96). One
-H200 with ~90 GB spare.
+The historical GLM-5.3 projection was peak VRAM **~47–51 GB**,
+**0.4–1.6 min/window**, **Stage C $1.08–3.52**. It was an incomplete
+projection, not a full-run quote. Later full-model observations are below;
+the measured loader peaks are recorded in [`LAYER-OUTER.md`](LAYER-OUTER.md).
 
-Two figures in that projection to distrust until the first `layer_load` line of
-a real Stage B run, per the engine's own report: the expert-fusion transient
-(bounded from a CPU RSS reading, and Fruit's routed set is 24x smaller at the
-same vocabulary), and a ~0.13 ms/tensor size-independent load overhead that
-extrapolates to ~12.5 min/run over GLM-5.3's 76,800 source expert tensors per
-layer -- the same order as the IO itself.
+The expert-fusion transient was projected from CPU RSS and a smaller model,
+not bounded for every full-model/device path. The former **12.5 min/run**
+load-overhead term was erroneous: GLM-5.3 has **768** source expert matrices
+per sparse layer (256 × 3), not 76,800. Multiplying by shard count was
+unjustified. Even 0.13 ms × 768 × 75 = 7.488 s is only a toy-rate
+extrapolation, not isolated/measured full-model overhead. See the correction
+in [`LAYER-OUTER.md`](LAYER-OUTER.md).
 
 **Measured 2026-09-04, real GLM-5.3 (full, 78L/6144), not projected.** Two
 captures (root BF16 resume and FP8 candidate), same panel shape
@@ -41,52 +45,52 @@ disk. Stage wall times from the FP8 run's `done` markers (`glm53-fp8`):
 | `compare_root` (self-compare) | 5m 30s | |
 | `compare_reference` (vs BF16 root, numpy) | 5m 09s | see §3.4's M3 row |
 
-Full run (setup through publish) **1h 41m**, **≈ $6.45** on H200 at $4.59/h
-wall-clock-billed. The 0.4–1.6 min/window projection above was never checked
-per-window on a real run; the two whole-cold-run numbers above (27.5 min for
-78 layers, both windows and repeat) are what to quote instead, and they land
-inside the projected Stage C dollar range.
+The dated full run (setup through publish) was reported as **1h 41m**,
+**≈ $6.45** on an H200. These are recorded run/billing observations, not
+simply 1h41m × the stated $4.59/h tariff. Each cold run covered the whole
+25-window panel in about 27.5 min. The old **$1.08–3.52** projected Stage C
+range did **not** cover this full bill, and neither those prices nor
+0.4–1.6 min/window should be quoted as a measured universal capture rate.
 
 ---
 
-## 1. The parallelism decision, and why two of three options are wrong
+## 1. The parallelism decision and its unproved alternatives
 
 | Form | Bit-identical? | I/O cost | Verdict |
 |---|---|---|---|
-| **Tensor parallel** (split a layer across GPUs) | **NO** | — | **Rejected** |
-| **Window parallel** (each GPU takes some windows) | yes | **N x weights** | Rejected for large models |
-| **Pipeline parallel** (each GPU owns a layer slice) | yes | 1x weights | **Adopted** |
+| **Tensor parallel** (split a layer across GPUs) | not guaranteed; changes reduction order | — | Different lane unless qualified |
+| **Window parallel** (each GPU takes some windows) | conditional on device/runtime equivalence | N x weights | Expensive for streamed models |
+| **Pipeline parallel** (each GPU owns a layer slice) | proposed acceptance criterion, unproved | projected 1x weights | Design direction, not implemented here |
 
-**Tensor parallel is rejected on correctness, not performance.** Splitting a
-layer across devices changes reduction and expert-combine order, which changes
-the arithmetic. Not hypothetical: it is the measured mechanism behind our own
-lane gap. `Mia-AiLab/GLM-5.3-Flash-EXL3-TR3-4bpw` is a **byte-identical mirror**
-of `brandonmusic/GLM-5.3-Flash-tr3-4bpw`; the same bytes read
-`0.025503427634363769` on our lane and `0.024554564249958208` on his — ~9.5e-4
-nats apart with nothing differing but the runtime. A TP capture would not be a
-faster measurement of the same thing; it would be a different lane, and under
-our own rules could not be ranked against any existing row.
+**Tensor parallel is not a transparent throughput substitution.** Splitting
+layers changes reduction/expert-combine order. The byte-identical mirror
+`Mia-AiLab/GLM-5.3-Flash-EXL3-TR3-4bpw` of
+`brandonmusic/GLM-5.3-Flash-tr3-4bpw` had recorded values
+`0.025503427634363769` and `0.024554564249958208` on different runtimes.
+That demonstrates a runtime-associated gap, not an isolated TP causal
+experiment. A new TP capture must identify its lane; equal keys alone do
+not permit ranking without `pair_predicate`.
 
-**Window parallel is bit-safe but pays N times for the weights.** Each device
+**Window parallel duplicates weight reads.** Each device
 needs every layer, so a 1.5 TB model streamed layer-by-layer becomes 12 TB of
 reads across 8 devices. Fine for models that fit one device; wrong for exactly
 the ones that forced layer-outer to exist.
 
-**Pipeline parallel is what layer-outer was already reaching for.** Device *k*
-owns layers `[k*L/N, (k+1)*L/N)`; windows flow through. Each layer is
-materialised **exactly once in total**, so disk I/O equals the single-device
-run. Every window's arithmetic on a given layer happens entirely on one device
-with no cross-device reduction, so it must reproduce the single-device digests
-**bitwise** — and that is the acceptance test, not a benchmark.
+**Pipeline parallel is a proposal requiring its own acceptance experiment.**
+Each device would own a contiguous layer slice, materialize its weights once
+per cold run and pass windows onward. Avoiding cross-device reductions helps,
+but placement, kernel dispatch and device/runtime differences can still move
+bits. Matching single-device content digests is the acceptance criterion,
+not a theorem that this unimplemented schedule already satisfies.
 
-### 1.1 Fetch/compute overlap comes free with layer-outer
+### 1.1 Fetch/compute overlap is not automatic
 
-Layer-outer needs layer *k* only when it reaches it, so layer *k+1* downloads
-while layer *k* computes. Wall-clock becomes `max(fetch, compute)` rather than
-`fetch + compute`. This matters because fetch is network-bound and does not
-shrink with device count: 1.5 TB at the 430-600 MB/s we have measured is ~45-60
-minutes regardless of how many GPUs are attached. Without overlap, a multi-GPU
-run pays that hour at the multi-GPU rate.
+Layer order permits an overlapped fetcher in principle; the engine-level race
+experiment is a separate path. Ideal overlap approaches `max(fetch, compute)`,
+but buffering, shard placement, contention and startup/drain costs remain.
+Plain layer-outer does not make downloads overlap for free, and the paid
+controller refuses race mode. The dated 430–600 MB/s rates are observations,
+not a guaranteed large-model fetch rate on every provider/host.
 
 ## 2. Pricing (JarvisLabs, observed 2026-08-30, spot, IN2)
 
@@ -99,14 +103,13 @@ Per-GPU-hour and linear; 8 free of each at time of writing:
 | RTX-PRO6000 (IN1) | 96 GB | 0.99 | 7.92 |
 | L4 | 24 GB | 0.29 | 2.32 |
 
-**Under layer-outer, per-device memory is one layer plus activations** — ~19.3
-GB/layer for the 78L/6144 models. That fits an 80 GB H100 with room to spare, so
-**8x H100 is expected to beat 1x H200 on both cost and wall-clock.** The H200's
-141 GB buys nothing once the schedule stops needing the model resident.
-RTX-PRO6000 is IN1-only, which matters if a shared filesystem is in play
-(filesystems are region-bound).
+Single-device layer-outer reduces resident weights, but memory includes
+embed/head, layer-load/dequant/fusion transients, activations and workspace.
+The old "8x H100 beats 1x H200" assertion was an unmeasured projection for an
+unimplemented pipeline schedule, not an admission or cost result. Historical
+region-local storage and rates above do not establish current stock.
 
-## 3. Cost model — budget COMPARISONS, not gigabytes
+## 3. Cost model — include every capture and comparison
 
 M1 (Qwen3.8-27B, 2026-08-30) and M1.5 (the replay fix, same day, same GPU class)
 between them replaced every term in the old model. The old formula priced the
@@ -114,12 +117,19 @@ capture, anchored it to a streaming figure, and omitted the comparison entirely
 — which was the dominant term. This section is what the measurements say.
 
 ```
-wall_capture   ~ max(bytes / fetch_rate, windows * runs * min_per_window / devices)
-wall_compare   ~ candidates * windows * positions * vocab * hidden * C_replay
-cost           ~ (wall_capture + wall_compare) * devices * $per_gpu_hour
+wall_total = root_fetch + root_decode/cold_captures + root_qualification
+           + sum(candidate_fetch + candidate_decode/cold_captures
+                 + candidate_qualification + candidate_comparison)
+           + setup + verified_retrieval + teardown
+cost       = sum(each resource's billed time * its rate) + storage/transfer
 ```
 
-### 3.1 The three measured constants
+This is an accounting checklist, not a calibrated predictor. Subtract overlap
+only when measured for the actual schedule; include failed attempts and
+cleanup reserves. Supplied sealed candidate datasets can remove their fetch/
+capture terms, but the table must explicitly state that assumption.
+
+### 3.1 Historical timing anchors and their scope
 
 | term | value | measured on |
 |---|---|---|
@@ -148,27 +158,29 @@ M1.5 moved it. `compare --replay-device cuda` runs the head matmul on the
 device the estimator already uses, one position block at a time, so the full
 `[positions x vocab]` fp32 logit array is never materialised on the host.
 
-**Measured, same box, same 512-window comparison, end to end through the CLI:**
+**Measured, same box, same 512-window force-computed root self-comparison:**
 
 | path | wall | GPU | peak device memory |
 |---|---:|---:|---:|
 | `--replay-device numpy` (default, the published path) | **1,754.71 s (29 min 15 s)** | 0% | — |
 | `--replay-device cuda` | **173.27 s** | 88% | **7.13 GB** (6.64 GiB) |
 
-**10.13x** on the real Qwen3.8 panel: 512 contexts, 1,048,064 scored
-positions, vocab 248,320, hidden 5,120, both sides replayed. Against M1's 335.1 s
-capture of the same panel, the comparison drops from **5.24x the capture to
-0.52x** of it — 26.4 minutes of wall clock returned per comparison.
+**10.13x** on that self-comparison: 512 contexts, 1,048,064 positions, vocab
+248,320, hidden 5,120, identical root bytes on both sides. It saved 26.4 minutes
+for this workload. It does not establish the ratio or absolute time for
+nonzero candidates, other replay profiles, window sizes or hosts.
 
 **One caveat on the baseline, stated rather than buried.** M1's own numpy
 comparison took **3,619 s** on a different rental of the same GPU class; the
 numpy path here took 1,754.71 s, 2.1x faster, for the same work. Nothing in the
 code differs — the plausible causes are BLAS build and thread count (this box:
-numpy 2.2.6 on scipy-openblas, 28 CPUs by affinity), page-cache state (the
-13 GB dataset was warm from the preceding cuda run), and M1's note that two
-concurrent comparisons contended. That spread is exactly why the A/B above was
-run **in one process, on one box, back to back, with only the replay flag
-different**. Quote 10.13x, not 20.9x.
+numpy 2.2.6 on scipy-openblas; notes say 28 vCPU but the JSON reports 256
+logical CPUs without affinity/quota), page-cache state (the 13 GB dataset was
+warm from the preceding CUDA run), and M1's note that two
+concurrent comparisons contended. That spread is why the comparison above
+used one rental and the same input data, with only replay flags changed.
+The CLI ran as separate invocations, not one shared comparator process.
+Quote 10.13x only with this self-comparison scope, not 20.9x.
 
 Peak device memory is bounded and small: the fp32 head is 5.09 GB
 (248,320 x 5,120 x 4 B) and everything else is one position block —
@@ -196,11 +208,10 @@ are already BLAS-bound and a backend change moves them.
 | max absolute logit delta | 3.624e-05 |
 | max relative logit delta | 1.360e-06 |
 
-Read that as a **replay-backend floor**, in the same units as every other floor
-this campaign quotes. It is **2.2e9 times smaller** than the streaming lane
-floor of 0.011506 nats, and **1.75e-9 relative** to the smallest published
-Qwen3.8 row (FP8, 0.002989850396847924) — so a row would agree to roughly nine
-significant figures and differ somewhere past the tenth. Not zero. Therefore:
+This is a measured **replay-backend divergence on root data**. Its size
+relative to old means is descriptive, not a bound on a nonzero candidate's
+KLD change: KL has no additive triangle/error-budget law. The former
+nine-significant-figure promise is withdrawn. Therefore:
 
 - **the numpy path stays the default**, and the published rows stay reproducible
   on the machine and library that produced them;
@@ -208,8 +219,9 @@ significant figures and differ somewhere past the tenth. Not zero. Therefore:
   (`numpy:cpu:float32` / `torch:cuda:float32` / `none` for a hash-proof
   short-circuit), because a silent backend swap is precisely the undeclared
   difference this format exists to stop;
-- **pick ONE replay backend per comparability group and keep it.** Two rows
-  measured under different backends differ by a term neither of them measured.
+- **keep replay policy fixed and disclosed for a comparison set.** Registry
+  key equality alone does not bind every numerical axis; `pair_predicate`
+  must permit ranking, and missing replay evidence is not inferred equality.
 
 **THE FLOOR IS BACKEND-INDEPENDENT, and that was verified rather than argued.**
 A self-compare replays bitwise-equal hidden states through one head on one
@@ -255,21 +267,19 @@ scaling model alone — record it as measured, not force-fit to the model; the
 `--replay-device cuda` path (§3.3) was not exercised on this run and remains
 the one to time next for an apples-to-apples M3 cuda figure.
 
-**The consequence for the ladder is that the comparison term stops mattering.**
-At four candidates on a 512-window Flash panel the comparison budget goes from
-**~58 min** of wall clock (4 x 14.6 min) to **~6 min** of GPU time — from the
-dominant line item to less than the fetch. What is left to budget is the
-**capture**, which for a 642.7 GB Flash root is streaming-regime and
-fetch-overlapped (~17 min of fetch at 627 MB/s), and the **number of
-candidates**, which is now bounded by what the engine can load (M1 learning 8)
-rather than by what the comparisons cost.
+The old conclusion that "the comparison term stops mattering" is not
+established. The projected four-candidate Flash figures (~58 min numpy,
+~6 min CUDA) extrapolate a Qwen root self-comparison; they do not measure
+nonzero Flash candidate comparisons. Each candidate also needs its own
+checkpoint fetch/decode/cold captures unless a qualified dataset is already
+supplied. The later M3 observation above demonstrates that a simple
+`positions × vocab × hidden` rate does not explain all real run times.
 
-**A caution that survives the speedup.** A rung that adopts `--replay-device
-cuda` has chosen a replay backend for its whole comparability group (§3.3). If a
-later candidate has to be compared on a machine with no GPU, it must either use
-the same backend or start a new group. Decide once, at the top of the rung, and
-record it — `comparator.replay_backend` is in every receipt precisely so this is
-checkable after the fact.
+For reproducibility, pick and record the replay profile before comparing.
+`comparator.replay_backend` records one part of that profile; it is not
+itself one of the seven registry comparability-key fields. Equal keys are
+necessary, not sufficient; the pairwise predicate and recorded provenance
+must still support the proposed ranking.
 
 **Anchors already paid for:** the Flash 4-rung ladder at $8.02 / ~$11.60 / $6.65
 / $5.41 per artifact; Fruit root+candidate at $0.25 total; the 0.1B fixture
@@ -308,11 +318,12 @@ GLM-5.3 — one engine, one panel design, one capture cost — but ~3x the quant
 children (unsloth GGUF 642 likes, nvidia NVFP4 319, lukealonso, 0xSero REAP).
 Per dollar of root capture it unlocks the most downstream measurement.
 
-**Re-capturing GLM-5.3-Flash is not redundant.** Our eight Flash rows sit above a
-**0.011506** floor because they were measured against a teacher captured on
-another stack. A same-lane root capture drives that floor to **exactly 0.0** —
-demonstrated on Fruit — converting every Flash attributable number from inferred
-by subtraction into directly measured.
+**Re-capturing GLM-5.3-Flash was not redundant.** The older Flash rows use
+a teacher from another stack and a control near **0.011506** nats. A qualified
+same-stack root enables a new comparison set with a measured zero self-control;
+it does not isolate a causal codec term by subtraction or change old rows.
+The registry now records a Flash root; this section's proposed re-capture
+and family statuses are historical, not a current root availability inventory.
 
 **Qwen3.8-27B was a rounding error** at 55.6 GB — done for **$5.12** — but the
 claim that it "retroactively upgrades 37 existing rows" was WRONG and is
@@ -320,16 +331,13 @@ withdrawn. A same-lane root does not upgrade a row measured against a different
 teacher: the comparability key binds the reference, so the new rows form a NEW
 group (`cmp--05e16411a5932713`) beside the old one (`cmp--4a93702ded23e01a`), and
 the 37 older rows keep their inferred floors untouched. What a same-lane capture
-buys is a *new* group whose floor is a measured 0.0, plus — because the panel was
-deliberately reused — a legible lane delta: AWQ-INT4 reads 0.022449 same-lane
-against 0.022818 cross-lane, **3.685e-4 nats lower with higher top-1**, the
-direction a cross-stack term predicts. Expect the same of the Flash re-capture:
-it creates a clean group, it does not retroactively fix the eight existing Flash
-rows. **Say that on the M2 plan, not just here**: the eight Flash rows keep their
-0.011506 inferred floor forever unless each of them is re-measured against the
-new root, and that re-measurement is a cost line (eight comparisons, ~86 s each
-on the cuda replay path — which is exactly the kind of line the old cost model
-would have made prohibitive and no longer does).
+buys is a *new* group with a measured zero self-control. Reusing the panel
+removes one confounder, but the old/new AWQ rows name different artifact
+identities; their **3.685e-4** descriptive difference is not an identified
+lane term, and cross-stack perturbations have no guaranteed direction.
+Flash's lost legacy captures cannot be rescored from their digests. Each
+artifact would need a new qualified capture (or supplied surviving capture
+bytes), not just the eight ~86-second comparisons previously budgeted here.
 
 Note also that the geometry line above understated the model: Qwen3.8-27B is
 `Qwen3_5ForConditionalGeneration` — multimodal, with 48 linear-attention layers

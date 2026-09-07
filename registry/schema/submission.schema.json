@@ -224,6 +224,9 @@
       "type": "object",
       "required": ["accumulation_dtype", "stack_relation", "head_policy"],
       "properties": {
+        "replay_applicable": { "$ref": "measurement.schema.json#/properties/estimator/properties/replay_applicable" },
+        "replay_backend": { "$ref": "measurement.schema.json#/properties/estimator/properties/replay_backend" },
+        "replay_env": { "$ref": "measurement.schema.json#/properties/estimator/properties/replay_env" },
         "accumulation_dtype": { "enum": ["float64", "float32", "mixed"] },
         "logits_dtype": { "$ref": "common.schema.json#/$defs/numeric_format" },
         "two_pass": { "type": ["boolean", "null"] },
@@ -245,7 +248,7 @@
     },
 
     "comparability": {
-      "description": "OPTIONAL. How the producing tool says this number may be READ. Additive: a runner with nothing to say omits the block entirely, and registry_add derives the bias from estimator.stack_relation exactly as it did before this existed. When present it WINS, because the tool that computed the number knows things stack_relation cannot express -- a head substitution biases DOWNWARD and is not a cross-stack effect at all.",
+      "description": "OPTIONAL. How the producing tool says this number may be read. When omitted, registry_add discloses cross-stack comparisons with unknown direction and unusable floor status. When present this declaration is preserved: a head substitution, for example, is a distinct intervention not expressed by stack_relation and has no guaranteed bias direction.",
       "type": "object",
       "properties": {
         "bias": { "$ref": "measurement.schema.json#/properties/comparability/properties/bias" },
