@@ -18,6 +18,7 @@ ALLOW_PATTERNS = [
     "explorer/*.py", "explorer/pricing.json", "bin/fidelity/*.py",
     "registry/tools/*.py", "registry/data/*.jsonl", "registry/index.json",
     "registry/schema/*.json", "docs/schema/*.json",
+    "docs/CARD-ANNOTATION-SPEC.md",
     "registry/docs/examples/dione-q4.submission.json",
 ]
 

@@ -161,11 +161,15 @@ def _drop_nulls(mapping: Dict[str, Any]) -> Dict[str, Any]:
 def _metric_args(registry, measurement, lane) -> Dict[str, Any]:
     determinism = measurement.get("determinism") or {}
     estimator = measurement.get("estimator") or {}
+    precision = estimator.get("accumulation_dtype")
+    estimator_name = ("full_vocabulary_fp64" if precision in ("float64", "fp64") else
+                      "full_vocabulary_float32_reduce_legacy" if precision == "float32_reduce_legacy" else
+                      "reported_kl_precision_unknown")
     out = {
         "units": measurement["metric"]["units"],
         "higher_is_better": measurement["metric"]["higher_is_better"],
         "direction": measurement["metric"]["direction"],
-        "estimator": "full_vocabulary_fp64",
+        "estimator": estimator_name,
         "accumulation_dtype": estimator.get("accumulation_dtype"),
         "logits_dtype": estimator.get("logits_dtype"),
         "head_policy": estimator.get("head_policy"),

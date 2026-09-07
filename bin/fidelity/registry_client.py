@@ -70,12 +70,14 @@ class RegistrySnapshot:
 
     def __init__(self, collections: Dict[str, Dict[str, dict]], snapshot_id: str,
                  origin: str, index: Optional[dict] = None,
-                 notes: Optional[List[str]] = None) -> None:
+                 notes: Optional[List[str]] = None,
+                 revision: Optional[str] = None) -> None:
         self.collections = collections
         self.snapshot_id = snapshot_id
         self.origin = origin
         self.index = index
         self.notes = list(notes or [])
+        self.revision = revision
         self.lib = load_registry_lib(SUITE_ROOT)
 
     # -- joins reproduced from registry_render.py ---------------------------
@@ -180,16 +182,24 @@ def _parse_jsonl(text: str, name: str) -> Dict[str, dict]:
     return out
 
 
-def load_hf(quiet: bool = True) -> RegistrySnapshot:
-    """Fetch the public mirror, cached under FIDELITY_CACHE_DIR keyed by the
-    dataset's live commit sha (a cache hit at the same sha skips the refetch)."""
-    try:
-        meta = json.loads(_http_get(
-            "%s/api/datasets/%s" % (HF_ENDPOINT, DATASET_ID)))
-    except (urllib.error.URLError, OSError, ValueError) as exc:
-        raise RegistryUnavailable(
-            "cannot reach the public registry dataset (%s/datasets/%s): %s"
-            % (HF_ENDPOINT, DATASET_ID, exc))
+def load_hf(quiet: bool = True, *, revision: Optional[str] = None) -> RegistrySnapshot:
+    """Fetch one public snapshot, optionally at an explicit immutable commit.
+
+    Explicit revisions never resolve through main; this is the evidence-link
+    contract. The existing cache and collection verification apply to both paths.
+    """
+    if revision is not None:
+        if not isinstance(revision, str) or not SHA40.fullmatch(revision):
+            raise RegistryUnavailable("registry revision must be a full 40-character lowercase commit SHA")
+        meta = {"sha": revision}
+    else:
+        try:
+            meta = json.loads(_http_get(
+                "%s/api/datasets/%s" % (HF_ENDPOINT, DATASET_ID)))
+        except (urllib.error.URLError, OSError, ValueError) as exc:
+            raise RegistryUnavailable(
+                "cannot reach the public registry dataset (%s/datasets/%s): %s"
+                % (HF_ENDPOINT, DATASET_ID, exc))
     # CLI-15. The cache is keyed on the commit sha the API just reported, and the
     # footer reports `snapshot_id = sha[:12]` -- but every file used to be fetched
     # from `raw/main/`. A push landing between the API call and the file fetches
@@ -257,7 +267,7 @@ def load_hf(quiet: bool = True) -> RegistrySnapshot:
                     "(mirror possibly mid-update)" % (name, got[:8], declared[:8]))
         collections[name] = _parse_jsonl(blob.decode("utf-8"), name)
     return RegistrySnapshot(collections, sha[:12], "fetched from the public HF "
-                            "dataset " + DATASET_ID, index=index, notes=notes)
+                            "dataset " + DATASET_ID, index=index, notes=notes, revision=sha)
 
 
 def load_local(data_dir: Optional[Path] = None) -> RegistrySnapshot:

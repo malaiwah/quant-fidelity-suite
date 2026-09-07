@@ -1,2 +1,5 @@
 # Web UI only. Core registry and CLI tools retain their stdlib-only contract.
 gradio==6.26.0
+PyYAML==6.0.3
+jsonschema==4.26.0
+huggingface_hub==1.30.0

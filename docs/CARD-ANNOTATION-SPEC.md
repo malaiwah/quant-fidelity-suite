@@ -14,6 +14,29 @@
 
 You measured a quant. Here is how to say so machine-readably, so a leaderboard,
 a crawler, or an agent can read the number without parsing your prose.
+The **[QFS Explorer Cards tab](https://malaiwah-qfs-explorer.hf.space/?tab=cards)**
+now exposes this generator without a local installation. Select published rows of
+one artifact, generate YAML plus a human-readable evidence block, and optionally
+merge into an existing card. The existing body and unrelated metadata are preserved;
+ambiguous mixed-metric attribution is refused instead of losing metrics.
+
+Explorer-generated `source.url` values identify both a measurement and the full
+immutable registry revision. The native HF viewer is retained as a live-search link,
+with an immutable JSONL fallback. Root fidelity-dataset tree/manifest links are
+pinned only after their manifest seal and identities match the registry reference.
+An explicit snapshot failure never substitutes current data.
+
+The annotation preserves recorded FP64, legacy FP32-reduction or unknown precision;
+it never labels the latter two as FP64. If a panel has no HF dataset repository, its
+logical QFS panel ID is used in `model-index` and no `datasets:` repository is
+invented. Evaluation-only statements apply to repositories introduced by the
+annotation, not to unrelated training datasets already declared on the card.
+
+This is the supported `model-index` / `x_fidelity` path. HF's newer `.eval_results`
+workflow requires a real registered benchmark/task; this generator does not infer
+registration from the experimental helper below. `arxiv:<id>` tags require an
+actual paper link, not an invented identifier for a receipt.
+
 
 **Generate it** (needs only a registry measurement id):
 
