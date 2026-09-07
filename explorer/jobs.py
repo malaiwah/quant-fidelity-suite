@@ -107,6 +107,14 @@ def _api_error(exc, operation):
         return JobsError("HF requires a positive compute-credit balance. No fallback billing account was used.")
     if status == 429:
         return JobsError("HF rate-limited this operation. Retry reading its status later; an ambiguous launch is never resubmitted automatically.")
+    if status in (400, 409, 422):
+        try:
+            detail = str(exc.response.json().get("error", ""))[:1500]
+            detail = re.sub(r"hf_[A-Za-z0-9_-]{12,}|(?i:bearer)\s+\S+", "<redacted>", detail)
+            detail = "".join(c for c in detail if c in "\n\t" or 32 <= ord(c) < 127)
+        except (ValueError, AttributeError, TypeError):
+            detail = ""
+        return JobsError(operation + " was refused by HF" + (": " + detail if detail else " (HTTP %s)" % status))
     return JobsError(operation + " did not complete (" + type(exc).__name__ + "). Check the recorded workflow state; no alternate account or job was substituted.")
 
 
@@ -636,7 +644,7 @@ def launch(actor, prepared, *, confirm_compute=False):
             job = api.run_job(image=plan["image"], command=["python", "-c", _BOOTSTRAP_FETCH],
                 flavor=plan["hardware"]["flavor"], timeout=plan["hardware"]["timeout_seconds"], namespace=actor.username,
                 env={"QFS_PLAN_SHA256": plan["plan_sha256"], "QFS_WORKFLOW_ID": wid}, secrets={},
-                labels={"qfs_app": "explorer", "qfs_workflow_id": wid, "qfs_source": plan["source"]["revision"], "qfs_space": SPACE}, volumes=volumes)
+                labels={"qfs_app": "explorer", "qfs_workflow_id": wid, "qfs_source": plan["source"]["revision"], "qfs_space": hashlib.sha256(SPACE.encode()).hexdigest()[:32]}, volumes=volumes)
         except Exception as exc:
             status = getattr(getattr(exc, "response", None), "status_code", None)
             if status in (400, 401, 402, 403, 422):
