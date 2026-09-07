@@ -20,6 +20,7 @@ ALLOW_PATTERNS = [
     "app.py", "requirements.txt", "README.md", "LICENSE", "llms.txt",
     "explorer/*.py", "explorer/*.json", "explorer/requirements-worker.txt", "bin/fidelity/*.py",
     "bin/fidelity_dataset.py", "bin/BUNDLE.txt", "engines/tools/*.py",
+    "bin/jointstd/*.py",
     "engines/panels/panel--fruit.malaiwah.heldout-v1/**",
     "engines/tools/layer-outer-evidence/fruit*unexpected-keys.json*",
     "registry/tools/*.py", "registry/data/*.jsonl", "registry/index.json",

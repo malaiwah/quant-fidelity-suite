@@ -365,12 +365,20 @@ def dataset_view(descriptor, name):
     """Materialize exactly the sealed dataset, not unrelated Hub sidecars."""
     from fidelity import dsformat, hfjobs
     source = Path(descriptor["mount_path"])
-    checksums = regular(source / dsformat.CHECKSUMS_NAME)
+    metadata_root = PLAN_PATH.parent / "datasets" / name
+    metadata = {row["path"]: row for row in descriptor["metadata_files"]}
+    for member, record in metadata.items():
+        path = regular(metadata_root / str(relative(member)))
+        if path.stat().st_size != record["bytes"] or digest(path) != record["sha256"]:
+            raise ValueError("staged dataset metadata differs from its immutable plan")
+    checksums = regular(metadata_root / dsformat.CHECKSUMS_NAME)
     if checksums.stat().st_size > 16 * 1024 * 1024:
         raise ValueError("dataset checksum inventory exceeds its bound")
     members = set(dsformat.parse_checksums(checksums.read_text()))
     members.update((dsformat.CHECKSUMS_NAME, dsformat.MANIFEST_NAME))
-    paths = {name: regular(source / str(relative(name))) for name in members}
+    if set(metadata) != {member for member in members if not member.endswith((".safetensors", ".npy"))}:
+        raise ValueError("canonical metadata staging inventory is incomplete or extraneous")
+    paths = {member: regular((metadata_root if member in metadata else source) / str(relative(member))) for member in members}
     if sum(p.stat().st_size for p in paths.values()) + 64 * 1024**2 > shutil.disk_usage("/tmp").free:
         raise ValueError("canonical input dataset exceeds available worker scratch storage")
     destination = Path(hfjobs.INPUT_DATASET_ROOT) / name

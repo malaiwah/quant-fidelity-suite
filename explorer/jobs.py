@@ -110,7 +110,7 @@ def _api_error(exc, operation):
     return JobsError(operation + " did not complete (" + type(exc).__name__ + "). Check the recorded workflow state; no alternate account or job was substituted.")
 
 
-def _json_download(actor, repo, revision, name, *, repo_type="model", limit=MAX_JSON, save_to=None):
+def _json_download(actor, repo, revision, name, *, repo_type="model", limit=MAX_JSON, save_to=None, parse_json=True):
     from huggingface_hub import hf_hub_download
     _identity(repo, revision); _relative(name)
     infos = actor.client().get_paths_info(repo, [name], repo_type=repo_type, revision=revision)
@@ -122,7 +122,7 @@ def _json_download(actor, repo, revision, name, *, repo_type="model", limit=MAX_
         if path.stat().st_size != infos[0].size:
             raise JobsError("Metadata bytes differ from the pinned Hub tree.")
         raw = path.read_bytes()
-        value = _read_json(path, limit=limit)
+        value = _read_json(path, limit=limit) if parse_json else raw
         if save_to is not None:
             Path(save_to).write_bytes(raw)
     return value, hashlib.sha256(raw).hexdigest(), len(raw)
@@ -289,9 +289,27 @@ def _dataset_metadata(actor, repo, revision, mount_path):
     from fidelity import dsformat as F
     if descriptor.get("schema") != F.DATASET_SCHEMA or not F.verify_manifest_seal(descriptor):
         raise JobsError("Reference/candidate is not an intact sealed fidelity dataset.")
+    checksum_bytes, checksum_sha, _ = _json_download(
+        actor, repo, revision, F.CHECKSUMS_NAME, repo_type="dataset", parse_json=False)
+    if checksum_sha != descriptor["seal"]["checksums_sha256"]:
+        raise JobsError("Dataset checksum inventory differs from its sealed descriptor.")
+    inventory = F.parse_checksums(checksum_bytes.decode("utf-8"))
+    metadata = []
+    total = 0
+    for name in sorted(set(inventory) | {F.CHECKSUMS_NAME, F.MANIFEST_NAME}):
+        if name.endswith((".safetensors", ".npy")):
+            continue
+        _, file_sha, file_bytes = _json_download(actor, repo, revision, name, repo_type="dataset", parse_json=False)
+        expected_sha = sha if name == F.MANIFEST_NAME else checksum_sha if name == F.CHECKSUMS_NAME else inventory[name]
+        if file_sha != expected_sha:
+            raise JobsError("Dataset metadata differs from its sealed inventory: " + name)
+        total += file_bytes
+        if total > 64 * 1024**2 or len(metadata) >= MAX_FILES:
+            raise JobsError("Dataset metadata exceeds the bounded private staging allowance.")
+        metadata.append({"path": name, "sha256": file_sha, "bytes": file_bytes})
     return {"repository": repo, "revision": revision, "mount_path": mount_path,
             "dataset_sha256": descriptor["dataset_sha256"], "manifest_sha256": sha,
-            "manifest_bytes": size, "descriptor": descriptor}
+            "manifest_bytes": size, "descriptor": descriptor, "metadata_files": metadata}
 
 
 def _signing_key():
@@ -589,6 +607,17 @@ def launch(actor, prepared, *, confirm_compute=False):
                 for path in sorted(directory.rglob("*")):
                     if path.is_symlink():raise JobsError("Bundled panel contains a symlink.")
                     if path.is_file(): additions.append((path, prefix + "/inputs/" + panel["path"] + "/" + str(path.relative_to(directory))))
+            for name in ("reference", "candidate"):
+                descriptor = plan["inputs"].get(name)
+                if descriptor is None:
+                    continue
+                for record in descriptor["metadata_files"]:
+                    raw, sha, size = _json_download(
+                        actor, descriptor["repository"], descriptor["revision"], record["path"],
+                        repo_type="dataset", parse_json=False)
+                    if sha != record["sha256"] or size != record["bytes"]:
+                        raise JobsError("Pinned dataset metadata changed after planning.")
+                    additions.append((raw, prefix + "/inputs/datasets/" + name + "/" + record["path"]))
             api.batch_bucket_files(bucket, add=additions)
             volumes = [Volume(type="bucket", source=bucket, path=prefix + "/inputs", mount_path="/inputs/plan", read_only=True),
                        Volume(type="bucket", source=bucket, path=prefix + "/outputs", mount_path="/outputs", read_only=False)]
