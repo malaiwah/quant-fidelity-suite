@@ -20,6 +20,31 @@ This file now covers two different reasons to hold a fix back:
    [Published-number changes](#published-number-changes-operator-decision-required),
    each with the delta measured rather than estimated.
 
+## Status index — regenerate, do not trust from memory
+
+**As of 2026-09-07.** Counted mechanically over the `##` headings in this
+file: an entry is CLOSED when its body carries a `RESOLVED` / `CLOSED` /
+`PARTLY RESOLVED` note. Two caveats a future reader needs:
+
+* Some headings **wrap across two `##` lines**, so a naive count of `##`
+  over-reports the number of entries. Do not renumber or rejoin them — the
+  headings are cited elsewhere as anchors.
+* A resolution note is **additive**: the original finding is kept verbatim
+  above it, because the finding is the evidence and the note is only the
+  disposition.
+
+Closed (15): CC-01, CLI-02, CLI-21, CLI-25, DECODE-PARITY-01, DEP-01, DEP-03, DEP-04, DESC-01, MKL-01, REAP-1, REAP-2, REAP-4, ROOT-2, STAT-01
+
+Open (18): CC-07, CC-08, CLI-01, CLI-11, CLI-16, CLI-17, CLI-22, CLI-28, DEP-02, DEP-05, NUM-16, REAP-3, ROOT-1, SEC-01, SEC-09, SH-05, SH-10, SH-22
+
+**The reliable prediction about this list, learned the hard way on
+2026-09-06/07: an entry is more often already fixed in code and missing a
+caller, a rung or a note than it is genuinely unfixed. Grep for the guard
+before writing a second one.** Four of six entries on the second pass were
+in that state, and two of them (`ROOT-2`, `DEP-03`) had been fixed hours
+earlier with the disposition recorded only in a commit message — which is
+why this index exists.
+
 ## The files this covers
 
 | File | Owner while the review ran |
@@ -1520,6 +1545,27 @@ marketplace instances is genuinely hard and the endpoint is discovered over an a
 TLS API, so the choice is defensible — but in a file this heavily commented the silence is
 conspicuous. One sentence naming the threat model would settle it.
 
+**RESOLVED 2026-09-07** (additive note). `ControlMaster=auto`,
+`ControlPath=<per-process 0700 dir>/%C` and `ControlPersist=60` are now in
+`sshbase._ssh_opts`, so RunPod, Vast and Lambda all get multiplexing from the
+shared transport.
+
+**The patch drafted in this entry was NOT applied as written**, and that
+matters: it predates the host-key work and shows `StrictHostKeyChecking=no`
+with `UserKnownHostsFile=/dev/null`. Applying it verbatim would have undone
+the pinning that makes a measurement attributable to the machine we rented.
+The three flags are APPENDED; multiplexing is a performance change and must
+not touch the authentication surface. A rung now asserts exactly that, and it
+is the one that would have caught the mistake.
+
+Socket shape, with the reasoning at the code: per-process and 0700, because a
+control socket is a live authenticated channel to a box holding a token and
+anything that can reach it can reuse that channel without a key; short, via
+`%C`, because a unix socket path caps near 104 characters; and optional,
+returning None if the directory cannot be created, because failing a paid run
+over an optimisation is worse than the handshakes. Four rungs in
+`selftest_sshbase.py`.
+
 ## DEP-04 — `sshbase.run_status` uses the naive `pgrep -f` this project has already paid for twice
 
 **Anchor:** `bin/fidelity/sshbase.py`, `def run_status`, the
@@ -1704,6 +1750,23 @@ extract `panel_id`.
 
 **Test:** a fit rung asserting that a root plan for a 10 GB checkpoint does not demand 63 GB
 of VRAM, and that its window count equals the panel's. Both fail today.
+
+**RESOLVED 2026-09-07** (additive note). `census.root_fit` — which sizes a root
+from the TARGET's geometry and the panel's own window count — existed, was
+correct, and had **zero callers** in `bin/measure_cloud.py`. So the planner
+that spends money kept quoting a constant 63 GB/GPU while `measure_local.py`
+had already fixed it, with a comment naming this exact failure.
+
+Wired. Measured on the real Fruit config: **required VRAM 8.47 GB/GPU** (was
+63), modelled peak 7.62 GB, and the 9.99 GB decoded total explicitly labelled
+as *not* the working set, because layer-outer streams one layer at a time.
+Unknown geometry and an unreadable window count now REFUSE with an actionable
+remedy rather than falling back to another model's census; non-root lanes are
+untouched, because changing the streaming census needs its own evidence.
+
+Four rungs in `selftest_root_capture.py`. Two of them assert **the caller
+exists** and are verified failing against the pre-wiring code — those are what
+stop the fix being re-orphaned, which is how it sat unused in the first place.
 
 ## A publishing run's job hash is per-invocation: `publication_preflight.checked_at`
 
