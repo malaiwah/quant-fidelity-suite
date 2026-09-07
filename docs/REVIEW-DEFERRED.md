@@ -1385,6 +1385,31 @@ monkeypatches `urlopen` to raise `HTTPError(502)` twice then succeed would fail 
 patch above and pass with it — worth adding **with** the fix, since its absence is why the
 429 case had to be found on a live lease.
 
+**RESOLVED 2026-09-07** (additive note; the finding above is kept verbatim).
+Extended, and the extension is deliberately **asymmetric** — which is the part
+worth reading. `429` means the request was REJECTED, so any method may be
+retried. A 5xx or a dropped connection on a **mutation** may mean the mutation
+SUCCEEDED and only the response was lost: for `PUT /asks/{id}/` that means an
+instance now exists and is billing, so retrying would **double-rent**, and a
+leaked instance is a blocker-level defect. That case already belongs to the
+lease store's `LOST_CREATE_RESPONSE` reconciliation one layer up, and it stays
+there. So transient statuses (500/502/503/504) and connection faults retry on
+**GET only**; 429 retries on any method.
+
+Both custom halves survive as the entry required: `retry_after` is still read
+from the **body**, not a header, and the 1.1 s pacing is untouched. A retry now
+announces itself on stderr, because a silently absorbed retry is
+indistinguishable from a clean pass in summary output.
+
+Six rungs in `selftest_vast_contract.py`, verified failing against the pre-fix
+adapter (`calls=1`, the hard raise): a GET survives two 503s and a connection
+reset; a mutation is NOT retried on either; a mutation IS retried on 429; and
+the budget is bounded. One fixture note kept in the file because it bit during
+authoring: a GET with no HTTP `Date` header refuses **by design** (the
+provider's clock is what a teardown deadline is encoded against), so the
+response fixture must carry one or the rung measures the clock requirement
+instead of the retry.
+
 ## DEP-02 — the Cloudflare User-Agent workaround should say it was a `urllib` tax
 
 **Anchor:** `bin/fidelity/runpodapi.py`, `def _gql`, the `"User-Agent"` header.

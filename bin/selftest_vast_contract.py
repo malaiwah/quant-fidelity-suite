@@ -27,9 +27,12 @@ a provider representation assumed rather than read:
 
 No provider is contacted: `_req` is stubbed and every HTTP path is a fixture.
 """
+import email.utils
+import io
 import json
 import os
 import sys
+import urllib.error
 import time
 import types
 
@@ -1081,6 +1084,104 @@ refuses("an explicitly named key file that is absent refuses rather than "
         "silently using a different credential",
         lambda: Vast(key_file="/nonexistent/vast_api_key")._load_key(),
         needle="does not exist")
+# ---------------------------------------------------------------- DEP-01
+# `_req` retried 429 and nothing else, which is the same shape as the incident
+# the 429 handling was written to stop: a transient read as a failed run,
+# INSIDE the run, after the lease was written. The extension is deliberately
+# ASYMMETRIC and these rungs exist to keep it that way.
+#
+# 429 means the request was REJECTED, so any method may be retried. A 5xx or a
+# dropped connection on a MUTATION may mean the mutation SUCCEEDED and only
+# the response was lost -- for `PUT /asks/{id}/` that means an instance now
+# exists and is billing, so retrying would double-rent, and a leaked instance
+# is a blocker-level defect. That case belongs to the lease store's
+# LOST_CREATE_RESPONSE reconciliation, one layer up, and must stay there.
+class _Attempts:
+    """A safe_urlopen stand-in that fails a fixed number of times first."""
+
+    def __init__(self, fails, exc_factory):
+        self.fails = fails
+        self.exc_factory = exc_factory
+        self.calls = 0
+
+    def __call__(self, req, timeout=None):
+        self.calls += 1
+        if self.calls <= self.fails:
+            raise self.exc_factory()
+
+        class _Resp:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def read(self):
+                return b'{"ok": true}'
+
+            @property
+            def headers(self):
+                # A GET with no HTTP Date REFUSES by design: the provider's
+                # own clock is what a teardown deadline is encoded against
+                # (see Vast._capture_server_time). So the fixture must carry
+                # one, or this rung measures the clock requirement instead of
+                # the retry it is testing.
+                return {"Date": email.utils.formatdate(usegmt=True)}
+
+        return _Resp()
+
+
+def _http_error(code):
+    return lambda: urllib.error.HTTPError(
+        "https://console.vast.ai/api/v0/x", code, "transient", {},
+        io.BytesIO(b'{"retry_after": 0}'))
+
+
+def _drive(method, fails, exc_factory):
+    """Run the REAL _req against a stubbed opener. Returns (ok, calls)."""
+    v = Vast(key_file=None)
+    v._key = "stub-key"
+    v._load_key = lambda: "stub-key"
+    opener = _Attempts(fails, exc_factory)
+    saved_open = vastapi.safe_urlopen
+    saved_sleep = vastapi.time.sleep
+    saved_last = Vast._last_call
+    vastapi.safe_urlopen = opener
+    vastapi.time.sleep = lambda _s: None
+    Vast._last_call = 0.0
+    try:
+        try:
+            v._req(method, "/x")
+            return True, opener.calls
+        except VastError:
+            return False, opener.calls
+    finally:
+        vastapi.safe_urlopen = saved_open
+        vastapi.time.sleep = saved_sleep
+        Vast._last_call = saved_last
+
+
+_ok, _calls = _drive("GET", 2, _http_error(503))
+check("DEP-01 a GET survives two 503s and then succeeds (was: raised hard "
+      "mid-run) [calls=%d]" % _calls, _ok and _calls == 3)
+_ok, _calls = _drive("GET", 2, lambda: urllib.error.URLError("connection reset"))
+check("DEP-01 a GET survives a connection reset, not just an HTTP status "
+      "[calls=%d]" % _calls, _ok and _calls == 3)
+_ok, _calls = _drive("PUT", 1, _http_error(503))
+check("DEP-01 a MUTATION is NOT retried on 503: a lost create response means "
+      "an instance may already be billing [calls=%d]" % _calls,
+      (not _ok) and _calls == 1)
+_ok, _calls = _drive("PUT", 1, lambda: urllib.error.URLError("reset"))
+check("DEP-01 a MUTATION is NOT retried on a dropped connection either "
+      "[calls=%d]" % _calls, (not _ok) and _calls == 1)
+_ok, _calls = _drive("PUT", 1, _http_error(429))
+check("DEP-01 but a MUTATION IS retried on 429, which means the request was "
+      "rejected and nothing was created [calls=%d]" % _calls,
+      _ok and _calls == 2)
+_ok, _calls = _drive("GET", 9, _http_error(503))
+check("DEP-01 the retry budget is bounded, not infinite [calls=%d]" % _calls,
+      (not _ok) and _calls <= 4)
+
 
 print()
 if FAILED:

@@ -30,11 +30,18 @@ import math
 import os
 import re
 import secrets
+import socket
 import stat
+import sys
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
+# DEP-01. Transient HTTP statuses that say 'ask again', not 'no'.
+# Applied to GET only; see Vast._req for why a mutation must not be
+# retried on these.
+_RETRY_STATUSES = frozenset({500, 502, 503, 504})
+
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from typing import Any, Dict, List, Optional
@@ -637,6 +644,22 @@ class Vast(SSHTransport):
         })
         return out
 
+    @staticmethod
+    def _announce_retry(method: str, path: str, why: str, delay: float,
+                        tries_left: int) -> None:
+        """Say on stderr that a transient is being waited out.
+
+        A silently absorbed retry is indistinguishable from a clean pass in
+        summary output, so a run that quietly took four attempts looks
+        identical to one that took none -- and the only place the difference
+        shows is a log nobody reads. Announce it.
+        """
+        sys.stderr.write(
+            "vast: %s for %s %s -- transient, waiting %.1fs "
+            "(%d attempt(s) left)\n"
+            % (why, method, path, delay, tries_left - 1))
+        sys.stderr.flush()
+
     def _req(self, method: str, path: str, body: Any = None,
              *, timeout: float = 90, _tries: int = 4) -> Any:
         gap = time.time() - Vast._last_call
@@ -658,12 +681,36 @@ class Vast(SSHTransport):
                     self._capture_server_time(resp, url)
         except urllib.error.HTTPError as exc:
             payload = exc.read()[:300].decode("utf-8", "replace")
-            if exc.code == 429 and _tries > 1:
+            # DEP-01. This arm used to retry 429 and NOTHING else, which is
+            # the same shape as the incident it was written to stop: a
+            # transient read as a failed run, INSIDE the run, after the lease
+            # was written. A 502/503/504 and every connection reset fell
+            # through to `except Exception` and raised hard.
+            #
+            # But the extension is NOT symmetric, and that asymmetry is the
+            # whole design. 429 means the request was REJECTED, so retrying
+            # any method is safe. A 5xx or a dropped connection on a MUTATION
+            # may mean the mutation SUCCEEDED and only the response was lost
+            # -- which for `PUT /asks/{id}/` means an instance now exists and
+            # is billing. Retrying that would double-rent, and a leaked
+            # instance is a blocker-level defect. That case is already handled
+            # correctly one layer up, by the lease store's
+            # LOST_CREATE_RESPONSE reconciliation, and it must stay there.
+            # So: transient statuses retry on GET only; 429 retries on any
+            # method.
+            retryable = (exc.code == 429
+                         or (method == "GET" and exc.code in _RETRY_STATUSES))
+            if retryable and _tries > 1:
                 wait = 2.0
                 try:
+                    # `retry_after` arrives in the BODY, not the header --
+                    # measured, and the reason this cannot be a stock
+                    # Retry-After helper.
                     wait = max(1.0, float(json.loads(payload).get("retry_after") or 1)) + 1.0
                 except Exception:                         # noqa: BLE001
                     pass
+                self._announce_retry(method, path, "HTTP %d" % exc.code,
+                                     wait, _tries)
                 time.sleep(wait)
                 return self._req(method, path, body, timeout=timeout,
                                  _tries=_tries - 1)
@@ -671,6 +718,19 @@ class Vast(SSHTransport):
                             % (exc.code, path, redact(payload)))
         except VastError:
             raise
+        except (urllib.error.URLError, TimeoutError, ConnectionError,
+                socket.timeout) as exc:
+            # A network fault, not an answer about the request. Same
+            # idempotency rule: a GET may be retried, a mutation may not,
+            # because a dropped connection cannot tell us whether the
+            # provider acted.
+            if method == "GET" and _tries > 1:
+                self._announce_retry(method, path, type(exc).__name__,
+                                     2.0, _tries)
+                time.sleep(2.0)
+                return self._req(method, path, body, timeout=timeout,
+                                 _tries=_tries - 1)
+            raise VastError("Vast request failed: %s" % redact(str(exc)))
         except Exception as exc:                          # noqa: BLE001
             raise VastError("Vast request failed: %s" % redact(str(exc)))
         return _strict_json_loads(raw) if raw.strip() else {}
