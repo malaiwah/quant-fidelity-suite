@@ -1166,6 +1166,18 @@ Three problems, all in five lines:
 
 ---
 
+**RESOLVED — code long since fixed, COVERAGE added 2026-09-06/07** (additive
+note). `reaper_sweep` now confirms every destroy against provider state with
+retry/backoff, and an unconfirmed destroy keeps the lease and exits
+`EXIT_LEAK`. The in-run `Teardown` path was already covered by
+`selftest_teardown` CLI-01a/c/d (32/0); the SWEEP's own loop — the path that
+runs from a cron machine that may never have seen the job — had **no rung at
+all**. Two preservation rungs added to `selftest_reaper.py`: a provider whose
+`destroy` raises is never reported as success and keeps the lease, and no
+absence proof may be sealed for a machine that was never destroyed. Labelled
+preservation rungs because the code is already correct and they pass on both
+sides of no diff.
+
 ## REAP-2 — the name-encoded deadline overrides a live lease, with no plausibility bound
 
 **File:** `bin/measure_cloud.py:440-453` (`parse_deadline_name`) and `478-487`
@@ -1224,6 +1236,23 @@ And in the sweep, do not let a name-derived deadline contradict a live lease:
 ```
 
 ---
+
+**RESOLVED — code fixed and STRONGER than this entry asked, coverage added
+2026-09-07** (additive note). Both halves are closed:
+`REAPER_PLAUSIBLE_WINDOW` (90 days) is applied to lease deadlines *and* to
+name-parsed ones, and the name path no longer produces a destroy target at
+all — it only WARNS, because "a name is guessable, reusable, and parseable
+into nonsense". A lease-named instance is skipped by the name path outright.
+
+Neither was covered. Eight rungs added, and one of them corrected my own first
+expectation: for `fidcloud-x9zz` the **plausibility bound fires first**, so the
+1970 name is ignored by name rather than reaching the "verify it yourself"
+branch. Asserting the wrong one of two branches is how a rung passes for the
+wrong reason, so both are now covered separately — the implausible name is
+ignored loudly, and a *plausibly* expired name (one this tool could have
+minted an hour ago) still refuses to destroy and tells the operator to verify
+it. Plus the original reproducer as a rung: an instance whose lease says 24 h
+remain is not destroyed by its name's 1970 deadline.
 
 ## REAP-3 — `reaper --sweep --dry-run` under-reports what the real sweep does
 

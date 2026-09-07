@@ -7,10 +7,12 @@ import stat
 from dataclasses import replace
 from decimal import Decimal
 import email.message
+import contextlib
 import io
 import hashlib
 import multiprocessing
 import os
+import pathlib
 import signal
 import subprocess
 import sys
@@ -3162,6 +3164,116 @@ def stage_progress_case():
           MC._fetch_progress_text(338.2e9, None, 1046e6, 300))
 
 
+def name_deadline_authorization_case():
+    """REAP-2: a name-parsed deadline is DISCOVERY, never authorization.
+
+    `parse_deadline_name` accepts any base36 tail, so a `fidcloud-`-prefixed
+    instance whose name this tool did not mint resolves to a 1970 epoch. The
+    original defect destroyed such an instance on the next sweep even when its
+    own lease said it had 24 hours left. Both halves are fixed -- a
+    plausibility bound, and a name path that only WARNS -- and neither was
+    covered by any suite, which is why these rungs exist.
+
+    Preservation rungs: the code is already correct, so they pass on both
+    sides of no diff.
+    """
+    import measure_cloud as MC
+
+    print()
+    print("[REAP-2] a name-parsed deadline never authorizes a destroy")
+
+    # The parser itself is deliberately unbounded: it parses, and the CALLER
+    # applies the bound. Both facts are asserted so neither can drift.
+    parsed = MC.parse_deadline_name("fidcloud-x9zz")
+    check("REAP-2: a name this tool did not mint parses to a 1970 epoch "
+          "(%r)" % parsed, parsed == 12959)
+    now = time.time()
+    check("REAP-2: and the plausibility bound rejects it",
+          abs(parsed - now) > MC.REAPER_PLAUSIBLE_WINDOW)
+    check("REAP-2: a deadline this tool DID mint is inside the bound",
+          abs(MC.parse_deadline_name(MC.deadline_name("abcd1234", now + 3600))
+              - now) <= MC.REAPER_PLAUSIBLE_WINDOW)
+
+    class _Inst:
+        def __init__(self, mid, name):
+            self.machine_id = mid
+            self.name = name
+            self.status = "running"
+
+    class _JL:
+        def __init__(self, instances):
+            self.instances = list(instances)
+            self.destroyed = []
+            self.dry = False
+
+        def list_instances(self):
+            return list(self.instances)
+
+        def destroy(self, mid, **kw):
+            self.destroyed.append(str(mid))
+
+    with tempfile.TemporaryDirectory(prefix="reap2-") as tmp:
+        saved_dir = MC.LEASE_DIR
+        try:
+            MC.LEASE_DIR = pathlib.Path(tmp) / "leases"
+            MC.LEASE_DIR.mkdir(parents=True)
+
+            # No lease at all: the instance LOOKS expired by its name.
+            jl = _JL([_Inst("999001", "fidcloud-x9zz")])
+            buf = io.StringIO()
+            # Console.warn writes to STDERR, so capturing only stdout made
+            # this rung fail while the warning was being printed correctly.
+            with contextlib.redirect_stdout(buf), \
+                    contextlib.redirect_stderr(buf):
+                rc = MC.reaper_sweep(MC.Console(), dry=False, jl=jl,
+                                     sleep=lambda _s: None)
+            out = buf.getvalue()
+            check("REAP-2: an unleased fidcloud-* instance is NOT destroyed",
+                  jl.destroyed == [], jl.destroyed)
+            # The bound fires FIRST, so a 1970 name is ignored outright and
+            # never even reaches the "verify it yourself" branch. That is
+            # safer than the entry asked for, and asserting the wrong one of
+            # the two branches is how a rung passes for the wrong reason.
+            check("REAP-2: the implausible name is ignored BY NAME, loudly",
+                  "implausible name deadline" in out and "ignored" in out,
+                  out.strip()[:140])
+
+            # A PLAUSIBLE but expired name -- one this tool could have minted
+            # an hour ago -- is the branch that reaches discovery. It must
+            # still refuse to destroy, because a name is not authorization.
+            recent = MC.deadline_name("abcd1234", now - 3600)
+            jl_recent = _JL([_Inst("999003", recent)])
+            buf3 = io.StringIO()
+            with contextlib.redirect_stdout(buf3), \
+                    contextlib.redirect_stderr(buf3):
+                MC.reaper_sweep(MC.Console(), dry=False, jl=jl_recent,
+                                sleep=lambda _s: None)
+            out3 = buf3.getvalue()
+            check("REAP-2: a PLAUSIBLY expired name is still not destroyed, "
+                  "and the operator is told to verify it themselves",
+                  jl_recent.destroyed == []
+                  and "no lease of this tool authorizes destroying it" in out3,
+                  out3.strip()[:160])
+            check("REAP-2: the sweep does not fail over a discovery-only "
+                  "instance", rc == MC.EXIT_OK, "rc=%s" % rc)
+
+            # A lease exists and has 24h left: the name path must not touch it.
+            lease = {"machine_id": "999002", "provider": "jarvislabs",
+                     "deadline_epoch": now + 86400, "job_id": "abcd1234"}
+            (MC.LEASE_DIR / "live.json").write_text(json.dumps(lease))
+            jl2 = _JL([_Inst("999002", "fidcloud-x9zz")])
+            buf2 = io.StringIO()
+            with contextlib.redirect_stdout(buf2), \
+                    contextlib.redirect_stderr(buf2):
+                MC.reaper_sweep(MC.Console(), dry=False, jl=jl2,
+                                sleep=lambda _s: None)
+            check("REAP-2: an instance whose LEASE says 24h left is not "
+                  "destroyed by its name's 1970 deadline",
+                  jl2.destroyed == [], jl2.destroyed)
+        finally:
+            MC.LEASE_DIR = saved_dir
+
+
 def main():
     lease_core_cases()
     reaper_cases()
@@ -3170,6 +3282,7 @@ def main():
     watchdog_case()
     stage_pgid_race_case()
     stage_progress_case()
+    name_deadline_authorization_case()
     print()
     if FAILED:
         print("selftest_reaper: %d FAILED" % len(FAILED))
