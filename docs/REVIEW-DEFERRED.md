@@ -22,7 +22,7 @@ This file now covers two different reasons to hold a fix back:
 
 ## Status index — regenerate, do not trust from memory
 
-**As of 2026-09-07.** Counted mechanically over the `##` headings in this
+**As of 2026-09-07 (refreshed).** Counted mechanically over the `##` headings in this
 file: an entry is CLOSED when its body carries a `RESOLVED` / `CLOSED` /
 `PARTLY RESOLVED` note. Two caveats a future reader needs:
 
@@ -33,9 +33,9 @@ file: an entry is CLOSED when its body carries a `RESOLVED` / `CLOSED` /
   above it, because the finding is the evidence and the note is only the
   disposition.
 
-Closed (15): CC-01, CLI-02, CLI-21, CLI-25, DECODE-PARITY-01, DEP-01, DEP-03, DEP-04, DESC-01, MKL-01, REAP-1, REAP-2, REAP-4, ROOT-2, STAT-01
+Closed (19): CC-01, CLI-02, CLI-17, CLI-21, CLI-25, DECODE-PARITY-01, DEP-01, DEP-03, DEP-04, DESC-01, MKL-01, REAP-1, REAP-2, REAP-3, REAP-4, ROOT-2, SEC-09, SH-10, STAT-01
 
-Open (18): CC-07, CC-08, CLI-01, CLI-11, CLI-16, CLI-17, CLI-22, CLI-28, DEP-02, DEP-05, NUM-16, REAP-3, ROOT-1, SEC-01, SEC-09, SH-05, SH-10, SH-22
+Open (14): CC-07, CC-08, CLI-01, CLI-11, CLI-16, CLI-22, CLI-28, DEP-02, DEP-05, NUM-16, ROOT-1, SEC-01, SH-05, SH-22
 
 **The reliable prediction about this list, learned the hard way on
 2026-09-06/07: an entry is more often already fixed in code and missing a
@@ -717,6 +717,29 @@ long-running child, and NOT a locked file. (Done in the CLI commit.)
 
 ---
 
+**RESOLVED — code already fixed, made TESTABLE and covered 2026-09-07**
+(additive note). `invoke_engine` launches through `subprocess.Popen(argv,
+stdout=None, stderr=None)` with a preceding flush, i.e. the entry's own patch,
+and the reasoning is recorded at the code with JOURNAL lesson 43.
+
+It was uncovered. The four launch statements were **inline in `main()`**, which
+is why: with the job-contract validation ahead of them there was no way to
+reach them from a test. They are now `spawn_streaming(argv, env)` — extracted
+specifically so the behaviour can be asserted rather than the source text.
+
+`bin/selftest_invoke_engine.py` (T23) launches a chatty child that sleeps 6 s
+and reads the log at 2 s: its stdout AND stderr must already be on disk before
+the child exits. **Verified non-vacuous** by substituting a capturing launch
+(`subprocess.run(..., capture_output=True)`) and watching both behavioural
+rungs go red. A rung that grepped for `capture_output` would instead pass on a
+future call that captured by another spelling, and go red on a refactor that
+kept the property.
+
+The entry's two corrections are honoured: `text=` is set nowhere on this path
+(it made binary noise raise AFTER a successful child, discarding the whole
+log), and the OOM concern is not treated as live — the pinned engines emit
+~0.21 MB per cold run.
+
 ## SH-22 — resume on existence, and a swallowed digest
 
 **File:** `bin/stage_measure.sh:250` and `:297`
@@ -788,6 +811,17 @@ mode the CLI creates the file with:
 `tmp.unlink()` is an unlink, not a shred.
 
 ---
+
+**RESOLVED — already fixed, verified 2026-09-07** (additive note). The token
+is written by `fidelity.common.write_secret_file`, which creates the file with
+`O_CREAT|O_EXCL|O_WRONLY|O_NOFOLLOW` at **0600** inside a **0700** directory,
+so the 20.5 us world-readable window is gone **by construction** rather than
+narrowed after the fact. `O_EXCL` additionally refuses a stale file rather than
+inheriting its mode — which is stronger than the trailing `chmod` this entry
+(rightly) insisted the reviewer's patch needed, because it never opens an
+existing inode at all. The transport also reads the mode back and compares it
+instead of assuming, after RunPod's /workspace accepted `chmod 600` and
+reported 0666 (Fruit smoke, 2026-09-03).
 
 ## CLI-16 — a panel descriptor's `scored_positions` is never checked against its own arithmetic
 

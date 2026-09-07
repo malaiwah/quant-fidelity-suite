@@ -17,6 +17,7 @@ import argparse
 import os
 import subprocess
 import sys
+from typing import Dict, List
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -295,16 +296,32 @@ def main() -> int:
     con.say("engine argv: %s" % " ".join(argv))
     if args.print_only:
         return 0
-    # STREAM the engine's output; do not capture it.
-    #
-    # `run(...)` buffers stdout and stderr and hands them back after the process
-    # EXITS, so a 79-minute capture wrote exactly one line to its stage log --
-    # the argv -- and nothing else until it was over. There is no way to tell a
-    # healthy run from a stalled one from that file, which is precisely the
-    # question a supervising controller has to answer (JOURNAL lesson 43). The
-    # stage driver already tees this process's own stdout into
-    # logs/measure-run-N.log, so inheriting the streams puts the engine's
-    # per-layer progress there, live, at the cost of nothing.
+    return spawn_streaming(argv, env)
+
+
+def spawn_streaming(argv: List[str], env: Dict[str, str]) -> int:
+    """Launch the engine with the parent's streams INHERITED, and wait.
+
+    CLI-17. `fidelity.common.run(...)` buffers stdout and stderr and hands
+    them back after the process EXITS, so a 79-minute capture wrote exactly
+    one line to its stage log -- the argv -- and nothing else until it was
+    over. There is no way to tell a healthy run from a stalled one from that
+    file, which is precisely the question a supervising controller has to
+    answer (JOURNAL lesson 43), and `measure_cloud.py` tells the operator
+    that the inspection path IS `tail -50 <fs>/logs/*.log`.
+
+    The stage driver already tees this process's own stdout into
+    logs/measure-run-N.log, so inheriting the streams puts the engine's
+    per-layer progress there, live, at the cost of nothing.
+
+    This is a FUNCTION rather than four inline statements so the behaviour can
+    be asserted: a rung calls it with a chatty child and checks the output
+    arrives BEFORE the child exits. Asserting the source text instead would
+    pass just as happily on a call that captured.
+
+    `text=` is deliberately not set anywhere here: it made binary noise raise
+    AFTER a successful child, discarding the whole log.
+    """
     sys.stdout.flush()
     sys.stderr.flush()
     proc = subprocess.Popen(argv, env=env, stdout=None, stderr=None)

@@ -169,6 +169,13 @@ t "jarvislabs provider contract (the twelve, offline)" \
 # files only. The suite proves the refusal arm fires, which no real run does.
 t "measurement inventory: nothing verified is invisible (T21)" \
                                            0 python3 bin/selftest_measurement_inventory.py
+# T23. CLI-17. The engine's output must reach the stage log WHILE it runs:
+# common.run buffers to exit, so a 79-minute capture wrote one line (the argv)
+# and nothing else, making a healthy run and a wedged one indistinguishable
+# from the file measure_cloud tells the operator to tail. Behavioural, not a
+# grep: a chatty child must be visible in the log before it exits.
+t "engine output streams, not buffered to exit (T23)" \
+                                           0 python3 bin/selftest_invoke_engine.py
 # The stock-python3.9 floor for bin/ and registry/, which was prose in
 # AGENTS.md and checked by nothing until 2026-09-06. This battery runs under
 # whatever interpreter the developer has (3.14 here), so a 3.10-only construct
