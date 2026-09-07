@@ -33,9 +33,9 @@ file: an entry is CLOSED when its body carries a `RESOLVED` / `CLOSED` /
   above it, because the finding is the evidence and the note is only the
   disposition.
 
-Closed (22): CC-01, CC-08, CLI-02, CLI-16, CLI-17, CLI-21, CLI-25, DECODE-PARITY-01, DEP-01, DEP-03, DEP-04, DESC-01, MKL-01, REAP-1, REAP-2, REAP-3, REAP-4, ROOT-2, SEC-09, SH-05, SH-10, STAT-01
+Closed (33): CC-01, CC-07, CC-08, CLI-01, CLI-02, CLI-11, CLI-16, CLI-17, CLI-21, CLI-22, CLI-25, CLI-28, DECODE-PARITY-01, DEP-01, DEP-02, DEP-03, DEP-04, DEP-05, DESC-01, MKL-01, NUM-16, REAP-1, REAP-2, REAP-3, REAP-4, ROOT-1, ROOT-2, SEC-01, SEC-09, SH-05, SH-10, SH-22, STAT-01
 
-Open (11): CC-07, CLI-01, CLI-11, CLI-22, CLI-28, DEP-02, DEP-05, NUM-16, ROOT-1, SEC-01, SH-22
+Open (0): 
 
 **The reliable prediction about this list, learned the hard way on
 2026-09-06/07: an entry is more often already fixed in code and missing a
@@ -178,7 +178,7 @@ is not removed by a future refactor.
 
 ## CLI-01 — the teardown reads "the API call failed" as "the instance was destroyed"
 
-> **APPLIED 2026-08-30 (M4).** `_confirm_gone` (via `list_instances`, which propagates
+> **RESOLVED (APPLIED 2026-08-30, M4).** `_confirm_gone` (via `list_instances`, which propagates
 > `JLError`) replaces `jl.get(mid) is None`; destruction is accepted only on a positive
 > `True`, unexpected exceptions in the destroy loop fall through to the next attempt,
 > and an exception escaping a destroy STEP now sets `leaked = True` so `_drop_lease`
@@ -1092,6 +1092,22 @@ traceback (exit 1) to `REFUSED [unreadable] ... exit 3`.
 publishable outcome. Mapping an internal arithmetic bug to it would make a real defect look
 like a considered decision, which is what `dscompare.py:577` was written to avoid.
 
+**RESOLVED 2026-09-07** (additive note). The HubError branch was already
+there; the two paths a third party is most likely to hit on a first run were
+not. A dataset that does not satisfy the v1 format now refuses with **its own
+code** (`REFUSED [bad_schema]`), and an unreadable path refuses with
+`REFUSED [unreadable]` and "check the path and its permissions".
+
+Ordering checked rather than assumed: the hub branch is tested FIRST because
+`HubError` could subclass `OSError` on some paths — it does not today
+(verified), but the ordering is the cheap way to keep that true.
+
+**And the last rung is the important one: a REAL defect still tracebacks.**
+`ValueError` is re-raised, because swallowing everything in a catch-all is how
+a bug becomes an unexplained refusal. Four rungs; verified pre-fix, where the
+suite does not merely fail — it **dies** with the un-diagnosed
+`FormatError`, which is the defect stated exactly.
+
 ## CLI-21 — the round-trip axis writes an executable to a fixed temp path
 
 **File:** `bin/fidelity/cardmeta.py:726-734`
@@ -1686,6 +1702,19 @@ defensible; it is a trade, not a free choice.
 "quant-fidelity-suite/0.1"` was copied into `vastapi.py` and `lambdaapi.py`, neither of
 which is behind Cloudflare. Harmless, but it reads as required when it is not.
 
+**RESOLVED 2026-09-07** (additive note). The module docstring now states the
+tax where the next person deciding "urllib or requests" for a provider adapter
+will see it: Cloudflare fronts `api.runpod.io` and answers `urllib`'s DEFAULT
+`User-Agent` with HTTP 403 "error code: 1010", so the explicit header is not
+cosmetic — without it the backend does not work at all, and `requests` would
+have carried a plausible agent and never raised the question.
+
+The entry's instruction is honoured exactly: the excellent inline comment at
+`_gql` is **unchanged**, because it carries the measurement. What was missing
+was module-level visibility, and the note says plainly that the trade is still
+right for this tree (`bin/` must run on stock python3.9 with no installs) while
+being a real cost rather than a free choice.
+
 ## DEP-03 — `sshbase` opens a fresh handshake per exec and per scp; ControlMaster is three flags
 
 **Anchor:** `bin/fidelity/sshbase.py`, `def _ssh_opts`.
@@ -1811,6 +1840,22 @@ result. Mentioned here only so it is not rediscovered.
 field, so no library helps; but it is fragile and untested, and this file's one historical
 bug was also a data-shape bug (`_KNOWN_DISK_GB` guessed 200 GB for a box whose `df -h /`
 said 1.4T).
+
+**RESOLVED 2026-09-07** (additive note). The second `GET /instance-types` is
+gone; the capacity check reuses the catalogue the disk check already read.
+
+**A hazard the entry did not name, and the better reason to fix it:** two
+reads can DISAGREE. With separate fetches the disk check and the
+capacity check could be made against different snapshots of the catalogue and
+both pass while neither describes the instance about to launch. Removing the
+round trip is the small win; removing the split-brain is the real one.
+
+The related item is honoured as the entry asked — a comment rather than a fix.
+The free-text `gpu_description` VRAM parse now carries a note saying it is
+fragile, untested against a real catalogue, that no library helps because the
+vendor publishes no structured field, that this file's one historical bug was
+also a data-shape bug (`_KNOWN_DISK_GB` guessing 200 GB), and that this is the
+first line to read if a Lambda plan ever prices the wrong card.
 
 ## PANEL-D6 — a capture records its tokenizer as a filesystem PATH, so two
 ## captures of one panel on two mount roots are refused as different tokenizers

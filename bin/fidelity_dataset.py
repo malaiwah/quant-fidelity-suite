@@ -2592,10 +2592,30 @@ def main(argv=None):
         # hf:// path -- verify, validate, compare, describe, adapt, publish --
         # used to exit 1 with twenty lines of stack above the useful line.
         from fidelity import dshub
-        if not isinstance(exc, dshub.HubError):
-            raise
-        return refuse("hub_error", str(exc),
-                      _hub_error_advice(getattr(exc, "status", None)))
+        if isinstance(exc, dshub.HubError):
+            return refuse("hub_error", str(exc),
+                          _hub_error_advice(getattr(exc, "status", None)))
+        # CLI-28, the remaining paths. A dataset that does not satisfy the v1
+        # format, and an unreadable path, are both EXPECTED invalid states --
+        # the two most likely things a third party hits on their first run --
+        # and both still printed a stack. AGENTS.md: an expected invalid
+        # state is a refusal, not a traceback.
+        from fidelity import dsformat as _fmt
+        if isinstance(exc, _fmt.FormatError):
+            return refuse(getattr(exc, "code", "format_error"),
+                          getattr(exc, "message", None) or str(exc),
+                          "this dataset does not satisfy the v1 format; "
+                          "nothing was written")
+        # HubError subclasses OSError on some paths, so the hub branch above
+        # has to be tested FIRST -- checked, not assumed.
+        if isinstance(exc, OSError):
+            return refuse("unreadable", str(exc),
+                          "check the path and its permissions; nothing was "
+                          "written")
+        # Anything else is a DEFECT in this tool, not a user error, and a
+        # traceback is the right output for it. Swallowing the rest here is
+        # how a bug becomes an unexplained refusal.
+        raise
 
 
 if __name__ == "__main__":

@@ -2479,8 +2479,68 @@ def cli22_anonymous_first_case():
          FD.emit, FD.cache_path) = saved
 
 
+def cli28_catchall_case():
+    """CLI-28: an expected invalid state is a refusal, not a traceback.
+
+    The catch-all diagnosed a HubError and re-raised everything else, so a
+    dataset that does not satisfy the v1 format and an unreadable path -- the
+    two most likely things a third party hits on a first run -- still printed
+    twenty lines of stack above the one useful line.
+
+    The last rung is the important one: a REAL defect must still traceback.
+    Swallowing everything here is how a bug becomes an unexplained refusal.
+    """
+    import contextlib
+    import io as _io
+    import types
+    import fidelity_dataset as FD
+    from fidelity import dsformat, dshub
+
+    def drive(exc):
+        saved = FD.build_parser
+        ns = types.SimpleNamespace(command="describe", dataset="x",
+                                   receipt=None,
+                                   func=lambda a: (_ for _ in ()).throw(exc))
+        FD.build_parser = lambda: types.SimpleNamespace(
+            parse_args=lambda argv: ns)
+        buf = _io.StringIO()
+        try:
+            with contextlib.redirect_stdout(buf), \
+                    contextlib.redirect_stderr(buf):
+                return FD.main([]), buf.getvalue()
+        finally:
+            FD.build_parser = saved
+
+    hub = dshub.HubError("HTTP 404 for x")
+    hub.status = 404
+    rc, out = drive(hub)
+    check("CLI-28 a hub failure is a refusal with a remedy",
+          rc == 3 and "REFUSED [hub_error]" in out, out.strip()[:100])
+
+    rc, out = drive(dsformat.FormatError("bad_schema", "no manifest"))
+    check("CLI-28 a FormatError is a refusal naming its own code, not a "
+          "traceback",
+          rc == 3 and "REFUSED [bad_schema]" in out
+          and "does not satisfy the v1 format" in out, out.strip()[:100])
+
+    rc, out = drive(OSError(13, "Permission denied", "/root/x"))
+    check("CLI-28 an unreadable path is a refusal that says to check "
+          "permissions",
+          rc == 3 and "REFUSED [unreadable]" in out
+          and "permissions" in out, out.strip()[:100])
+
+    raised = False
+    try:
+        drive(ValueError("internal bug"))
+    except ValueError:
+        raised = True
+    check("CLI-28 a REAL defect still tracebacks -- swallowing it would turn "
+          "a bug into an unexplained refusal", raised)
+
+
 def main():
     cli22_anonymous_first_case()
+    cli28_catchall_case()
     tmp = tempfile.mkdtemp(prefix="fidelity-dataset-selftest-")
     try:
         base = section_format(tmp)

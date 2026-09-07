@@ -807,6 +807,14 @@ class LambdaCloud(SSHTransport):
             regions = v.get("regions_with_capacity_available") or []
             specs = it.get("specs") or {}
             gpus = int(specs.get("gpus") or 1)
+            # DEP-05 (related, and a comment rather than a fix by decision):
+            # VRAM is parsed out of Lambda's FREE-TEXT gpu_description because
+            # the vendor publishes no structured field, so no library helps
+            # here. It is fragile and it is untested against a real catalogue,
+            # and this file's one historical bug was also a data-shape bug
+            # (_KNOWN_DISK_GB guessed 200 GB for a box whose df said
+            # otherwise). If a Lambda plan ever prices the wrong card, read
+            # this line first.
             vram = float(it.get("gpu_description", "0").split("(")[-1]
                          .split("GB")[0].strip() or 0) if "GB" in (
                              it.get("gpu_description") or "") else 0.0
@@ -929,7 +937,14 @@ class LambdaCloud(SSHTransport):
                 "no SSH key registered on the Lambda account. Lambda attaches "
                 "keys BY NAME at launch and accepts no inline public key, so "
                 "one must be added in the console first.")
-        types = self._req("GET", "/instance-types").get("data", {})
+        # DEP-05: this was a SECOND `GET /instance-types`, i.e. a second full
+        # TLS handshake for a catalogue already in `types_now` above, on the
+        # critical path before launch. Reusing the one read also removes a
+        # subtler hazard than the round trip: two reads can disagree, so the
+        # disk check and the capacity check could be made against different
+        # snapshots of the catalogue and both pass while neither describes the
+        # instance we are about to launch.
+        types = types_now
         regions = (types.get(itype) or {}).get(
             "regions_with_capacity_available") or []
         if not regions:

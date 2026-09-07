@@ -14,6 +14,18 @@ What is genuinely different from JarvisLabs, and matters
 * **There is no CLI.** JarvisLabs is driven through `jl`; RunPod is a GraphQL
   endpoint plus SSH. The API key therefore never reaches argv here -- it is
   read from a 0600 file into a request header, in-process.
+* **WHAT `urllib` COSTS HERE, so the trade is visible.** Cloudflare fronts
+  `api.runpod.io` and answers `urllib`'s DEFAULT `User-Agent` with HTTP 403
+  "error code: 1010" -- the request never reaches RunPod. So this file sets a
+  `User-Agent` explicitly, and that header is not cosmetic: without it the
+  backend does not work at all. `requests` would have carried its own
+  plausible agent and this would never have been a question. That is the tax,
+  stated once so the next person deciding "urllib or requests" for a provider
+  adapter sees it without commit archaeology. The trade is still the right one
+  for this tree -- `bin/` must run on stock python3.9 with no installs
+  (AGENTS.md) -- but it is a real cost, not a free choice, and DEP-02 exists
+  because it was invisible. The measurement itself is the inline comment at
+  `_gql`, which is already good and is deliberately unchanged.
 * **There is no managed-run concept.** `jl run` starts a tracked background
   job; RunPod has nothing like it, so `run_job` is `nohup` plus three files
   (pid, exit code, log) and `run_status` reads them. That is the same contract
