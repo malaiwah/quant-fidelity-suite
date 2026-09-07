@@ -96,6 +96,8 @@ RUN apt-get update -qq \
 # second transport for the same audited set rather than a parallel one.
 COPY bin/       /tmp/stage/bin/
 COPY engines/tools/  /tmp/stage/engines/tools/
+COPY engines/coverage.json /tmp/stage/engines/
+COPY engines/quant-coverage-audit.json /tmp/stage/engines/
 COPY engines/patches-v2/ /tmp/stage/engines/patches-v2/
 # Committed panels: a container-native root capture reads its panel from
 # the image itself (BUNDLE.txt lists the files; --require-all makes a

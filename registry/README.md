@@ -35,6 +35,28 @@ which answers *how fast, how much VRAM, how much money*. This one answers *how f
 model, panel and pipeline carries a `cross_refs.local_ai_registry` slot, and a link is never presented
 as verified unless it has been.
 
+## Community test fixtures
+
+The registry includes twelve native random fixture bases with qualified public CPU
+root datasets and exact-zero two-capture reproduction controls. Twenty linked
+storage-format artifacts retain their actual shared-weight parents and public
+capture/comparison receipts. These are **toolchain fixtures, not trained assistants
+or model-quality rankings**; floating-point conversion controls are not fine-tunes.
+
+- [Random Architecture Fixtures](https://huggingface.co/collections/malaiwah/qfs-random-architecture-fixtures-6a9f071c3f740e024ce15b72)
+- [Matched-Weight Quantization Families](https://huggingface.co/collections/malaiwah/qfs-matched-weight-quantization-families-6a9f071d93dbd3dbf0a1e844)
+- [Native root captures and exact measured source](https://huggingface.co/datasets/malaiwah/qfs-fixture-root-captures-v1)
+
+The fixture registry rows are advisory relative to the production sealed GPU lane:
+their CPU reproduction is exact, but no cross-lane offset is invented. Metadata and
+source licenses remain distinct; bundled source license texts retain their own terms.
+
+[`publication-audit.json`](publication-audit.json) retains every validator warning
+with an explicit disposition. This snapshot has no schema/invariant errors, but it
+is **not a warning-free software release**: historical source-version drift,
+missing controls/secondary metrics and other stated limitations are preserved.
+The strict `check-release` gate is unchanged; no warning is silently made green.
+
 ---
 
 ## The rule this registry exists to enforce

@@ -226,8 +226,10 @@ def validate_job(document: dict) -> None:
     verify_bundle_manifest(document.get("bundle"))
     single_file_local = (
         document.get("role") == "root"
-        and (document.get("execution_attempt") or {}).get("kind") == "local"
-        and (document.get("capture") or {}).get("device") == "cpu"
+        and isinstance(document.get("execution_attempt"), dict)
+        and document["execution_attempt"].get("kind") == "local"
+        and isinstance(document.get("capture"), dict)
+        and document["capture"].get("device") == "cpu"
         and target.get("surface") == "native-bf16"
         and target.get("index_source") == "single-safetensors")
     if target.get("index_source") == "single-safetensors" and not single_file_local:
