@@ -39,6 +39,24 @@ the evidence that it stayed done.
 | **DEP-03** | `ControlMaster` reached the JarvisLabs box by hand in `~/.ssh/config` and never reached the shared transport, where it serves RunPod, Vast and Lambda — one full handshake per exec *and per scp*, with a delta uploader that sends one file per scp. | Three flags **appended**. The entry's own drafted patch predates the host-key work and shows `StrictHostKeyChecking=no` with `UserKnownHostsFile=/dev/null`; applying it verbatim would have undone the pinning that makes a measurement attributable to the machine we rented. There is now a rung asserting multiplexing did not weaken authentication — the one that would have caught it. |
 | **PANEL-D6** (3rd instance) | Comparing a fresh Fruit capture against the published root was refused over a *name-only* tokenizer difference, with a remedy ("recapture on the reference's panel") that was useless because the panel was already identical. | The refusal now names `--tokenizer-id <the reference's own value>` — `dscompare` holds both sides and can read it. **Not** offered when `vocab_size`/flags/`revision` disagree, because that would turn an honest refusal into a footgun. **The engine-side half stays open on purpose:** it changes the identity string sealed into a dataset, i.e. what compares equal across published rows, so it is a comparability decision for the operator and the registry session. |
 
+## Closed 2026-09-07, third pass — the money ones
+
+Picked by *what can burn a rental*, not by what was cheapest. **Status index in
+`REVIEW-DEFERRED.md`: 19 closed, 14 open.**
+
+| item | state found | what was actually needed |
+|---|---|---|
+| **SH-10** | **Genuinely open, and the expensive one.** The `["*"]` default applies only when the key is ABSENT, so an explicit `"include": []` emitted an empty argv and `hf download` ran **unscoped** — on the panel repo, where the Flash teacher-logits dataset is **1,318 GB**. The comment on the target path already calls include-scoping "the difference between 32 GB and 1.3 TB"; the panel path had no guard in either branch. | Refused in the heredoc, plus a shell-level `-gt 0` guard mirroring `fetch_target`'s. `*` is **not** treated as protective (it fetches the same 1,318 GB) — the stage now warns before paying. **And a defect the entry did not name: a STRING include was iterated per CHARACTER**, so `"windows/*"` became `--include w --include i --include n …`, nine globs matching nothing, i.e. a panel fetch that silently downloads nothing. Six rungs that extract the heredoc from the shell script **verbatim** and execute it; four verified failing pre-fix. |
+| **CLI-17** | Code already fixed, and **structurally untestable**: the four launch statements were inline in `main()` behind the whole job-contract validation, so no test could reach them. | Extracted as `spawn_streaming(argv, env)` *so the behaviour could be asserted*. T23 launches a chatty child that sleeps 6 s and reads the log at 2 s — stdout **and** stderr must be on disk before the child exits. **Verified non-vacuous** by substituting a capturing launch and watching both rungs go red. Why it matters: `common.run` hands output back after exit, so a 79-minute capture wrote one line (the argv), and `measure_cloud` tells the operator to `tail -50 <fs>/logs/*.log`. |
+| **REAP-3** | Code already fixed — the retirement scan is hoisted out of `if not dry:` and only the `unlink` is guarded. A grep for `WOULD retire` matched **only the implementation**. | Three rungs driving the real `reaper_sweep`: the dry run names the lease it would retire instead of printing "nothing expired", the dry run does not delete it, and the real run retires exactly what the preview named. |
+| **SEC-09** | Already fixed. | Verified and marked: `common.write_secret_file` uses `O_CREAT|O_EXCL|O_WRONLY|O_NOFOLLOW` at 0600 inside a 0700 directory, so the 20.5 µs world-readable window is gone **by construction**. `O_EXCL` is stronger than the trailing `chmod` the entry insisted on, because it never opens an existing inode at all. |
+
+**The pattern held for a third pass: two of four were already fixed and
+uncovered.** And a new sub-shape appeared worth naming — *code that is correct
+but structurally untestable*. CLI-17 had no rung not because nobody thought of
+it but because the property lived in four statements no test could reach.
+Extracting them was the fix; the assertion was the easy part.
+
 
 ## Checked and deliberately NOT changed
 
