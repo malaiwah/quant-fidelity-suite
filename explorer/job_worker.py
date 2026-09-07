@@ -384,6 +384,12 @@ def workflow(plan, out, runner, outputs):
         panel = Path(descriptor["mount_path"]) / str(relative(descriptor["path"]))
         if panel.resolve() != panel or not panel.is_dir():
             raise ValueError("unsafe or missing raw token-panel tree")
+        if descriptor.get("kind") == "bundled":
+            original = ROOT / descriptor["path"]
+            expected_panel = {p.relative_to(original).as_posix(): digest(p) for p in tree(original)}
+            mounted_panel = {p.relative_to(panel).as_posix(): digest(p) for p in tree(panel)}
+            if not expected_panel or mounted_panel != expected_panel:
+                raise ValueError("bundled panel differs from the immutable reviewed QFS source")
         for path in tree(panel):
             runner.bound()
             destination = out / "input-panel" / path.relative_to(panel)
@@ -412,7 +418,8 @@ def workflow(plan, out, runner, outputs):
                   "--dataset-name", "HF workflow " + plan["workflow_id"], "--repository", plan["output"]["dataset_repository"],
                   "--author", plan["owner"], "--dataset-license", "other", "--weights-license-file", license_path,
                   "--weights-license-sha256", digest(license_path), "--weights-license-bytes", license_path.stat().st_size]
-        common.extend(["--panel-repository", descriptor["repository"], "--panel-revision", descriptor["revision"]])
+        if descriptor.get("kind") != "bundled":
+            common.extend(["--panel-repository", descriptor["repository"], "--panel-revision", descriptor["revision"]])
         if mode == "candidate":
             save(out / "scope.json", plan["scope"])
             common.extend(["--scope-file", out / "scope.json", "--codec", plan["codec"]])

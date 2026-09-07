@@ -273,7 +273,8 @@ def qualify_result(result_dir, plan, execution_receipt, *, suite_root):
         manifest, runtime = fd._local_runtime_receipt(str(path), label)
         panel_input = plan['inputs']['panel']
         _require(panel_input.get('role') == 'final'
-                 and all((manifest.get('panel') or {}).get(key) == panel_input.get(key)
+                 and all((manifest.get('panel') or {}).get(key) == (
+                     None if panel_input.get('kind') == 'bundled' else panel_input.get(key))
                          for key in ('repository', 'revision')),
                  'capture panel differs from immutable requested final panel')
         _require((runtime.get('runtime_environment') or {}).get('cold_run')
