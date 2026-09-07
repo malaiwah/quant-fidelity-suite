@@ -17,6 +17,7 @@ negative.
 Needs torch (run under the venv python). No network, no GPU, CPU-only, ~seconds.
 """
 import math
+import pathlib
 import os
 import sys
 
@@ -136,6 +137,42 @@ try:
     check("_check_kl_sane accepts rounding-scale dust", True)
 except ValueError as e:
     check("_check_kl_sane accepts rounding-scale dust", False, str(e))
+
+# MKL-01 containment. `torch.logsumexp` on a large fp32 tensor executes an
+# ILLEGAL INSTRUCTION on a pre-AVX host: measured on this Xeon X5570 (Nehalem,
+# sse4_2, no AVX) at 5 of 12 runs, and 0 of 12 with MKL_NUM_THREADS=1. The
+# fault is inside mkl_vml_kernel in torch/lib/libtorch_cpu.so, so it is the
+# CPU and MKL's threaded VML dispatch, not this code.
+#
+# It was isolated by elimination, and the elimination is why the guard can be
+# narrow: log, exp, sum, log_softmax, logaddexp and matmul all measured 0/6 to
+# 0/8 on the same box. logsumexp alone fails. The production scorers
+# (engines/tools/kld_report.py, stream_score.py) normalise with log_softmax
+# and are therefore NOT exposed.
+#
+# So the mitigation is one `env MKL_NUM_THREADS=1` on this file's battery rung
+# -- and it stays sufficient only while this file remains the ONLY user of the
+# op. This rung is what makes that an enforced invariant instead of a comment.
+_ROOT = pathlib.Path(__file__).resolve().parent.parent
+_GUARDED = {"bin/selftest_fidelity_reducer.py"}
+_users = set()
+for _tree in ("bin", "engines/tools", "registry"):
+    _base = _ROOT / _tree
+    if not _base.is_dir():
+        continue
+    for _path in sorted(_base.rglob("*.py")):
+        if any(part in {".venv", "__pycache__"} for part in _path.parts):
+            continue
+        try:
+            if "logsumexp" in _path.read_text(encoding="utf-8"):
+                _users.add(str(_path.relative_to(_ROOT)))
+        except (OSError, UnicodeDecodeError):
+            continue
+check("MKL-01: torch.logsumexp stays confined to the file whose battery rung "
+      "carries MKL_NUM_THREADS=1 (found: %s)" % ", ".join(sorted(_users) or ["none"]),
+      _users <= _GUARDED,
+      "unguarded users: %s" % ", ".join(sorted(_users - _GUARDED)))
+
 
 print()
 if failures:

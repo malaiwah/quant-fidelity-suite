@@ -1952,3 +1952,34 @@ consequence is the dangerous part: an intermittent SIGILL makes the battery
 intermittently red for a reason that has nothing to do with the code**, which
 is exactly the misattribution this session has been fighting all day. Anyone
 who sees rc=132 should check the CPU before reading the diff.
+
+**RESOLVED 2026-09-07 — the open question is now measured** (additive note).
+The deferred half was "which of the 21 torch-tier suites are exposed". Answered
+by isolating the OPERATOR rather than re-running suites:
+
+| operator, fp32, 4096 x 50257 | SIGILL |
+|---|---:|
+| `torch.logsumexp` | **5 / 12** |
+| `torch.log_softmax` | 0 / 6 |
+| `torch.log`, `torch.exp`, `torch.sum` | 0 / 6 each |
+| `torch.logaddexp` (incl. a `-inf` operand) | 0 / 8 |
+| fp32 matmul | 0 / 8 |
+| `torch.logsumexp` with `MKL_NUM_THREADS=1` | **0 / 12** |
+
+**`logsumexp` alone fails**, and a tree-wide grep finds it in exactly ONE file:
+`bin/selftest_fidelity_reducer.py`, which is the file whose battery rung
+already carries `env MKL_NUM_THREADS=1`. **The production scorers
+(`engines/tools/kld_report.py`, `stream_score.py`) normalise with
+`log_softmax` and are not exposed.** So the narrow scoping was right on the
+evidence rather than by luck, and no other torch-tier suite needs the guard.
+
+Enforced rather than asserted: a containment rung in
+`selftest_fidelity_reducer.py` fails if any tracked file under `bin/`,
+`engines/tools/` or `registry/` outside the guarded one uses `torch.logsumexp`
+— verified able to refuse by dropping a probe file in and watching it go red.
+If someone introduces the op into a production path, the rung says so instead
+of a rented box discovering it.
+
+Residual, and stated rather than closed: rented CUDA boxes and the container
+are post-AVX, so this fault is not reachable there **by hardware** — that is an
+inference from the ISA, not a measurement on those hosts.
