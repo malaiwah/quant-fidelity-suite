@@ -112,7 +112,10 @@ Complete CPU fixtures and reproduction evidence are published separately:
 | IFM K2-Horizon MoVA | [k2-horizon-tiny-random-bf16](https://huggingface.co/malaiwah/k2-horizon-tiny-random-bf16) | [CPU proof](https://huggingface.co/datasets/malaiwah/k2-horizon-tiny-cpu-repro-v1) |
 
 These are random-init text-path tests, not production model-quality measurements.
-They do not add a capture/rental action to this read-only app or create registry rows.
+They do not add a capture/rental action to this read-only app. Native fixture bases
+have qualified public CPU roots and fixture-only registry references; quantized
+variants are linked artifacts, not invented fine-tunes or new canonical roots.
+The registry keeps synthetic reproduction floors separate from trained-model groups.
 
 The [machine-readable coverage catalog](engines/coverage.json) separates native
 architecture proofs, decoded storage formats, and original-release limitations.
@@ -121,6 +124,17 @@ architecture proofs, decoded storage formats, and original-release limitations.
 `architectures prepare --help` prepares bound local capture/compare commands without
 executing a model, downloading weights, renting hardware or publishing.
 See the [local capture workflow](docs/THIRD-PARTY-QUICKSTART.md#local-capture-without-renting-hardware).
+
+Community collections:
+- [Random Architecture Fixtures](https://huggingface.co/collections/malaiwah/qfs-random-architecture-fixtures-6a9f071c3f740e024ce15b72): twelve independently initialized native checkpoints across eleven architecture paths.
+- [Matched-Weight Quantization Families](https://huggingface.co/collections/malaiwah/qfs-matched-weight-quantization-families-6a9f071d93dbd3dbf0a1e844): twenty derivatives from three shared-weight sources—eighteen positive-KL lossy cases and two floating-point controls.
+- [All fixtures and captures](https://huggingface.co/collections/malaiwah/qfs-test-fixtures-and-reproducible-captures-6a9efbe7e77c03e879c7cde4): the umbrella collection.
+
+The [root capture bundle](https://huggingface.co/datasets/malaiwah/qfs-fixture-root-captures-v1)
+retains both cold captures, original token panels, qualification/publication receipts,
+and actual measured source. Models are random-initialized, but each quantized
+family shares byte-identical pre-quantization weights; RTN format fixtures are not
+independently randomized quant candidates or evidence of optimizer calibration.
 
 The new packed readers cover GPTQ v1/v2 INT4, AWQ GEMM INT4, compressed-tensors
 INT4/INT8, MLX affine 4/8-bit, CT MXFP4/NVFP4, ModelOpt NVFP4 and supported explicit

@@ -4,37 +4,37 @@
       "file": "data/artifacts.jsonl",
       "record_count": 90,
       "schema": "schema/artifact.schema.json",
-      "sha256": "0fe6cac49ec3b39f7a1e039b642ec661a585337adfdaa78f290439d9e3cdf943"
+      "sha256": "511a20e2fd4d9181ffa58fcec882a92451031af938e4da4a2837de4c9bb66521"
     },
     "measurements": {
       "file": "data/measurements.jsonl",
       "record_count": 107,
       "schema": "schema/measurement.schema.json",
-      "sha256": "77fd34073f5645ef5d818d570809f8809aa712252a5d46171aa1253a36fb0a7b"
+      "sha256": "750e46279da86ae776ee7d69309de37c4cdb7f9e646a35211f8f68e688ff537f"
     },
     "models": {
       "file": "data/models.jsonl",
       "record_count": 17,
       "schema": "schema/model.schema.json",
-      "sha256": "6717687d1ce9e87ba4d5e423d1f60a1ab20009d974d6adf26fd42a8504f7be01"
+      "sha256": "7082eefadd239f22617363d92876828899eaccd96c537ac8b24e2ff50452c847"
     },
     "panels": {
       "file": "data/panels.jsonl",
       "record_count": 18,
       "schema": "schema/panel.schema.json",
-      "sha256": "39e7d58e0766dab3fff37393a120ff185f590dfb474dcf0e76d170e95ac5094a"
+      "sha256": "296a6105bf1252a076010ad96fef133e2d31f89ce3d063cf641906b3470697d0"
     },
     "pipelines": {
       "file": "data/pipelines.jsonl",
       "record_count": 28,
       "schema": "schema/pipeline.schema.json",
-      "sha256": "6c29681ae93a9db6918545420e885e1c84ac922655f7843084a2efcf1955c8f0"
+      "sha256": "9f9131de1588227fcd04c945f868c0d6bad06b7c09a296c183b2fd8abe2b1320"
     },
     "references": {
       "file": "data/references.jsonl",
       "record_count": 28,
       "schema": "schema/reference.schema.json",
-      "sha256": "a8cb3d2f5bf256435a6fed6aa3141f8a8a3755562f818d6bc58a51105e260fd1"
+      "sha256": "8f607dff9ad1b0dda35993318a32b52b26c0eca19ac8fee28e51f86b41f9d40c"
     }
   },
   "comparability_keys": [
@@ -2655,13 +2655,13 @@
       "url": "https://huggingface.co/datasets/0xSero/local-ai-registry"
     }
   },
-  "generated_at": "2026-09-07T18:45:07+00:00",
+  "generated_at": "2026-09-07T19:18:56+00:00",
   "registry_id": "malaiwah/quant-fidelity-registry",
   "resolver_rule": "Every *_ref is the id field of a record in the collection named by the ref's id prefix: model--, artifact--, panel--, reference--, pipeline--, measurement--.",
   "schema_version": "quant-fidelity-registry/v1",
   "validator": {
     "invariants_file": "schema/invariants.json",
-    "last_run_at": "2026-09-07T18:45:07+00:00",
+    "last_run_at": "2026-09-07T19:18:56+00:00",
     "passed": true,
     "tool": "tools/registry_validate.py"
   }

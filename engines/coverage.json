@@ -1644,5 +1644,236 @@
       "architecture": "qwen3_5",
       "purpose": "nontrivial 2-key/6-value-head source for canonical GGUF transform and text-view controls"
     }
-  ]
+  ],
+  "collections": {
+    "all": "https://huggingface.co/collections/malaiwah/qfs-test-fixtures-and-reproducible-captures-6a9efbe7e77c03e879c7cde4",
+    "random_architectures": "https://huggingface.co/collections/malaiwah/qfs-random-architecture-fixtures-6a9f071c3f740e024ce15b72",
+    "matched_weight_families": "https://huggingface.co/collections/malaiwah/qfs-matched-weight-quantization-families-6a9f071d93dbd3dbf0a1e844"
+  },
+  "root_datasets": [
+    {
+      "family": "glm_moe_dsa",
+      "model_repository": "malaiwah/glm-moe-dsa-tiny-random-bf16",
+      "model_revision": "a1a973330e4e912678adbd8ea41e8b86b1c9dccb",
+      "repository": "malaiwah/glm-moe-dsa-tiny-fidelity-root-v1",
+      "revision": "b8ed427805abdfd6b8b20db10ca5107e840d0497"
+    },
+    {
+      "family": "glm5_next",
+      "model_repository": "malaiwah/glm5-next-tiny-random-bf16",
+      "model_revision": "4c31348e3beb1a8a6bd73d055464362953d768ea",
+      "repository": "malaiwah/glm5-next-tiny-fidelity-root-v1",
+      "revision": "3990bcf5b82667cc359046898a652ee8a84921a7"
+    },
+    {
+      "family": "qwen3_5",
+      "model_repository": "malaiwah/qwen3-5-tiny-random-bf16",
+      "model_revision": "a430e41d5814ba5e7bfa5ee29d86935aac56d95d",
+      "repository": "malaiwah/qwen3-5-tiny-fidelity-root-v1",
+      "revision": "7e1a755b7c9ee43d2b95c981de177392241e780d"
+    },
+    {
+      "family": "qwen4_exp",
+      "model_repository": "malaiwah/qwen4-exp-tiny-random-bf16",
+      "model_revision": "90fcdd52d45a200a1b6d446886638af14957117c",
+      "repository": "malaiwah/qwen4-exp-tiny-fidelity-root-v1",
+      "revision": "c6e1af0383df78006816ca1af067b4c5374bd7c1"
+    },
+    {
+      "family": "minimax-m2",
+      "model_repository": "malaiwah/minimax-m2-tiny-random-bf16",
+      "model_revision": "d4825603496f1c636385af403e891aaf20e9afe6",
+      "repository": "malaiwah/minimax-m2-tiny-fidelity-root-v1",
+      "revision": "0429feb8bc3f427e89e0ba2a341d28b82d431b0e"
+    },
+    {
+      "family": "minimax-m3",
+      "model_repository": "malaiwah/minimax-m3-tiny-random-bf16",
+      "model_revision": "ca904dff2941004a3f5bd5af62064fcfb34da8b9",
+      "repository": "malaiwah/minimax-m3-tiny-fidelity-root-v1",
+      "revision": "4bdcedf286fa2de29bc11102e90cac47cd77cd14"
+    },
+    {
+      "family": "kimi-k25",
+      "model_repository": "malaiwah/kimi-k25-tiny-random-bf16",
+      "model_revision": "721c97dd956f23b6b5c1040d633539a162a19094",
+      "repository": "malaiwah/kimi-k25-tiny-fidelity-root-v1",
+      "revision": "ff643f85eef7c3b5e0f382a0e19e1a0bd06f7382"
+    },
+    {
+      "family": "deepseek-v4",
+      "model_repository": "malaiwah/deepseek-v4-tiny-random-bf16",
+      "model_revision": "185723bec10ee57db86e8c269b3c6a811122a0ca",
+      "repository": "malaiwah/deepseek-v4-tiny-fidelity-root-v1",
+      "revision": "c86180f1844f932b2e685eeeed96b633e4c54cfb"
+    },
+    {
+      "family": "kimi-k3",
+      "model_repository": "malaiwah/kimi-k3-tiny-random-bf16",
+      "model_revision": "3c1e2f22e5ccfe37addc9906bfb0fdea6ad00e16",
+      "repository": "malaiwah/kimi-k3-tiny-fidelity-root-v1",
+      "revision": "74f15b550582c96fb26c40c87a839298b914721b"
+    },
+    {
+      "family": "spark2-5",
+      "model_repository": "malaiwah/spark2-5-tiny-random-bf16",
+      "model_revision": "c0a57b037007d475ede719e78f4a6ce24f211da0",
+      "repository": "malaiwah/spark2-5-tiny-fidelity-root-v1",
+      "revision": "5715a4e51de6af894ac3963cd55d6ebe371dcb5a"
+    },
+    {
+      "family": "k2-horizon",
+      "model_repository": "malaiwah/k2-horizon-tiny-random-bf16",
+      "model_revision": "50627d8f2166ee04a172f4a5144dc0b3385b9ee9",
+      "repository": "malaiwah/k2-horizon-tiny-fidelity-root-v1",
+      "revision": "9131871ea54fbe9589a05fbb68ed4d26f236ec32"
+    },
+    {
+      "family": "qwen35-gguf",
+      "model_repository": "malaiwah/qwen3-5-gguf-tiny-random-bf16",
+      "model_revision": "490767e58441a55c5a9f6375ea0e31e2cdc9da76",
+      "repository": "malaiwah/qwen3-5-gguf-tiny-fidelity-root-v1",
+      "revision": "af1922b4fb5c619e0bf2e92c1bfcd68d8a83cb32"
+    }
+  ],
+  "weight_lineage": {
+    "families": {
+      "malaiwah/qwen3-5-tiny-random-bf16": {
+        "variants": [
+          {
+            "repository": "malaiwah/qwen3-5-tiny-random-gptq-v1-g32-rtn-format",
+            "source_revision": "a430e41d5814ba5e7bfa5ee29d86935aac56d95d",
+            "classification": "lossy",
+            "kld_nats": 2.4019247011949657e-05
+          },
+          {
+            "repository": "malaiwah/qwen3-5-tiny-random-gptq-v2-desc-g64-rtn-format",
+            "source_revision": "a430e41d5814ba5e7bfa5ee29d86935aac56d95d",
+            "classification": "lossy",
+            "kld_nats": 2.5985354253636692e-05
+          },
+          {
+            "repository": "malaiwah/qwen3-5-tiny-random-awq-gemm-g32-rtn-format",
+            "source_revision": "a430e41d5814ba5e7bfa5ee29d86935aac56d95d",
+            "classification": "lossy",
+            "kld_nats": 2.4019247011949657e-05
+          },
+          {
+            "repository": "malaiwah/qwen3-5-tiny-random-ct-symmetric-g64-rtn-format",
+            "source_revision": "a430e41d5814ba5e7bfa5ee29d86935aac56d95d",
+            "classification": "lossy",
+            "kld_nats": 3.897277134833976e-05
+          },
+          {
+            "repository": "malaiwah/qwen3-5-tiny-random-ct-asymmetric-g32-rtn-format",
+            "source_revision": "a430e41d5814ba5e7bfa5ee29d86935aac56d95d",
+            "classification": "lossy",
+            "kld_nats": 2.4019247011949657e-05
+          },
+          {
+            "repository": "malaiwah/qwen3-5-tiny-random-ct-int8-symmetric-g64-rtn-format",
+            "source_revision": "a430e41d5814ba5e7bfa5ee29d86935aac56d95d",
+            "classification": "lossy",
+            "kld_nats": 6.012985887331892e-07
+          },
+          {
+            "repository": "malaiwah/qwen3-5-tiny-random-mlx4-g32-rtn-format",
+            "source_revision": "a430e41d5814ba5e7bfa5ee29d86935aac56d95d",
+            "classification": "lossy",
+            "kld_nats": 2.0444951905470148e-05
+          },
+          {
+            "repository": "malaiwah/qwen3-5-tiny-random-mlx8-g64-rtn-format",
+            "source_revision": "a430e41d5814ba5e7bfa5ee29d86935aac56d95d",
+            "classification": "lossy",
+            "kld_nats": 5.94411359692853e-07
+          }
+        ],
+        "source_checkpoint_identity_sha256": "f65faf236cd335fdb5d5e9bd0dc3635b82a47c9e5eb3158a0349d5269b55eebb"
+      },
+      "malaiwah/glm-moe-dsa-tiny-random-bf16": {
+        "variants": [
+          {
+            "repository": "malaiwah/glm-moe-dsa-tiny-random-ct-mxfp4-rtn-format",
+            "source_revision": "a1a973330e4e912678adbd8ea41e8b86b1c9dccb",
+            "classification": "lossy",
+            "kld_nats": 0.000866341033772075
+          },
+          {
+            "repository": "malaiwah/glm-moe-dsa-tiny-random-ct-nvfp4-rtn-format",
+            "source_revision": "a1a973330e4e912678adbd8ea41e8b86b1c9dccb",
+            "classification": "lossy",
+            "kld_nats": 0.0007752665823432193
+          },
+          {
+            "repository": "malaiwah/glm-moe-dsa-tiny-random-modelopt-nvfp4-rtn-format",
+            "source_revision": "a1a973330e4e912678adbd8ea41e8b86b1c9dccb",
+            "classification": "lossy",
+            "kld_nats": 0.0007775931894536412
+          },
+          {
+            "repository": "malaiwah/glm-moe-dsa-tiny-random-fp8-ue8m0-rtn-format",
+            "source_revision": "a1a973330e4e912678adbd8ea41e8b86b1c9dccb",
+            "classification": "lossy",
+            "kld_nats": 0.00020246177849756768
+          },
+          {
+            "repository": "malaiwah/glm-moe-dsa-tiny-random-modelopt-mixed-rtn-format",
+            "source_revision": "a1a973330e4e912678adbd8ea41e8b86b1c9dccb",
+            "classification": "lossy",
+            "kld_nats": 0.0005261778079916031
+          },
+          {
+            "repository": "malaiwah/glm-moe-dsa-tiny-random-q8_0-rtn-format",
+            "source_revision": "45563636ef723acfb826755493447dc40c7a0c37",
+            "classification": "lossy",
+            "kld_nats": 8.811746477603488e-05
+          },
+          {
+            "repository": "malaiwah/glm-moe-dsa-tiny-random-q4_0-rtn-format",
+            "source_revision": "45563636ef723acfb826755493447dc40c7a0c37",
+            "classification": "lossy",
+            "kld_nats": 0.0010913297999425055
+          },
+          {
+            "repository": "malaiwah/glm-moe-dsa-tiny-random-fp8-block32-rtn-format",
+            "source_revision": "45563636ef723acfb826755493447dc40c7a0c37",
+            "classification": "lossy",
+            "kld_nats": 0.00019925521791425689
+          }
+        ],
+        "source_checkpoint_identity_sha256": "800be70604bef0c3adfb429774f44756d60bf23d141e82d24a032ce25ce0451e"
+      },
+      "malaiwah/qwen3-5-gguf-tiny-random-bf16": {
+        "variants": [
+          {
+            "repository": "malaiwah/qwen3-5-tiny-random-gguf-f32-format",
+            "source_revision": "490767e58441a55c5a9f6375ea0e31e2cdc9da76",
+            "classification": "exact-control",
+            "kld_nats": 0.0
+          },
+          {
+            "repository": "malaiwah/qwen3-5-tiny-random-gguf-f16-format",
+            "source_revision": "490767e58441a55c5a9f6375ea0e31e2cdc9da76",
+            "classification": "near-control",
+            "kld_nats": 1.3000787260864616e-08
+          },
+          {
+            "repository": "malaiwah/qwen3-5-tiny-random-gguf-q8_0-format",
+            "source_revision": "490767e58441a55c5a9f6375ea0e31e2cdc9da76",
+            "classification": "lossy",
+            "kld_nats": 2.783642811116105e-06
+          },
+          {
+            "repository": "malaiwah/qwen3-5-tiny-random-gguf-q4_0-format",
+            "source_revision": "490767e58441a55c5a9f6375ea0e31e2cdc9da76",
+            "classification": "lossy",
+            "kld_nats": 0.0004317659524141758
+          }
+        ],
+        "source_checkpoint_identity_sha256": "320527902d412346d533fd1ac62066bd4cd278016a44f8cfd071318dc3b36a4b"
+      }
+    },
+    "note": "Actual source checkpoint identities match within each family; roots are not claimed to be production-model fine-tunes."
+  }
 }

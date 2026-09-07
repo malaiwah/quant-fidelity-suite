@@ -92,6 +92,44 @@ Qwen4-Exp and Qwen35-MoE GGUF are explicitly outside this bridge.
 The paid route below remains independently gated; none of these additions grants
 paid-engine admission or starts a rented instance.
 
+### Qualify and publish a local native root
+
+Choose the intended public root repository **before capture**: it must be the
+`--dataset-repository` bound by `architectures prepare`. Do not rewrite sealed
+descriptors to change that identity. Local CPU native BF16 roots may use one
+complete unindexed safetensors file; the job records that no index exists.
+No unused-tensor allowlist is required when the capture used every tensor.
+Neither exception grants CPU admission to a paid runner.
+
+The examples below use the exact `DATASET_ID`, `ROOT_REPO`, `MODEL_DIR` and
+`NEW_WORKFLOW_DIR` supplied during preparation:
+
+```bash
+python bin/fidelity_dataset.py qualify-root --local --model-dir "$MODEL_DIR" \
+  --first "$NEW_WORKFLOW_DIR/first" --repeat "$NEW_WORKFLOW_DIR/repeat" \
+  --first-verify "$NEW_WORKFLOW_DIR/first.verify.json" \
+  --repeat-verify "$NEW_WORKFLOW_DIR/repeat.verify.json" \
+  --comparison "$NEW_WORKFLOW_DIR/comparison/comparison-receipt.json" \
+  --first-label "$DATASET_ID-first" --repeat-label "$DATASET_ID-repeat" \
+  --job-out "$NEW_WORKFLOW_DIR/job.json" \
+  --out "$NEW_WORKFLOW_DIR/root-qualification.json"
+python bin/fidelity_dataset.py publish "$NEW_WORKFLOW_DIR/first" \
+  --repo "$ROOT_REPO" --expected-head absent \
+  --qualification "$NEW_WORKFLOW_DIR/root-qualification.json" \
+  --job "$NEW_WORKFLOW_DIR/job.json" --dry-run
+```
+
+After reviewing the dry run, remove `--dry-run`, supply the existing
+`--token-file` option, and add `--receipt` for the immutable publication receipt.
+For an intentional update, `--expected-head` must be the exact authorized
+existing commit, never a moving branch. The canonical publication re-verifies
+public bytes and does not publish the repeat as the reference.
+
+Capture requires Torch; comparison also works in a separate **Torch-free NumPy**
+environment and reports `numpy_fp64` rather than pretending Torch ran. The
+community fixture cards demonstrate that two-environment workflow and retain
+both captures, exact source, qualifiers and licenses.
+
 ## 1. Prerequisites
 
 - Stock Python 3.9 or newer; `bin/` needs no local install.

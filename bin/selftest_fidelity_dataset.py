@@ -2274,7 +2274,7 @@ def section_local_root_qualification(tmp, device="cuda"):
         # Start from a valid CUDA paid-admission job, then change only the
         # capture device. Malformed execution metadata cannot mask the gate.
         from selftest_job_identity import fixture as paid_job_fixture
-        paid = F.read_json(os.path.join(tmp, "lq-cuda", "job.json"))
+        paid = F.read_json(os.path.join(tmp, "lq-cuda", "receipts", "job.json"))
         paid["execution_attempt"] = paid_job_fixture()["execution_attempt"]
         paid["produced_by"]["dependencies"]["provider"] = "runpod"
         paid["recipe"] = "cloud"

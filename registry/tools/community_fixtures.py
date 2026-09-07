@@ -226,6 +226,9 @@ def build(entry, source_root, collections, S):
     files = entry["files"]
     sources = [source(S, source_root, files[k]) for k in
                ("dataset", "capture", "runtime", "qualification", "comparison", "config", "license")]
+    sources.append(S.src("dataset_card", url(entry["root_repository"], entry["root_revision"]), None,
+                         "Canonical native CPU fixture root at " + entry["root_revision"] +
+                         "; the descriptor seal is " + d["dataset_sha256"]))
     disclosure = [S.disc("record_note", "info", PURPOSE, sources=sources, provenance=True)]
     known_codes = set(load(Path(L.repo_root(__file__)) / "schema/invariants.json")["known_disclosure_codes"])
     for document in (d, c):
@@ -351,6 +354,7 @@ def build(entry, source_root, collections, S):
                         sources=sources, receipt_schema=c["schema"], cls="advisory", bias=lane_bias,
                         disclosures=disclosure + [lane_disclosure, S.disc("reduced_run_count", "caveat", "Two qualified cold runs, not five.")])
     row["harness"] = h
+    row["estimator"]["vocab_masking_policy"] = "full_stored_vocab"
     row["comparability"]["usable_as_floor"] = True
     row["measurement_scope"]["positions_per_context"] = c["measurement_scope"]["positions_per_context"]
     for name, record in (("models", model), ("artifacts", art), ("references", ref),

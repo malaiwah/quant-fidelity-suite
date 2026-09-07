@@ -17,6 +17,7 @@ ALLOW_PATTERNS = [
     "app.py", "requirements.txt", "README.md", "LICENSE", "llms.txt",
     "explorer/*.py", "explorer/pricing.json", "bin/fidelity/*.py",
     "registry/tools/*.py", "registry/data/*.jsonl", "registry/index.json",
+    "registry/publication-audit.json",
     "registry/schema/*.json", "docs/schema/*.json",
     "docs/CARD-ANNOTATION-SPEC.md",
     "docs/THIRD-PARTY-QUICKSTART.md",
