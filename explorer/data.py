@@ -167,14 +167,19 @@ class ExplorerRegistry:
     Metadata lookups resolve current identity, not fresh measurement results.
     """
 
-    def __init__(self, source='hf'):
+    def __init__(self, source='hf', revision=None):
         if source not in ("hf", "local"):
             raise ValueError("Choose registry source 'hf' or 'local'.")
+        if revision is not None and (source != "hf" or not isinstance(revision, str)
+                                     or not re.fullmatch(r"[0-9a-f]{40}", revision)):
+            raise ValueError("A pinned registry link requires a full 40-character lowercase commit SHA.")
         try:
             if source == "hf":
                 try:
-                    snapshot = _RC.load("hf")
+                    snapshot = _RC.load_hf(revision=revision)
                 except Exception:
+                    if revision is not None:
+                        raise
                     snapshot = _RC.load("local")
                     snapshot.notes.append("Public HF registry could not be loaded. Using the bundled registry; it may be ahead of or behind published truth.")
                     snapshot.origin = "bundled registry fallback (not a fresh public snapshot)"
@@ -187,7 +192,10 @@ class ExplorerRegistry:
             self._snapshot = snapshot
             self._prepare()
         except Exception:
-            raise ValueError("Registry data could not be loaded safely. Retry later or ask the Space owner to restore the bundled registry.") from None
+            message = ("The exact linked registry revision could not be loaded. No latest or bundled snapshot was substituted."
+                       if revision is not None else
+                       "Registry data could not be loaded safely. Retry later or ask the Space owner to restore the bundled registry.")
+            raise ValueError(message) from None
 
     def _prepare(self):
         snapshot = self._snapshot
@@ -267,9 +275,14 @@ class ExplorerRegistry:
                 "top1": _number((measurement.get("auxiliary_metrics") or {}).get("top1_agreement")),
                 "classification": (measurement.get("comparability") or {}).get("class") or "unknown"}
 
+    def registry_data(self):
+        """Detached collection data for the existing model-card generator."""
+        return _plain(self._snapshot.collections)
+
     def overview(self) -> dict:
         snapshot = self._snapshot
-        return {"snapshot": snapshot.snapshot_id, "origin": snapshot.origin, "notes": list(snapshot.notes),
+        return {"snapshot": snapshot.snapshot_id, "revision": snapshot.revision,
+                "origin": snapshot.origin, "notes": list(snapshot.notes),
                 "measurement_count": len(self._published), "model_count": len(snapshot.collections["models"]),
                 "group_count": len(self._groups)}
 

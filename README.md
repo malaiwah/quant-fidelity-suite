@@ -42,6 +42,12 @@ on Hugging Face CPU Basic. The public app is read-only and requires no tokens.
   JarvisLabs and Lambda offers. Enter your own billable duration; unknown
   marketplace/storage prices stay unknown. Multi-GPU rates cover the whole
   configuration, not one GPU. This is not a runtime prediction or spending cap.
+- **Cards:** generate the existing HF `model-index` + QFS `x_fidelity` annotation
+  and a readable evidence block from selected published measurements. Exact values,
+  recorded estimator precision, scope, disclosures, source receipts and snapshot
+  links travel together. Merge into an existing README without changing its body
+  or unrelated metadata; ambiguous mixed-metric results are refused rather than
+  silently discarded. No model card is uploaded automatically.
 - **Contribute & own workspace:** duplicate into your account privately, inspect
   a sealed submission or comparison receipt, and follow the actual HF registry
   discussion workflow. An offline validation preview is not registry acceptance.
@@ -55,8 +61,44 @@ scientific qualification, retrieval and budget safeguards are unchanged.
 
 The public registry is fetched at startup as one pinned snapshot. A disclosed
 bundled fallback is used if HF is unavailable; integrity/fallback notes disable
-ranking. Restart the Space to load the latest registry. Prices are intentionally
-an authored snapshot in `explorer/pricing.json`, not live availability.
+ranking and card generation. Restart the Space to load the latest default registry.
+Evidence links can load an older **explicit 40-character registry revision**; an
+unavailable pin or unknown measurement is refused, never replaced by latest data.
+Prices remain an authored snapshot in `explorer/pricing.json`, not live availability.
+
+Share the **Permanent link** beside a measurement, or link directly:
+
+```text
+https://malaiwah-qfs-explorer.hf.space/?measurement=measurement--glm53.k6-6bpw.brandonmusic-final25&registry_revision=c8c32709884d8f9521799d19d57ae0ea7b5cb621
+```
+
+Add `&tab=cards` to open the generator with that measurement selected. `model`
+accepts a registry model ID, `group` a group ID emitted by the app, and `target`
+an HF model ID/link for lookup. The native HF dataset viewer link is a **live**
+search; the accompanying raw registry URL and Explorer link pin the exact snapshot.
+Native Gradio saved-session deep links are disabled because they do not preserve
+the registry session-state contract.
+
+The Cards tab follows [CARD-ANNOTATION-SPEC.md](docs/CARD-ANNOTATION-SPEC.md), not a
+new citation format. Evaluation links do not reclassify existing training datasets.
+Private/undisclosed panels retain their logical QFS panel ID without inventing an HF
+dataset repository. Missing model/parent/root-dataset identity causes a clear refusal.
+Root dataset links require a manifest seal matching the registry reference, model,
+panel and head identities. The generator does not invent arXiv IDs, HF verification
+badges or a registered `.eval_results` task. Validation is local unless an operator
+explicitly submits a public generated card to HF's YAML validator.
+
+Complete CPU fixtures and reproduction evidence are published separately:
+
+| Architecture | Native tiny model | Reproduction evidence |
+|---|---|---|
+| GLM MoE DSA | [glm-moe-dsa-tiny-random-bf16](https://huggingface.co/malaiwah/glm-moe-dsa-tiny-random-bf16) | [CPU proof](https://huggingface.co/datasets/malaiwah/glm-moe-dsa-tiny-cpu-repro-v1) |
+| Qwen3.8-27B's Qwen3.5 hybrid | [qwen3-5-tiny-random-bf16](https://huggingface.co/malaiwah/qwen3-5-tiny-random-bf16) | [CPU proof](https://huggingface.co/datasets/malaiwah/qwen3-5-tiny-cpu-repro-v1) |
+| GLM-5.3-Flash's GLM5-Next | [glm5-next-tiny-random-bf16](https://huggingface.co/malaiwah/glm5-next-tiny-random-bf16) | [CPU proof](https://huggingface.co/datasets/malaiwah/glm5-next-tiny-cpu-repro-v1) |
+| Qwen3.8-Flash-Next's Qwen4-Exp | [qwen4-exp-tiny-random-bf16](https://huggingface.co/malaiwah/qwen4-exp-tiny-random-bf16) | [CPU proof](https://huggingface.co/datasets/malaiwah/qwen4-exp-tiny-cpu-repro-v1) |
+
+These are random-init text-path tests, not production model-quality measurements.
+They do not add a capture/rental action to this read-only app or create registry rows.
 
 Run locally, without changing the CLI's dependency contract:
 
