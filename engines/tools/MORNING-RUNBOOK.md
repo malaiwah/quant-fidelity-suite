@@ -1,5 +1,11 @@
 # MORNING RUNBOOK - qualify_k8, then Dione Q4 (and optionally 3.0bpw) scoring
 
+> 2026-09-07 qualification: historical 2026-08-28 operating recipe and machine
+> identifiers, not current fleet/status or spending authority. Pending 3bpw and
+> server statements below are contemporaneous, not current completion claims.
+> Consult pinned newer registry receipts; decoder/placement fixtures do not
+> qualify whole-model native serving. The current report tool is `kld_report.py`.
+
 One session, 8x H200 box (K6-qualify VM 485017; fleet 484853 stays on K8 work).
 No HF tokens needed anywhere below - both 0xSero repos are public and all
 fetches are anonymous read-only.
@@ -83,7 +89,7 @@ QP_GLM53_EP_SIZE=8 $VENV/bin/torchrun --master-port $((29500 + RANDOM % 2000)) -
   --out $RCPT/dione-q4-student-run1 --pipeline-root $PIPE
 
 # e) fp64 KLD (teacher_to_student, sealed 25-window final panel, 51,175 pos)
-$VENV/bin/python $ROOT/tools/k6_kld_report.py --profile dione-q4 \
+$VENV/bin/python $ROOT/tools/kld_report.py --profile dione-q4 \
   --teacher $TEACH --runs $RCPT/dione-q4-student-run1 \
   --out $RCPT/dione-q4-packed-kld.json \
   --comparison-out $RCPT/comparison-table.md

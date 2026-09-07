@@ -7,6 +7,16 @@ KLD measured on a truncation is arithmetic about a truncation, not fidelity. The
 only KLD reported here is a **self-compare**, whose correct value is exactly 0.0
 and whose job is to prove the chain closes.
 
+**Current reading, 2026-09-07:** this is a dated Stage A experiment, not a
+full-model qualification or a paid-admission table. Loader/decode support has
+since expanded; consult the [support matrix](../README.md#before-you-rent-what-is-measurable-today)
+and [candidate quickstart](THIRD-PARTY-QUICKSTART.md) for the exact route.
+The tests below cover layers 0–3 (only layer 0 for Qwen); Qwen full attention,
+PLE/indexer behavior and DeepSeek's streamed stateful compressor were not
+qualified. A deterministic zero can repeat a wrong model. Deleted captures
+leave inspectable manifests/digests, not surviving tensors for an independent
+replay. The cost tables are incomplete projections, not family budgets.
+
 Method and instruments follow `docs/GLM53-ROOT-FEASIBILITY.md` §9, extended
 where these checkpoints do things GLM-5.3 does not.
 
@@ -15,7 +25,7 @@ where these checkpoints do things GLM-5.3 does not.
 | `model_type` | `deepseek_v4` | `minimax_m3_vl` | `qwen4_exp` |
 | published root | 166.9 GB, 43L / 4096 / 256E / 129,280 | 869.2 GB, 60L / 6144 / 128E / 200,064 | 360.0 GB, 48L / 2560 / 512E / 248,320 |
 | root quantized? | **YES**, FP8 attention + FP4 experts | no, BF16 | no, BF16 |
-| unquantized reference exists? | **NO — nowhere, from anyone** | n/a (the root is BF16) | n/a (the root is BF16) |
+| unquantized reference found in the dated survey? | **none found in the inspected repositories** | n/a (the root is BF16) | n/a (the root is BF16) |
 | loads through `hf_capture.load_model`? | **only after a fix** (§1.2) | yes | yes |
 | weights byte-exact after load? | **3,176 / 3,176** | **960 / 960** | **362 / 362** |
 | capture + self-compare == 0.0? | yes | yes | yes |
@@ -80,11 +90,11 @@ anything the architecture builds, which is itself the result.
 
 ## 1. `deepseek-ai/DeepSeek-V4-Flash-0731`
 
-**Verdict: GO for the engine — the load path, the converter, the FP4/FP8
-decode and the capture chain are all now proven correct on real published
-bytes. NO-GO for a root fidelity dataset, on a cause that has nothing to do
-with our engine: this family has no unquantized anchor and cannot be given
-one.**
+**Stage A verdict:** the tested truncated load/converter/FP4–FP8 decode and
+capture paths worked on real pinned bytes. This does not qualify the full
+engine or its stateful layer-outer path. No unquantized anchor was found in
+the inspected repositories, so this study did not establish a full-precision
+root route. A future publisher release could change that availability.
 
 ### 1.1 The `quantization_config` question, answered
 
@@ -131,26 +141,27 @@ undeclared difference the dataset format exists to stop.
 
 Three consequences, stated so nobody re-derives them:
 
-1. **A root dataset for this family cannot be produced by anyone**, including
-   DeepSeek, without weights DeepSeek has not released.
+1. A full-precision reference dataset cannot be derived from only the
+   inspected lossy release; it requires the original unquantized weights.
 2. Any dataset we did capture from this root would need a new, loud
    qualification — something like `root_is_itself_quantized` — and its own
    comparability group. That is a spec change, not a capture.
-3. A **dequantize-to-BF16 upcast is not a substitute.** It is a deterministic
-   function of the FP4 bytes; a KLD against it measures the upcast's rounding,
-   not the publisher's lost precision, and it would read as near-zero for
-   reasons that have nothing to do with fidelity.
+3. A **dequantize-to-BF16 upcast does not recover lost precision.**
+   Comparing to it measures divergence from that reconstruction, not from
+   the publisher's unobserved full-precision model. The result depends on
+   the candidate and forward; near-zero is not guaranteed.
 
-**This is the finding that decides whether to spend anything, and the answer is
-no.** Not because the engine cannot read it — §1.2–1.5 show it now can — but
-because there is nothing to anchor to.
+The Stage A decision was **not to spend on a full-precision root** without
+an anchor and full-route qualification. The truncated load in §1.2–1.5
+does not close the streamed compressor or full-model admission gaps.
 
 To be fair to the other reading: "how much worse is this GGUF than what DeepSeek
 actually shipped" is a real question that real users have, and the published
 FP4 root is exactly the thing they quantize from. If the campaign decides that
 `distance_from_published_root` is a quantity worth publishing, this family is
-the cheapest place to start doing it (§1.6: under $1.50 for the root and all
-100 children). But that is a **specification** decision — a new qualification,
+a possible starting point. The old "<$1.50 for root and 100 children" budget
+was incomplete and is withdrawn in §1.6. This is a **specification** decision —
+an explicit qualification,
 a new comparability group, a new column in the registry — and it has to be
 taken before a capture, not defended after one. Nothing in this document should
 be read as taking it.
@@ -336,9 +347,13 @@ JarvisLabs spot H100 $1.19/GPU-h).
 | comparison, per window | 2047 x 129,280 x 4096 x 1.30e-13 = **0.141 s** |
 | comparison, 25 windows x 100 quant children | **5.9 min → $0.12** |
 
-**The whole family would cost under $1.50 to measure.** It is the cheapest
-large target on the board and the engine is ready for it. The blocker is §1.1
-and only §1.1.
+**The former "whole family under $1.50" claim is withdrawn.** This table
+prices a projected root capture plus comparison of 100 **already available**
+candidate datasets. It omits each candidate's checkpoint fetch, decode, cold
+captures, qualification, setup, retrieval, storage and failed attempts.
+DeepSeek's missing full-precision anchor was not the only gap: the required
+layer-outer/stateful-compressor path was not qualified here. Neither these
+prices nor later generic decoder support establishes an admitted full-model run.
 
 ---
 
@@ -537,18 +552,21 @@ changed nothing about the numbers.
 | comparison, per window | 2047 x 200,064 x 6,144 x 1.30e-13 = **0.327 s** |
 | comparison, 25 windows x 58 quant children | **7.9 min → $0.16** |
 
-**Under $2 for the root plus every child on the Hub today.** This is the
-strongest GO of the three: a BF16 root, a clean load, a proven converter, 58
-children waiting, and no anchor problem.
+**The former "root plus every child under $2" claim is withdrawn.** These
+terms omit obtaining and qualifying all 58 candidate captures, and the
+overlapped-fetch timing is an assumption, not a measured full-model schedule.
+The truncated MiniMax schedule result is useful feasibility evidence; it
+does not supply an end-to-end family budget or a public full-model dataset.
 
 ---
 
 ## 3. `Qwen/Qwen3.8-Flash-Next`
 
-**Verdict: GO-WITH-WORK.** The load, the byte check and the whole capture chain
-work today, and the self-compare is exactly 0.0. The work is not in our engine:
-it is that this model puts **102.4 GB in a single parameter**, which changes
-where a root capture can run and is untested against the layer-outer schedule.
+**Stage A verdict: GO-WITH-WORK.** The one-layer load/byte check and capture
+chain passed, including a zero self-comparison. That excludes the full model's
+interesting PLE/full-attention/indexer behavior. Its **102.4 GB parameter**
+creates both a host-placement and an engine-schedule qualification gap; the
+layer-outer route was not tested here.
 
 ### 3.1 What it is
 
@@ -681,8 +699,10 @@ Disclosures on the sealed manifests: `no_known_deviations`,
 | comparison, per window | 2047 x 248,320 x 2,560 x 1.30e-13 = **0.169 s** |
 | comparison, 25 windows x 100 quant children | **7.0 min → $0.14** |
 
-The dollars are trivial. The gate is `layer_outer.py` and a host with enough
-RAM — engineering and machine shape, not budget.
+The costs above are unmeasured/incomplete projections, not a small guaranteed
+bill. They omit fetching, decoding and qualifying the 100 candidate captures
+as well as setup/retrieval/failures; PLE placement and full-route execution
+still need qualification.
 
 ---
 
@@ -715,11 +735,13 @@ RAM — engineering and machine shape, not budget.
 | `*-sc1-comparison-receipt.json` | the `--self-compare --force-compute` receipts, all exactly 0.0 |
 | `minimax-schedule-equivalence-receipt.json` | window-outer vs layer-outer, real matmul, exactly 0.0 |
 
-**The datasets themselves are not here and were deleted.** They are four-layer
-(one-layer, for Qwen) truncations; they are not measurements; nothing should be
-able to mistake them for one. The manifests are kept because a manifest is a
-statement about a run, and the digests in them are what make the run
-reproducible.
+**The datasets themselves are not here and were deleted.** They were four-layer
+(one-layer, for Qwen) truncations, not production fidelity measurements.
+The retained manifests and digests identify the recorded runs but cannot
+reconstruct or independently replay missing tensors. Reproduction requires
+fetching the pinned weights and rerunning the experiment. A later MiniMax
+full-model capture was also lost at teardown; a surviving digest alone is
+not a usable root dataset.
 
 ## 5. What would falsify any of this
 
@@ -734,10 +756,9 @@ reproducible.
   measurement. The first `layer_load` line of a real Stage B run is what turns
   it into one.
 * **The expert-fusion / dequant transient is the least-measured term in every
-  table above.** It is bounded from CPU RSS readings, not measured on a device:
-  MiniMax's peak RSS ran 20.2 GB above its 23.5 GB of resident parameters
-  (1.36x one sparse layer), and DeepSeek's dequant expands each layer 3.34x on
-  the way in. Both are upper bounds contaminated by the safetensors page cache.
+  table above.** CPU RSS includes page cache and is not a measured GPU peak.
+  MiniMax's observed RSS excess and DeepSeek's dequant expansion motivate a
+  memory margin, not a universal upper bound for other layers/devices.
 * **Qwen specifically.** The `_no_placement_params` interaction with
   `layer_outer.py` is untested. If it turns out the schedule cannot express
   "one parameter stays on the host", the Qwen capture needs the window-outer

@@ -2,6 +2,15 @@
 
 **Verdict: GO-WITH-STAGING, and the gate that matters is not a GPU gate.**
 
+**Current status, 2026-09-07:** the full GLM-5.3 root and candidate route
+subsequently landed; see [`THIRD-PARTY-QUICKSTART.md`](THIRD-PARTY-QUICKSTART.md)
+and the registry's current reference records. This document preserves the
+pre-implementation plan and dated Stage A findings. Statements that no engine
+exists, streaming is absent from the checkout, and the old prices/balance or
+future stage commands are **archival**, not present operational advice.
+Stage A's 836-tensor audit covered a truncation, not every full-model tensor.
+Later captures do not retrospectively widen that audit.
+
 > **UPDATE 2026-08-30 — Stage A has been run, for $0.00. See section 9.**
 > R1 is CLOSED: 836 of 836 checkpoint tensors, including all 768 fused
 > per-expert matrices of a real sparse layer, are byte-for-byte identical
@@ -365,11 +374,14 @@ scientific 0.0500) — a two-stratum panel is as much a measure of the mix as of
 the model. `scientific` has 42 documents, so 5 per stratum is comfortably
 inside eligibility (`≥ skip + context_length = 4096` tokens).
 
-### What it can and cannot resolve
+### Historical resolution projection — not calibrated inference
 
-Extrapolated from the Fruit panel's own published disclosure — per-window sd
-0.0283 around a mean of 0.0387 over 16 windows, standard error 0.0071, *"cannot
-separate artifacts that differ by less than roughly 30 percent"*:
+The following table extrapolated Fruit's per-window sd (0.0283 around a mean
+of 0.0387) as though GLM-5.3 windows were independent samples from the same
+population. Neither that assumption nor GLM-5.3 paired-effect resolution was
+established. The panel uses deterministic document traversal and fixed slices,
+not probability sampling of deployment text. Treat these figures as historical
+planning arithmetic, not confidence intervals or actual separability limits:
 
 | windows | positions | SE | as % of mean | cannot separate closer than |
 |---:|---:|---:|---:|---:|
@@ -380,21 +392,22 @@ separate artifacts that differ by less than roughly 30 percent"*:
 | 64 | 131,008 | 0.0035 | 9.1% | ~15% |
 | 144 | 294,768 | 0.0024 | 6.1% | ~10% |
 
-Resolution improves as `1/√n`, so buying a 2× tighter number costs 4× the
-panel. **25 windows is the recommendation** because it matches the sealed
-panel's statistical weight (51,175 positions exactly), lands at ~24%
-separability, and — critically — **on a layer-outer engine the window count is
-nearly free**: 25 windows and 8 windows read the same 1,486.8 GB and differ
-only by ~35 seconds of compute. On a per-window-re-read engine, 25 windows
-costs 3× what 8 does. That asymmetry is a second, independent argument for
-building the layer-outer path before spending on the capture.
+The `1/√n` scaling requires independent sampling and stable variance; merely
+adding correlated windows does not buy it. Matching 51,175 scored positions
+does not match another panel's statistical information. The finite-panel mean
+is descriptive and exact conditional on the captured bytes/replay arithmetic.
+Any source-document uncertainty needs provenance and an explicit sampling
+model; absent that provenance, inference is unknown, not window-based.
+Layer-outer amortizes checkpoint loading over windows, but the ~35-second
+compute increment was a projection, not a universal marginal cost.
 
 Two things this panel will *not* do, and both must be disclosed on the row:
 
-- **It cannot resolve FP8's error if FP8 is very good.** Flash's official FP8
-  scored 0.0206 against a cross-stack floor of 0.0127. If GLM-5.3's FP8 lands
-  similarly close to its floor, a 25-window panel resolves the *presence* of
-  the gap, not its size to better than a quarter.
+- **It does not establish a population-level FP8 resolution threshold.**
+  The old "~24%" separability claim came from the Fruit extrapolation above,
+  not GLM-5.3 paired independent-document evidence. At context 2,048, GLM DSA's
+  top-k is effectively full attention; this panel does not probe long-context
+  sparse-attention behavior.
 - **It carries no contamination scan.** `build_token_panel.py` records the
   caller's `--separation-note` verbatim and runs no shingle scan. Against a
   frontier model whose pretraining corpus is undisclosed, "held out" is not

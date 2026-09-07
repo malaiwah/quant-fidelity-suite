@@ -943,3 +943,101 @@ python3 bin/selftest_hf_capture.py     # the PANEL-D6 rungs, offline
 Seven rungs cover the precedence chain, the null/blank/absent declarations,
 and — the one that makes this a fix rather than a theory — that the committed
 Fruit panel declares exactly the id the published root records.
+## 12. Scientific review: claim propagation, inference and evidence policy (2026-09-07)
+
+**Destination and scope:** this correction accompanies the GitHub repository
+changes. It does **not** assert that the HF registry mirror, deployed Space,
+external discussions or model cards have been republished. The preceding
+"Not published" paragraph is an earlier status snapshot, not authorization for
+these separate destinations.
+
+**Protected results:** all 95 pre-existing `metric.value` values, auxiliary
+metrics, scored-position scopes, checked interval endpoints/SE fields and
+comparability keys are unchanged. The 151 tracked receipt/protocol files under
+`registry/receipts/` and `registry/protocol/` retain their original bytes.
+No full-model measurement or GPU experiment was rerun.
+
+### Claims withdrawn or narrowed
+
+- The report producer dropped corrected `document_level`, `inference_unit`,
+  `window_stats_are` and `cross_lane` evidence. Its regenerated `/2` report now
+  carries those qualifications and no longer revives the 2.52x residual-ratio
+  interpretation. Window diagnostics are descriptive; document inference
+  requires its own assumptions. The historical `/1` schema is named explicitly
+  as superseded, not silently reused for a changed output contract.
+- Section 11's statement that every adjacent ordering is supported by paired
+  windows is withdrawn as a general inferential or codec-superiority claim.
+  The old generator emitted 13 pairs, 10 rejected by the actual secondary pair
+  predicate. Ordering now requires explicit registry context and that predicate;
+  window count alone produces no inferential p-value.
+- Neither a cross-stack result nor weights-only reconstruction has a guaranteed
+  upper/lower bias bound. A quantized proxy changes the estimand without a
+  universal bias direction. A below-control candidate can be legitimate.
+  Generated bias commentary now says so; foreign-control prohibitions remain.
+- Sharing head weights does not imply equal padded probabilities. The padding
+  experiment used one real teacher window and synthetic students; its values
+  are not measured masked equivalents for every published candidate/window.
+- Pre-Hadamard parity does not establish full EXL3 reconstruction or serving
+  equivalence. `all_bitwise: false` in the native comparison remains material;
+  `weights_reconstructed` is not retired by that experiment.
+- The host/container fixture proof recorded CPU forwards on an A10-equipped
+  host. It is not GPU-forward parity. The row-block sweep at 640 does not by
+  itself qualify a real 2,047-position window with its final 127-position block.
+- The replay speedup was measured on a root self-comparison, not arbitrary
+  candidates. Whole-family costs that omitted candidate fetch/capture and the
+  76,800-matrix-per-layer multiplier were unsupported and are corrected.
+
+### Forward implementation changes
+
+The stable NumPy normalization and non-finite-intermediate checks correct future
+computations without recomputing sealed values. Capture source closure now
+participates in same-stack classification. Materialized quantized heads retain
+their quantization provenance. Forced self-comparison checks actual float64 bit
+patterns and top-1 agreement, and reports that computation ran.
+
+Earlier forced comparisons could record both `force_compute_agreed: true` and
+`short_circuited: true`: the old implementation ran the arithmetic check but
+retained the hash-result flag. That historical flag is not evidence that a
+recorded forced check was skipped. New receipts report `short_circuited: false`;
+the historical sealed receipts are not edited.
+
+Predicate policy `/v2` adds producing-evidence checks without changing the
+seven-field partition key. Exact replay-backend evidence is now carried on 19
+rows where the sealed comparisons supply it. At this correction's snapshot,
+the 20 key groups are 12 false and 8 unknown; no automatic ordering footnotes
+remain. Restoring certified comparisons requires evidence or an explicit
+measured equivalence bridge, not invented metadata.
+
+The legacy scalar-summary stats route refuses a claimed zero established only
+by an evidence-kind string and prose. The dataset/qualification route remains
+the supported way to establish a zero control from independent sealed captures.
+
+The local K6/K8 card annotations were regenerated **from their corrected local
+bodies**. Offline round-trip and registry checks passed; the live Hub
+validate-yaml axis was deliberately not run. No HF publication followed.
+
+Coverage, regression sensitivity, operational repairs and prioritized remaining
+work are recorded in [REVIEW-2026-09-07](REVIEW-2026-09-07.md). Lost raw captures,
+unrun native/GPU/oracle tiers and population validity are not repaired by prose
+or by a green schema check.
+
+**Publication hygiene:** derived reports no longer repeat producer-local home
+paths from the historical analysis files. Opaque path identifiers preserve
+distinctions; portable source-analysis paths and file digests identify the
+original evidence without inventing a replacement filesystem location.
+
+**Derivation provenance:** the updated local derivation records Python 3.14.4 /
+NumPy 2.5.2 and names its actual parent tree with `dirty: true`, rather than
+claiming an older tree contains the modified closure exactly. The closure now
+includes the predicate that controls enrichment commentary. Available replay
+evidence also survives comparison-to-submission-to-ingestion.
+
+The generated changelog excludes commits changing only `CHANGELOG.md`, preventing
+self-reference drift; commits that change real code remain included regardless
+of their subject. This changes the history view, not any measurement.
+
+The unused legacy `engines/tools/bf16_floor_summary.py` producer was removed
+rather than retain a second path that regenerated causal attribution and
+unqualified residual ratios. Its documentation now uses the guarded stats
+commands; no production caller or bundled dependency referenced the old tool,
+and its historical `BF16-FLOOR.json` is unchanged.

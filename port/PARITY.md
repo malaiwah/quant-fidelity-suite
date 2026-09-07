@@ -2,6 +2,19 @@
 
 > Produced 2026-08-27 by a 7-agent design workflow (blueprint -> draft -> parity harness -> adversarial review) against exllamav3 v1.4.4.
 
+> 2026-09-07 correction: the embedded harness and original measurements below
+> are a historical snapshot, not a runnable current copy. Use
+> [`tests/glm5_layer_parity.py`](tests/glm5_layer_parity.py).
+> Native mode now fails missing CUDA, construction/load/forward errors and
+> missing requested comparison coverage. Reference-only requires `--ref-only`
+> and reports **UNQUALIFIED / NON-NATIVE**, even on exit 0.
+> mHC fn/base/scale are checked against independent checkpoint reads before
+> forwarding; the oracle uses those source values, not loaded module copies.
+> Short/long KDA input lengths do not prove which kernel dispatch occurred.
+> Neither synthetic reference checks nor passing requested layer rows qualify
+> whole-model serving, cache rewind or full long-context behavior.
+> Offline refusal regression: `python port/tests/selftest_parity_fail_closed.py`.
+
 ## Summary
 
 Layer-parity harness written and smoke-tested: tests/glm5_parity/glm5_layer_parity.py loads layer weights straight from the BF16 checkpoint, builds fp32 torch oracles for KDA (safe-gate delta recurrence + conv/silu + sigmoid-gated RMSNorm), NoPE MLA (dense-exact at T<=index_topk, plus optional kpool-indexer sparse mode), and sigmoid-noaux_tc MoE (both clamp conventions), runs the ported exllamav3 modules (via the real Glm5NextModel graph, per-module load) on identical inputs, and reports max-abs / rel-max / cosine / per-token stats per module with PASS/FAIL tolerances and exit code. CPU-only machines get reference-only mode with self-checks; verified end-to-end against a synthetic mini-checkpoint (one causal-mask bug found and fixed; KDA state-carry split-consistency 7.8e-7, MoE act-convention delta 1.3e-7, Sinkhorn comb doubly-stochastic to 1e-6).

@@ -83,15 +83,11 @@ import progress as progress_meter  # noqa: E402
 
 TOOL_VERSION = "hf_capture/1"
 
-# Recorded in `runtime.capture_tool.mechanism`, which is NOT an input to
-# `stack_fingerprint_sha256` -- deliberately.  The fingerprint is what
-# `dscompare` reads to decide `stack_relation`, and a cross-stack verdict
-# stamps `usable_as_floor: false` and attaches a 1e-2-class bias block.  The
-# layer-outer schedule is proven bit-identical to the window-outer one on two
-# architectures (see docs/LAYER-OUTER.md), so charging a capture a
-# comparability penalty for it would be asserting a difference the digests say
-# is not there.  It is still written down, in the sealed receipt, where a
-# reader can see which loop produced their tensors.
+# The schedule and source hashes are recorded in the sealed runtime receipt.
+# The environment fingerprint is not a complete capture-code identity:
+# dscompare also requires equal recorded source_files for same-stack claims.
+# Fixture schedule parity is bounded evidence, not a universal exemption for
+# different capture code or every architecture.
 SCHEDULE_MECHANISM = {
     layer_outer.SCHEDULE_WINDOW_OUTER:
         "transformers forward pass; forward pre-hook on model.get_output_embeddings()",
@@ -2261,18 +2257,29 @@ def _assemble(args, writer, panel, panel_records, capture_records, *, context_le
         vocab_size=vocab_size, context_length=context_length, records=capture_records,
         hidden_width=hidden_size, coverage=coverage)
 
-    # A head the trellis decoder produced from an exl3 payload (jpsequeira's
-    # 8-bit lm_head) is the candidate's OWN dequantized head: sealed as such
-    # (spec head-source table: artifact_dequantized) and replayed under
-    # HEAD-1d, own heads. Every other head is shipped as loaded.
+    # Trellis decode evidence supplies exact head provenance when available.
+    # Other loaders may also materialize a quantized head as BF16; its storage
+    # dtype does not erase the artifact's declared quantization scope.
     head_decoded = (layer_outer.head_decode_identity(args._weights_decode_streamer)
                     if getattr(args, "_weights_decode_streamer", None) is not None else None)
+    head_assignment = next(
+        (row for row in scope["assignments"] if row["tensor_class"] == "lm_head"), {})
+    head_quantized = bool(head_decoded) or (
+        head_assignment.get("treatment") == "quantized"
+        or scope.get("head_policy") == "quantized")
+    declared_head_bits = (head_decoded["bits"] if head_decoded else
+                          head_assignment.get("bits_per_weight") if head_quantized else 16)
+    head_bits = (int(declared_head_bits)
+                 if declared_head_bits is not None
+                 and float(declared_head_bits).is_integer() else None)
     head_doc = dsmanifest.head_identity(
         present=True, tensor_key="lm_head.weight", shape=head_shape, dtype="BF16",
         file_sha256=head_digests["file_sha256"], tensor_content_sha256=head_content,
-        quantized=bool(head_decoded), source=(head_decoded or {}).get("source", "native"),
+        quantized=head_quantized,
+        source=(head_decoded or {}).get(
+            "source", "artifact_dequantized" if head_quantized else "native"),
         applied_in_capture=False, file=head_rel,
-        bits=int(head_decoded["bits"]) if head_decoded else 16,
+        bits=head_bits,
         final_norm={"file": None, "tensor_key": None, "shape": None, "dtype": None,
                     "file_sha256": None, "tensor_content_sha256": None,
                     "applied_in_capture": True, "applied_at_replay": False},
@@ -2281,8 +2288,12 @@ def _assemble(args, writer, panel, panel_records, capture_records, *, context_le
                "included -- shipped so a third party can replay logits = hidden @ head^T"
                % (head_decoded["bits"], head_decoded["reference"], head_decoded["method"]))
               if head_decoded else
-              "the head is shipped verbatim from the checkpoint so a third party can "
-              "replay logits = hidden @ head^T without the weights"))
+              ("the artifact scope declares a quantized head; its loaded bf16 "
+               "materialization is shipped for offline logits = hidden @ head^T. "
+               "Replay includes these head weights, not native serving arithmetic."
+               if head_quantized else
+               "the checkpoint's head loaded as bf16 is shipped so a third party can "
+               "replay logits = hidden @ head^T without the remaining weights")))
 
     fingerprint = _stack_fingerprint(args.device)
     canonical = json.dumps(fingerprint, sort_keys=True, separators=(",", ":"))

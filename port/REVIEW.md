@@ -2,6 +2,17 @@
 
 > Produced 2026-08-27 by a 7-agent design workflow (blueprint -> draft -> parity harness -> adversarial review) against exllamav3 v1.4.4.
 
+> 2026-09-07 resolution note: this review and its temporary paths are historical.
+> The current `glm5_next.py.draft` replaces the guessed FLA floor with installed
+> capability probes (chunk `safe_gate`; recurrent `lower_bound` and
+> `use_gate_in_kernel`). `tests/glm5_layer_parity.py` now fails missing native
+> coverage, construction and forward errors; explicit `--ref-only` is unqualified.
+> mHC loads are compared exactly to independently read checkpoint values, and
+> those source values feed the reference oracle. The historical review's
+> "structurally sound" language did not prove native execution. Missing native
+> modules, cache/rewind integration and full-model GPU qualification remain
+> prerequisites, not completed findings.
+
 ## Summary
 
 Adversarial review complete. The architecture draft and parity harness are structurally sound: all checkpoint tensor names verified against the BF16 index, KDA safe-gate / DSA kpool-indexer / noaux_tc router / mHC math all cross-check against vLLM and MLX references, and every framework signature the draft touches (TransformerBlock hc wiring, HyperConnection, BlockSparseMLP "dots", MLAttention, GDN conventions, CacheLayer_MLA_fp16, FakeSTC) matches exllamav3 v1.4.4. One blocker in the draft (check_compat's fla>=0.4.0 floor can silently accept a fla without the SAFE gate — upstream kda entry points take **kwargs, so safe_gate/lower_bound could be swallowed and the WRONG softplus gate computed), one blocker-class dependency set (KimiDeltaAttention/ContractStreams/kpool-mode don't exist yet — declared), two major harness defects (the "fails loudly without allow_bf16 patch" claim is false — the loader silently converts bf16→fp16, and small hc_fn entries below 6.1e-5 quietly lose mantissa bits; MoE parity can fail on legitimate fp16-router tie flips without a same-selection control row), plus 7 minors. Honest estimate: 25–35 focused hours to a converting model — the arch file needs ~1h of fixes; the long pole is MLAttention kpool+NoPE (12–20h), then kimi_delta_net.py (8–14h); conversion itself only needs the nc/calibration paths, not the hybrid generator cache.

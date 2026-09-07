@@ -1,5 +1,11 @@
 # Fallback R10 codec — validation plan and executed results
 
+> 2026-09-07 qualification: results/status below describe the 2026-08-27 L4
+> experiment, not current fleet state or authority to rent. Later sampled closure
+> comparison is in [`CLOSURE-COMPARISON.md`](CLOSURE-COMPARISON.md). Neither
+> the synthetic native-convert probe nor 120 equal sampled encodes proves
+> whole-campaign byte identity or zero whole-model KLD impact.
+
 Environment for all executed steps: JarvisLabs machine 484453 (L4, SM89),
 venv `/home/ubuntu/k6prep/venv-b` (Python 3.12.13, torch 2.11.0+cu130,
 exllamav3 @ c5d9c657 with the JIT extension cached at

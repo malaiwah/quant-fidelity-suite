@@ -3,6 +3,10 @@
 Drafts. Nothing here has been sent. Both concern
 [Evaluation Results](https://huggingface.co/docs/hub/eval-results).
 
+Scientific corrections below are dated 2026-09-07. Upstream enum/allow-list
+status and widget rendering have not been rechecked; this remains an unsent
+historical proposal, not a currently admitted benchmark.
+
 ---
 
 ## Ask 1 — add `fidelity-kld` to the evaluation-framework enum
@@ -14,7 +18,7 @@ PR against
 "fidelity-kld": {
     name: "fidelity-kld",
     description:
-        "Distribution-fidelity measurement: full-vocabulary KL divergence between a candidate model and a reference model on frozen token IDs, teacher-forced, fp64. Used to measure what quantization costs. Lower is better.",
+        "Fixed-panel distribution fidelity: full-vocabulary KL(reference || candidate), teacher-forced on frozen token IDs under a pinned capture/replay contract. Nats; lower is better within comparable designs.",
     url: "https://github.com/malaiwah/quant-fidelity-suite",
 },
 ```
@@ -46,9 +50,10 @@ token IDs and the reference identity; model repos would carry scores in
 > of token IDs, run a reference model (e.g. `zai-org/GLM-5.3-Flash-BF16`) and a
 > candidate (a quantization of it) over the same positions teacher-forced, and
 > compute mean `KL(reference || candidate)` over the full 154,880-entry
-> vocabulary in fp64. Lower is better; exactly 0.0 means the candidate
-> reproduces the reference distribution bit-for-bit. It is how you find out what
-> a 4-bit quantization actually costs, and it is cheap: about $6 of rented GPU.
+> vocabulary in fp64. Lower is better within a comparable design. Exact
+> distribution equality implies zero KL, but a computed zero alone is not
+> bitwise logit identity or independent capture verification. It measures
+> fixed-panel divergence, not causal quantization cost or general task quality.
 >
 > **Ask 1 is small:** add `fidelity-kld` to the `EVALUATION_FRAMEWORKS` enum. PR
 > ready. Every existing entry is a QA/agentic framework; nothing there fits a
@@ -58,7 +63,7 @@ token IDs and the reference identity; model repos would carry scores in
 > rather follow your design than invent one:
 >
 > 1. **Lower-is-better, unbounded.** The examples are accuracies in [0,1]. Ours
->    is a divergence in nats: 0.0125 is excellent, 0.155 is bad, and there is no
+>    is a divergence in nats with no universal "excellent/bad" threshold and no
 >    upper bound. Does the leaderboard have a direction/format convention, or
 >    should we encode it in the task id?
 >
@@ -66,11 +71,11 @@ token IDs and the reference identity; model repos would carry scores in
 >    to another only if panel, reference model+revision, KL direction, estimator
 >    precision, quantization scope and measurement lane all match. Two examples
 >    of what goes wrong: the *same bytes* measured through a serving engine and
->    through a reference forward differ by ~0.00095 nats (we have a byte-identical
->    mirror pair that shows this); and replaying one model's hidden states through
->    a *different* model's LM head erases that model's head-quantization error and
->    flatters it. We currently encode lane in `task_id` and put scope and
->    `head_bits` in `notes`, but `notes` is free text and a leaderboard cannot
+>    through a reference forward can differ materially; our −8.5e-6 K6 bridge
+>    is streaming-versus-sealed on one artifact/panel, **not** a serving bridge
+>    or a transferable correction. Substituting a different LM head changes
+>    the estimand with unknown general KL direction. We encode lane in `task_id`
+>    and scope/`head_bits` in `notes`, but free text cannot let a leaderboard
 >    enforce it. Is there an intended place for structured, comparability-defining
 >    metadata — or would you accept a benchmark defining several tasks purely to
 >    keep incomparable results apart?
@@ -88,9 +93,9 @@ token IDs and the reference identity; model repos would carry scores in
 > There is also a `verifyToken` path we cannot currently use — our measurement
 > is not an inspect-ai task and does not run in HF Jobs. If there is a route to
 > auditable verification for a non-inspect framework we would be glad to hear it;
-> our own substitute is that every run is bitwise deterministic (repeated cold
-> runs produce identical means) and every number ships with a digest-pinned
-> receipt.
+> our own evidence consists of the recorded repeat counts, tensor/KL content
+> digests and pinned receipts. Matching run means alone is not bitwise
+> capture equality, and repeatability is not population inference.
 >
 > Repo: https://github.com/malaiwah/quant-fidelity-suite (MIT)
 > Registry: https://huggingface.co/datasets/malaiwah/quant-fidelity-registry

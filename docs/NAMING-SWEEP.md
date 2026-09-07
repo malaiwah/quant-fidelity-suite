@@ -1,9 +1,9 @@
 # NAMING-SWEEP.md — retiring GLM-specific names from a model-agnostic scorer
 
 This repository began as one campaign: measure the fidelity of a K6 encode of
-GLM-5.3-Flash. It is now a general yardstick. It has measured GLM-5.3-Flash,
-Qwen3.8-27B and Fruit, and carries working engines for MiniMax-M3, DeepSeek V4
-and Qwen3.8-Flash-Next. The GitHub repository was renamed
+GLM-5.3-Flash. It now includes measurements of GLM-5.3-Flash,
+Qwen3.8-27B and Fruit, plus truncated loader/capture experiments for MiniMax-M3,
+DeepSeek V4 and Qwen3.8-Flash-Next (not blanket full-model qualification). The GitHub repository was renamed
 `glm53-fidelity-suite` → `quant-fidelity-suite`; the code did not follow, and a
 name that says "glm53" on a MiniMax run is no longer quaint, it is wrong.
 
@@ -11,6 +11,12 @@ This document is the decision list for that sweep, written **before** the
 changes, so every verdict is reviewable line by line. It was landed in six
 commits, one concern each, each green on `bash bin/selftest_all.sh` and
 `cd registry && make check && make reseed-check`:
+
+This is migration history, not a current compatibility promise or a full
+scientific test report. Historical test counts, fallback windows and campaign
+paths below describe that sweep. The stage harness exercised control flow with
+stubs, not production model forwards; source/identity inventories alone do
+not establish reader or native-kernel correctness.
 
 | commit | concern |
 |---|---|
@@ -64,7 +70,7 @@ breaks a seal is far worse than a name that reads oddly.
 
 | # | from | to | scope | why |
 |---|---|---|---|---|
-| R1 | `engines/` (directory) | `engines/` | 343 tracked files moved with `git mv`; ~120 text files reference the path | The directory name means "the K6 quant campaign". It is now the home of *every* capture engine — `stream_score.py`, `hf_capture.py`, `layer_outer.py`, the MLX/GGUF/NVFP4/EXL3 surfaces, and the committed MiniMax panel. `bin/README.md` and `bin/BUNDLE.txt` already call its contents "the measurement engines". |
+| R1 | `k6/` (directory) | `engines/` | 343 tracked files moved with `git mv`; ~120 text files referenced the path | The old directory name described the K6 campaign; the new name describes the engine tree. This corrects a mechanical documentation rewrite that made the row read `engines/` → `engines/`. |
 | R2 | `FIDELITY_K6_ROOT` | `FIDELITY_ENGINE_ROOT` | 15 occurrences, 8 files | An exported on-instance root. The old name says which campaign paid for the box. **The old spelling is still read as a fallback, and `_stage_env` still exports it alongside the new one for one release** — a controller and an instance can come from different checkouts, and `container/Dockerfile` bakes `FIDELITY_K6_ROOT=/opt/fidelity` today. A root that resolves to nothing is a run written into a container's ephemeral layer, which is defect H3. |
 | R3 | `/home/jl_fs/glm53-k6`, `/workspace/glm53-k6` | `/home/jl_fs/fidelity-engine`, `/workspace/fidelity-engine` | 12 literals in `bin/` | A model name baked into a filesystem path on rented hardware. This is the same defect class as the three `/home/jl_fs` roots that each cost a paid run, one provider deep instead of one model deep. Consequence: the first run against a provider filesystem that still holds the old tree re-bootstraps into the new root. The bootstrap is idempotent and guarded, so this costs time, not correctness. |
 | R4 | `Teardown.k6_root` | `Teardown.engine_root` | `bin/measure_cloud.py` | Follows R2. `selftest_provider_portability.py` now asserts that neither provider's engine root contains a model or campaign token, so the next one is caught without renting anything. |
@@ -75,7 +81,7 @@ breaks a seal is far worse than a name that reads oddly.
 | R9 | `engines/k6_publish.py` | *deleted* | — | **Byte-identical duplicate** of `engines/tools/k6_publish.py` (sha256 match). Nothing invokes the top-level copy: `stage_k6.sh` runs `$TOOLS/k6_publish.py`. This is the drift class `selftest_canonical_json.py` exists for, caught before it drifted. |
 | R10 | `engines/stage_k6.sh` | `engines/stage_campaign.sh` | `bin/bootstrap_measure.sh` prose, `bin/stage_measure.sh` prose, `bin/_check_kld_profiles.py`, docs | It is the encode-campaign staging script; the measurement lane has owned its own bootstrap since `bootstrap_measure.sh` landed. |
 | R11 | `~/.cache/glm53-fidelity` | `~/.cache/quant-fidelity` | `bin/fidelity/registry_client.py`, `bin/fixture_fetch.py` | `FIDELITY_CACHE_DIR`'s default. Renaming orphans an existing cache; the only thing in it is the 0.1B fixture and registry snapshots, both re-fetchable. |
-| R12 | `docs/LAYER-OUTER.md` | `docs/LAYER-OUTER.md` | 8 references | The document's own first gate table is `glm5_next`, `glm_moe_dsa` **and** `minimax_m3_vl`, and its second line says "No GLM-5.3 capture was run". It is the design document for a general capture schedule. |
+| R12 | `docs/GLM53-LAYER-OUTER.md` | `docs/LAYER-OUTER.md` | 8 references | The subject is a general schedule. Rename recorded by commit `6b06e309b38ba24cf558f81843c39bf55064d5e7`; this corrects the mechanical rewrite that made both columns identical. |
 | R13 | `selftest_progress.py` rung P11's hardcoded `engines/tools/` prefix | derived from `BUNDLE.txt` itself | `bin/selftest_progress.py` | The bundle-completeness rung was itself hardcoded to the campaign directory, so the directory rename would have silently reduced it to checking nothing. Deriving the engine directory from the bundle makes the rung rename-proof. |
 | R14 | prose: "`engines/tools/` … assumes GLM-5.3-Flash and the K6 encode" | prose naming the engine tree | `bin/README.md`, `bin/BUNDLE.txt`, `registry/CONTRIBUTING.md` | False as written: those surfaces read MLX, GGUF, NVFP4, EXL3 and stream four architectures. |
 | R15 | `/Users/someone/Projects/glm53-fidelity-suite/registry` | `…/quant-fidelity-suite/registry` | `bin/selftest_fidelity_card.py` fixture | A test fixture quoting the pre-rename repository name. |

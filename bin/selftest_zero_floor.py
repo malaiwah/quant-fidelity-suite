@@ -8,8 +8,8 @@ Two rungs, each SKIPping (not failing) when its dependency is absent:
 
   [1] numpy:  np.save of 51,175 float64 zeros has the FIXED sha256
       3ffddc61...be17 (409,528 bytes).  This is the tokenwise-kld.npy any
-      T1-identical native run produces, so the constant is the cheapest
-      possible future check that a claimed zero floor is bitwise real.
+      T1-identical native run produces. This checks the published output-format
+      constant, not whether any real capture established a zero control.
   [2] torch:  a tiny identical-logits teacher/student capture pair pushed
       through bin/kld_preview census mode yields tokenwise +0.0 at EVERY
       position and a panel mean of exactly 0.0 -- not epsilon: the fp32 store

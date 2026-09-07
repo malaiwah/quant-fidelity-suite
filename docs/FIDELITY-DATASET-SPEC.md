@@ -36,13 +36,14 @@ Splitting capture from comparison fixes all three:
 | root reference | re-run per measurement | captured **once**, published, downloaded |
 | quant capture | discarded | **publishable standalone** — a quant author contributes a capture with no access to our infrastructure |
 | lost machine | reference dies | dataset survives; `logits_available` stays true |
-| same-lane floor | a separate cross-stack measurement with a 1e-2-class residual | when A and B are captured **on the same lane**, the floor collapses toward 0 and what remains is quantization error |
+| same-lane control | a cross-stack comparison may have a 1e-2-class residual | same-lane captures avoid that deliberate stack mismatch, but do not prove a quantization-only estimand |
 
-The last row is the important one. Our published cross-stack floor
-(`measurement--glm53.bf16-replay-floor.brandonmusic-final25`) is **0.012712 nats** — comparable in
-magnitude to K6's entire 0.013723. That floor is comparison overhead, not quantization. Two captures
-made on one lane and compared offline in fp64 remove it structurally rather than by subtraction,
-which the registry forbids across lanes anyway (invariant **BIAS-006**).
+The historical cross-stack BF16 control is **0.012712 nats**, comparable in
+magnitude to K6's 0.013723. It demonstrates reference/runtime sensitivity with
+unquantized weights. Same-lane capture and offline comparison do not guarantee
+removal of all numerical confounding, and self-compare zero is an identity,
+not validation of native-forward correctness. Subtraction is a signed
+descriptive excess, not a causal decomposition or a new KL divergence.
 
 ### Three steps, one tool, three modes
 
@@ -674,9 +675,9 @@ hash to its key is a hard error.
 
 ### 8.1 The trap
 
-"Shared head" means shared **application**, not shared **weights**. If a quant quantizes its own
-`lm_head`, replaying its hidden states through the **reference** head erases its head-quantization
-error and flatters it.
+Applying the reference head to a candidate's hidden states substitutes a
+different measured function. It removes the candidate head's contribution,
+but when the body also differs the resulting KL may increase or decrease.
 
 This is not hypothetical. Verified per artifact:
 
@@ -686,7 +687,7 @@ This is not hypothetical. Verified per artifact:
 | zai FP8 | not converted (`modules_to_not_convert`) | bitwise-equal to the BF16 head |
 | stock EXL3 (turboderp) | **quantized**, `head_bits` 6–8 | its **own dequantized** head |
 | GGUF | `output.weight` quantized | its own head |
-| MLX | `lm_head.weight` quantized | its own head |
+| MLX | artifact-specific: the inspected orcarouter Flash head is native; other builds may quantize it | the artifact's own head |
 | NVFP4 | explicitly not quantized, BF16 in-repo | its own (native-equivalent) head |
 
 kimi-k3's format **cannot express this**. His comparator takes one `--lm-head` path, loads one
@@ -766,9 +767,9 @@ Numbered so the implementation and the test matrix can name them.
 | id | condition | action |
 |---|---|---|
 | **HEAD-1a** | either side hidden-form, `A.head.tensor_content_sha256 == B.head.tensor_content_sha256`, and that head is the one applied | **ALLOW**. `estimator.head_policy = "shared_reference_head"`. Disclosure `shared_reference_head`, severity `info`. `class` may remain `strict`. This is the zai BF16/FP8 case our head-equality receipt licenses, and the precondition **REFC-003** checks. |
-| **HEAD-1b** | either side hidden-form, head content digests **differ** | **REFUSE**, exit 3. Override `--disclose-head-substitution --head <path>` emits with `head_policy = "shared_reference_head"`, `class = "advisory"`, bias `{kind: "other", direction: "downward"}`, and disclosure `head_substituted` severity **`blocking`** — which under registry **DISC-003** forces `status ∈ {pending, retracted}`. A head-substituted number is not publishable as a measurement. |
-| **HEAD-1c** | either side hidden-form, `capture_content_digest` **equal**, head content digests **differ** | **REFUSE**, exit 3, refusal id `head_substitution_vacuous`, **no override, not even `--disclose-head-substitution`**. See below. |
-| **HEAD-1d** (additive, 2026-09-05) | both sides hidden-form, both `head.tensor_content_sha256` non-null, both ship `head/weight.safetensors`, and the caller passes `--own-heads` | **ALLOW**: each side is replayed through the head **its own dataset sealed**. `head_policy = "native_head"`, `class` may remain `strict`, disclosure `native_head_replay` severity `info`; the receipt records `comparator.head_applied_reference_tensor_content_sha256` and `..._candidate_...` and leaves `head_applied_tensor_content_sha256` null. This is HEAD-2 computed offline from the shipped heads: nothing is substituted, so the candidate's head error is inside the number. Whether the two digests are equal or not is immaterial to the procedure — on equal heads the array is bitwise the HEAD-1a array (selftest H14). Takes precedence over HEAD-1a/1b; HEAD-1c still refuses (equal hiddens under different heads would be classified a reproduction, which own-head replay cannot honour); `--head` alongside it is refused. Why it exists: every exllamav3 `head_bits=16` release ships the source head after an fp16 round trip — the same values to 3e-8, a different tensor by content — so HEAD-1a can never apply to it and HEAD-1b refused three GLM-5.3 candidates after their paid cold runs. |
+| **HEAD-1b** | hidden-form shared replay, head content digests differ | **REFUSE**, exit 3. `--disclose-head-substitution --head <path>` permits advisory output with unknown general bias direction and `head_substituted` severity `blocking`; it is not publishable as a measurement. |
+| **HEAD-1c** | shared replay with equal hidden content but different heads | **REFUSE**, `head_substitution_vacuous`, no substitution override. This refuses a vacuous shared-head zero, not own-head replay. |
+| **HEAD-1d** (own-head rule; precedence corrected 2026-09-07) | both sides hidden-form, both declare and ship their own head, caller passes `--own-heads` | **ALLOW** each side through its sealed head, `head_policy = native_head`, separate applied-head digests and `native_head_replay` disclosure. Equal hiddens with different heads are a measurement (`head_only_difference`), not reproduction. Supersedes HEAD-1a/1b and the former blanket HEAD-1c prohibition; `--head` cannot accompany it. Strictness still depends on every other gate, including reconstruction/activation caveats. This defines own-head replay, not bitwise equivalence to a live serving head. |
 | **HEAD-2** | both sides logit-form | **ALLOW**, never refuse: each capture already applied its own head, so head-quantization error is *inside* the measurement, which is correct. `head_policy = "native_head"`. Record both digests. A null digest ⇒ disclosure `estimator_unknown`, `class advisory`. |
 | **HEAD-3** | mixed hidden ↔ logit | **REFUSE** unless the head replayed onto the hidden side has `tensor_content_sha256` equal to the head that produced the logit side. Then ALLOW with `head_policy = "native_head"` and a disclosure naming the replay. |
 | **HEAD-4** | a hidden-form dataset with `head.tensor_content_sha256 == null` | **INVALID for cross-artifact comparison.** Validator: error. Comparator: exit 3, no override. A capture that cannot name its own head cannot be scored through anyone's. |
@@ -777,36 +778,18 @@ Numbered so the implementation and the test matrix can name them.
 
 #### HEAD-1c — the head-only quant, which HEAD-1b alone does not catch
 
-HEAD-1b refuses a head substitution and lets `--disclose-head-substitution`
-proceed with a blocking disclosure. That is right when the two captures differ:
-the disclosed number is wrong in a stated direction, and DISC-003 keeps it out
-of the registry. It is **not** enough for one case.
+**Correction, 2026-09-07.** The old HEAD-1c text required every head-only
+artifact to publish logit-form captures and even prohibited own-head replay.
+That is superseded. Identical hidden states under different heads do not
+establish identical logits. Shared-head replay would yield a vacuous 0.0,
+so it remains refused even with the substitution override. Own-head replay
+preserves the difference and classifies it as a measurement with
+`head_only_difference`; logit form is another valid representation.
 
-Stock EXL3 quantizes its own `lm_head` (`head_bits` 6–8; our TR3 keeps it native
-BF16). A quant that changes *only* the head changes nothing before the final
-norm, so its post-norm hidden states are **bitwise identical** to the
-reference's and `capture_content_digest` matches. Replaying both sides through
-one head then subtracts a quantity from itself:
-
-* `classify()` sees equal content digests and returns `reproduction_confirmation`;
-* the metric is exactly `0.0` nats at top-1 `1.0`;
-* `--force-compute` "agrees", **vacuously** — `compute()` builds one `head32_t`
-  and replays both sides through it, so the recomputed array is also all zeros.
-
-The receipt's fine print stays honest (`self_compare.head_digest_equal: false`,
-`usable_as_floor: false`, a blocking disclosure), but its headline says a
-6-bit-head artifact reproduced the reference exactly. That is the flattering
-erasure §8.1 exists to prevent, arriving through the one door HEAD-1b leaves
-open.
-
-So: **bitwise-equal hiddens under different heads means the head IS the whole
-difference**, and hidden replay erases exactly it. There is no reading of that
-comparison under which the number means anything, so there is no override. A
-head-only quantization must publish **logit-form** captures, where HEAD-2
-applies and each side runs its own head — which is precisely the form §4.2
-reserves for stacks whose head is not separable.
-
-Exercised by case **N12**.
+This rule concerns the measured tensors, not an assertion that a whole
+stock-EXL3 checkpoint changes only its head. Its body is generally quantized
+too. An exllamav3 nominally native head may also differ after an fp16 round
+trip; own-head identity records that rather than substituting it away.
 
 ### 8.4 Why `shared_reference_head` and not a new enum value
 
@@ -859,13 +842,13 @@ Adopted from Festr's `hidden-replay-qualification.json`, with one field promoted
 }
 ```
 
-**QUAL-1** `comparator.device` is **REQUIRED**. Festr's headline replay figure of `1.229325e-6` comes
-from a receipt whose comparator block says `"device": "cpu"`; his *GPU* replay is bitwise exact —
-provable from his own artifact, because his validator forces the hidden-replay and live-logit
-sentinel receipts to be equal on every key except `reference`/`candidate`/`comparator`, and the
-published pair 00-vs-01 reports `kl mean = 0.0032166685936858316` on **both** paths, identical to
-the last digit. Replay error is a property of the **replay device and kernel**, not of the artifact.
-A replay-qualification receipt without its comparator device is meaningless, so v1 refuses one.
+**QUAL-1** `comparator.device` is **REQUIRED**. The historical CPU replay
+receipt reports `1.229325e-6`; the GPU hidden-replay/live-logit summary pair
+reports matching `kl mean = 0.0032166685936858316`. **Correction,
+2026-09-07:** equality of scalar summaries, or a validator requiring them
+to agree, does not prove bitwise logit equality. That stronger claim requires
+tensor-content comparison on the full stated scope. Replay qualification
+is device/kernel/dtype-specific; recording a device does not itself qualify it.
 
 **QUAL-2** `chunk_invariance_mean_kld_difference` is REQUIRED: two vocab-chunk settings must agree.
 
@@ -984,9 +967,9 @@ manifest.
 | 1 | seal: both datasets verify (§5) | `seal_failed` | none |
 | 2 | form: hidden↔hidden, logit↔logit, or HEAD-3 | `form_mismatch` | none |
 | 3 | panel: `suite_token_hash_sha256` equal; index sets equal; per-record `token_ids_json_sha256` equal; `attention_mask_sha256` equal when both present; `scored_rows` equal; `scoring_window` equal; **tokenizer identity equal (PANEL-D6)** | `panel_mismatch` | none — the refusal prints a remedy instead |
-| 4 | head: HEAD-1..7 | `head_mismatch` | `--own-heads` (HEAD-1d: each side through its own sealed head, strict) or `--disclose-head-substitution` (HEAD-1b only, blocking) |
+| 4 | head: HEAD-1..7 | `head_mismatch` | `--own-heads` (own sealed heads; remaining gates still apply) or `--disclose-head-substitution` (shared replay only, blocking) |
 | 5 | lane: `lane` equal ⇒ `same_lane: true` | `lane_mismatch` | `--allow-cross-lane` ⇒ bias block + advisory |
-| 6 | stack: `same_stack` iff `lane_identity_sha256` **and** `stack_fingerprint_sha256` both equal; else `cross_stack` ⇒ bias block REQUIRED (**BIAS-001**) | — | — |
+| 6 | stack: same sealed dataset, or matching non-null lane identity, stack fingerprint and capture `source_files`; otherwise `cross_stack` with required bias disclosure (**BIAS-001**) | — | — |
 | 7 | vocab/width: `vocab_size` equal; `hidden_width` equal (hidden form) | `geometry_mismatch` | none |
 | 8 | coverage: index sets equal, else intersect | `coverage_mismatch` | `--allow-partial` ⇒ `covers_full_panel: false` + `subset_of_panel` |
 | 9 | lossy: either `lossy_codec` non-null ⇒ advisory + `lossy_capture_codec` disclosure | — | — |
@@ -1111,12 +1094,25 @@ Fixed, not configurable except where noted:
   recomputed from sealed bf16 hidden states; a bf16 serving stack additionally rounds every
   logit to bf16 (±0.0625 at |logit| in [16, 32)), a term measured on the real GLM-5.3 root at
   1.7e-5 nats one-sided and −1.3e-4 / −2.7e-5 nats (−0.42 % / −0.22 %) on the two-sided K4 and
-  FP8 comparisons (`reports/bf16-logit-rounding/`). Logit-form rows from a bf16 stack contain
-  that term; hidden-form rows do not. Same `head_policy`, not the same estimand to the last
-  percent.
+  FP8 comparisons on **one final-0000 window** (`reports/bf16-logit-rounding/`).
+  These are isolated rounding experiments, not all-row or full-serving bounds.
+  Own-head replay does not prove that a native serving head uses the same arithmetic.
 * `comparability.key_inputs.note` (additive 2026-09-05) says the receipt's key is provisional:
   it hashes the reference **dataset** id, the registry hashes its own reference record id and
   recomputes (CMP-001), so the two keys differ by construction.
+* **Uncertainty is panel-specific.** The raw mean is a descriptive census of
+  scored positions. Source-document uncertainty requires provenance and
+  explicit independence/sampling assumptions; missing provenance means
+  descriptive/unknown, not inferred window independence. Brandon final25
+  has four documents (clean17 three); corpus5x5 has 25 selected documents,
+  not a probability sample of general deployment. Cold runs are repeatability
+  evidence, not additional sampled text. Equal-document summaries have a
+  different weighting from the token mean and must be labelled separately.
+* **Reconstruction is not a directional bound.** Pre-Hadamard parity does not
+  establish full native decode or forward equivalence. Omitting activation
+  quantization, or changing a head/replay path, can increase or decrease KL.
+  Neither weights-only nor proxy-reference comparisons are mathematical lower
+  bounds; cross-stack KL is not a universal upper bound.
 
 ### 10.3 `context_depth_buckets` (adopted)
 
@@ -1183,7 +1179,7 @@ itself; that class of difference is exactly what produced our 0.011506 cross-top
 **1e-2-class**. The comparator computes the residual and labels it
 `comparison_kind = "run_to_run_floor"`, never a reproduction and never a quantization result.
 
-* `same_lane: true` ⇒ this row is a legal `floor_measurement_ref` target under **BIAS-006**.
+* `same_lane: true` alone does not authorize a floor: same stack/source, panel, reference, scope and the producing `usable_as_floor` verdict must also permit it.
 * `same_lane: false` ⇒ `usable_as_floor: false`, `class: advisory`, bias block required.
 
 **SC-3 — not submittable as a measurement.** `bin/fidelity/receipt.py::_scan_for_unsubmittable`
@@ -1253,10 +1249,10 @@ Three things the crossing does, none of them optional:
   are listed explicitly in `dscompare.py` so a new receipt field cannot leak through by accident.
 * **it carries the comparator's verdict.** `comparability.bias` and `comparability.usable_as_floor`
   travel in an optional, additive `comparability` block on the submission. Without it a row derived
-  from a head-substituted or cross-stack comparison arrives with `bias: null` — `registry_add`
-  derives a bias from `estimator.stack_relation` alone, which cannot see that a head substitution
-  biases the number **downward**. When the block is present it wins; when it is absent the old
-  derivation runs unchanged.
+  from a head-substituted or cross-stack comparison could lose its explicit
+  bias verdict. A head substitution has unknown general direction; same
+  `stack_relation` cannot encode it. When the block is present it wins;
+  otherwise the documented ingest derivation applies.
 * **it names each dataset by its SEAL.** `evidence[]` entries use a legal
   `common.schema.json#/$defs/source` kind — `hf_file` with a Hub URL when the dataset is published,
   `filesystem_path` naming the dataset by its own id when it is not — never a path on the measuring
@@ -1482,13 +1478,14 @@ full two-pass comparison         OK     --vocab-chunk 9680 --position-block 128 
 | **ours** (`fidelity-dataset compare`), fp64 log-probs | 0.03526219355348638 | 0.9257449926722032 |
 | difference | **3.84e-4 (+1.09 % relative)** | 4.9e-4 |
 
-**This is the empirical case for D-5.** Two careful implementations, the same bytes, the same panel,
-the same head, the same direction — and a 1.1 % disagreement that comes entirely from estimator
-precision (his log-probs are fp32 with a `clamp_min_(0)` that can only bias the mean upward; ours are
-fp64 throughout, `dscompare.token_kld` casting to `float64` before the log-softmax). It is small in
-absolute terms and **larger than the entire quantization-attributable signal we report for K6**
-(0.00221 nats). A KLD number without `estimator.accumulation_dtype` is not comparable to another
-KLD number, and this table is the receipt for that claim rather than an argument for it.
+**Correction, 2026-09-07.** The observed difference remains **3.84e-4 nats**,
+about **17.4% of 0.00221**, not larger than that K6 excess-over-control value.
+The full 1.09% disagreement was not isolated to log-probability precision:
+the top-1 agreement also differs, which changing only KL accumulation or
+clamping cannot explain on fixed logits. Replay arithmetic, chunking and
+argmax/tie behavior require a controlled investigation with intermediate
+logits. The table is historical interop evidence, not proof of a precision-only
+causal effect. No original values or sealed receipts were changed.
 
 Note also what his receipt records about the head: `comparator.lm_head_file_sha256` names the one
 head he was given and says nothing about whether it was the candidate's own. In this run that was
@@ -1645,9 +1642,13 @@ Stated plainly, because a spec that only names other people's gaps is marketing.
 * Comparison receipt: [`examples/fidelity-comparison-receipt.k6-vs-bf16.json`](examples/fidelity-comparison-receipt.k6-vs-bf16.json)
 * Self-compare receipt: [`examples/fidelity-comparison-receipt.self-compare.json`](examples/fidelity-comparison-receipt.self-compare.json)
 
-Every digest in the examples that is marked `<synthetic>` is a placeholder. Every digest **not** so
-marked is a real value read from a published artifact or a registry row, so the examples double as
-fixtures.
+These are **historical schema illustrations, not executable evidence**.
+They combine real scalar values with synthetic identities/seals and illustrative
+tails/scope. Digests are catalogued in `examples/SYNTHETIC-DIGESTS.md`; some are
+synthetic even without an inline marker. The comparison example's same-stack/
+same-lane labels conflict with its sealed-ep8/streaming operands and cannot
+authorize ingestion or ranking. Preserve these examples as historical bytes,
+not re-sealed modern captures; current contracts are in §§8–11.
 
 ---
 

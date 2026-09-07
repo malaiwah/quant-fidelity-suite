@@ -10,9 +10,11 @@ nothing was uploaded.
 ## The box
 
 One on-demand **NVIDIA RTX PRO 6000 Blackwell Server Edition** (96 GB, sm_12.0),
-28 vCPU, JarvisLabs IN1 machine 488056, destroyed after the run. Same GPU class
-and same core count as the M1 rental, which is what makes the wall-clocks below
-comparable to M1's own. torch 2.11.0+cu130, numpy 2.2.6 on **scipy-openblas**.
+JarvisLabs IN1 machine 488056, destroyed after the run. The run notes describe
+28 vCPU; the three JSON summaries report `cpu_count: 256` and do not record
+affinity/quota, so the effective CPU allocation is not established by those
+receipts. torch 2.11.0+cu130, numpy 2.2.6 on **scipy-openblas**. Same GPU class
+alone does not make wall-clocks from different rentals directly comparable.
 
 ## What was run
 
@@ -39,8 +41,8 @@ fix does not touch.
 
 `root-b` is a hardlink copy of `root-a` (`cp -al`), so the two trees have equal
 `capture_content_digest` and the comparison is an SC-1 reproduction
-confirmation — the same class as M1's published floor, and the one quantity a
-backend change must not be able to move.
+confirmation. This tests force-computed self-comparison, not two independent
+cold captures and not a nonzero quant-versus-root workload.
 
 ## The three results
 
@@ -52,15 +54,19 @@ array is bitwise identical to the hash proof), and `tokenwise-kld.npy` sha256
 digest M1 published, byte for byte, through a matmul that ran on a different
 processor.
 
-**2. The speedup.** See `bench-*.json` `seconds`, and §3.2 of the plan.
+**2. The measured self-comparison speedup.** `bench-*.json` records
+1,754.707 s (numpy) versus 173.268 s (CUDA), about **10.13x**, on this workload
+and host. It is not a guaranteed speedup for arbitrary candidates, panel
+sizes, replay profiles or hardware. See §3.2 of the plan.
 Peak device memory on the cuda path: **7,129,923,584 bytes (6.64 GiB)**, of
 which the fp32 head is 5.09 GB.
 
-**3. The replay-backend floor.** `bench-delta.json`: mean **5.237e-12 nats**
+**3. The replay-backend difference.** `bench-delta.json`: mean **5.237e-12 nats**
 over 32,752 positions, max 1.791e-10, **top-1 agreement 1.000000** (not one
-argmax flipped), max absolute logit delta 3.624e-05. Small enough that a
-published row agrees to ~9 significant figures; not zero, which is why the numpy
-path stays the default and `comparator.replay_backend` is now on every receipt.
+argmax flipped), max absolute logit delta 3.624e-05. This compares the same root
+replayed on two backends; it does not bound how a nonzero candidate KLD changes
+or guarantee nine significant figures for published rows. The numpy path
+stays the default and `comparator.replay_backend` records the chosen path.
 
 ## Reproducing
 

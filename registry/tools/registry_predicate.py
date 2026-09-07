@@ -38,7 +38,10 @@ a hand-edited index, CMP-007) can never drift apart.
 Stdlib only, offline, python 3.8+.
 """
 
-PREDICATE_VERSION = "comparability-predicate/v1"
+import json
+from collections.abc import Mapping
+
+PREDICATE_VERSION = "comparability-predicate/v2"
 
 WITHDRAWN_STATUS = ("superseded", "retracted")
 
@@ -78,6 +81,59 @@ def _hardware_of(C, m):
         return _UNRECORDED
     count = hw.get("gpu_count")
     return "%sx %s" % (count, gpu) if count else str(gpu)
+
+
+def _harness_of(m):
+    harness = m.get("harness") or {}
+    return (harness.get("harness_id") or _UNRECORDED
+            if harness.get("recorded") and "metric.value" in harness.get("covers", ())
+            else _UNRECORDED)
+
+
+def _mapping_json_default(value):
+    if isinstance(value, Mapping):
+        return dict(value)
+    raise TypeError("comparison evidence must be JSON-compatible")
+
+
+def _replay_of(m, field):
+    estimator = m.get("estimator") or {}
+    evidence = estimator.get(field)
+    # A native_head label alone cannot establish this: own-head hidden-state
+    # replay uses that same label. Require an explicit producing-receipt fact.
+    if not evidence:
+        return ("not_applicable" if estimator.get("replay_applicable") is False
+                else _UNRECORDED)
+    return (json.dumps(evidence, sort_keys=True, separators=(",", ":"),
+                       default=_mapping_json_default)
+            if isinstance(evidence, Mapping) else evidence)
+
+
+def _replay_env_dimension(ms):
+    # Compare observed arithmetic settings, not how a setting was queried.
+    envs = [{k: v for k, v in ((m.get("estimator") or {}).get("replay_env") or {}).items()
+             if k != "blas_threads_source"} for m in ms]
+    fields = sorted({k for e in envs for k in e})
+    if not fields:
+        return _dimension(["not_applicable"
+                           if (m.get("estimator") or {}).get("replay_applicable") is False
+                           else _UNRECORDED for m in ms], "replay_env")
+    checks = []
+    reasons = []
+    for field in fields:
+        values = [(json.dumps(e[field], sort_keys=True, separators=(",", ":"),
+                              default=_mapping_json_default)
+                   if e.get(field) is not None else _UNRECORDED) for e in envs]
+        dim, reason = _dimension(values, "replay_env.%s" % field)
+        checks.append(dim["status"])
+        if reason:
+            reasons.append(reason)
+    status = "fail" if "fail" in checks else "unknown" if "unknown" in checks else "pass"
+    return ({"status": status,
+             "values": sorted({json.dumps(e, sort_keys=True, separators=(",", ":"),
+                                          default=_mapping_json_default)
+                               if e else _UNRECORDED for e in envs})},
+            "; ".join(reasons) or None)
 
 
 def _scope_class_of(C, m):
@@ -140,6 +196,32 @@ def group_predicate(C, member_ids):
     ms = [C["measurements"][mid] for mid in live]
     secondary = {}
     reasons = []
+
+    # The partition key is necessary even when callers ask about arbitrary pairs.
+    # Do not change its inputs or identity to encode these additive checks.
+    evidence_dimensions = (
+        ("key", [(m.get("comparability") or {}).get("key") or _UNRECORDED for m in ms]),
+        ("harness", [_harness_of(m) for m in ms]),
+        ("stack", [(m.get("provenance") or {}).get("stack_fingerprint_sha256")
+                   or _UNRECORDED for m in ms]),
+        ("replay_backend", [_replay_of(m, "replay_backend") for m in ms]),
+    )
+    for label, values in evidence_dimensions:
+        dim, reason = _dimension(values, label,
+                                 " -- declared evidence differs; equal keys do not prove equivalence")
+        if label == "harness" and dim["status"] == "fail":
+            # The closure intentionally over-records: different IDs can reflect
+            # artifact-specific readers or metadata, not different arithmetic.
+            dim["status"] = "unknown"
+            reason = "harness: different recorded closures; numerical equivalence is not certified"
+        secondary[label] = dim
+        if reason:
+            reasons.append(reason)
+    dim, reason = _replay_env_dimension(ms)
+    secondary["replay_env"] = dim
+    if reason:
+        reasons.append(reason)
+
 
     dim, reason = _dimension(
         [_lane_of(C, m) for m in ms], "lane",
@@ -216,10 +298,12 @@ def pair_label(pred):
     included, directly contradicting the README's promise that lanes are tabled
     apart. The first thing a contributor sees must apply the full predicate."""
     if pred["comparable"] == "true":
-        return "comparable (like-for-like: lane, pipeline, scope, hardware match)"
+        return "comparable (like-for-like: all recorded predicate dimensions match)"
     dims_failed = sorted(d for d, v in pred["secondary"].items() if v["status"] == "fail")
     dims_unknown = sorted(d for d, v in pred["secondary"].items() if v["status"] == "unknown")
     if pred["comparable"] == "false":
+        if pred["secondary"].get("key", {}).get("status") == "fail":
+            return "different keys (NOT rankable)"
         return ("same-key-but-%s-differ%s (NOT rankable without a measured bridge)"
                 % ("/".join(dims_failed), "s" if len(dims_failed) == 1 else ""))
     return ("same key; %s unrecorded -- like-for-like not certified"

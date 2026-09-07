@@ -5,7 +5,7 @@ one? The step-by-step from a fresh clone — prerequisites, one verification
 command, a named measurable target, the exact confirmation prompt — is
 [`docs/THIRD-PARTY-QUICKSTART.md`](../docs/THIRD-PARTY-QUICKSTART.md).)
 
-**You submit exactly one file: the submission receipt your runner printed.**
+**Submit the sealed output for your route; do not rewrite one receipt family as another.**
 You never edit `data/*.jsonl` and you never write a registry row by hand — a
 measurement row carries derived fields (`comparability.key`, `scope_digest`) and
 five cross-references, and hand-writing those is how wrong numbers get in. Our
@@ -22,24 +22,21 @@ is narrower than the repo's feature list suggests. The full picture is
 [README → *Before you rent*](../README.md#before-you-rent-what-is-measurable-today);
 the short version:
 
-* **The panel decides the model.** A measurement may not introduce a panel
-  (§6), and only `panel--glm53.brandonmusic.final25` has a built-in fetch
-  descriptor. The five Qwen3.8-27B panels are `availability.status: private`,
-  so **Qwen3.8-27B quants cannot be measured from outside today** — the runner
-  refuses at plan time with "has no local fetch descriptor in this checkout".
-  In practice that means: a GLM-5.3-Flash quant, on brandonmusic's 25-window
-  panel.
+* **The route decides the panel input.** The legacy `--role quant` route needs
+  an authored teacher-logits fetch descriptor; merely appearing in
+  `data/panels.jsonl` does not make a private panel downloadable. The candidate
+  route takes `--panel-dir` and a pinned `--reference-dataset` whose panel
+  identity must match. Public root datasets make that route distinct from the
+  historical teacher-logits registry lane.
 * **The lane decides the surface.** The authoritative lane × surface table is
   the generated support matrix in
   [README → *Before you rent*](../README.md#before-you-rent-what-is-measurable-today)
   — rendered from `bin/engines.json`, never hand-written, so it cannot drift
-  from what the runners do. The shape to remember: the local lanes read
-  strictly less than the cloud one, so the local recipe cannot execute a
-  third-party quant measurement today; GGUF **is** measurable on the cloud
-  streaming lane (`--path` picks the build; whole-forward scope — see
-  `docs/GGUF-MEASUREMENT.md`); MLX / NVFP4 / AWQ / GPTQ repos are refused on
-  every lane (decoders may exist under `engines/tools/`, but a reader no lane
-  lists is not reachable).
+  from what the runners do. Local execution is restricted to `packed` and
+  `native-bf16`; planning a layer-outer surface does not make it executable
+  through `measure-local --execute`. Candidate captures use the separately
+  admitted layer-outer surfaces and authored scope. Check the matrix and the
+  target's dry-run, not a blanket claim that a codec is supported everywhere.
 
 **Is it already measured?** The front gate answers this for you, and it is the
 first thing both runners do:
@@ -77,7 +74,7 @@ There are two paid-route outputs today, and they are filed differently:
 
 * **The candidate route** — a quant measured on a rented H200 against the
   published root dataset of its family (`measure-cloud --provider runpod
-  --role root --candidate-scope … --candidate-codec … --candidate-bits …
+  --role candidate --candidate-scope … --candidate-codec … --candidate-bits …
   --reference-dataset OWNER/REPO@40HEX`). This is how every GLM-5.3 quant row
   in the registry was made. It writes
   `<out>/result/receipts/reference-comparison/comparison-receipt.json`, which
@@ -87,17 +84,17 @@ There are two paid-route outputs today, and they are filed differently:
   output, is [`docs/THIRD-PARTY-QUICKSTART.md` §3b](../docs/THIRD-PARTY-QUICKSTART.md);
   do not restate it from memory — it is probed against `--help` by
   `bin/selftest_readme_recipes.py`.
-* **The legacy teacher-logits lane** (`--role quant`, the default) and
-  `measure-local` seal `<out>/receipts/measurement-receipt.json`. **One noun,
-  one file: `measurement-receipt.json` IS your submission receipt** (schema
-  `quant-fidelity-registry/submission-receipt.v1`) — older copies of these
-  docs called the same object `submission.json`. This lane admits only exact
-  authored targets on the paid path; the local lanes read `packed` and
-  `native-bf16` surfaces only (README support matrix).
+* **The legacy teacher-logits lane** (`--role quant`, the default) seals
+  `<out>/receipts/measurement-receipt.json` with schema
+  `quant-fidelity-registry/submission-receipt.v1`: this is the submission
+  receipt accepted directly by the registry tools. `measure-local` can emit a
+  similarly located **preview**, not an automatically submittable result.
+  Local `packed` / `native-bf16` execution is not equivalent to a qualified
+  cloud measurement; inspect the receipt class rather than its filename.
 
 ```bash
 # cloud, candidate route -- $0 dry-run first; the QUICKSTART has the full command
-bin/measure-cloud --provider runpod --role root --model <hf-repo> --revision <rev> \
+bin/measure-cloud --provider runpod --role candidate --model <hf-repo> --revision <rev> \
     --panel-dir engines/panels/panel--glm53.malaiwah.corpus5x5-v1 --dataset-id fidelity--<id> \
     --candidate-scope <scope.json> --candidate-codec exl3-mcg --candidate-bits 3.25 \
     --reference-dataset malaiwah/glm53-fidelity-root-v1@9c4a29ee10f393ed2fdbdb9262c1192ddb1507b4 \
@@ -113,12 +110,12 @@ download nothing, create nothing and spend nothing, and print the plan: the
 cloud plan's `all-in hard cap` is the liability ceiling, not the expected
 spend.
 
-**Keep the default of two cold runs.** A single run produces a real number
-that the registry will nonetheless reject: `run_count >= 2` is required,
-because one run cannot demonstrate determinism. The paid path refuses
-`--cold-runs` other than 2.
+**Keep two cold runs where the qualification protocol requires them.**
+A single run cannot establish reproducibility; the paid capture path uses
+two cold captures. A two-run local preview is still a preview: run count does
+not promote its receipt class or certify like-for-like arithmetic.
 
-Check it sealed correctly before you send it — four lines, no dependencies:
+For a legacy submission receipt, check its seal before sending it:
 
 ```python
 import json, hashlib
@@ -295,13 +292,18 @@ older run, these are the ones without which we cannot build a row:
 | `panel.panel_ref` + `panel.panel_token_sha256` | A fidelity number means nothing without the panel it was scored on. |
 | `reference.reference_ref` + `teacher_receipt_sha256` | Which teacher capture you scored against. |
 | `metric.{name,value,units,direction}` | `value` at full float64 precision — never rounded. |
-| `estimator.{accumulation_dtype,stack_relation,head_policy}` | These three decide which rows yours is comparable to. |
+| `estimator.{accumulation_dtype,stack_relation,head_policy}` | Necessary key inputs, not sufficient comparability evidence; the pair predicate also checks declared secondary dimensions. |
 | `determinism.{run_count,evidence_kind,evidence_hashes}` | See §5. |
 | `measurement_scope.{scored_positions,covers_full_panel}` | A subset is fine; a subset presented as the whole panel is not. |
 | `measurer.{name,handle}` | How you are credited. |
 | `disclosures` | Non-empty. Nothing to disclose is written as one entry with `code: "no_known_deviations"`. |
 | `lane` | `sealed-ep8`, `streaming`, `local-mps`, `local-cuda-budget`. Lanes are not interchangeable. |
 | `produced_by.{entrypoint,entrypoint_sha256,revision}` | **Which code produced the number.** Since 2026-08-30 this is not optional: `registry_add` turns it into the row's `harness` block and invariant HARN-001 refuses any row that has none. |
+
+Cross-stack submissions must disclose the mismatch. `bias.direction: unknown`
+is allowed with `comparability.usable_as_floor: false`; a mismatch does not
+mathematically imply upward bias. A row marked unusable may not be cited as a
+floor, and an unquantized control is not a universal lower bound on KL.
 
 Strongly recommended: `auxiliary_metrics.top1_agreement`. A KL number without
 top-1 agreement hides which kind of divergence it is.

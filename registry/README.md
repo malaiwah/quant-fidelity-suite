@@ -60,6 +60,11 @@ has cited. What changed is the claim made about it, plus a machine-readable pred
 `comparable: true/false/unknown` with reasons, in `index.json`, recomputed by the validator
 (`CMP-007`) so a hand-edited predicate is rejected exactly like a forged key.)
 
+The secondary check also reads declared replay backend/environment and stack evidence.
+Missing evidence stays **unknown**; a backend or stack mismatch is not erased by a shared
+pipeline name. A metric-covering harness match certifies the recorded code closure;
+different harness IDs alone do not prove different numerics and remain unknown.
+
 A bare `kld: 0.027` is worse than nothing. A KL divergence is only meaningful relative to a specific
 set of tokens, measured against a specific teacher capture, in a specific direction, at a specific
 accumulator precision, through a specific stack relation, with a specific head policy. Change any one
@@ -74,7 +79,7 @@ comparability.key = "cmp--" + sha256("|".join([
     metric_name,         # mean_tokenwise_kld, mean_of_run_means_tokenwise_kld, ...
     direction,           # reference_to_candidate (KL(P_teacher || Q_student)) or the reverse
     accumulation_dtype,  # float64 vs float32 over 10M positions is a different estimator
-    stack_relation,      # same_stack, or cross_stack (which carries a known upward bias)
+    stack_relation,      # same_stack or cross_stack; the latter's bias direction may be unknown
     head_policy,         # the candidate's own lm_head, or one shared head applied to both sides
 ]))[:16]
 ```
@@ -85,7 +90,7 @@ mismatch (`CMP-001`). A hand-written key cannot move a number into a table where
 committed README differs from what the data renders. **The tables below are a pure function of
 `data/*.jsonl`.** They were never typed by hand and cannot drift.
 
-### A worked example: one valid comparison and one invalid one
+### A worked example: descriptive values and an invalid cross-key ranking
 
 Five numbers, all for GLM-5.3-Flash, all on brandonmusic's sealed 25-window / 51,175-position panel,
 all against the same stored fp32 teacher logits, all KL(teacher || student) in nats, all accumulated
@@ -93,9 +98,9 @@ in float64. They are printed as **two tables, not one**, because they are two qu
 skims tables rather than paragraphs should be stopped by the layout, not only by the prose underneath
 it:
 
-**Group `cmp--202b717f3219c414`** -- sealed-lane same-stack capture, five cold runs each. These three may
-be ranked against one another. (This group holds five rows today; the other two came off a different
-measurement *lane* and are the subject of the section after next.)
+**Group `cmp--202b717f3219c414`** -- sealed-lane same-stack capture, five cold runs each.
+These are historical panel values, not a certificate of like-for-like ranking: apply
+the pair predicate, including pipeline and provenance evidence, before ranking them.
 
 | | value | metric | stack_relation |
 |---|---:|---|---|
@@ -104,36 +109,35 @@ measurement *lane* and are the subject of the section after next.)
 | 0xSero EXL3 Q4 (Dione), 187.6 GB | 0.027262784814670614 | `mean_of_run_means_tokenwise_kld` | `same_stack` |
 
 **Group `cmp--4a8630bdcadab97f`** -- **a different quantity, not a continuation of the table above.**
-Single-pass cross-stack replay against that same stored teacher. These two may be ranked against each
-other and against nothing above them.
+Single-pass cross-stack replay against that same stored teacher. The unquantized
+control contextualizes the FP8 value; it is not a competing quantization result.
 
 | | value | metric | stack_relation |
 |---|---:|---|---|
 | BF16 replay (the floor) | 0.012711599817250710 | `mean_tokenwise_kld` | `cross_stack` |
 | official FP8 (our replay) | 0.020615254540417995 | `mean_tokenwise_kld` | `cross_stack` |
 
-Note the sizes in the first table. K6 leads it, and K6 is also the largest artifact in it by 66 GB.
-Rank within a comparability group is a fidelity ordering, not a value judgement: fidelity is bought
-with bits, and a table sorted by fidelity alone will usually put the biggest quant on top. The
-question worth asking of these three is not which is first, it is what the 4bpw pair cost relative to
-each other -- 0.024555 against 0.027263 at 175.6 GB against 187.6 GB.
+Note the sizes in the first table. K6 has the smallest reported value and is also the
+largest artifact in it by 66 GB. The 4bpw pair reports 0.024555 and 0.027263 at
+175.6 GB and 187.6 GB. These are descriptive observations on the recorded panel;
+equal keys or similar nominal bit rates alone do not certify a fidelity ranking.
 
-**VALID:** *"On brandonmusic's 25-window panel, our K6 (0.013723) is closer to the BF16 teacher than
-his 4bpw (0.024555), which is in turn closer than the Dione Q4 (0.027263)."*
-Same key. Same tokens, same teacher, same estimator, same surface. The comparison is exactly what the
-numbers are for. (One of the three is his own measurement on his own stack, so the row is marked
-`advisory` and the table says so -- but the panel and the teacher are provably identical, because his
-receipt's `token_panel_receipt_sha256` and `teacher_receipt_sha256` are byte-identical to ours.)
+**DESCRIPTIVE:** *"On this recorded panel the K6 row reports 0.013723,
+the brandonmusic 4bpw row 0.024555, and the Dione Q4 row 0.027263."*
+The teacher and token receipts match. That establishes shared inputs, not shared
+candidate pipelines, replay arithmetic or runtime evidence. The pair predicate is
+required before turning these values into a like-for-like quantizer ranking.
 
 **INVALID:** *"The official FP8 release (0.020615) beats his 4bpw (0.024555) and loses to our K6."*
 Different key -- and it differs on two axes at once. The FP8 number came from replaying the model through **our** vLLM stack and scoring it
-against a teacher captured on **his** transformers/eager stack. That is a `cross_stack` measurement and
-it carries a stack-difference term on top of the quantization error. We know how big that term is,
-because we measured it on the same panel: replaying the reference's own **unquantized BF16 weights**
-through our stack scores **0.012712** against those same teacher logits. So 0.020615 is an upper bound,
-not a result. The naive difference is 0.007904 -- an *estimate*, not an identity, because KL is not
-additive. **This registry does not subtract floors and publish the remainder.** It puts the floor in
-the table, in bold, labelled, immediately above the biased row.
+against a teacher captured on **his** transformers/eager stack. That is a `cross_stack`
+measurement, conflating runtime and quantization perturbations. Replaying the reference's
+own **unquantized BF16 weights** through our stack scores **0.012712** against those
+same teacher logits. This control does not determine the sign of the stack contribution
+to the FP8 value: KL is not additive and perturbations can cancel. **0.020615 is a
+descriptive cross-stack result, not an upper bound on quantization-only error.**
+The scalar difference 0.007904 does not isolate that error. The control is labelled
+separately, never used as a mathematical lower bound or a quantization correction.
 
 ### And one comparison the key alone does not stop
 
@@ -161,19 +165,15 @@ The streaming lane also carries its own floor: the reference's own **unquantized
 scored through this SAME streaming harness rather than the cross-stack replay pipeline. It reads
 **0.011506** nats -- the cost of comparing across capture stacks plus bf16 non-associativity, with
 zero quantization involved -- and it is emphatically NOT the cross-stack floor above (0.012712,
-a different pipeline, a different lane, a different comparability key). Unlike the cross-stack case,
-this registry DOES publish the netted-out number here, as an *Excess over control (nats)* column in
-the lane's own sub-table (named *Attributable (nats)* until 2026-08-31; renamed per peer-review
-P1-05, because the difference is not a causal attribution): K6-stream nets to 0.002209, K8-stream
-to 0.000878. No ratio of those two residuals is published -- the old "2.52x" headline is withdrawn,
-because a ratio of small residuals magnifies control error and carried no uncertainty. It is still
-an estimate, not an identity -- KL is not additive -- but both
-terms are small, share the same reference, and now also share the same lane, which the cross-stack
-pair does not. `BIAS-006` is what keeps the two floors from ever crossing: a floor's
-`floor_measurement_ref` must have been measured on the SAME lane as the row naming it, so the
-cross-stack floor can never be subtracted from a streaming-lane row, nor this one from a
-cross-stack row, even on the rare occasion the two share a comparability key. See
-`engines/BF16-FLOOR.md` for the full analysis.
+a different pipeline, a different lane, a different comparability key). The historical
+*Excess over control (nats)* column (formerly *Attributable*) is a descriptive scalar
+difference: K6-stream gives 0.002209 and K8-stream 0.000878. It does not identify a
+causal quantization effect, even when both inputs share a lane. No ratio of those
+residuals is warranted by these scalars; the old "2.52x" headline is withdrawn.
+`BIAS-006` keeps floor references on the same lane, but passing that identity guard
+does not make KL additive. A value below an unquantized control is flagged for
+inspection, not rejected solely on that basis: cancellation can produce it legitimately.
+See `engines/BF16-FLOOR.md` for the full analysis.
 
 The second differing axis is the metric itself: the K6 / 4bpw / Dione rows are
 `mean_of_run_means_tokenwise_kld` over five cold runs, while the cross-stack rows are a single
@@ -199,6 +199,10 @@ measurement--glm53.bf16-replay-floor.brandonmusic-final25 (value 0.0127115998172
 is NOT sanctioned by this registry: the floor is context, not a correction.
 ```
 
+That historical row's `upward` declaration is retained as historical metadata, not
+a theorem. New cross-stack submissions may honestly declare `direction: unknown`
+with `usable_as_floor: false`; downstream floor use is then explicitly refused.
+
 A third case worth stating outright, because it is the one most likely to mislead: the MLX builds are
 measured against the official FP8 release **dequantized to BF16**, not against a BF16 teacher. Their
 6-bit reads `0.0063`, which is numerically smaller than our K6's `0.013723`. It is not better. It is a
@@ -206,6 +210,8 @@ different quantity -- the reference itself is quantized, so the FP8 error sits i
 in the student. Those rows carry `reference_kind: dequantized_from_quant`, a mandatory
 `different_reference_kind` disclosure, and a panel marked `undisclosed`. They will never appear in a
 table with a `native_bf16` row.
+No systematic ordering relative to a native-BF16 teacher follows: a quantized proxy
+can make KL either smaller or larger, depending on the candidate and reference.
 
 ---
 
@@ -327,7 +333,7 @@ Attribution is a column, not a footnote: *measured by us*, *measured by us (thei
 **Metric** mean_tokenwise_kld, direction reference_to_candidate, accumulation float64
 **Estimation surface** stack_relation `same_stack`, head_policy `shared_reference_head`
 **Comparability key** `cmp--e21ff3b61b1bb2ec`
-**Like-for-like predicate** `comparable: true` -- every secondary dimension (lane, pipeline, scope coverage, hardware) is recorded and homogeneous. Machine-readable form with per-dimension values: this key's `comparability` block in `index.json`.
+**Like-for-like predicate** `comparable: unknown` -- no recorded difference, but harness, replay_backend, replay_env, stack are unrecorded for at least one member, so homogeneity cannot be certified. Machine-readable form with per-dimension values: this key's `comparability` block in `index.json`.
 
 > **What this table is.** Every row here shares the comparability key above: the same tokens, the same teacher capture, the same metric and direction, the same estimator precision, the same stack relation and the same head policy. That makes them CANDIDATES for ranking -- the key is a necessary partition, not a certificate. Whether they are also like-for-like on the dimensions the key omits (lane, pipeline, scope coverage, hardware) is what the predicate line above answers.
 >
@@ -620,7 +626,7 @@ This panel carries **3 separate comparability groups**. They are different measu
 **Metric** mean_tokenwise_kld, direction reference_to_candidate, accumulation float32_reduce_legacy
 **Estimation surface** stack_relation `cross_stack`, head_policy `shared_reference_head`
 **Comparability key** `cmp--35a4b2ab8ed5cd50`
-**Like-for-like predicate** `comparable: unknown` -- no recorded difference, but lane, scope are unrecorded for at least one member, so homogeneity cannot be certified. Machine-readable form with per-dimension values: this key's `comparability` block in `index.json`.
+**Like-for-like predicate** `comparable: unknown` -- no recorded difference, but harness, lane, replay_backend, replay_env, scope, stack are unrecorded for at least one member, so homogeneity cannot be certified. Machine-readable form with per-dimension values: this key's `comparability` block in `index.json`.
 
 > **What this table is.** Every row here shares the comparability key above: the same tokens, the same teacher capture, the same metric and direction, the same estimator precision, the same stack relation and the same head policy. That makes them CANDIDATES for ranking -- the key is a necessary partition, not a certificate. Whether they are also like-for-like on the dimensions the key omits (lane, pipeline, scope coverage, hardware) is what the predicate line above answers.
 >
@@ -642,30 +648,30 @@ This panel carries **3 separate comparability groups**. They are different measu
 
 > **Bias on unsloth Qwen3.8-27B-GGUF BF16** -- cross_stack_capture_replay, direction upward. THIS ROW IS THE FLOOR. Unquantized BF16 weights read by llama.cpp and scored against the vLLM BF16 reference: what two engines disagree by on identical weights. 0.000507 nats, 99.07% top-1. Every GGUF row on this panel contains this term; no EXL3 or FP8 row does.
 
-> **Bias on unsloth Qwen3.8-27B-GGUF Q8_0** -- cross_stack_capture_replay, direction upward. llama.cpp candidate capture vs vLLM reference capture. The cross-engine floor on this exact panel is 0.000507 nats, so this is an UPPER BOUND. Naive net of floor: 0.0005794503201991574 -- an estimate, not an identity, because KL is not additive.
+> **Bias on unsloth Qwen3.8-27B-GGUF Q8_0** -- cross_stack_capture_replay, direction unknown. llama.cpp candidate capture vs vLLM reference capture. The cross-engine control on this exact panel is 0.000507 nats. Its signed descriptive difference from this candidate is 0.0005794503201991574; neither a causal allocation nor a bound on serving divergence follows.
 
-> **Bias on unsloth Qwen3.8-27B-GGUF Q6_K** -- cross_stack_capture_replay, direction upward. llama.cpp candidate capture vs vLLM reference capture. The cross-engine floor on this exact panel is 0.000507 nats, so this is an UPPER BOUND. Naive net of floor: 0.0015278671188742878 -- an estimate, not an identity, because KL is not additive.
+> **Bias on unsloth Qwen3.8-27B-GGUF Q6_K** -- cross_stack_capture_replay, direction unknown. llama.cpp candidate capture vs vLLM reference capture. The cross-engine control on this exact panel is 0.000507 nats. Its signed descriptive difference from this candidate is 0.0015278671188742878; neither a causal allocation nor a bound on serving divergence follows.
 
-> **Bias on unsloth Qwen3.8-27B-GGUF UD-Q5_K_XL** -- cross_stack_capture_replay, direction upward. llama.cpp candidate capture vs vLLM reference capture. The cross-engine floor on this exact panel is 0.000507 nats, so this is an UPPER BOUND. Naive net of floor: 0.003936170795822309 -- an estimate, not an identity, because KL is not additive.
+> **Bias on unsloth Qwen3.8-27B-GGUF UD-Q5_K_XL** -- cross_stack_capture_replay, direction unknown. llama.cpp candidate capture vs vLLM reference capture. The cross-engine control on this exact panel is 0.000507 nats. Its signed descriptive difference from this candidate is 0.003936170795822309; neither a causal allocation nor a bound on serving divergence follows.
 
 <details><summary>Disclosures for the rows above (20)</summary>
 
-- `qwen38.gguf-bf16-engine-floor.suite-v5-shard0-1m` **cross_engine_capture**: The candidate was captured with llama.cpp; the reference and every EXL3/FP8 row on this panel were captured under vLLM. This number therefore contains a llama.cpp-vs-vLLM term on top of quantization error, which can only inflate it. That term is measured: 0.000507 nats.
+- `qwen38.gguf-bf16-engine-floor.suite-v5-shard0-1m` **cross_engine_capture**: The candidate was captured with llama.cpp; the reference and every EXL3/FP8 row on this panel were captured under vLLM. Runtime and weight differences may amplify or cancel; they are not an additive error budget. The unquantized cross-engine control measured 0.000507 nats.
 - `qwen38.gguf-bf16-engine-floor.suite-v5-shard0-1m` **single_run**: One pass.
 - `qwen38.gguf-bf16-engine-floor.suite-v5-shard0-1m` **fp32_vocab_reduction**: ESTIMATOR DEFECT, disclosed 2026-08-31 (P1-06). The scorer computed the vocabulary reduction in float32 and cast the finished sum to float64; this row previously declared accumulation_dtype float64. Relabeled float32_reduce_legacy -- the value is unchanged, the comparability key moved, and the row ranks only against rows from the same float32-reducing scorer. Synthetic worst case for the defect class: negative per-token 'KL' near -1e-6 against a true value of ~2e-8 on near-equal distributions; this ladder's published means sit at 1e-3..1e-1, three to five orders above that error scale. See docs/PUBLISHED-CORRECTIONS.md.
 - `qwen38.gguf-bf16-engine-floor.suite-v5-shard0-1m` **revision_unpinned**: No measurement receipt for this artifact records a Hub revision. Every kld5 receipt records model_revision=null / model_revision_source='none'. Identity rests on index_sha256 and the per-shard sha256 map the receipt carries.
 - `qwen38.gguf-bf16-engine-floor.suite-v5-shard0-1m` note: CONTROL ROW / CROSS-ENGINE FLOOR.
-- `qwen38.unsloth-gguf-q8-0.suite-v5-shard0-1m` **cross_engine_capture**: The candidate was captured with llama.cpp; the reference and every EXL3/FP8 row on this panel were captured under vLLM. This number therefore contains a llama.cpp-vs-vLLM term on top of quantization error, which can only inflate it. That term is measured: 0.000507 nats.
+- `qwen38.unsloth-gguf-q8-0.suite-v5-shard0-1m` **cross_engine_capture**: The candidate was captured with llama.cpp; the reference and every EXL3/FP8 row on this panel were captured under vLLM. Runtime and weight differences may amplify or cancel; they are not an additive error budget. The unquantized cross-engine control measured 0.000507 nats.
 - `qwen38.unsloth-gguf-q8-0.suite-v5-shard0-1m` **single_run**: One pass.
 - `qwen38.unsloth-gguf-q8-0.suite-v5-shard0-1m` **fp32_vocab_reduction**: ESTIMATOR DEFECT, disclosed 2026-08-31 (P1-06). The scorer computed the vocabulary reduction in float32 and cast the finished sum to float64; this row previously declared accumulation_dtype float64. Relabeled float32_reduce_legacy -- the value is unchanged, the comparability key moved, and the row ranks only against rows from the same float32-reducing scorer. Synthetic worst case for the defect class: negative per-token 'KL' near -1e-6 against a true value of ~2e-8 on near-equal distributions; this ladder's published means sit at 1e-3..1e-1, three to five orders above that error scale. See docs/PUBLISHED-CORRECTIONS.md.
 - `qwen38.unsloth-gguf-q8-0.suite-v5-shard0-1m` **revision_unpinned**: No measurement receipt for this artifact records a Hub revision. Every kld5 receipt records model_revision=null / model_revision_source='none'. Identity rests on index_sha256 and the per-shard sha256 map the receipt carries.
 - `qwen38.unsloth-gguf-q8-0.suite-v5-shard0-1m` **artifact_identity_incomplete**: The per-tensor-class quantization recipe for this artifact was never published, so scope.assignments records 'unknown' rather than a guessed allocation. Its scope_digest shows the gap.
-- `qwen38.unsloth-gguf-q6-k.suite-v5-shard0-1m` **cross_engine_capture**: The candidate was captured with llama.cpp; the reference and every EXL3/FP8 row on this panel were captured under vLLM. This number therefore contains a llama.cpp-vs-vLLM term on top of quantization error, which can only inflate it. That term is measured: 0.000507 nats.
+- `qwen38.unsloth-gguf-q6-k.suite-v5-shard0-1m` **cross_engine_capture**: The candidate was captured with llama.cpp; the reference and every EXL3/FP8 row on this panel were captured under vLLM. Runtime and weight differences may amplify or cancel; they are not an additive error budget. The unquantized cross-engine control measured 0.000507 nats.
 - `qwen38.unsloth-gguf-q6-k.suite-v5-shard0-1m` **single_run**: One pass.
 - `qwen38.unsloth-gguf-q6-k.suite-v5-shard0-1m` **fp32_vocab_reduction**: ESTIMATOR DEFECT, disclosed 2026-08-31 (P1-06). The scorer computed the vocabulary reduction in float32 and cast the finished sum to float64; this row previously declared accumulation_dtype float64. Relabeled float32_reduce_legacy -- the value is unchanged, the comparability key moved, and the row ranks only against rows from the same float32-reducing scorer. Synthetic worst case for the defect class: negative per-token 'KL' near -1e-6 against a true value of ~2e-8 on near-equal distributions; this ladder's published means sit at 1e-3..1e-1, three to five orders above that error scale. See docs/PUBLISHED-CORRECTIONS.md.
 - `qwen38.unsloth-gguf-q6-k.suite-v5-shard0-1m` **revision_unpinned**: No measurement receipt for this artifact records a Hub revision. Every kld5 receipt records model_revision=null / model_revision_source='none'. Identity rests on index_sha256 and the per-shard sha256 map the receipt carries.
 - `qwen38.unsloth-gguf-q6-k.suite-v5-shard0-1m` **artifact_identity_incomplete**: The per-tensor-class quantization recipe for this artifact was never published, so scope.assignments records 'unknown' rather than a guessed allocation. Its scope_digest shows the gap.
-- `qwen38.unsloth-gguf-ud-q5-k-xl.suite-v5-shard0-1m` **cross_engine_capture**: The candidate was captured with llama.cpp; the reference and every EXL3/FP8 row on this panel were captured under vLLM. This number therefore contains a llama.cpp-vs-vLLM term on top of quantization error, which can only inflate it. That term is measured: 0.000507 nats.
+- `qwen38.unsloth-gguf-ud-q5-k-xl.suite-v5-shard0-1m` **cross_engine_capture**: The candidate was captured with llama.cpp; the reference and every EXL3/FP8 row on this panel were captured under vLLM. Runtime and weight differences may amplify or cancel; they are not an additive error budget. The unquantized cross-engine control measured 0.000507 nats.
 - `qwen38.unsloth-gguf-ud-q5-k-xl.suite-v5-shard0-1m` **single_run**: One pass.
 - `qwen38.unsloth-gguf-ud-q5-k-xl.suite-v5-shard0-1m` **fp32_vocab_reduction**: ESTIMATOR DEFECT, disclosed 2026-08-31 (P1-06). The scorer computed the vocabulary reduction in float32 and cast the finished sum to float64; this row previously declared accumulation_dtype float64. Relabeled float32_reduce_legacy -- the value is unchanged, the comparability key moved, and the row ranks only against rows from the same float32-reducing scorer. Synthetic worst case for the defect class: negative per-token 'KL' near -1e-6 against a true value of ~2e-8 on near-equal distributions; this ladder's published means sit at 1e-3..1e-1, three to five orders above that error scale. See docs/PUBLISHED-CORRECTIONS.md.
 - `qwen38.unsloth-gguf-ud-q5-k-xl.suite-v5-shard0-1m` **revision_unpinned**: No measurement receipt for this artifact records a Hub revision. Every kld5 receipt records model_revision=null / model_revision_source='none'. Identity rests on index_sha256 and the per-shard sha256 map the receipt carries.
@@ -682,7 +688,7 @@ This panel carries **3 separate comparability groups**. They are different measu
 **Metric** mean_tokenwise_kld, direction reference_to_candidate, accumulation float64
 **Estimation surface** stack_relation `same_stack`, head_policy `shared_reference_head`
 **Comparability key** `cmp--05e16411a5932713`
-**Like-for-like predicate** `comparable: true` -- every secondary dimension (lane, pipeline, scope coverage, hardware) is recorded and homogeneous. Machine-readable form with per-dimension values: this key's `comparability` block in `index.json`.
+**Like-for-like predicate** `comparable: unknown` -- no recorded difference, but replay_backend, replay_env, stack are unrecorded for at least one member, so homogeneity cannot be certified. Machine-readable form with per-dimension values: this key's `comparability` block in `index.json`.
 
 > **What this table is.** Every row here shares the comparability key above: the same tokens, the same teacher capture, the same metric and direction, the same estimator precision, the same stack relation and the same head policy. That makes them CANDIDATES for ranking -- the key is a necessary partition, not a certificate. Whether they are also like-for-like on the dimensions the key omits (lane, pipeline, scope coverage, hardware) is what the predicate line above answers.
 >
@@ -708,7 +714,7 @@ This panel carries **3 separate comparability groups**. They are different measu
 <details><summary>Disclosures for the rows above (5)</summary>
 
 - `qwen38-hf.fp8-dequantized.suite-v5-shard0-1m` **lossy_capture_codec**: RECONSTRUCTED, NOT EXECUTED. The vendor FP8 path is unavailable on this hardware: the fused deep-gemm kernel aborts with 'Unknown recipe' on Blackwell. The candidate was therefore captured from a bf16 materialisation of the stored fp8 weights (k6/tools/dequant_fp8.py, w = fp8 * weight_scale_inv over 128x128 blocks, accumulated fp32, stored bf16). This is the dequantize-and-run methodology the GGUF/EXL3/MLX ecosystems use for KLD: it measures the error of the STORED weights, not of the vendor kernel. Validated before use: per-tensor rel-L2 against the root is 0.0265 uniformly across gate/up/down/q projections, which is FP8 E4M3's expected error and confirms the scale convention.
-- `qwen38-hf.fp8-dequantized.suite-v5-shard0-1m` **estimator_scope_narrower_than_artifact**: WEIGHT-ONLY, THEREFORE A LOWER BOUND. The checkpoint declares activation_scheme: 'dynamic', i.e. the served model also quantizes activations per-token at runtime. That term is absent from this measurement, so this value is a LOWER BOUND on the served model's divergence, not the served model's divergence. It is in particular NOT the same quantity as measurement--qwen38.fp8.suite-v5-shard0-1m (0.005197), which ran the real kernel on the vLLM lane.
+- `qwen38-hf.fp8-dequantized.suite-v5-shard0-1m` **estimator_scope_narrower_than_artifact**: WEIGHTS-ONLY, NOT A SERVING BOUND. The checkpoint declares activation_scheme: 'dynamic', so the served model also quantizes activations per-token. That operation is absent here and may amplify or cancel weight differences. This is a different estimand with no guaranteed bias direction. It is in particular NOT the same quantity as measurement--qwen38.fp8.suite-v5-shard0-1m (0.005197), which ran the real kernel on the vLLM lane.
 - `qwen38-hf.fp8-dequantized.suite-v5-shard0-1m` **record_note**: UPSTREAM LOADER DEFECT, ROUTED AROUND. Capturing this artifact through stock transformers silently loads it WRONG. The producer's modules_to_not_convert lists '...layers.N.mlp.gate' -- a MoE router that does not exist in this dense checkpoint -- and transformers.quantizers.quantizers_utils.should_convert_module tests re.match(key, full_name), which is anchored only at the START, so that pattern ALSO matches '...layers.N.mlp.gate_proj'. Verified against the real tensor names: 65 of 65 gate_proj modules excluded from fp8 conversion, 0 of 65 up_proj. Their fp8 weights load into plain bf16 Linears with the block scale never applied, and the 65 gate_proj.weight_scale_inv tensors drop out of the load as 'unexpected' -- the only signal, and nothing refuses on it. The dequantisation used here applies all 407 block scales, and the resulting checkpoint loads with 0 unexpected / 0 missing / 0 mismatched.
 - `qwen38-hf.fp8-dequantized.suite-v5-shard0-1m` **single_run**: One cold capture of the candidate. Repeatability was not established for the candidate side. The REFERENCE side is the three-run bitwise-identical capture the floor row uses, and the comparison itself is deterministic offline arithmetic over sealed tensors, so the unrepeated term is the candidate forward pass alone.
 - `qwen38-hf.awq-int4-cyankiwi.suite-v5-shard0-1m` **single_run**: One cold capture of the candidate. Repeatability was not established for the candidate side. The REFERENCE side is the three-run bitwise-identical capture the floor row uses, and the comparison itself is deterministic offline arithmetic over sealed tensors, so the unrepeated term is the candidate forward pass alone.
@@ -1004,7 +1010,7 @@ Derived from `panel--qwen38.malaiwah.suite-v5-shard0-1m` by **scoring_window_cha
 **Metric** mean_tokenwise_kld, direction reference_to_candidate, accumulation float64
 **Estimation surface** stack_relation `same_stack`, head_policy `shared_reference_head`
 **Comparability key** `cmp--9b009314102d9e8b`
-**Like-for-like predicate** `comparable: true` -- every secondary dimension (lane, pipeline, scope coverage, hardware) is recorded and homogeneous. Machine-readable form with per-dimension values: this key's `comparability` block in `index.json`.
+**Like-for-like predicate** `comparable: unknown` -- no recorded difference, but harness, replay_backend, replay_env, stack are unrecorded for at least one member, so homogeneity cannot be certified. Machine-readable form with per-dimension values: this key's `comparability` block in `index.json`.
 
 > **What this table is.** Every row here shares the comparability key above: the same tokens, the same teacher capture, the same metric and direction, the same estimator precision, the same stack relation and the same head policy. That makes them CANDIDATES for ranking -- the key is a necessary partition, not a certificate. Whether they are also like-for-like on the dimensions the key omits (lane, pipeline, scope coverage, hardware) is what the predicate line above answers.
 >
@@ -1048,7 +1054,7 @@ Derived from `panel--glm53.malaiwah.suite-v5-10m` by **scoring_window_change**: 
 **Metric** mean_tokenwise_kld, direction reference_to_candidate, accumulation float64
 **Estimation surface** stack_relation `same_stack`, head_policy `shared_reference_head`
 **Comparability key** `cmp--e6cdd07242bdde05`
-**Like-for-like predicate** `comparable: true` -- every secondary dimension (lane, pipeline, scope coverage, hardware) is recorded and homogeneous. Machine-readable form with per-dimension values: this key's `comparability` block in `index.json`.
+**Like-for-like predicate** `comparable: unknown` -- no recorded difference, but harness, replay_backend, replay_env, stack are unrecorded for at least one member, so homogeneity cannot be certified. Machine-readable form with per-dimension values: this key's `comparability` block in `index.json`.
 
 > **What this table is.** Every row here shares the comparability key above: the same tokens, the same teacher capture, the same metric and direction, the same estimator precision, the same stack relation and the same head policy. That makes them CANDIDATES for ranking -- the key is a necessary partition, not a certificate. Whether they are also like-for-like on the dimensions the key omits (lane, pipeline, scope coverage, hardware) is what the predicate line above answers.
 >
@@ -1217,7 +1223,7 @@ This panel carries **3 separate comparability groups**. They are different measu
 **Metric** mean_tokenwise_kld, direction reference_to_candidate, accumulation float64
 **Estimation surface** stack_relation `same_stack`, head_policy `native_head`
 **Comparability key** `cmp--f0823827adb15376`
-**Like-for-like predicate** `comparable: true` -- every secondary dimension (lane, pipeline, scope coverage, hardware) is recorded and homogeneous. Machine-readable form with per-dimension values: this key's `comparability` block in `index.json`.
+**Like-for-like predicate** `comparable: false` -- a RECORDED secondary dimension differs across members: replay_env. Equal keys make these rows candidates for comparison, not certified like-for-like; ranking across the differing dimension attributes a lane/pipeline/hardware/scope effect to quantization quality. Machine-readable form with per-dimension values: this key's `comparability` block in `index.json`.
 
 > **What this table is.** Every row here shares the comparability key above: the same tokens, the same teacher capture, the same metric and direction, the same estimator precision, the same stack relation and the same head policy. That makes them CANDIDATES for ranking -- the key is a necessary partition, not a certificate. Whether they are also like-for-like on the dimensions the key omits (lane, pipeline, scope coverage, hardware) is what the predicate line above answers.
 >
@@ -1257,7 +1263,7 @@ This panel carries **3 separate comparability groups**. They are different measu
 **Metric** mean_tokenwise_kld, direction reference_to_candidate, accumulation float64
 **Estimation surface** stack_relation `cross_stack`, head_policy `native_head`
 **Comparability key** `cmp--4a8630bdcadab97f`
-**Like-for-like predicate** `comparable: unknown` -- no recorded difference, but lane is unrecorded for at least one member, so homogeneity cannot be certified. Machine-readable form with per-dimension values: this key's `comparability` block in `index.json`.
+**Like-for-like predicate** `comparable: unknown` -- no recorded difference, but harness, lane, replay_backend, replay_env, stack are unrecorded for at least one member, so homogeneity cannot be certified. Machine-readable form with per-dimension values: this key's `comparability` block in `index.json`.
 
 > **What this table is.** Every row here shares the comparability key above: the same tokens, the same teacher capture, the same metric and direction, the same estimator precision, the same stack relation and the same head policy. That makes them CANDIDATES for ranking -- the key is a necessary partition, not a certificate. Whether they are also like-for-like on the dimensions the key omits (lane, pipeline, scope coverage, hardware) is what the predicate line above answers.
 >
@@ -1279,7 +1285,7 @@ This panel carries **3 separate comparability groups**. They are different measu
 
 > **Bias on GLM-5.3-Flash BF16 @a6c167b6** -- cross_stack_capture_replay, direction upward. THIS ROW IS THE FLOOR. It replays the reference's own BF16 weights through our vLLM stack and scores them against brandonmusic's stored fp32 teacher logits. 0.012712 nats is therefore what two stacks disagree by on identical unquantized weights -- not a quantization result. No floor is named because none exists below it.
 
-> **Bias on GLM-5.3-Flash official FP8** -- cross_stack_capture_replay, direction upward. Teacher captured on brandonmusic's transformers/eager stack, candidate replayed on our vLLM stack. The same-stack BF16 replay floor on this exact panel is 0.012712, so this number is an UPPER BOUND on the FP8 release's own divergence. The naive difference is 0.007904 -- an estimate, not an identity, because KL is not additive. Do not subtract and publish.
+> **Bias on GLM-5.3-Flash official FP8** -- cross_stack_capture_replay, direction unknown. Teacher captured on brandonmusic's transformers/eager stack, candidate replayed on our vLLM stack. The matched unquantized control on this exact panel is 0.012712. The raw difference is 0.007904, a signed descriptive contrast, not a causal estimate or an upper bound on native-serving divergence. KL is not additive.
 
 > **The same artifact, measured elsewhere in this file.** 2 of the artifacts below also carry a number in another table -- on a different panel, teacher or estimator -- and the widest of those spans 51%. None of the readings is wrong and none is interchangeable with another. Quoting one of them as *the* number for the artifact, without its table, is the misuse this registry exists to make obvious.
 >
@@ -1351,9 +1357,9 @@ This panel carries **2 separate comparability groups**. They are different measu
 | malaiwah GLM-5.3-Flash TR3 8bpw (K8) | `exl3-mcg @8` | 331.4 GB | **0.0108294** | [0.0080632, 0.0138378] | -- | 2 runs, bitwise identical | measured by us | [receipt](https://huggingface.co/datasets/malaiwah/quant-fidelity-registry/resolve/main/receipts/malaiwah/stream-k8-kld.json) |
 | malaiwah GLM-5.3-Flash TR3 6bpw (K6) | `exl3-mcg @6` | 253.5 GB | **0.011676** | [0.00886271, 0.0147792] | -- | 2 runs, bitwise identical | measured by us | [receipt](https://huggingface.co/datasets/malaiwah/quant-fidelity-registry/resolve/main/receipts/malaiwah/stream-k6-kld.json) |
 
-> **Bias on malaiwah GLM-5.3-Flash TR3 8bpw (K8)** -- other, direction unknown. Measured on the 'streaming' lane, whose offset against the sealed-ep8 lane is known to be non-zero but was NOT measured for this artifact: no sealed-lane row for it exists to bridge against. The lane offset measured for a sibling artifact on this panel is not transferable -- it is a property of the routing, not a constant. This lane's own measurement floor (measurement--glm53.bf16-stream-floor.brandonmusic-final25) is 0.011505922619330299 nats; netting it out gives an estimated excess_over_control of 0.0008782684041065674 nats here (called 'quantization-attributable error' before 2026-08-31, renamed per peer-review P1-05: the difference estimates excess divergence over the same-lane unquantized control and is not a causal attribution) -- an estimate, not an identity, because KL is not additive, and it is only meaningful because both terms are small and share the same reference and lane. NO FLOOR ON THIS SCOPE: the same-lane floor (measurement--glm53.bf16-stream-floor.brandonmusic-final25) has a scalar-only receipt with no per-window array, so it cannot be recomputed on the calibration-clean window set. Rather than borrow the panel25 floor -- a cross-scope subtraction -- this row carries no floor reference at all.
+> **Bias on malaiwah GLM-5.3-Flash TR3 8bpw (K8)** -- other, direction unknown. NO FLOOR ON THIS SCOPE: the same-lane floor (measurement--glm53.bf16-stream-floor.brandonmusic-final25) has a scalar-only receipt with no per-window array, so it cannot be recomputed on the calibration-clean window set. This row has no floor reference; panel25 floor values do not apply to clean17.
 
-> **Bias on malaiwah GLM-5.3-Flash TR3 6bpw (K6)** -- other, direction downward. Lane offset, MEASURED not estimated: this 'streaming'-lane run scores 0.013714888822596553 against the sealed-ep8 lane's 0.013723384665701147 on the same panel, a signed delta of -8.495843104593809e-06 nats (|max| 0.00028735280093581186 on any one of 25 windows). The tokenwise KL array does NOT match the sealed one, and the runner's own verdict is publishable_as_reproduction=False, so this number stands beside the sealed one rather than replacing it. This lane's own measurement floor (measurement--glm53.bf16-stream-floor.brandonmusic-final25) is 0.011505922619330299 nats; netting it out gives an estimated excess_over_control of 0.0022089662032662542 nats here (called 'quantization-attributable error' before 2026-08-31, renamed per peer-review P1-05: the difference estimates excess divergence over the same-lane unquantized control and is not a causal attribution) -- an estimate, not an identity, because KL is not additive, and it is only meaningful because both terms are small and share the same reference and lane. NO FLOOR ON THIS SCOPE: the same-lane floor (measurement--glm53.bf16-stream-floor.brandonmusic-final25) has a scalar-only receipt with no per-window array, so it cannot be recomputed on the calibration-clean window set. Rather than borrow the panel25 floor -- a cross-scope subtraction -- this row carries no floor reference at all.
+> **Bias on malaiwah GLM-5.3-Flash TR3 6bpw (K6)** -- other, direction downward. NO FLOOR ON THIS SCOPE: the same-lane floor (measurement--glm53.bf16-stream-floor.brandonmusic-final25) has a scalar-only receipt with no per-window array, so it cannot be recomputed on the calibration-clean window set. This row has no floor reference; panel25 floor values do not apply to clean17.
 
 > **The same artifact, measured elsewhere in this file.** 3 of the artifacts below also carry a number in another table -- on a different panel, teacher or estimator -- and the widest of those spans 18%. None of the readings is wrong and none is interchangeable with another. Quoting one of them as *the* number for the artifact, without its table, is the misuse this registry exists to make obvious.
 >
@@ -1392,7 +1398,7 @@ This panel carries **2 separate comparability groups**. They are different measu
 **Metric** mean_tokenwise_kld, direction reference_to_candidate, accumulation float64
 **Estimation surface** stack_relation `cross_stack`, head_policy `native_head`
 **Comparability key** `cmp--eee09298c558ab21`
-**Like-for-like predicate** `comparable: unknown` -- no recorded difference, but lane is unrecorded for at least one member, so homogeneity cannot be certified. Machine-readable form with per-dimension values: this key's `comparability` block in `index.json`.
+**Like-for-like predicate** `comparable: unknown` -- no recorded difference, but lane, replay_backend, replay_env, stack are unrecorded for at least one member, so homogeneity cannot be certified. Machine-readable form with per-dimension values: this key's `comparability` block in `index.json`.
 
 > **What this table is.** Every row here shares the comparability key above: the same tokens, the same teacher capture, the same metric and direction, the same estimator precision, the same stack relation and the same head policy. That makes them CANDIDATES for ranking -- the key is a necessary partition, not a certificate. Whether they are also like-for-like on the dimensions the key omits (lane, pipeline, scope coverage, hardware) is what the predicate line above answers.
 >
@@ -1413,7 +1419,7 @@ This panel carries **2 separate comparability groups**. They are different measu
 
 > **Bias on GLM-5.3-Flash BF16 @a6c167b6** -- cross_stack_capture_replay, direction upward. THIS ROW IS THE FLOOR. It replays the reference's own BF16 weights through our vLLM stack and scores them against brandonmusic's stored fp32 teacher logits. 0.012712 nats is therefore what two stacks disagree by on identical unquantized weights -- not a quantization result. No floor is named because none exists below it.
 
-> **Bias on GLM-5.3-Flash official FP8** -- cross_stack_capture_replay, direction upward. Teacher captured on brandonmusic's transformers/eager stack, candidate replayed on our vLLM stack. The same-stack BF16 replay floor on this exact panel is 0.012712, so this number is an UPPER BOUND on the FP8 release's own divergence. The naive difference is 0.007904 -- an estimate, not an identity, because KL is not additive. Do not subtract and publish. Scope-matched: this row's floor reference is the clean17 floor, not the panel25 one. Subtracting a floor measured on a different WINDOW SET is the same class of error as subtracting one measured on a different LANE, and this registry refuses both.
+> **Bias on GLM-5.3-Flash official FP8** -- cross_stack_capture_replay, direction unknown. Clean17 descriptive cross-stack context only. The referenced floor is recomputed on the same 17 windows; the panel25 floor value does not apply here. A shared lane alone does not establish additive bias or authorize causal subtraction.
 
 > **The same artifact, measured elsewhere in this file.** 2 of the artifacts below also carry a number in another table -- on a different panel, teacher or estimator -- and the widest of those spans 51%. None of the readings is wrong and none is interchangeable with another. Quoting one of them as *the* number for the artifact, without its table, is the misuse this registry exists to make obvious.
 >
@@ -1553,7 +1559,7 @@ This panel carries **2 separate comparability groups**. They are different measu
 **Metric** mean_tokenwise_kld, direction reference_to_candidate, accumulation unknown
 **Estimation surface** stack_relation `same_stack`, head_policy `unknown`
 **Comparability key** `cmp--492e9b16e8bd6fbd`
-**Like-for-like predicate** `comparable: unknown` -- no recorded difference, but hardware, scope are unrecorded for at least one member, so homogeneity cannot be certified. Machine-readable form with per-dimension values: this key's `comparability` block in `index.json`.
+**Like-for-like predicate** `comparable: unknown` -- no recorded difference, but hardware, harness, replay_backend, replay_env, scope, stack are unrecorded for at least one member, so homogeneity cannot be certified. Machine-readable form with per-dimension values: this key's `comparability` block in `index.json`.
 
 > **What this table is.** Every row here shares the comparability key above: the same tokens, the same teacher capture, the same metric and direction, the same estimator precision, the same stack relation and the same head policy. That makes them CANDIDATES for ranking -- the key is a necessary partition, not a certificate. Whether they are also like-for-like on the dimensions the key omits (lane, pipeline, scope coverage, hardware) is what the predicate line above answers.
 >
@@ -1572,31 +1578,31 @@ This panel carries **2 separate comparability groups**. They are different measu
 <details><summary>Disclosures for the rows above (30)</summary>
 
 - `glm53.orcarouter-mlx-6bit.undisclosed` **author_reported_only**: Reported by orcarouter on their model card. No receipt, no estimator precision, no run count.
-- `glm53.orcarouter-mlx-6bit.undisclosed` **different_reference_kind**: Measured against the official FP8 release DEQUANTIZED TO BF16, not against a BF16 teacher. Numbers against a quantized reference are systematically smaller. This row's 6-bit 0.0063 is NOT better than the K6 6bpw 0.013723 on brandonmusic's panel -- they are not the same quantity.
+- `glm53.orcarouter-mlx-6bit.undisclosed` **different_reference_kind**: Measured against the official FP8 release DEQUANTIZED TO BF16, not against a BF16 teacher. This changes the estimand without a guaranteed bias direction. This row's 6-bit 0.0063 is NOT better than the K6 6bpw 0.013723 on brandonmusic's panel -- they are not the same quantity.
 - `glm53.orcarouter-mlx-6bit.undisclosed` **undisclosed_panel**: Evaluation set not disclosed: no token digest, window count or position total.
 - `glm53.orcarouter-mlx-6bit.undisclosed` **subset_of_panel**: Panel coverage unknown, so covers_full_panel is false by default.
 - `glm53.orcarouter-mlx-6bit.undisclosed` **estimator_unknown**: Accumulation precision and head policy are not published.
 - `glm53.orcarouter-mlx-6bit.undisclosed` note: Perplexity reported alongside on the same card: 2.7864 (FP8 reference 2.7797).
 - `glm53.orcarouter-mlx-4bit.undisclosed` **author_reported_only**: Reported by orcarouter on their model card. No receipt, no estimator precision, no run count.
-- `glm53.orcarouter-mlx-4bit.undisclosed` **different_reference_kind**: Measured against the official FP8 release DEQUANTIZED TO BF16, not against a BF16 teacher. Numbers against a quantized reference are systematically smaller. This row's 6-bit 0.0063 is NOT better than the K6 6bpw 0.013723 on brandonmusic's panel -- they are not the same quantity.
+- `glm53.orcarouter-mlx-4bit.undisclosed` **different_reference_kind**: Measured against the official FP8 release DEQUANTIZED TO BF16, not against a BF16 teacher. This changes the estimand without a guaranteed bias direction. This row's 6-bit 0.0063 is NOT better than the K6 6bpw 0.013723 on brandonmusic's panel -- they are not the same quantity.
 - `glm53.orcarouter-mlx-4bit.undisclosed` **undisclosed_panel**: Evaluation set not disclosed: no token digest, window count or position total.
 - `glm53.orcarouter-mlx-4bit.undisclosed` **subset_of_panel**: Panel coverage unknown, so covers_full_panel is false by default.
 - `glm53.orcarouter-mlx-4bit.undisclosed` **estimator_unknown**: Accumulation precision and head policy are not published.
 - `glm53.orcarouter-mlx-4bit.undisclosed` note: Perplexity reported alongside on the same card: 2.862 (FP8 reference 2.7797).
 - `glm53.orcarouter-mlx-3bit.undisclosed` **author_reported_only**: Reported by orcarouter on their model card. No receipt, no estimator precision, no run count.
-- `glm53.orcarouter-mlx-3bit.undisclosed` **different_reference_kind**: Measured against the official FP8 release DEQUANTIZED TO BF16, not against a BF16 teacher. Numbers against a quantized reference are systematically smaller. This row's 6-bit 0.0063 is NOT better than the K6 6bpw 0.013723 on brandonmusic's panel -- they are not the same quantity.
+- `glm53.orcarouter-mlx-3bit.undisclosed` **different_reference_kind**: Measured against the official FP8 release DEQUANTIZED TO BF16, not against a BF16 teacher. This changes the estimand without a guaranteed bias direction. This row's 6-bit 0.0063 is NOT better than the K6 6bpw 0.013723 on brandonmusic's panel -- they are not the same quantity.
 - `glm53.orcarouter-mlx-3bit.undisclosed` **undisclosed_panel**: Evaluation set not disclosed: no token digest, window count or position total.
 - `glm53.orcarouter-mlx-3bit.undisclosed` **subset_of_panel**: Panel coverage unknown, so covers_full_panel is false by default.
 - `glm53.orcarouter-mlx-3bit.undisclosed` **estimator_unknown**: Accumulation precision and head policy are not published.
 - `glm53.orcarouter-mlx-3bit.undisclosed` note: Perplexity reported alongside on the same card: 3.0566 (FP8 reference 2.7797).
 - `glm53.orcarouter-mlx-2bit.undisclosed` **author_reported_only**: Reported by orcarouter on their model card. No receipt, no estimator precision, no run count.
-- `glm53.orcarouter-mlx-2bit.undisclosed` **different_reference_kind**: Measured against the official FP8 release DEQUANTIZED TO BF16, not against a BF16 teacher. Numbers against a quantized reference are systematically smaller. This row's 6-bit 0.0063 is NOT better than the K6 6bpw 0.013723 on brandonmusic's panel -- they are not the same quantity.
+- `glm53.orcarouter-mlx-2bit.undisclosed` **different_reference_kind**: Measured against the official FP8 release DEQUANTIZED TO BF16, not against a BF16 teacher. This changes the estimand without a guaranteed bias direction. This row's 6-bit 0.0063 is NOT better than the K6 6bpw 0.013723 on brandonmusic's panel -- they are not the same quantity.
 - `glm53.orcarouter-mlx-2bit.undisclosed` **undisclosed_panel**: Evaluation set not disclosed: no token digest, window count or position total.
 - `glm53.orcarouter-mlx-2bit.undisclosed` **subset_of_panel**: Panel coverage unknown, so covers_full_panel is false by default.
 - `glm53.orcarouter-mlx-2bit.undisclosed` **estimator_unknown**: Accumulation precision and head policy are not published.
 - `glm53.orcarouter-mlx-2bit.undisclosed` note: Perplexity reported alongside on the same card: 4.3622 (FP8 reference 2.7797).
 - `glm53.orcarouter-mlx-2bitlite.undisclosed` **author_reported_only**: Reported by orcarouter on their model card. No receipt, no estimator precision, no run count.
-- `glm53.orcarouter-mlx-2bitlite.undisclosed` **different_reference_kind**: Measured against the official FP8 release DEQUANTIZED TO BF16, not against a BF16 teacher. Numbers against a quantized reference are systematically smaller. This row's 6-bit 0.0063 is NOT better than the K6 6bpw 0.013723 on brandonmusic's panel -- they are not the same quantity.
+- `glm53.orcarouter-mlx-2bitlite.undisclosed` **different_reference_kind**: Measured against the official FP8 release DEQUANTIZED TO BF16, not against a BF16 teacher. This changes the estimand without a guaranteed bias direction. This row's 6-bit 0.0063 is NOT better than the K6 6bpw 0.013723 on brandonmusic's panel -- they are not the same quantity.
 - `glm53.orcarouter-mlx-2bitlite.undisclosed` **undisclosed_panel**: Evaluation set not disclosed: no token digest, window count or position total.
 - `glm53.orcarouter-mlx-2bitlite.undisclosed` **subset_of_panel**: Panel coverage unknown, so covers_full_panel is false by default.
 - `glm53.orcarouter-mlx-2bitlite.undisclosed` **estimator_unknown**: Accumulation precision and head policy are not published.

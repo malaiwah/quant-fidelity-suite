@@ -29,7 +29,7 @@
     },
     "comparability_predicate_rule": {
       "type": "string",
-      "description": "How to read comparability_keys[].comparability: comparable=true/false/unknown over the secondary dimensions the key deliberately omits (lane, pipeline, scope coverage, hardware). Recomputed by the validator (CMP-007)."
+      "description": "How to read comparability_keys[].comparability: comparable=true/false/unknown over the key and declared secondary evidence (lane, pipeline, scope, hardware, harness, stack, replay backend and environment). Recomputed by the validator (CMP-007)."
     },
 
     "collections": {
@@ -88,12 +88,12 @@
             "description": "The like-for-like predicate over the secondary dimensions the key omits. Computed by tools/registry_predicate.py, written by the renderer, recomputed and enforced by the validator (CMP-007) -- a hand-edited predicate is rejected.",
             "required": ["predicate_version", "comparable", "reasons", "secondary", "live_member_count"],
             "properties": {
-              "predicate_version": { "type": "string", "const": "comparability-predicate/v1" },
+              "predicate_version": { "type": "string", "enum": ["comparability-predicate/v1", "comparability-predicate/v2"] },
               "comparable": { "type": "string", "enum": ["true", "false", "unknown"] },
               "reasons": { "type": "array", "items": { "type": "string" } },
               "secondary": {
                 "type": "object",
-                "required": ["lane", "pipeline", "scope", "hardware"],
+                "required": ["key", "lane", "pipeline", "scope", "hardware", "harness", "stack", "replay_backend", "replay_env"],
                 "additionalProperties": {
                   "type": "object",
                   "required": ["status", "values"],

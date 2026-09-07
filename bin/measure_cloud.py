@@ -4,6 +4,7 @@
     bin/measure-cloud --provider runpod --role root --model <repo> \
         --revision <40-hex> --panel-dir <panel> --dataset-id <id> \
         --publish-root-to <owner/repo> --hf-token-file <file> \
+        --hf-download-token-file <separate-read-token-file> \
         --measurer <handle> --max-cost <usd> --max-runtime <duration> \
         --out <dir> --dry-run
 
@@ -3906,10 +3907,6 @@ def _apply_runpod_defaults(args) -> None:
                 # different repo needs --dataset-repository at capture time.
                 args.dataset_repository = "%s/%s" % (
                     args.measurer, args.dataset_id)
-    if not getattr(args, "hf_download_token_file", None):
-        candidate = getattr(args, "hf_token_file", None)
-        if candidate and Path(candidate).expanduser().is_file():
-            args.hf_download_token_file = candidate
 
 
 def _campaign_ledger_requested(args) -> bool:
@@ -4009,8 +4006,9 @@ def _runpod_forbidden(args) -> List[str]:
         forbidden.append("--max-runtime is required")
     if getattr(args, "hf_download_token_file", None) in (None, ""):
         forbidden.append(
-            "--hf-download-token-file is required (or give --hf-token-file "
-            "pointing at an existing owner-only read token file)")
+            "--hf-download-token-file is required; create a separate read-only "
+            "Hugging Face token in an owner-only 0600 file "
+            "(--hf-token-file is never used as a pod download fallback)")
     if _campaign_ledger_requested(args):
         # Strict campaign mode: cross-run accounting with explicit limits.
         for name in ("campaign_ceiling", "campaign_reserve",
@@ -5215,8 +5213,7 @@ def _plan_paid_anonymous(
     forbidden = _runpod_forbidden(args)
     if forbidden:
         raise Refusal("safe RunPod profile refuses: %s" % ", ".join(forbidden), [])
-    download_token = _load_required_hf_download_token(
-        args.hf_download_token_file)
+    download_token = _load_runpod_download_token(args)
     del download_token
     gate_verified(
         plan_data, "explicit-download-credential",
@@ -6201,7 +6198,10 @@ def _plan_paid_anonymous(
         "scope": job_scope,
         "scope_binding": scope_binding,
         "control_plane": control,
-        "publication_preflight": publication_preflight,
+        "publication_preflight": ({
+            key: value for key, value in publication_preflight.items()
+            if key not in ("checked_at", "receipt_sha256")
+        } if publication_preflight is not None else None),
         "measurer": {
             "name": args.measurer, "handle": args.measurer,
             "url": "https://huggingface.co/%s" % args.measurer,
@@ -6232,6 +6232,8 @@ def _plan_paid_anonymous(
             "remote_root": None, "storage_layout": None,
             "workload_deadline_utc": None, "provider_terminate_after": None,
             "planned_at": None,
+            **({"publication_preflight": publication_preflight}
+               if publication_preflight is not None else {}),
         },
     })
     verify_job(job)
@@ -6584,7 +6586,7 @@ def _freeze_verified_bundle(bundle, outdir: Path) -> Dict[str, Any]:
     manifest_bytes = _canonical_bytes(bundle)
     manifest_path.write_bytes(manifest_bytes)
     helper_paths = {}
-    helper_names = ("__init__.py", "jobcontract.py", "runpodsafety.py")
+    helper_names = ("__init__.py", "common.py", "jobcontract.py", "runpodsafety.py")
     with archive.open("xb") as output:
         with gzip.GzipFile(
                 filename="", mode="wb", fileobj=output, mtime=0) as compressed:
@@ -7719,7 +7721,7 @@ def execute_paid(
         terminate_after=terminate_after)
     prepared_create_doc = prepared_create.to_dict()
     job = json.loads(_canonical_bytes(plan_data["job"]).decode("utf-8"))
-    job["execution_attempt"] = {
+    job["execution_attempt"].update({
         "kind": "runpod-ssh", "attempt_id": attempt,
         "cost_quote": quote.to_dict(),
         "execution_contract_sha256": None,
@@ -7731,7 +7733,7 @@ def execute_paid(
         "workload_deadline_utc": utc_iso(workload_epoch),
         "provider_terminate_after": terminate_after,
         "planned_at": quote.quoted_at,
-    }
+    })
     job = seal_execution_job(job)
     validate_execution_job(job)
     job_bytes = (
@@ -9693,6 +9695,20 @@ def _load_required_hf_download_token(path_value: Optional[str]) -> str:
     return token
 
 
+def _load_runpod_download_token(args) -> str:
+    """Require an explicit pod credential distinct from the publication token."""
+    token = _load_required_hf_download_token(args.hf_download_token_file)
+    if getattr(args, "publish_root_to", None):
+        publication_token = _load_secure_hf_token(args.hf_token_file)
+        if token == publication_token:
+            raise Refusal(
+                "the pod download token must differ from the publication token",
+                ["create a separate read-only Hugging Face token and give its "
+                 "owner-only 0600 file as --hf-download-token-file; keep the "
+                 "write credential in --hf-token-file on this machine"])
+    return token
+
+
 def _transport_hf_token(
         provider, machine_id, fs_root: str, outdir: Path, token: str,
         *, secrets_dir: Optional[str] = None) -> None:
@@ -10609,8 +10625,7 @@ def _main_paid(args, con: Console, provider) -> int:
                     prompt_quote.hard_cap_usd, budget))
             if answer.strip().lower() not in ("y", "yes"):
                 return EXIT_REFUSED
-        download_token = _load_required_hf_download_token(
-            args.hf_download_token_file)
+        download_token = _load_runpod_download_token(args)
         previous = {}
 
         def _interrupt(signum, _frame):
@@ -10701,6 +10716,7 @@ def build_parser() -> argparse.ArgumentParser:
             "    --dataset-id fidelity--<id> "
             "--publish-root-to <owner>/<repo> \\\n"
             "    --hf-token-file ~/.hf_token --measurer <hub-handle> \\\n"
+            "    --hf-download-token-file ~/.hf_read_token \\\n"
             "    --max-cost 65 --max-runtime 7h30m "
             "--retrieval-delete-reserve 14400 \\\n"
             "    --out ~/fidelity-runs/<name> --dry-run\n"
@@ -10717,6 +10733,7 @@ def build_parser() -> argparse.ArgumentParser:
             "    --reference-dataset malaiwah/glm53-fidelity-root-v1@"
             "9c4a29ee10f393ed2fdbdb9262c1192ddb1507b4 \\\n"
             "    --gpu H200 --runpod-datacenter US-NC-1 --measurer <hub-handle> \\\n"
+            "    --hf-download-token-file ~/.hf_read_token \\\n"
             "    --max-cost 45 --max-runtime 3h30m "
             "--retrieval-delete-reserve 14400 \\\n"
             "    --out ~/fidelity-runs/<name> --dry-run\n"
@@ -11016,9 +11033,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--hf-download-token-file", metavar="FILE",
         help="owner-only 0600 Hugging Face READ token file transported to "
              "the pod for the target download and shredded right after. "
-             "Defaults to --hf-token-file when that file exists; give a "
-             "separate read-only token if you prefer not to ship a write "
-             "token to a rented machine.")
+             "Required explicitly: no fallback to --hf-token-file. Create a "
+             "separate read-only token; publishing refuses the same credential "
+             "even in a different file. Token scopes are operator-selected.")
 
     o = p.add_argument_group("output and control")
     o.add_argument("--out", metavar="DIR",

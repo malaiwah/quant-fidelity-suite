@@ -30,27 +30,18 @@ V = L.SCHEMA_VERSION
 # Which code produced which number. See tools/harness_id.py for the boundary and
 # why it is drawn where it is.
 #
-# These three are PINNED LITERALS, not readings of the current environment, and
-# that is deliberate. `make reseed-check` must give the same answer on python 3.9
-# and 3.12 -- it is the integrity gate that proves the rows are a function of
-# their receipts, and a gate that fails on a different interpreter is a gate
-# nobody runs. A harness block is a historical record of the run that produced
-# the numbers, exactly like a receipt digest; it is not a probe of whoever is
-# running `make check` today. The code digests, by contrast, ARE read from the
-# bytes, because those bytes are in the repository and are the same everywhere.
-HARNESS_TOOL_VERSIONS = {"python": "3.9.6", "numpy": "2.0.2", "torch": None}
+# These are authored pins for the derivation recorded by this revision, not a
+# probe of a later verifier. Re-running --check elsewhere must not rewrite
+# historical environment metadata. The 2026-09-07 derivation used the versions
+# below and preserved the existing scalar values and interval endpoints.
+HARNESS_TOOL_VERSIONS = {"python": "3.14.4", "numpy": "2.5.2", "torch": None}
 HARNESS_REPOSITORY = {
     "url": "https://github.com/malaiwah/quant-fidelity-suite",
-    # The commit whose tree holds these exact closure bytes. Verified, not
-    # assumed: `git log <commit>..HEAD -- <each closure path>` is empty and each
-    # file is byte-identical to that tree, which is what `dirty: false` asserts
-    # (the closure, not the whole worktree -- data/ necessarily differs, since
-    # this reseed is what changes it). If the closure is ever edited without
-    # being committed, this must go back to commit_role=parent with dirty=true
-    # rather than pointing at a tree that does not contain the code that ran.
-    "commit": "a32deece634a1aa9d1a5b7d02b73a0e3f334b095",
-    "commit_role": "exact",
-    "dirty": False,
+    # These closure edits are introduced by the child commit. Do not label the
+    # parent tree exact: it does not contain the modified derivation/predicate.
+    "commit": "5cf8a81b8b701a2476fbed38619e62bd1052914e",
+    "commit_role": "parent",
+    "dirty": True,
 }
 HARNESS_UNRECORDED_DETAIL = (
     "metric.value on this row was produced before this registry recorded harness "
@@ -2065,8 +2056,8 @@ REFERENCES = [
      "sources": [src("model_card", "https://huggingface.co/orcarouter/GLM-5.3-Flash-MLX")],
      "disclosures": [disc("different_reference_kind", "caveat",
                           "The teacher is the official FP8 release dequantized to BF16, not a BF16 teacher. "
-                          "Numbers against it are systematically smaller than the same numbers against true "
-                          "BF16 and must never be ranked against native_bf16 rows -- including the other "
+                          "Changing the reference changes both the weighting and target distribution; "
+                          "the bias has no guaranteed direction. Do not rank against native_bf16 rows -- including the other "
                           "GLM-5.3-Flash rows in this registry.", True),
                      disc("undisclosed_panel", "caveat",
                           "The capture is over an undisclosed evaluation set.", True)]},
@@ -2240,8 +2231,8 @@ PIPELINES = [
              ["capture", "replay", "scorer"], None, None, "tools/crosscheck.py", MAL("toolchain-author"),
              [disc("cross_stack_capture", "caveat",
                    "Replays a model through OUR vLLM stack and scores it against a teacher captured on a "
-                   "DIFFERENT stack (transformers/eager on B200). The result contains a stack-difference term "
-                   "that can only inflate it. Every measurement from this pipeline must name its floor.", True)],
+                   "DIFFERENT stack (transformers/eager on B200). Runtime differences may amplify or cancel "
+                   "artifact differences; their direction is not inferred. Record the matched control.", True)],
              numerics={"accumulation_dtype": "fp64", "two_pass": None, "vocab_chunk": None,
                        "determinism_controls": []},
              hardware={"gpu": "cuda", "gpu_count": None, "tensor_parallel": None},
@@ -2272,8 +2263,8 @@ PIPELINES = [
              [disc("cross_engine_capture", "caveat",
                    "GGUF candidates are captured with llama.cpp (reading res->t_embd, post-final-norm) while the "
                    "reference and every EXL3/FP8 row are captured under vLLM. Every number from this pipeline "
-                   "carries a llama.cpp-vs-vLLM term on top of quantization error, which can only inflate it. "
-                   "It is measured: 0.000507 nats on identical unquantized weights.", True),
+                   "includes a llama.cpp-vs-vLLM difference as well as changed weights. No additive or monotone "
+                   "decomposition follows. The unquantized control measured 0.000507 nats.", True),
               disc("fp32_vocab_reduction", "caveat",
                    "ESTIMATOR DEFECT, disclosed 2026-08-31 (P1-06). Same scorer as the KLD ladder pipeline: "
                    "the vocabulary reduction ran in float32 with the cast to float64 applied after the sum, "
@@ -2410,6 +2401,8 @@ def measurement(mid, model_ref, artifact_ref, panel_ref, reference_ref, pipeline
         "cross_refs": lair(),
         "disclosures": disclosures or NONE_DISC,
     }
+    if stack_relation == "cross_stack" and (bias or {}).get("direction") == "unknown":
+        rec["comparability"]["usable_as_floor"] = False
     if notes:
         rec["notes"] = notes
     return rec
@@ -3144,13 +3137,13 @@ def build_measurements(artifacts_map):
                               "f13df1eb8900164d4786b7433c6326d6d94079df0efe82ddec747b0fd6721cca",
                               "glm53flash-crosscheck/2; fetched read-only and hashed during seeding")],
                  receipt_schema="glm53flash-crosscheck/2", cls="advisory",
-                 bias={"kind": "cross_stack_capture_replay", "direction": "upward",
-                       "floor_measurement_ref": M_FLOOR_GLM, "estimated_magnitude": 0.01271159981725071,
+                 bias={"kind": "cross_stack_capture_replay", "direction": "unknown",
+                       "floor_measurement_ref": M_FLOOR_GLM, "estimated_magnitude": None,
                        "detail": "Teacher captured on brandonmusic's transformers/eager stack, candidate "
-                                 "replayed on our vLLM stack. The same-stack BF16 replay floor on this exact "
-                                 "panel is 0.012712, so this number is an UPPER BOUND on the FP8 release's own "
-                                 "divergence. The naive difference is 0.007904 -- an estimate, not an identity, "
-                                 "because KL is not additive. Do not subtract and publish."},
+                                 "replayed on our vLLM stack. The matched unquantized control on this exact "
+                                 "panel is 0.012712. The raw difference is 0.007904, a signed descriptive "
+                                 "contrast, not a causal estimate or an upper bound on native-serving "
+                                 "divergence. KL is not additive."},
                  disclosures=[
                      disc("cross_stack_capture", "caveat",
                           "This row cannot be ranked against the K6 / Dione / 4bpw rows on the same panel: those "
@@ -3344,7 +3337,7 @@ def build_measurements_runtime(artifacts_map):
                               "no run count.", True),
                          disc("different_reference_kind", "caveat",
                               "Measured against the official FP8 release DEQUANTIZED TO BF16, not against a BF16 "
-                              "teacher. Numbers against a quantized reference are systematically smaller. This "
+                              "teacher. This changes the estimand without a guaranteed bias direction. This "
                               "row's 6-bit 0.0063 is NOT better than the K6 6bpw 0.013723 on brandonmusic's "
                               "panel -- they are not the same quantity.", True),
                          disc("undisclosed_panel", "caveat",
@@ -3557,8 +3550,8 @@ def build_measurements_qwen(artifacts_map):
     GGUF_DISC = lambda extra: [
         disc("cross_engine_capture", "caveat",
              "The candidate was captured with llama.cpp; the reference and every EXL3/FP8 row on this panel "
-             "were captured under vLLM. This number therefore contains a llama.cpp-vs-vLLM term on top of "
-             "quantization error, which can only inflate it. That term is measured: 0.000507 nats.", True),
+             "were captured under vLLM. Runtime and weight differences may amplify or cancel; they are not "
+             "an additive error budget. The unquantized cross-engine control measured 0.000507 nats.", True),
         disc("third_party_artifact_self_measured", "info", "unsloth's weights, our measurement."),
         disc("single_run", "caveat", "One pass.", False),
         disc("shared_reference_head", "info", "One head (25a30fd5...) applied to both sides."),
@@ -3611,13 +3604,13 @@ def build_measurements_qwen(artifacts_map):
                          fname, note="%s, %s" % (r.get("schema"), label),
                          sha256=fsha)],
                      receipt_schema=r.get("schema"), cls="advisory",
-                     bias={"kind": "cross_stack_capture_replay", "direction": "upward",
+                     bias={"kind": "cross_stack_capture_replay", "direction": "unknown",
                            "floor_measurement_ref": M_FLOOR_GGUF,
-                           "estimated_magnitude": fr["token_mean_kld"],
+                           "estimated_magnitude": None,
                            "detail": "llama.cpp candidate capture vs vLLM reference capture. The cross-engine "
-                                     "floor on this exact panel is %.6f nats, so this is an UPPER BOUND. Naive "
-                                     "net of floor: %r -- an estimate, not an identity, because KL is not "
-                                     "additive." % (fr["token_mean_kld"], naive)},
+                                     "control on this exact panel is %.6f nats. Its signed descriptive "
+                                     "difference from this candidate is %r; neither a causal allocation nor "
+                                     "a bound on serving divergence follows." % (fr["token_mean_kld"], naive)},
                      disclosures=GGUF_DISC([INCOMPLETE])))
     return out
 
@@ -4431,10 +4424,9 @@ def build_measurements_qwen38_hf(artifacts_map):
                    "THREE cold captures, not the campaign's usual five. Three was chosen "
                    "because the evidence here is a CONTENT digest rather than a spread over "
                    "run means: all three processes produced the identical "
-                   "capture_content_digest, so a fourth and fifth would restate a bitwise "
-                   "identity rather than tighten an estimate. The third was deliberately run "
-                   "under a saturated CPU to test whether host load perturbs the arithmetic; "
-                   "it did not."),
+                   "capture_content_digest. Further captures could test repeatability but do not add "
+                   "independent text. The third deliberately ran under saturated CPU load and matched "
+                   "in that observed experiment."),
               Q38_HF_LANE_DISC, Q38_NOT_RANKABLE_DISC, Q38_HYBRID_SCOPE_DISC],
           **est),
 
@@ -4474,11 +4466,11 @@ def build_measurements_qwen38_hf(artifacts_map):
                    "confirms the scale convention.",
                    True),
               disc("estimator_scope_narrower_than_artifact", "caveat",
-                   "WEIGHT-ONLY, THEREFORE A LOWER BOUND. The checkpoint declares "
-                   "activation_scheme: 'dynamic', i.e. the served model also quantizes "
-                   "activations per-token at runtime. That term is absent from this "
-                   "measurement, so this value is a LOWER BOUND on the served model's "
-                   "divergence, not the served model's divergence. It is in particular NOT "
+                   "WEIGHTS-ONLY, NOT A SERVING BOUND. The checkpoint declares "
+                   "activation_scheme: 'dynamic', so the served model also quantizes "
+                   "activations per-token. That operation is absent here and may amplify or cancel "
+                   "weight differences. This is a different estimand with no guaranteed bias direction. "
+                   "It is in particular NOT "
                    "the same quantity as measurement--qwen38.fp8.suite-v5-shard0-1m "
                    "(0.005197), which ran the real kernel on the vLLM lane.",
                    True),
@@ -5832,6 +5824,22 @@ def _g53_class_disclosure(c, name, derived_cls, method, compare_pin,
     return disc("record_note", "info", detail, provenance=True, sources=sources)
 
 
+def _record_comparator_evidence(row, receipt):
+    """Expose exact sealed replay/capture evidence to the pair predicate."""
+    comparator = receipt.get("comparator") or {}
+    for field in ("replay_backend", "replay_env"):
+        if field in comparator:
+            row["estimator"][field] = comparator[field]
+    forms = {receipt.get(side, {}).get("form") for side in ("reference", "candidate")}
+    if "hidden" in forms:
+        row["estimator"]["replay_applicable"] = True
+    elif forms == {"logit"}:
+        row["estimator"]["replay_applicable"] = False
+    fingerprint = receipt.get("candidate", {}).get("stack_fingerprint_sha256")
+    if fingerprint is not None:
+        row["provenance"]["stack_fingerprint_sha256"] = fingerprint
+
+
 def build_measurements_glm53(artifacts_map):
     """The GLM-5.3 rows: a MEASURED 0.0 floor and every candidate scored against it."""
     M = lambda *a, **k: measurement(*a, artifacts_map=artifacts_map, **k)
@@ -5951,12 +5959,13 @@ def build_measurements_glm53(artifacts_map):
                  "is the proof rather than the changelog."),
             disc("reduced_run_count", "info",
                  "TWO cold captures, not the campaign's usual five: the evidence is a CONTENT "
-                 "digest rather than a spread over run means, so a third run would restate a "
-                 "bitwise identity rather than tighten an estimate."),
+                 "digest of the observed repetitions. More captures could test repeatability but do not "
+                 "add independent textual samples."),
             disc("architecture_subset_loaded", "info",
                  "The MTP block's 791 tensors are present and unused; the set matched the "
                  "pinned allowlist exactly on both captures.")],
         logits_dtype=logits_dtype_of(floor), **est))
+    _record_comparator_evidence(rows[-1], floor)
     rows[-1]["harness"] = _g53_harness(
         pin_compare=G53_PIN_COMPARE,
         capture_pins={"reference": (G53_PIN_ROOT_CAPTURE, root_runtime),
@@ -6351,9 +6360,8 @@ def build_measurements_glm53(artifacts_map):
                       "for this row. comparator.replay_backend names only the backend class "
                       "(numpy:cpu:float32), so the fp32 GEMM accumulation order is a per-host "
                       "term measured between 1.8e-10 and 3.8e-9 nats on the five rows of this "
-                      "family that were replayed on both hosts -- five orders below anything "
-                      "the panel can resolve, and stated here so nobody mistakes the ninth "
-                      "decimal for a signal."
+                      "family that were replayed on both hosts. This is evidence for those comparisons, "
+                      "not a universal bound or calibrated resolving power for the panel."
                       % (c["comparator"]["replay_env"]["cpu_model"]))
                      if cand.get("pod_replay") else
                      ("REPLAY HOST. This value was computed on the maintainer's workstation "
@@ -6378,6 +6386,7 @@ def build_measurements_glm53(artifacts_map):
                      "scope_digest (%s...) therefore differs from the receipt's string while "
                      "describing the same bytes." % art["scope_digest"][:24])],
             logits_dtype=logits_dtype_of(c), **est))
+        _record_comparator_evidence(rows[-1], c)
         rows[-1]["harness"] = _g53_harness(
             pin_compare=compare_pin,
             capture_pins={"reference": (G53_PIN_ROOT_CAPTURE, root_runtime),
@@ -6766,6 +6775,7 @@ def build_measurements_glm53_hf(artifacts_map):
                  "The MTP block's 889 tensors are present and unused; the set matched the "
                  "pinned allowlist exactly on both captures.")],
         logits_dtype=logits_dtype_of(floor), **est))
+    _record_comparator_evidence(rows[-1], floor)
     rows[-1]["harness"] = _g53_harness(
         pin_compare=G53F_PIN_COMPARE,
         capture_pins={"reference": (G53F_PIN_ROOT, runtime_files("dataset.glm53-flash-bf16-root.json")),
@@ -6860,6 +6870,7 @@ def build_measurements_glm53_hf(artifacts_map):
                  "measured below 1e-8 nats on the full GLM-5.3 family. No workstation "
                  "re-computation exists for this row.")],
         logits_dtype=logits_dtype_of(c), **est))
+    _record_comparator_evidence(rows[-1], c)
     rows[-1]["harness"] = _g53_harness(
         pin_compare=G53F_PIN_K3,
         capture_pins={"reference": (G53F_PIN_ROOT, runtime_files("dataset.glm53-flash-bf16-root.json")),
@@ -7614,12 +7625,13 @@ def build_measurements_glm52(artifacts_map):
                  "(BIAS-006)."),
             disc("reduced_run_count", "info",
                  "TWO cold captures, not the campaign's usual five: the evidence is a CONTENT "
-                 "digest rather than a spread over run means, so a third run would restate a "
-                 "bitwise identity rather than tighten an estimate."),
+                 "digest of the observed repetitions. More captures could test repeatability but do not "
+                 "add independent textual samples."),
             disc("architecture_subset_loaded", "info",
                  "The MTP block's 791 tensors are present and unused; the set matched the "
                  "pinned allowlist exactly on both captures.")],
         logits_dtype=logits_dtype_of(floor), **est))
+    _record_comparator_evidence(rows[-1], floor)
     rows[-1]["harness"] = _g53_harness(
         pin_compare=G52_PIN_ROOT,
         capture_pins={"reference": (G52_PIN_ROOT, root_runtime),
@@ -7875,6 +7887,7 @@ def build_measurements_glm52(artifacts_map):
                      "scope_digest (%s...) therefore differs from the receipt's string while "
                      "describing the same bytes." % art["scope_digest"][:24])],
             logits_dtype=logits_dtype_of(c), **est))
+        _record_comparator_evidence(rows[-1], c)
         rows[-1]["harness"] = _g53_harness(
             pin_compare=cand["pin"],
             capture_pins={"reference": (G52_PIN_ROOT, root_runtime),
@@ -7977,7 +7990,14 @@ def main():
     # this generator keeps one job; every value it writes is re-derived from
     # registry/protocol/per-window/*.json, so `make reseed-check` still proves
     # the rows are a function of their receipts.
-    measurements = joint_enrich.apply(measurements)
+    comparison_context = {
+        name: {record["id"]: record for record in records}
+        for name, records in (
+            ("models", MODELS), ("artifacts", ARTIFACTS), ("panels", PANELS),
+            ("references", REFERENCES), ("pipelines", PIPELINES),
+            ("measurements", measurements))
+    }
+    measurements = joint_enrich.apply(measurements, collections=comparison_context)
     measurements = stamp_harness(measurements)
 
     # The clean17 scope is a derived PANEL with a derived REFERENCE, so it gets

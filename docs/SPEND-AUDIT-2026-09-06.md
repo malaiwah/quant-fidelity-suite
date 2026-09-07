@@ -146,10 +146,11 @@ the rows, not reasons to withhold them.
 that greps `3.42bpw` gets a hit and wrongly concludes willfalco's GLM-5.2 3.42bpw
 is landed. **Key on model + owner, never on the bpw string.**
 
-`DecoderParity`'s bitwise result (`pre_hadamard` identical on all 15 modules, 0 of
-115,343,360 elements differing, against exllamav3 1.4.2) retires the
-`weights_reconstructed` caveat these three rows carry, so the ingestion and the
-caveat retirement should be decided together.
+**Correction 2026-09-07:** `DecoderParity` establishes pre-Hadamard equality on
+15 sampled modules, not full native weight reconstruction. The receipt states
+`all_bitwise: false` and `all_bitwise_pre_hadamard: true`; native fp16 rounding
+differs from the reference fp32 transform. Retain `weights_reconstructed`.
+Ingestion and this limited parity result do not authorize retiring that caveat.
 
 ## `flashA-k2-run1` is not a loss — the scary reading was wrong
 

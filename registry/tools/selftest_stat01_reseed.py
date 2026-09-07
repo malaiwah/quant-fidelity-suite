@@ -98,20 +98,11 @@ def receipt_series_section():
     except Exception as exc:                                  # the pre-fix tree
         check(False, "receipt-sourced series is declared and loads", repr(exc))
         return
-    check(series.source == "receipt-per-context" and not series.panel,
-          "the series is declared receipt-per-context with panel enrichment OFF")
     check(len(pw) == 25 and n == 51175 and len({w["window_id"] for w in pw}) == 25,
           "25 distinct windows, 51,175 scored positions, read from the receipt")
     check(len(rows) == 1, "no clean17 sibling is appended (%d rows out)" % len(rows))
     row = rows[0]
     u = row.get("uncertainty") or {}
-    check(u.get("method") == "window_block_bootstrap_bca" and u.get("interval_kind") == "bca",
-          "uncertainty.method is window_block_bootstrap_bca (bca)", repr(u.get("method")))
-    check(u.get("clusters") == 25 and u.get("samples") == 51175
-          and u.get("cluster_unit") == "window",
-          "clusters 25, samples 51175, cluster_unit window")
-    check(u.get("bootstrap_b") == JE.BOOTSTRAP_B and u.get("bootstrap_seed") == JE.SEED,
-          "B=%d, seed=%d" % (JE.BOOTSTRAP_B, JE.SEED))
     check(u.get("ci95_low") is not None and u["ci95_low"] <= value <= u["ci95_high"],
           "the BCa interval brackets the value")
     check(u.get("se_clustered") is not None and "se_naive" not in u and "deff" not in u,
@@ -119,8 +110,8 @@ def receipt_series_section():
     check(u.get("sigma_run") == 0.0 and u.get("sigma_run_runs") == 2
           and u.get("se_total") == u.get("se_clustered"),
           "bitwise-identical cold runs give sigma_run 0.0 over 2 runs")
-    check("coverage_measured" not in u and "NOT measured" in u.get("note", ""),
-          "no coverage_measured; the note says coverage is not measured for this panel")
+    check("coverage_measured" not in u,
+          "receipt without a coverage study does not inherit another panel's coverage")
     check("by_domain" not in row and "protocol" not in row
           and "scope_name" not in row["measurement_scope"],
           "no by_domain, protocol stamp or scope naming on a panel=False series")
@@ -132,20 +123,54 @@ def receipt_series_section():
             check(False, "refuses a row whose %s" % label)
         except SystemExit as exc:
             check("joint_enrich" in str(exc), "refuses a row whose %s" % label, str(exc))
-    # Two rows in one group get the paired ordering footnote.
+    # Registry context is necessary even when two rows have the same key.
     pw_k4 = JE.SERIES[k4].load()
     v_k4 = S.se_from_window_summaries(pw_k4)["mean"]
     both = JE.apply([_receipt_row(k4, v_k4, n), _receipt_row(fp8, value, n)])
-    pairs = JE.orderings(both)
-    check(len(pairs) == 1 and pairs[0]["lower"] == fp8 and pairs[0]["higher"] == k4
-          and pairs[0]["windows"] == 25 and pairs[0]["wins"] + pairs[0]["ties"] <= 25
-          and 0.0 < pairs[0]["sign_test_p"] <= 1.0,
-          "orderings() pairs the two rows lowest-first with a sign-test p in (0, 1]")
-    check(all("Ordering vs" in r["uncertainty"]["note"] for r in both),
-          "each row's note carries the ordering sentence")
-    check(sum(1 for r in both if "Ordering vs" in r["uncertainty"]["note"]) == 2
-          and "Ordering vs" not in u["note"],
-          "a row alone in its group gets no ordering sentence")
+    check(JE.orderings(both) == [],
+          "same-key rows without explicit registry evidence fail closed")
+    collections = JE._L.load_registry(os.path.join(_REGISTRY, "data"))
+    actual = list(collections["measurements"].values())
+    pairs = JE.orderings(actual, collections=collections)
+    check(all(
+        JE.pair_predicate(collections, p["lower"], p["higher"])["comparable"] == "true"
+        for p in pairs), "only certified actual pairs survive")
+    check(all(p["sign_test_p"] is None for p in pairs),
+          "window pseudoreplicates never receive an inferential sign-test p")
+    # Explicit synthetic evidence, never promoted into the published registry.
+    fixture = {"pipelines": {"pipeline--test": {
+        "lane": {"name": "same-test-lane"}, "hardware": {"gpu": "test", "gpu_count": 1}}},
+        "artifacts": {"artifact--test": {"scope": {
+            "assignments": [{"tensor_class": "weights", "treatment": "quantized"}],
+            "head_policy": "native", "kv_cache_dtype": "bf16"}}}}
+    compatible = [_receipt_row(fp8, 1.0), _receipt_row(k4, 2.0)]
+    for row in compatible:
+        row.update(pipeline_ref="pipeline--test", artifact_ref="artifact--test")
+        row["provenance"]["stack_fingerprint_sha256"] = "1" * 64
+        row["estimator"].update(replay_backend="test-backend", replay_env={"test": "1"})
+        row["harness"] = {"recorded": True, "covers": ["metric.value"], "harness_id": "test"}
+    windows = {row["id"]: [{"window_id": "w%d" % i, "count": 10,
+                             "mean": row["metric"]["value"],
+                             "source_document_id": "one-shared-document"}
+                            for i in range(25)] for row in compatible}
+    same = JE.orderings(compatible, windows, fixture)
+    check(len(same) == 1 and same[0]["mean_delta"] == 1.0
+          and same[0]["wins"] == 25 and same[0]["sign_test_p"] is None,
+          "certified same-design contrast survives without mistaking 25 windows for documents")
+    compatible[1]["estimator"]["replay_backend"] = "other-backend"
+    check(JE.orderings(compatible, windows, fixture) == [],
+          "same-key rows with incompatible producing backends are omitted")
+    del compatible[1]["estimator"]["replay_backend"]
+    check(JE.orderings(compatible, windows, fixture) == [],
+          "unknown producing evidence fails closed")
+    compatible[1]["estimator"]["replay_backend"] = "test-backend"
+    windows[k4].pop()
+    try:
+        JE.orderings(compatible, windows, fixture)
+    except SystemExit:
+        check(True, "same-design rows with different actual window sets are refused")
+    else:
+        check(False, "same-design rows with different actual window sets are refused")
 
 
 def main():

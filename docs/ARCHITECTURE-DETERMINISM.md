@@ -16,9 +16,9 @@ versions (595.84/CUDA 13.2 and 590.48.01/CUDA 13.1), 24 host cores and 256 host
 cores — bitwise identical. One different GPU — **2.973e-04 nats apart, 0.245 %
 relative**.
 
-This document says where that difference starts, what causes it, which fixes
-work, and what the registry should do about it. Every number below is
-re-derivable from committed evidence; see [Reproducing this](#reproducing-this).
+This document records the tested shapes, devices and runtimes, separating
+observed results from proposed remedies. Committed summaries retain the
+numeric evidence; raw tensor dumps are not all committed (see Reproducing).
 
 ---
 
@@ -26,27 +26,27 @@ re-derivable from committed evidence; see [Reproducing this](#reproducing-this).
 
 * **The divergence is upstream of the KLD estimator.** The student forward
   produces different logits on different GPUs. The estimator contributes a
-  second, much smaller divergence of its own, and that second one **is** cheaply
-  fixable.
+  second, much smaller divergence of its own. The proposed cheap estimator
+  remedy is not yet proved for complete windows and their remainder blocks.
 * **It is not "Ampere vs Hopper".** Eight GPU models were probed. On a full
   fp32 transformer forward from identical weights and identical inputs, **all
   eight produced a distinct result** — including two cards that share a compute
   capability. **No** divergent quantity in the whole battery is a function of
   compute capability alone.
-* **It is the GPU model, not the machine.** Every card was rented twice, on
-  different physical hosts; three of the eight came back on a *different driver
-  version*. Every GPU-side digest reproduced bit for bit. The only quantity that
-  moved between rentals was the CPU-side control.
+* **GPU model predicts the studied repetitions.** Every card was rented twice
+  on different hosts; three changed driver version, with GPU-side digests
+  unchanged. This finite control does not exonerate every host/driver version.
 * **TF32 is not the cause** (it is already off, and the TF32-off path diverges),
   and `torch.use_deterministic_algorithms(True)` plus
   `CUBLAS_WORKSPACE_CONFIG=:4096:8` changed **nothing at all** — not one digest
   within a box, and not one agreement across boxes.
-* **Verdict: NOT FIXABLE in practice for the forward.** The only lever left is
-  an fp64 or fixed-order reference GEMM, at 16–64× the arithmetic cost.
-* **Verdict: FIXABLE cheaply for the estimator.** Raising the scorer's
-  `--chunk-positions` from 512 to ≥ 640 makes `_token_kld` bitwise identical on
-  every card tested. It is a protocol change, not a bug fix, because it moves
-  the published digest.
+* **Forward fixability is an engineering judgment.** The studied deterministic
+  settings did not fix cross-card differences; fp64/fixed-order GEMMs are
+  expensive alternatives, not proof that every possible remedy is exhausted.
+* **Estimator full-block evidence is narrower than the proposed remedy.**
+  Exactly 640/1024-row probes agreed on the compared cards. A 2,047-position
+  window chunked at 640 ends with 127 rows, which the probe did not exercise
+  as part of a full-window score. No production default was changed.
 * **Registry consequence:** the GPU model does **not** belong in
   `COMPARABILITY_KEY_FIELDS` — it would regroup all 75 published rows into
   mostly-singletons and cannot even be computed for 13 of the 15 multi-row
@@ -70,7 +70,7 @@ rather than guessed at:
 | L3 | `torch.nn.functional.grouped_mm` — the MoE kernel the streaming lane really dispatches |
 | L4 | `sum`/`mean`/`logsumexp` over dim −1 and dim 0, fp32 and fp64, at 8192 and at the real 154880-wide vocabulary |
 | L5 | `softmax` / `log_softmax`, fp32 and fp64, at the real vocabulary |
-| L6 | `engines/tools/k6_kld_report.py::_token_kld` **verbatim**, on synthetic logits at the real vocabulary |
+| L6 | the scorer's `_token_kld` **verbatim** (now `engines/tools/kld_report.py`), on synthetic logits at the real vocabulary |
 | L7 | a fixed-weight 16-layer decoder forward, bf16 and fp32, hidden states kept at every depth |
 | L8 | the fp64 last-dim sum at 11 row counts, 16384 columns |
 | L9 | the same sweep at 154880 columns |
@@ -126,9 +126,9 @@ The single key that moved on two cards is `L6.tokenwise_kld_cpu_slice` — the
 deliberate **CPU** control, which reduces on the host processor and is therefore
 host-dependent. Every GPU-side quantity replicated exactly.
 
-So: the fingerprint is a property of the GPU model. Not the host, not the
-datacenter, not the driver. That is also why the two A100s at the top of this
-document agreed across two clouds.
+The GPU-side fingerprints reproduced across these rentals and tested driver
+changes. That supports conditional repeatability on the inspected devices,
+not a universal claim that host, datacenter or driver can never matter.
 
 ---
 
@@ -323,13 +323,18 @@ whether that kernel is itself run-to-run stable.
 
 ## 6. Verdict on fixability
 
-### The estimator: FIXABLE cheaply, but it is a protocol change
+### The estimator: full-block result, full-window remedy unproven
 
-Raise `--chunk-positions` to ≥ 640. Proven above: 7 of 7 cards produce a bitwise
-identical tokenwise KLD at 640 and at 1024, and do not at 512 or 256. The cost
-is memory, not time: 640 × 154,880 in fp64 is 793 MB per buffer against 634 MB
-at 512, and the estimator holds a handful of them — the receipts show the whole
-25-window fp64 scoring stage takes 57 s on an A100.
+**Correction, 2026-09-07.** Seven compared cards agree on the exact
+640/1024-row estimator probes, not on every full 2,047-position window scored
+with those maxima. Production slices with `stop=min(start+chunk_positions,count)`;
+at 640 the remainder is **127 rows**, in the short-reduction regime the
+study identifies as device-sensitive. Increasing a maximum chunk size does
+not impose a minimum reduction size. The former "raise to ≥640 fixes it"
+recommendation is therefore unproven even on the studied fleet.
+
+The full-block memory arithmetic remains 793 MB per fp64 buffer at 640
+versus 634 MB at 512; it is not an end-to-end performance or portability proof.
 
 It is **not** a free bug fix, and it must not be retrofitted quietly:
 
@@ -337,27 +342,28 @@ It is **not** a free bug fix, and it must not be retrofitted quietly:
   NUM-09, and refuses a resume across a block-size change);
 * so it changes `tokenwise_kld_sha256`, which is the registry's determinism
   evidence, and moves published numbers in their last bits;
-* and the threshold is **device-derived**, so 640 is a value verified on eight
-  specific cards, not a proof. A future card with more SMs than 188 could push
-  the threshold higher. The rule to adopt is *verify the threshold on the cards
-  you use*, with `L9`/`L10` as the check — not *640 is safe*.
+* and the observed threshold depends on device properties and shapes. A
+  future device, different vocabulary, or short final block can invalidate it.
 
-Recommended, not implemented here: this belongs in a numbered protocol revision
-with the delta disclosed, not in a patch to a live campaign's runner.
+Any future remedy needs a controlled full-window test including remainder
+shapes on all target cards, with numerical deltas disclosed in a protocol
+revision. The historical receipts and production numerical defaults remain
+unchanged; no new padding or reduction policy is prescribed here.
 
-### The forward: NOT FIXABLE in practice
+### The forward: no cheap demonstrated remedy in this study
 
-Eight cards, identical weights, identical inputs, identical software, TF32 off,
-deterministic algorithms on — eight distinct fp32 logit tensors. There is no
-setting that makes them agree because there is no shared kernel to agree on.
+Eight cards produced eight distinct fp32 logit tensors despite the tested
+identical inputs, software and deterministic settings. Those settings did
+not enforce common cross-card arithmetic; the experiment did not exhaust
+every possible algorithm or implementation.
 
-The remaining levers, priced:
+Alternative levers, with historical theoretical cost estimates:
 
 | lever | does it work? | cost |
 |---|---|---|
 | TF32 off | already on; does not help | 0 |
 | `use_deterministic_algorithms(True)` + `CUBLAS_WORKSPACE_CONFIG` | **measured: does not help** | 0 |
-| pin the position block ≥ 640 | fixes the estimator only | ~0 |
+| pin the position block ≥ 640 | full 640/1024-row probes agree; remainder127/full-window remedy unproven | not established end to end |
 | **fp64 forward** | probably: `L2.sq2048.fp64` and `L2.expert.fp64` are invariant on all 8 cards — but `L2.splitk.fp64` gives **6 groups**, so fp64 alone is not a guarantee; the algorithm would have to be pinned too | A100 bf16 tensor 312 TFLOP/s vs fp64 tensor 19.5 → **16×**; on RTX PRO 6000 / L40S / L4, fp64 runs at 1/64 of fp32 → **~100×+**. A 3-hour measurement becomes days to weeks, and the cheap cards leave the fleet entirely |
 | a hand-written fixed-order reference GEMM | yes by construction | a new kernel to write, prove bitwise against the ecosystem reference (this suite's own bar), and maintain; orders of magnitude slower than a tuned tensor-core GEMM |
 
@@ -366,7 +372,7 @@ different lane, so its numbers would not be comparable with the 75 rows already
 published. That is the honest summary — the cure creates a new comparability
 group of its own.
 
-**So: NOT FIXABLE.** The consequence therefore matters more than the cause.
+No cheap cross-card fix was demonstrated; practical impossibility was not proved.
 
 ---
 
@@ -374,7 +380,7 @@ group of its own.
 
 ### 7.1 Practical significance: can hardware swamp the artifact differences we publish?
 
-**Yes, at 4 bpw and above.**
+**The observed hardware spread motivates sensitivity analysis, not a bitrate rule.**
 
 The registry publishes, in one comparability group and one lane:
 
@@ -384,31 +390,20 @@ measurement--glm53.turbo-4.05bpw-stream.brandonmusic-final25  0.0255264269154724
                                                     difference 2.300e-05
 ```
 
-The measured hardware term between an A100 and an H200 on this panel is
-**2.973e-04 nats**, which is **13× that difference**. If the term is instead
-taken as proportional (0.245 % of the measured value), it is 6.25e-05 at
-KLD 0.0255 — still **2.7×**. Under either scaling, hardware alone swamps the
-gap this registry currently reports as separating two 4-bit quantizers.
+The **2.973e-04-nat** A100/H200 spread was measured on a different,
+2.05bpw artifact. It is arithmetically **13×** the 2.300e-05 gap above.
+Scaling instead by 0.245 % gives 6.25e-05 (**2.7×** that gap).
+Neither transfer has been measured for the 4-bit pair.
 
-The published pair is *not* invalidated: both rows were measured on the **same**
-H200 (`pipeline--malaiwah.glm53-stream-packed-kld`, `hardware.gpu: "H200"`), so
-the comparison is same-hardware and the hardware term largely cancels. The
-hazard is prospective — the next contributor's A100 row lands in that same
-comparability group and is rendered in the same ranked table.
-
-**Where it starts to matter.** Take the term as ~0.25 % of the measured KLD.
-Two rows measured on different GPU models are separable only if they differ by
-more than that:
-
-| pair | difference | 0.25 % of value | separable across hardware? |
-|---|---|---|---|
-| K6 6bpw vs K8 8bpw | 1.33e-03 (10.6 %) | ~3e-05 | **yes**, comfortably |
-| dione-3.0bpw vs turbo-4.05bpw | 2.50e-02 (98 %) | ~1e-04 | **yes** |
-| tr3-4bpw vs turbo-4.05bpw | 2.30e-05 (0.09 %) | 6.3e-05 | **no** |
-
-The threshold is not a bit rate, it is a *closeness*: it bites wherever two
-artifacts land within ~0.25 % of each other, which in this registry happens
-among the good quants (4 bpw and up), not among the aggressive ones.
+**Correction, 2026-09-07.** The former ~0.25% "separable across hardware"
+table was an illustrative sensitivity assumption, not a confidence bound or
+rankability criterion. It cannot establish that large gaps are safely
+separable or small gaps are not. These two 4-bit rows share a recorded H200
+pipeline, which removes the explicit device change but does not prove all
+numerical interactions cancel. Use their full pair predicate and paired
+evidence; measure an artifact-specific bridge before transferring hardware
+effects. A shared group key alone cannot authorize the next contributor's
+cross-device comparison.
 
 ### 7.2 Does the GPU belong in `COMPARABILITY_KEY_FIELDS`? — No. Here is why, and what instead
 
@@ -531,14 +526,13 @@ Set beside the real artifact:
 | toy | 16 layers, hidden 1024, vocab 32768 | 6.3e-05 | **3.49e-06** | 5.5 % |
 | GLM-5.3-Flash 2.05bpw | 45 layers, vocab 154880 | 0.1219 | **2.97e-04** | 0.245 % |
 
-**In absolute nats the term grows with the model — 85× from the toy to the
-production model.** So 2.973e-04 is representative of a production-scale
-measurement, not a coincidence of one artifact.
-
-In *relative* terms it moves the other way, and for a reason worth stating: the
-toy's KLD has no quantization in it at all — it is a bf16-versus-fp32 rounding
-floor — so the denominator is tiny. The numerator, not the ratio, is the
-transferable quantity.
+**Correction, 2026-09-07.** The observed absolute spread is about 85× larger
+in this production experiment than in the toy experiment. Architecture,
+width/depth, quantization and KL denominator all change simultaneously.
+This does not identify a scaling law or make 2.973e-04 a transferable
+production error budget. The toy compares bf16 to fp32 without weight
+quantization, whereas the production row is an aggressively quantized
+artifact. Neither absolute nor relative spread is a universal bound.
 
 The depth mechanism is visible directly. Maximum absolute difference in the
 bf16 hidden state against the reference card, by layer:
@@ -558,9 +552,10 @@ the 2.973e-04 figure is measured, this is not.) At the output, **84.3–84.7 % o
 all logits differ**, by a median fp32-ULP distance of 196,608 — exactly 3 bf16
 steps.
 
-That is the whole causal chain, end to end: one GEMM tile ordering → a few ULPs
-in one hidden state → 84 % of logits differ → 76 argmax flips in 51,175
-positions → ±5e-3 per window → 2.973e-04 on the panel mean.
+The studies together support a plausible propagation mechanism from GEMM
+rounding to changed hiddens, logits and decisions. They do not isolate every
+link in one controlled intervention: toy-depth and real-artifact results
+must not be combined into a single proved causal chain.
 
 ---
 

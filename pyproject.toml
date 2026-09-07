@@ -8,10 +8,10 @@
 #   * `bash bin/selftest_all.sh` and `cd registry && make check` remain the
 #     only definitions of "done". Nothing here gates a commit.
 #
-# AGENTS.md says "There is no root build, package manifest, lockfile, lint,
-# format or type-check target ... Do not invent a second toolchain." That rule
-# stands and this file does not breach it: what follows enables a NARROW
-# defect check, not a type-check. See the amended note in AGENTS.md.
+# AGENTS.md forbids inventing a second root packaging/build/style toolchain.
+# Hashed CUDA dependency locks under bin/ are bootstrap inputs, not a root
+# package manifest. This file enables a NARROW defect check, not a packaging
+# or formatting target.
 #
 # WHY IT IS HERE AT ALL, from a real defect on 2026-09-06: `measure_cloud.py`
 # gained `allow_unindexed: Sequence[str] = ()` with no `Sequence` import. The
@@ -47,10 +47,16 @@ exclude = [
 # A name used but never bound. THE defect this file exists for, and the one
 # `from __future__ import annotations` hides from every runtime check.
 reportUndefinedVariable = "error"
-# A name bound on only some paths -- the shape that bites credential and
-# teardown lifecycles, where a variable must exist before the `try` that can
-# raise so a `finally` can clean up after a half-completed step.
-reportPossiblyUnbound = "error"
+# Definite use-before-binding is a real defect. The broader *possibly* rule
+# was misspelled here as reportPossiblyUnbound and never ran. Trial with the
+# correct pair of switches on Pyright 1.1.413: 114 reports in 237 files.
+# Control-flow review explained 111 by unchanged role/source/import-success
+# guards; two import-error masking sites were fixed, and one pipeline selftest
+# import was moved outside its expected-ValueError check.
+# It fails this file's wrong-code-only criterion, so explicitly leave it off
+# rather than mass-initializing valid guarded variables or claiming coverage.
+reportUnboundVariable = "error"
+reportPossiblyUnboundVariable = "none"
 # A method whose first parameter is not self/cls: always a defect, never style.
 reportSelfClsParameterName = "error"
 # MEASURED AND REJECTED, 2026-09-06: reportIndexIssue = "error" produced five

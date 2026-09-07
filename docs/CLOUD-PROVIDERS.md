@@ -12,16 +12,18 @@ The executable procedure is
 [`THIRD-PARTY-QUICKSTART.md`](THIRD-PARTY-QUICKSTART.md); the safety explanation
 is [`CLOUD-RECIPES.md`](CLOUD-RECIPES.md).
 
-## Required provider properties
+## Provider requirements and the implemented backstop
 
-A paid backend cannot be admitted unless live evidence proves all of these:
+Paid admission needs evidence for the properties below. A provider-enforced
+deadline is desirable but **not established on RunPod**; its implemented
+backstop is the independent operator reaper, with the limitations below.
 
 | property | safety reason |
 |---|---|
 | complete account-wide inventory of every chargeable resource class | absence cannot be inferred from one pod lookup or a local lease |
 | unique operator-authored resource names | response-loss reconciliation and independent cleanup need exact ownership |
 | idempotent deletion plus exact-absence confirmation | `EXITED`, a stopped process or a successful DELETE response may still bill |
-| provider-enforced termination deadline | cleanup must survive controller and reaper loss |
+| absolute deadline with independent reaper | survives controller-process loss, not simultaneous reaper-host/network/API failure |
 | current balance and billing history | campaign exposure and settlement cannot be inferred from estimates |
 | stable offer identity, hardware, price and region | the pre-create quote must bind the resource actually created |
 | authenticated SSH host identity | API-supplied IP/port plus network keyscan alone permits machine-in-the-middle execution |
@@ -42,27 +44,34 @@ fresh science attempt.
 The account inventory includes pods and network volumes. The controller binds
 only exact ids carrying its unique attempt identity, but never adopts them for
 science after an ambiguous create response. Such resources are cleanup-only.
-Deletion is complete only when a fresh full inventory proves every exact id
-absent and billing reconciliation binds those same ids.
+Deletion is confirmed only by fresh inventory proving exact absence.
+Financial settlement separately binds billing to those ids; default mode
+permits a scientifically valid result with billing still advisory/pending.
+Strict campaign mode retains liability until settlement.
 
 The independent user-systemd reaper uses the same owner-only API-key file,
 account-bound state directory and v2 lease directory as the controller. It
 enforces the lease's absolute reap deadline itself. RunPod `terminateAfter` is
 still sent at the same timestamp, but is an untrusted provider hint: the real
 control plane has been observed leaving a pod live after that value.
+This is not an unconditional provider spending cap: simultaneous loss of the
+controller/reaper host or unavailable credentials/network/control plane can
+delay deletion. Current prices plus a planned deadline bound the quote under
+those operational assumptions, not the provider's possible future bill.
 
 ## Portability does not imply comparability
 
-Full-vocabulary KLD in fp64 is provider-independent arithmetic. Measurement
-identity is not. GPU model, engine profile, artifact surface, panel, reference,
-schedule and code closure remain bound in the receipt and comparability key.
-Moving the same target to another hardware or engine profile does not make its
-number comparable by assertion.
+Full-vocabulary fp64 KLD defines the estimator, not universal bitwise hardware
+independence. Runtime/replay reduction order and decoded-forward semantics
+remain material. Not every recorded fact is a comparability-key field; equal
+keys are necessary and `pair_predicate` must also permit ranking.
 
-The first admitted RunPod quant is the exact authored K6 target/profile. Root
-captures are separately authored per exact checkpoint, panel, allowlist,
-hardware and license identity. Evidence for one target cannot authorize K8,
-another quant, another root revision or a filename-near checkpoint.
+The original K6 admission was exact-target/profile evidence, not generic
+authorization. Supported roots and candidate dataset routes subsequently
+landed; the [support matrix](../README.md#before-you-rent-what-is-measurable-today)
+and exact `measure-cloud --dry-run` are the current admission contract.
+Evidence for one checkpoint/panel/scope/hardware does not authorize a nearby
+filename, another revision or arbitrary reader profile.
 
 ## Admitting another backend
 

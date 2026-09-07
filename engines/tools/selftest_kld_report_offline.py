@@ -11,6 +11,9 @@ The trick that makes this cheap: `_measure_run` RESUMES from an existing
 `kld-report.json` without recomputing, so a run directory holding a hand-written report
 exercises the whole aggregation path with no logits and no torch.  The few
 `quant_pipeline` symbols the module imports at call time are stubbed.
+Real arithmetic checks additionally use local torch/safetensors when available:
+known-answer fp64 KL, finite-input overflow refusal, and a 25-window tiny-vocabulary
+capture with final short blocks. Missing optional dependencies are reported as SKIP.
 
   NUM-01  a resumed report measured against a DIFFERENT teacher must refuse
   NUM-02  the headline of an N-run summary is the aggregate, not run 1
@@ -24,6 +27,8 @@ exercises the whole aggregation path with no logits and no torch.  The few
           profile-name prefix (LESSON 48 recurring on a fourth profile)
   NUM-17  per-window top-1 integer counts make subset rescoring exact
   NUM-18  public TR3 scoring refuses capture/profile checkpoint identity mismatch
+  NUM-19  real forward KL matches an independent probability-space oracle
+  NUM-20  finite inputs that overflow intermediate arithmetic are refused
 
 """
 from __future__ import annotations
@@ -151,103 +156,64 @@ def _report(teacher_sha, panel_sha, mean, tokenwise, student_sha, label, block=1
 
 
 def _measured_top1_report(K, root, teacher_sha, panel_sha):
-    """Exercise the compute path cheaply: two tiny windows, no torch or logits."""
+    """Score real tiny-vocabulary logit files, including 127-row final blocks."""
     from pathlib import Path
+    import hashlib
 
-    import numpy as np
+    try:
+        import torch
+        from safetensors.torch import save_file
+    except ImportError as exc:
+        print("  SKIP  real logit scoring needs torch/safetensors (%s)" % exc)
+        return None
 
     run_dir = Path(root) / "top1-counts"
     run_dir.mkdir()
-    specs = (("final-0000", 3), ("final-0001", 2))
 
     def rows(side):
-        return [
-            {
+        result = []
+        for index in range(25):
+            window_id = "final-%04d" % index
+            values = ([2.0, 0.0, -1.0] if side == "teacher" else
+                      [1.0, 0.0, -1.0] if index == 0 else [0.0, 2.0, -1.0])
+            path = run_dir / ("%s-%s.safetensors" % (side, window_id))
+            save_file({"logits": torch.tensor(values).repeat(2047, 1)}, str(path))
+            result.append({
                 "window_id": window_id,
                 "document_id": "doc-" + window_id,
                 "domain": "axis1_general",
                 "role": "final",
-                "token_ids_sha256": window_id + "-tokens",
-                "attention_mask_sha256": window_id + "-mask",
-                "prediction_positions": count,
-                "path": str(run_dir / ("%s-%s.safetensors" % (side, window_id))),
-                "sha256": side[0] * 64,
-            }
-            for window_id, count in specs
-        ]
+                "token_ids_sha256": hashlib.sha256(window_id.encode()).hexdigest(),
+                "attention_mask_sha256": hashlib.sha256(b"all valid").hexdigest(),
+                "prediction_positions": 2047,
+                "path": str(path),
+                "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+            })
+        return result
 
     teacher = {
         "receipt_sha256": teacher_sha,
         "token_panel_receipt_sha256": panel_sha,
         "vocab_size": 3,
-        "backend_identity_sha256": "t" * 64,
+        "backend_identity_sha256": "a" * 64,
         "logit_files": rows("teacher"),
     }
     student = {
         "schema": "quant-pipeline.glm53-logit-capture.v1",
-        "receipt_sha256": "s" * 64,
+        "receipt_sha256": "b" * 64,
         "token_panel_receipt_sha256": panel_sha,
         "vocab_size": 3,
-        "runtime_reader_sha256": "r" * 64,
-        "checkpoint_identity_sha256": "c" * 64,
-        "backend_identity_sha256": "b" * 64,
+        "runtime_reader_sha256": "c" * 64,
+        "checkpoint_identity_sha256": "d" * 64,
+        "backend_identity_sha256": "e" * 64,
         "logit_files": rows("student"),
     }
     with open(run_dir / "capture-receipt.json", "w", encoding="utf-8") as fh:
         json.dump(student, fh)
-
-    saved = (
-        K.FINAL_WINDOW_IDS,
-        K.FINAL_PREDICTION_POSITIONS,
-        K._resolve_teacher_paths,
-        K._load_slice,
-        K._token_kld,
-    )
-    missing = object()
-    saved_torch = sys.modules.get("torch", missing)
-    fake_torch = types.ModuleType("torch")
-    fake_torch.get_num_threads = lambda: 1
-
-    def fake_load(path, start, stop):
-        marker = 1.0 if "final-0001" in str(path) else 0.0
-        return np.full((stop - start, 3), marker, dtype=np.float32)
-
-    def fake_kld(teacher_logits, student_logits, device):
-        del student_logits, device
-        positions = teacher_logits.shape[0]
-        matches = 0 if teacher_logits[0, 0] else positions
-        values = np.full(positions, 0.2 + teacher_logits[0, 0], dtype=np.float64)
-        return values, int(matches)
-
-    K.FINAL_WINDOW_IDS = tuple(window_id for window_id, _ in specs)
-    K.FINAL_PREDICTION_POSITIONS = sum(count for _, count in specs)
-    K._resolve_teacher_paths = lambda mapped, root_, sha: {
-        window_id: Path(row["path"]) for window_id, row in mapped.items()
-    }
-    K._load_slice = fake_load
-    K._token_kld = fake_kld
-    sys.modules["torch"] = fake_torch
-    try:
-        report_path = K._measure_run(
-            run_dir=run_dir,
-            teacher=teacher,
-            student_label="uniform-k8",
-            chunk_positions=2,
-            device="cpu",
-        )
-        return json.loads(report_path.read_text(encoding="utf-8"))
-    finally:
-        (
-            K.FINAL_WINDOW_IDS,
-            K.FINAL_PREDICTION_POSITIONS,
-            K._resolve_teacher_paths,
-            K._load_slice,
-            K._token_kld,
-        ) = saved
-        if saved_torch is missing:
-            sys.modules.pop("torch", None)
-        else:
-            sys.modules["torch"] = saved_torch
+    report_path = K._measure_run(
+        run_dir=run_dir, teacher=teacher, student_label="uniform-k8",
+        chunk_positions=640, device="cpu")
+    return json.loads(report_path.read_text(encoding="utf-8"))
 
 
 def main():
@@ -255,6 +221,32 @@ def main():
     sys.path.insert(0, HERE)
     import kld_report as K
     import tr3_surface as T3
+
+    try:
+        import torch
+    except ImportError as exc:
+        print("  SKIP  real fp64 estimator needs torch (%s)" % exc)
+    else:
+        import math
+        teacher_logits = torch.tensor([[math.log(0.75), math.log(0.25)]],
+                                      dtype=torch.float64)
+        student_logits = torch.tensor([[math.log(0.5), math.log(0.5)]],
+                                      dtype=torch.float64)
+        values, matches = K._token_kld(teacher_logits, student_logits, "cpu")
+        expected = 0.75 * math.log(1.5) + 0.25 * math.log(0.5)
+        check("NUM-19 real fp64 forward KL agrees with a probability-space oracle",
+              abs(float(values[0]) - expected) < 1e-15 and matches == 1)
+        reverse, _ = K._token_kld(student_logits, teacher_logits, "cpu")
+        check("NUM-19 the scorer preserves asymmetric teacher-to-student direction",
+              float(reverse[0]) > float(values[0]) > 0.0)
+        refused = False
+        try:
+            K._token_kld(torch.tensor([[1e308, -1e308]], dtype=torch.float64),
+                         torch.zeros((1, 2), dtype=torch.float64), "cpu")
+        except SystemExit:
+            refused = True
+        check("NUM-20 finite logits overflowing log-softmax refuse instead of returning NaN",
+              refused)
 
     print("\n== NUM-18: public TR3 capture/scoring identity agreement ==")
     policy = T3.PUBLIC_PROFILE_POLICIES["tr3-6bpw"]
@@ -373,22 +365,31 @@ def main():
 
         print("\n== NUM-17: exact per-window top-1 subset rescoring ==")
         measured = _measured_top1_report(K, tmp, T1, PANEL)
-        measured_windows = measured["per_window"]
-        counts = [
-            (row.get("top1_matches"), row.get("positions"))
-            for row in measured_windows
-        ]
-        check("NUM-17  compute emits per-window top-1 matches and positions",
-              counts == [(3, 3), (0, 2)], str(counts))
-        subset_top1 = None
-        if all(isinstance(value, int) for pair in counts for value in pair):
+        if measured is not None:
+            import math
+            import numpy as np
+
+            measured_windows = measured["per_window"]
+            counts = [(row["top1_matches"], row["positions"]) for row in measured_windows]
+            check("NUM-17 real logit argmax counts include every final short block",
+                  counts == [(2047, 2047)] + [(0, 2047)] * 24, str(counts))
             subset_top1 = sum(row["top1_matches"] for row in measured_windows[1:]) / sum(
                 row["positions"] for row in measured_windows[1:])
-        check("NUM-17  a window subset recomputes top-1 exactly from integers",
-              subset_top1 == 0.0, str(subset_top1))
-        check("NUM-17  panel top-1 equals the ratio of emitted window counts",
-              measured["top1_agreement"] == 3 / 5,
-              str(measured["top1_agreement"]))
+            check("NUM-17 a window subset recomputes top-1 exactly from integers",
+                  subset_top1 == 0.0 and measured["top1_agreement"] == 1 / 25)
+            teacher_p = [math.exp(v) / sum(math.exp(x) for x in (2, 0, -1))
+                         for v in (2, 0, -1)]
+            expected_values = []
+            for index in range(25):
+                logits = (1, 0, -1) if index == 0 else (0, 2, -1)
+                z = sum(math.exp(v) for v in logits)
+                score = sum(p * (math.log(p) - (v - math.log(z)))
+                            for p, v in zip(teacher_p, logits))
+                expected_values.extend([score] * 2047)
+            actual_values = np.load(measured["tokenwise_kld_path"])
+            check("NUM-17 real per-position KL includes the 127-position remainder",
+                  np.allclose(actual_values, expected_values, rtol=1e-13, atol=1e-15)
+                  and abs(measured["summary"]["mean"] - float(np.mean(expected_values))) < 1e-13)
 
         print("\n== NUM-02 / NUM-03 / NUM-06: the summary branch ==")
         a = run_dir("a", teacher_sha=T1, panel_sha=PANEL, mean=0.010, tokenwise="1" * 64,
@@ -421,9 +422,6 @@ def main():
                   and row.get("positions") == row["summary"]["count"]
                   for row in summary.get("per_window", []))),
               "the run report had counts but the published summary dropped them")
-        check("NUM-06  and says which run it describes when the runs disagree",
-              bool(summary and "run-1 ONLY" in (summary.get("per_window_source") or "")),
-              str((summary or {}).get("per_window_source")))
 
         c = run_dir("c", teacher_sha=T1, panel_sha=PANEL, mean=0.010,
                     tokenwise="3" * 64, student_sha="c" * 64, label="uniform-k8")

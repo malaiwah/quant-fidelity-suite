@@ -14,6 +14,7 @@ Stdlib only, offline, no installs.
 import argparse
 import copy
 import json
+import math
 import os
 import shutil
 import subprocess
@@ -23,6 +24,7 @@ import tempfile
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import registry_lib as L  # noqa: E402
 import registry_validate as RV  # noqa: E402
+import registry_predicate as RP  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PY = sys.executable
@@ -100,7 +102,7 @@ def m_self_verified_by_self(C):
 def m_cross_stack_without_bias(C):
     a = C["measurements"]["measurement--glm53.official-fp8.brandonmusic-final25.crossstack"]
     a["comparability"]["bias"] = None
-    return "L1.SCHEMA", "a cross-stack number without its floor is not publishable"
+    return "L1.SCHEMA", "a cross-stack measurement must disclose its stack mismatch"
 
 
 def m_floor_from_another_panel(C):
@@ -322,34 +324,6 @@ def m_floor_measured_on_a_different_lane(C):
     return "BIAS-006", "a floor measured on one lane is not the zero-point for a different lane"
 
 
-def m_row_below_its_floor(C):
-    """A published row reporting LESS divergence than unquantized weights.
-
-    The forged-submission case (a `receipts/malaiwah/` file claiming self-measured, at
-    0.009 nats) rendered at the TOP of the flagship ranked table with the validator
-    reporting zero errors, because nothing compared a row against the measurement floor
-    sitting in its own comparability group.  This mutation is INTERNALLY CONSISTENT --
-    the CI, the run means and the per-domain table all move with the headline -- so every
-    other invariant is satisfied and only FLOOR-001 can catch it.  A 6bpw quant cannot be
-    more faithful to the reference than the bf16 weights it was quantized from."""
-    m = C["measurements"]["measurement--glm53.k6-6bpw-stream.brandonmusic-final25"]
-    new = 0.0090001
-    delta = new - m["metric"]["value"]
-    m["metric"]["value"] = new
-    det = m["determinism"]
-    det["run_means"] = [new] * len(det["run_means"])
-    det["min_run_mean"] = det["max_run_mean"] = new
-    u = m["uncertainty"]
-    for k in ("ci95_low", "ci95_high"):
-        if u.get(k) is not None:
-            u[k] += delta
-    for d in m.get("by_domain") or []:
-        d["mean"] += delta
-        for k in ("ci95_low", "ci95_high"):
-            if d.get(k) is not None:
-                d[k] += delta
-    return "FLOOR-001", ("a quantized row below the unquantized floor of its own group is not a "
-                         "ranking, it is a defect")
 
 
 
@@ -539,7 +513,6 @@ MUTATIONS = [
     ("stream-row-without-its-bias", m_stream_row_loses_its_bias),
     ("lane-bridged-to-itself", m_lane_is_its_own_baseline),
     ("floor-measured-on-a-different-lane", m_floor_measured_on_a_different_lane),
-    ("row-below-its-own-floor", m_row_below_its_floor),
     ("harness-block-missing", m_harness_missing),
     ("new-row-with-no-harness", m_harness_new_row_unstamped),
     ("forged-harness-id", m_harness_id_forged),
@@ -578,6 +551,107 @@ def run_validator(root, extra=()):
         return {"findings": [], "_stderr": out.stderr, "_stdout": out.stdout}, out.returncode
 
 
+def secondary_and_bias_regressions(root):
+    """Exercise rankability and cancellation using scratch rows, never sealed receipts."""
+    C = L.load_registry(os.path.join(root, "data"))
+    source = C["measurements"]["measurement--glm53.k6-6bpw.brandonmusic-final25"]
+    C["pipelines"][source["pipeline_ref"]]["hardware"] = {"gpu": "scratch-gpu", "gpu_count": 1}
+    left = copy.deepcopy(source)
+    right = copy.deepcopy(source)
+    left["id"], right["id"] = "measurement--scratch.left", "measurement--scratch.right"
+    for row in (left, right):
+        row["estimator"]["replay_backend"] = "numpy:cpu:float32"
+        row["estimator"]["replay_env"] = {"cpu_model": "cpu-a", "blas_threads": 1}
+        row["provenance"]["stack_fingerprint_sha256"] = "a" * 64
+        row["harness"] = {"recorded": True, "harness_id": "harness--scratch",
+                          "covers": ["metric.value"]}
+    C["measurements"] = {left["id"]: left, right["id"]: right}
+    assert RP.pair_predicate(C, left["id"], right["id"])["comparable"] == "true"
+    from types import MappingProxyType
+
+    def freeze(value):
+        if isinstance(value, dict):
+            return MappingProxyType({key: freeze(item) for key, item in value.items()})
+        if isinstance(value, list):
+            return tuple(freeze(item) for item in value)
+        return value
+
+    for row in (left, right):
+        row["estimator"]["replay_env"]["kernel"] = {"name": "eager"}
+    assert RP.pair_predicate(freeze(C), left["id"], right["id"]) == \
+        RP.pair_predicate(C, left["id"], right["id"])
+    for row in (left, right):
+        del row["estimator"]["replay_env"]["kernel"]
+    for block, field, value in (
+            ("estimator", "replay_backend", "torch:cuda:float32"),
+            ("estimator", "replay_env", {"cpu_model": "cpu-b", "blas_threads": 1}),
+            ("provenance", "stack_fingerprint_sha256", "b" * 64),
+            ("comparability", "key", "cmp--other")):
+        original = right[block][field]
+        right[block][field] = value
+        assert RP.pair_predicate(C, left["id"], right["id"])["comparable"] == "false", field
+        right[block][field] = None
+        assert RP.pair_predicate(C, left["id"], right["id"])["comparable"] == "unknown", field
+        right[block][field] = original
+    assert RP.pair_predicate(C, left["id"], right["id"])["comparable"] == "true"
+    right["estimator"]["replay_env"]["blas_threads_source"] = "different-query-method"
+    assert RP.pair_predicate(C, left["id"], right["id"])["comparable"] == "true"
+    right["estimator"]["replay_env"]["cpu_model"] = None
+    assert RP.pair_predicate(C, left["id"], right["id"])["comparable"] == "unknown"
+    right["estimator"]["replay_env"]["blas_threads"] = 2
+    assert RP.pair_predicate(C, left["id"], right["id"])["comparable"] == "false"
+    right["estimator"]["replay_env"] = copy.deepcopy(left["estimator"]["replay_env"])
+    right["harness"]["harness_id"] = "harness--other"
+    assert RP.pair_predicate(C, left["id"], right["id"])["comparable"] == "unknown"
+    right["harness"]["harness_id"] = left["harness"]["harness_id"]
+    right["harness"]["covers"] = ["uncertainty"]
+    assert RP.pair_predicate(C, left["id"], right["id"])["comparable"] == "unknown"
+    right["harness"]["covers"] = ["metric.value"]
+    for row in (left, right):
+        del row["estimator"]["replay_backend"]
+        del row["estimator"]["replay_env"]
+        row["estimator"]["replay_applicable"] = False
+    assert RP.pair_predicate(C, left["id"], right["id"])["comparable"] == "true"
+
+    C = L.load_registry(os.path.join(root, "data"))
+    row = C["measurements"]["measurement--glm53.official-fp8.brandonmusic-final25.crossstack"]
+    row["comparability"]["class"] = "advisory"
+    row["comparability"]["usable_as_floor"] = False
+    bias = row["comparability"]["bias"]
+    bias.update(direction="unknown", floor_measurement_ref=None,
+                detail="No matched unquantized control exists for this declared stack comparison.")
+    rep = RV.Report()
+    RV.check_comparability(C, rep)
+    assert not rep.errors, rep.errors
+    row["comparability"]["usable_as_floor"] = True
+    rep = RV.Report()
+    RV.check_comparability(C, rep)
+    assert any(f["check"] == "BIAS-001" for f in rep.errors)
+
+    C = L.load_registry(os.path.join(root, "data"))
+    candidate = C["measurements"]["measurement--glm53.k6-6bpw-stream.brandonmusic-final25"]
+    control_id = "measurement--glm53.bf16-stream-floor.brandonmusic-final25"
+    control = C["measurements"][control_id]
+    # Reference p=(.5,.5), runtime control q=(.6,.4), perturbed candidate
+    # r=(.55,.45): the second perturbation cancels part of the first.
+    control["metric"]["value"] = sum(.5 * math.log(.5 / q) for q in (.6, .4))
+    candidate["metric"]["value"] = sum(.5 * math.log(.5 / q) for q in (.55, .45))
+    assert 0 < candidate["metric"]["value"] < control["metric"]["value"]
+    rep = RV.Report()
+    RV.check_comparability(C, rep)
+    assert not rep.errors, rep.errors
+    assert any(f["check"] == "FLOOR-001" for f in rep.warnings)
+    control["comparability"]["usable_as_floor"] = False
+    rep = RV.Report()
+    RV.check_comparability(C, rep)
+    assert any(f["check"] == "BIAS-007" for f in rep.errors)
+    control["comparability"]["usable_as_floor"] = True
+    control["pipeline_ref"] = "pipeline--malaiwah.glm53-packed-kld"
+    rep = RV.Report()
+    RV.check_comparability(C, rep)
+    assert any(f["check"] == "BIAS-006" for f in rep.errors)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -600,6 +674,14 @@ def main():
              len([f for f in rep.get("findings", []) if f["severity"] == "warn"])))
     passed += ok
     failed += not ok
+
+    try:
+        secondary_and_bias_regressions(args.root)
+        print("  secondary evidence, unknown bias, and cancellation       PASS")
+        passed += 1
+    except AssertionError as exc:
+        print("  secondary evidence, unknown bias, and cancellation       FAIL: %s" % exc)
+        failed += 1
 
 
     print()

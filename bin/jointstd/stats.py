@@ -53,10 +53,9 @@ MIN_EXCEEDANCES = 100
 BOOTSTRAP_B = 5000
 BOOTSTRAP_SEED = 20260829
 DOMAIN_BOOTSTRAP_B = 20000
-# Below this many windows a BCa interval on the raw mean does not deliver its
-# nominal level and is not published as though it did.  Measured, not assumed:
-# registry/tools/coverage_sim.py, 4000 reps per cell against a lognormal fitted
-# to each cell's own windows.
+# Small-window cautions are motivated by fitted-lognormal simulations in
+# registry/tools/coverage_sim.py, not a universal coverage guarantee or evidence
+# that adjacent windows from one document are independent clusters.
 SMALL_G = 10
 POSITION_BUCKETS = ((0, 256), (256, 1024), (1024, 4096), (4096, 1 << 30))
 
@@ -253,6 +252,10 @@ def window_block_bootstrap(
     g = len(vals)
     if g < 2:
         raise ValueError("need at least 2 windows to bootstrap")
+    if b < 2 or not 0 < alpha < 1:
+        raise ValueError("bootstrap needs at least 2 resamples and 0 < alpha < 1")
+    if not all(math.isfinite(v) for v in vals):
+        raise ValueError("window means must be finite")
     observed = statistics.fmean(vals)
 
     chosen = backend
@@ -352,8 +355,8 @@ def delta_t_log(
         the bootstrap-t on the raw mean, which puts a negative lower bound on a KL
         divergence on 5 of these 42 cells.
 
-    It is NOT nominal. 92.0% is what it measures and 92.0% is what the row says,
-    which is the actual content of the STAT-01 fix.
+    The 92.0% is an average in that fitted-lognormal simulation, not measured
+    coverage for an arbitrary input or evidence that its windows are independent.
     """
     wids = sorted(window_means)
     vals = [float(window_means[w]) for w in wids]
@@ -509,6 +512,8 @@ def sigma_run(run_means: Sequence[float]) -> Dict[str, Any]:
     estimate is how a live tail gets buried.
     """
     vals = [float(v) for v in run_means]
+    if not all(math.isfinite(v) for v in vals):
+        raise ValueError("run means must be finite")
     n = len(vals)
     if n == 0:
         return {"runs": 0, "sigma_run": None, "dof": 0, "note": "no runs"}
@@ -549,34 +554,36 @@ def combine_quadrature(se_stat: float, sigma: Optional[float],
     and is labelled ``interval_kind: "z"``.  It is NOT a BCa interval and must
     not be presented as one: sigma_run has no bootstrap distribution to be
     bias-corrected or accelerated against, so there is nothing for BCa to
-    correct.  Quote it BESIDE the BCa interval, not instead of it -- the BCa
-    endpoints remain the better statement of the statistical half, and on a
-    skewed panel they are visibly asymmetric where this one cannot be.
+    correct. Quote it BESIDE the BCa interval, not instead of it. These are
+    conditional model-based summaries; quadrature assumes uncorrelated error
+    components and does not calibrate either interval.
 
-    It is emitted only when ``sigma_run > 0``.  At exactly 0.0 -- every
-    bitwise-deterministic path, which is every malaiwah row published so far --
-    SE_total == SE_stat and the BCa interval already IS the total interval;
-    emitting a second, worse-shaped copy of it would invite someone to quote
-    the z-interval when the BCa one was available.
+    It is emitted only when ``sigma_run > 0``. An observed zero run spread
+    leaves SE_total == SE_stat in this formula; it is not proof of bitwise
+    determinism, zero measurement error or complete uncertainty accounting.
     """
+    if not math.isfinite(se_stat) or se_stat < 0 or (
+            sigma is not None and (not math.isfinite(sigma) or sigma < 0)):
+        raise ValueError("SE and run spread must be finite and nonnegative")
     if sigma is None:
         return {"se_stat": se_stat, "sigma_run": None, "se_total": se_stat,
                 "ratio": None, "gate": gate, "gate_ok": True,
                 "ci95_total": None, "interval_kind": None,
-                "note": "sigma_run not estimable; SE_total = SE_stat"}
+                "note": "sigma_run not estimable; se_total carries only the supplied statistical SE"}
     total = math.hypot(se_stat, sigma)
-    ratio = (sigma / se_stat) if se_stat else float("inf")
+    ratio = sigma / se_stat if se_stat else None
+    gate_ok = ratio <= gate if ratio is not None else sigma == 0
     out = {
         "se_stat": se_stat,
         "sigma_run": sigma,
         "se_total": total,
         "ratio": ratio,
         "gate": gate,
-        "gate_ok": ratio <= gate,
+        "gate_ok": gate_ok,
         "ci95_total": None,
         "interval_kind": None,
         "note": ("run-to-run term is negligible against the statistical SE"
-                 if ratio <= gate else
+                 if gate_ok else
                  "run-to-run term is NOT negligible: quote SE_total, not SE_stat"),
     }
     if sigma > 0.0 and mean is not None:
@@ -584,12 +591,13 @@ def combine_quadrature(se_stat: float, sigma: Optional[float],
         out["interval_kind"] = "z"
         out["z"] = z
         out["note"] += ("; ci95_total = mean +- %.2f*SE_total is a z-interval, "
-                        "not BCa -- quote it beside the BCa endpoints, which "
-                        "remain the better statement of the statistical half"
+                        "not BCa; both require their sampling and independence "
+                        "assumptions, not just finite arithmetic"
                         % z)
     elif sigma == 0.0:
-        out["note"] += ("; sigma_run is exactly 0.0, so SE_total == SE_stat and "
-                        "the BCa interval already is the total interval")
+        out["note"] += ("; observed sigma_run is 0.0, so this formula gives "
+                        "SE_total == SE_stat; this does not establish zero "
+                        "measurement error or calibrated total coverage")
     return out
 
 
@@ -704,14 +712,11 @@ def domain_table(
     and the seed it used is returned on the row so the endpoints stay
     reproducible from the published record.
 
-    *The interval.*  ``interval="t_log"`` (the default, and what this registry
-    publishes) is bootstrap-t on log(mean): 92.3% measured coverage at g=5-7
-    against BCa's 81.6%.  ``interval="bca"`` reproduces the pre-2026-08-30
-    procedure and is kept so the old numbers can be regenerated and diffed, not
-    because it is a supported choice for a small stratum.
-
-    Neither change makes the interval nominal.  ``coverage_measured`` on the
-    published cell is what closes STAT-01: the row states what it measures.
+    *The interval.* ``delta_t_log`` is the default. The fitted-lognormal
+    simulation over 42 registry cells measured 92.0% for delta-t-log, 92.2%
+    for bootstrap-t-log and 81.3% for BCa. These are simulation averages,
+    not coverage estimates for arbitrary input or evidence of independent
+    windows. ``bca`` retains the historical procedure for reproducibility.
     """
     if interval not in ("delta_t_log", "t_log", "bca"):
         raise ValueError("interval must be 'delta_t_log', 't_log' or 'bca', got %r" % interval)
@@ -774,12 +779,14 @@ def domain_table(
         # it saying what that interval is worth -- which is the state STAT-01
         # found the registry in.
         if row.get("small_g") and row.get("interval_kind") not in (None, "none"):
+            coverage = {"delta_t_log": 92.0, "t_log": 92.2, "bca": 81.3}[interval]
             row["coverage_note"] = (
-                "%d windows. A 95%%-labelled interval on this few clusters does not "
-                "deliver 95%%: measured 81.3%% for BCa and 92.0%% for this one over the "
-                "42 real cells in registry/tools/coverage_sim.py. Quote it as what it "
-                "measures, or quote se_clustered_window and build your own."
-                % row["windows"])
+                "%d windows; selected method %s. Fitted-lognormal simulations over "
+                "42 registry cells measured %.1f%% average coverage for this method "
+                "(registry/tools/coverage_sim.py). This is not a calibrated coverage "
+                "claim for this cell or evidence that windows are independent; "
+                "shared-source windows remain descriptive replicates."
+                % (row["windows"], row["interval_method"], coverage))
         rows.append(row)
     return rows
 
@@ -787,7 +794,7 @@ def domain_table(
 # =================================================== paired window comparison
 def document_level_paired(diffs: Sequence[float], windows: Sequence[str],
                           documents: Dict[str, str], alpha: float = 0.05) -> Dict[str, Any]:
-    """The paired contrast at the actual independent unit: the SOURCE DOCUMENT.
+    """The A-B paired contrast aggregated by SOURCE DOCUMENT.
 
     P1-15 (peer review, confirmed by recomputation). The sealed 25-window panel
     is not 25 independently sourced texts: its four axes each come from ONE
@@ -808,6 +815,14 @@ def document_level_paired(diffs: Sequence[float], windows: Sequence[str],
     The t interval weights documents equally; with 3-4 documents it is
     illustrative, not calibrated, and the receipt says so.
     """
+    if not windows or len(windows) != len(diffs):
+        raise ValueError("need nonempty, equally sized windows and differences")
+    if any(not isinstance(w, str) or not w.strip() for w in windows) or len(set(windows)) != len(windows):
+        raise ValueError("window IDs must be nonempty and unique")
+    if not all(math.isfinite(d) for d in diffs) or not 0 < alpha < 1:
+        raise ValueError("differences must be finite and 0 < alpha < 1")
+    if any(not isinstance(documents.get(w), str) or not documents[w].strip() for w in windows):
+        raise ValueError("every window needs a nonempty source-document identity")
     by_doc: Dict[str, List[float]] = {}
     for w, d in zip(windows, diffs):
         by_doc.setdefault(documents[w], []).append(d)
@@ -831,10 +846,11 @@ def document_level_paired(diffs: Sequence[float], windows: Sequence[str],
         "sign_test_n": sign_n,
         "sign_test_p": (None if sign_n == 0
                         else chi2.binom_sf_two_sided(wins_a, sign_n)),
-        "note": ("the panel's windows derive from %d source document%s; the document is "
-                 "the independent sampling unit, and this block is the inferential "
-                 "statement. Window-level intervals and sign tests above it are "
-                 "DESCRIPTIVE of this fixed panel only." % (g, "" if g == 1 else "s")),
+        "assumptions": "source documents are independent and exchangeable; sign-test null is equal probabilities of positive and negative document means",
+        "note": ("the panel's windows derive from %d source document%s; inference "
+                 "is conditional on the stated source-document assumptions. "
+                 "Window-level intervals and sign tests are DESCRIPTIVE of this "
+                 "fixed panel only." % (g, "" if g == 1 else "s")),
     }
     if g >= 2:
         mean = statistics.fmean(doc_means)
@@ -846,11 +862,15 @@ def document_level_paired(diffs: Sequence[float], windows: Sequence[str],
             "df": g - 1,
             "t_critical": t,
             "ci95_diff_t": [mean - t * se, mean + t * se],
-            "t_interval_note": ("equal-document-weight Student-t; at %d documents this is "
-                                "illustrative, not calibrated -- a domain-population "
-                                "interval is not estimable from one document per domain"
-                                % g),
+            "t_interval_note": ("equal-document-weight Student-t over %d documents; "
+                                "illustrative, not calibrated here. Exact t coverage "
+                                "requires independent normal document means; source "
+                                "provenance alone does not establish that model." % g),
+            "degenerate_note": ("zero between-document variance: the t interval collapses "
+                                "and does not establish population certainty" if se == 0 else None),
         })
+    else:
+        out["t_interval_note"] = "one source document: between-document variance and t interval unavailable"
     return out
 
 
@@ -864,19 +884,27 @@ def paired_windows(
     backend: str = "auto",
     documents: Optional[Dict[str, str]] = None,
 ) -> Dict[str, Any]:
-    """Rank two students on the SAME windows by their paired difference.
+    """Describe two students on the same windows by A-B paired differences.
 
-    Never rank by eyeballing two overlapping marginal CIs: the windows are
-    common to both, so the pairing removes the window variance that dominates
-    the marginals.  The paired CI here is routinely an order of magnitude
-    tighter than the two marginal CIs it sits between.
+    Window pairing controls observed window variation; it does not establish
+    independence or cancel an additive KL floor. Source-document inference,
+    when available, is separate and conditional on its stated assumptions.
     """
     common = sorted(set(a) & set(b))
     if len(common) < 2:
         raise ValueError("need at least 2 common windows")
+    if set(a) != set(b):
+        raise ValueError("paired series must have identical window sets")
+    if boot_b < 2:
+        raise ValueError("need at least 2 bootstrap resamples")
     da = [float(a[w]) for w in common]
     db = [float(b[w]) for w in common]
     diffs = [x - y for x, y in zip(da, db)]
+    if not all(math.isfinite(v) for v in da + db + diffs):
+        raise ValueError("paired values and differences must be finite")
+    if documents is not None:
+        if any(not isinstance(documents.get(w), str) or not documents[w].strip() for w in common):
+            raise ValueError("document provenance must cover every paired window")
     mean_a = statistics.fmean(da)
     mean_b = statistics.fmean(db)
     # STAT-02. The sign test counted EXACT TIES as wins for B: wins_a counted d < 0 and
@@ -917,7 +945,9 @@ def paired_windows(
             bd[i] = ma - mb
             br[i] = ma / mb if mb > 0 else float("nan")
         dlo, dhi = (float(x) for x in np.quantile(bd, [0.025, 0.975]))
-        rlo, rhi = (float(x) for x in np.quantile(br[~np.isnan(br)], [0.025, 0.975]))
+        valid_ratios = br[np.isfinite(br)]
+        rlo, rhi = ((float(x) for x in np.quantile(valid_ratios, [0.025, 0.975]))
+                    if len(valid_ratios) else (None, None))
         jack = [float((np.delete(A, k) - np.delete(B, k)).mean()) for k in range(n)]
         obs = float((A - B).mean())
         blo, bhi, z0, acc = _bca_endpoints(list(bd), obs, jack, 0.05)
@@ -933,7 +963,8 @@ def paired_windows(
                 br.append(ma / mb)
         sd = sorted(bd); sr = sorted(br)
         dlo, dhi = quantile_linear(sd, 0.025), quantile_linear(sd, 0.975)
-        rlo, rhi = quantile_linear(sr, 0.025), quantile_linear(sr, 0.975)
+        rlo, rhi = ((quantile_linear(sr, 0.025), quantile_linear(sr, 0.975))
+                    if sr else (None, None))
         jack = [statistics.fmean([diffs[i] for i in range(n) if i != k]) for k in range(n)]
         blo, bhi, z0, acc = _bca_endpoints(bd, statistics.fmean(diffs), jack, 0.05)
 
@@ -951,7 +982,7 @@ def paired_windows(
         "ci95_diff_bca": [blo, bhi],
         "bca_z0": z0,
         "bca_acceleration": acc,
-        "ratio_a_over_b": mean_a / mean_b if mean_b else float("nan"),
+        "ratio_a_over_b": mean_a / mean_b if mean_b > 0 else None,
         "ci95_ratio_percentile": [rlo, rhi],
         "windows_a_better": wins_a,
         "windows_b_better": wins_b,
@@ -969,8 +1000,7 @@ def paired_windows(
         "seed": seed,
         "backend": chosen,
     }
-    covered = documents is not None and all(w in documents for w in common)
-    if covered:
+    if documents is not None:
         doc_block = document_level_paired(diffs, common, documents)
         out["document_level"] = doc_block
         out["inference_unit"] = "source_document"
@@ -983,12 +1013,10 @@ def paired_windows(
     else:
         out["document_level"] = {
             "available": False,
-            "reason": ("no document map supplied%s; window-to-document provenance is "
-                       "REQUIRED to read any of the interval or sign-test fields above "
-                       "as inference rather than description -- windows cut from one "
-                       "source document are pseudoreplicates"
-                       % ("" if documents is None else
-                          " for every common window")),
+            "reason": ("no document map supplied; window-to-document provenance is "
+                       "REQUIRED to read interval or sign-test fields as inference "
+                       "rather than description -- windows cut from one source "
+                       "document are pseudoreplicates"),
         }
         out["inference_unit"] = "none"
         out["window_stats_are"] = (

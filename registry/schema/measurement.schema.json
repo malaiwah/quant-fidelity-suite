@@ -330,6 +330,18 @@
         "head_policy"
       ],
       "properties": {
+        "replay_applicable": {
+          "type": ["boolean", "null"],
+          "description": "Whether scoring applies a head to stored hidden states. false requires explicit producing-receipt evidence of stored-logit/no-replay arithmetic; native_head alone is insufficient. Missing evidence is unknown."
+        },
+        "replay_backend": {
+          "type": ["string", "null"],
+          "description": "Exact comparator.replay_backend from the producing receipt. Additive predicate evidence, never a comparability-key input; absent evidence remains unknown."
+        },
+        "replay_env": {
+          "type": ["object", "null"],
+          "description": "Exact comparator.replay_env from the producing receipt, including declared CPU, BLAS and thread configuration. Different recorded replay environments do not certify like-for-like arithmetic."
+        },
         "accumulation_dtype": {
           "enum": [
             "float64",
@@ -362,7 +374,7 @@
             "cross_stack",
             "unknown"
           ],
-          "description": "same_stack = reference and candidate logits produced by the same runtime and code path. cross_stack = they were not (e.g. vLLM capture vs a replayed packed reader). cross_stack carries a known bias and REQUIRES the bias block."
+          "description": "same_stack = reference and candidate logits produced by the same runtime and code path. cross_stack = they were not (e.g. vLLM capture vs a replayed packed reader). cross_stack REQUIRES a bias block, but the direction of the stack contribution may honestly be unknown."
         },
         "head_policy": {
           "enum": [
@@ -809,7 +821,7 @@
         },
         "stack_fingerprint_sha256": {
           "$ref": "common.schema.json#/$defs/sha256_or_null",
-          "description": "sha256 of the run's stack-fingerprint.json (malaiwah.stack-fingerprint.v1): engine build + git sha, enforce_eager/cudagraph state, attention backend, kernel knobs, env pins, container image digest, pip-freeze digest. OPTIONAL and provenance-only: rows predating 2026-08-29 lack it, and it does not enter the comparability key or any invariant yet."
+          "description": "sha256 of the run's stack-fingerprint.json (malaiwah.stack-fingerprint.v1): engine build + git sha, enforce_eager/cudagraph state, attention backend, kernel knobs, env pins, container image digest, pip-freeze digest. OPTIONAL evidence for the secondary comparability predicate, not a comparability-key input. Missing provenance stays unknown; different fingerprints do not certify stack equivalence."
         }
       },
       "additionalProperties": false

@@ -14,6 +14,12 @@ Some reinvention here is load-bearing and must not be undone. The job of this fi
 tell the two apart, **one line at a time, so a reviewer can disagree with a line rather than
 with the whole document.**
 
+**Reading this audit now (2026-09-07):** incident descriptions, ownership
+holds and line numbers below are dated history, not a current freeze on code.
+Later closures are recorded in [`REVIEW-DEFERRED.md`](REVIEW-DEFERRED.md).
+Proposed pooling/multiplexing or dependency swaps are not measured speedups;
+do not call them optimizations without exercising the actual changed path.
+
 ## Reasons that count, and reasons that do not
 
 A KEEP is only valid if it survives all four questions:
@@ -52,9 +58,10 @@ Two facts complicate the policy and are recorded here rather than argued away:
 - Historical `jlapi.py` can call an externally installed JarvisLabs CLI, but
   JarvisLabs is no longer an admitted paid provider. The current RunPod
   controller uses stock-stdlib HTTP and OpenSSH subprocesses.
-- Provider backends are controller-side only and are not uploaded in
-  `bin/BUNDLE.txt`. Their stdlib-only style is still load-bearing: planning,
-  leasing, reaping, retrieval and teardown run on the operator's stock Python.
+- `BUNDLE.txt` does include `runpodapi.py`, `jlapi.py` and `sshbase.py`.
+  They cannot be described as "never uploaded." Their stdlib-only requirement
+  is still load-bearing: planning, leasing, reaping, retrieval and teardown
+  must run on the operator's stock Python even when copies also ship on-instance.
 
 ---
 
@@ -260,12 +267,13 @@ body; manual `json.dumps`/`loads` on both sides; **no connection pooling** (`gpu
 `_endpoint()` polls every 10 s for up to 900 s); and **no retry of any kind** — a Cloudflare
 502 raises hard, mid-run, after the pod is billing.
 
-**Why still KEEP:** the used surface is genuinely tiny (one verb, one endpoint, bearer
-token, JSON in/out; no streaming, multipart, cookies, sessions or auth refresh), the file is
-never uploaded to an instance, and swapping transports on a controller mid-campaign is not a
-trade worth making while a paid run is live. **But the docstring should say `urllib` cost a
-live incident, so the next person weighs it with that on the table.** Recorded in
-`REVIEW-DEFERRED.md`.
+**Why KEEP at the time:** the used HTTP surface was small, and swapping
+transports during a paid campaign was not justified by a measured benefit.
+The old claim that `runpodapi.py` was never uploaded was incorrect: it is in
+`BUNDLE.txt`. Deployment location does not remove the controller's stock-Python
+constraint. The incident and later transport closures belong in
+[`REVIEW-DEFERRED.md`](REVIEW-DEFERRED.md), not an assumption that all of
+the original defects remain present.
 
 **Reviewer, disagree here if:** you weigh "already burned one paid pod, and has zero retry
 on 5xx" above "controller-side, tiny surface". That is a defensible ADOPT for `requests`,

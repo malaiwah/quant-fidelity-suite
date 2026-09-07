@@ -1,5 +1,12 @@
 # GLM-5.3-Flash Fidelity Suite v1 — capture session runbook (post-review r2)
 
+> **Archival campaign plan (2026-08-26), not a current execution recipe.**
+> The commands, qualification thresholds and runtime assumptions below record
+> that campaign's initial plan. Later failures and corrections are in JOURNAL.md
+> and docs/PUBLISHED-CORRECTIONS.md. For new work use
+> [the maintained walkthrough](docs/THIRD-PARTY-QUICKSTART.md); do not rent or
+> publish by replaying these historical instructions.
+
 Goal: BF16 reference + FP8-as-served hidden-state captures of `zai-org/GLM-5.3-Flash`
 over a 5,120-context held-out suite (v5-corpus lineage, GLM tokenizer), the shared
 BF16 LM head, qualification/determinism/head-equality receipts, and the first

@@ -1,11 +1,19 @@
-# StageOverlap — concurrent stage pairs that leave the science byte-for-byte
+# StageOverlap — dependency analysis for concurrent stage pairs
 
-Branch `StageOverlap`, worktree `/home/mbelleau/code/worktrees/StageOverlap`
-(from `origin/main` @ `6b5236c`). Implements the two highest-ranked efficiency
+Historical design from branch `StageOverlap` (`origin/main` @ `6b5236c`).
+The analysis proposes the two highest-ranked efficiency
 overlaps from `local://EfficiencyReview-report.md` (§2a fetch_reference ∥
 fetch_target, §2c compare_reference ∥ capture_repeat) plus the setup-overlap
 analysis (§2g), with per-stage watchdog pgid records so two setsid leaders can
 run and be reaped independently.
+
+**Evidence boundary, clarified 2026-09-07:** disjoint reads/writes justify a
+candidate scheduling change, not an independently measured numerical parity or
+end-to-end speedup. The savings below are projections from earlier stage timings.
+Complete candidate/control captures with identical retained tensor content and
+recorded replay settings are required before claiming byte-for-byte equivalence
+on a particular runtime. The external `local://` review link is historical, not
+a publicly reproducible benchmark artifact.
 
 ## 1. Stage dependency graph (candidate route, `bin/fidelity/stages.py` `CANDIDATE_STAGES`)
 

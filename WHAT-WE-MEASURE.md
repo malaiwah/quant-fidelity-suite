@@ -74,20 +74,15 @@ different object:
   names the BLAS, its thread count and the CPU, because the last digits of an
   fp32 GEMM are the BLAS's accumulation order (the workstation-vs-pod term on
   the six rows is 1.8e-10 … 3.8e-9 nats).
-- **What a serving stack adds that these rows do not contain.** A bf16 stack
-  computes the same product and then **rounds every logit to bf16** before its
-  softmax — up to ±0.0625 at |logit| in [16, 32) and ±0.125 in [32, 64)
-  (GLM-5.3's logits reach |46|). Measured on the real root
-  ([`reports/bf16-logit-rounding/`](reports/bf16-logit-rounding/README.md),
-  window `final-0000`, 2,047 positions, the comparator's own replay and
-  estimator): KL(fp32 ‖ bf16-rounded) of the root alone is **1.7e-5 nats**, and
-  rounding **both** sides of a real comparison moves the published quantity by
-  **−1.3e-4 nats (−0.42 %) on the K4 row and −2.7e-5 nats (−0.22 %) on the FP8
-  row**. So: hidden-form rows are scored on fp32 logits recomputed from sealed
-  bf16 hidden states; logit-form rows from a bf16 stack additionally carry a
-  term of the 1e-5–1e-4 nats class (well under 1 % of any GLM-5.3 row). The two
-  are the same `head_policy` but not the same estimand to the last percent —
-  compare them as such.
+- **Final-logit rounding is a separate studied perturbation.** A serving
+  path emitting bf16 logits rounds the replayed product, up to ±0.0625 at
+  magnitudes [16, 32) and ±0.125 at [32, 64). On real GLM-5.3 `final-0000`
+  (2,047 positions), [`reports/bf16-logit-rounding/`](reports/bf16-logit-rounding/README.md)
+  measured root-only KL(fp32 || bf16-rounded) **1.7e-5 nats**; rounding both
+  sides moved K4 by **−1.3e-4 (−0.42 %)** and FP8 by **−2.7e-5 (−0.22 %)**.
+  These are one-window rounding experiments, not a universal <1% bound or a
+  full serving-path equivalence test. Negative deltas also show why omitted
+  perturbations cannot be assumed always to increase KL.
 - **What "weights-only" means here.** A trellis or FP8 candidate is captured
   from a bf16 reconstruction of its stored weights under the same `transformers`
   forward as the root (`runtime.capture_tool.weights_decode` on the sealed
@@ -98,8 +93,15 @@ different object:
   `activation_quantization_not_captured` (gate 9b, 2026-09-05); the six receipts
   sealed before that gate existed say `strict` and are corrected additively, not
   re-sealed.
+  Pre-Hadamard unpack/LUT parity is not full decoded-weight or native-forward
+  parity: the native fp16 transform roundings differ from the reference fp32
+  reconstruction. Retain the caveat until full equivalence is proved.
+  Evidence: [`exl3-decoder-parity-vs-exllamav3.json`](engines/tools/layer-outer-evidence/exl3-decoder-parity-vs-exllamav3.json)
+  distinguishes full reconstructed-weight mismatch from pre-Hadamard equality.
+  Weights-only KL is a different estimand, **not a lower bound** on served KL;
+  extra runtime/activation perturbations may cancel or amplify weight error.
 - **Head-only artifacts.** Under `--own-heads`, two captures with bitwise-equal
-  hidden states and different heads (stock EXL3 `head_bits` 6–8) are a
+  hidden states and different heads (a head-only perturbation) are a
   measurement of exactly the head-quantization KL (`head_only_difference`);
   through one shared head the same pair is 0.0 by construction and is still
   refused (HEAD-1c).
@@ -109,15 +111,14 @@ different object:
 This is the single most important disclosure on any row.
 
 **Checkpoint lane** (called `sealed-ep8` and `streaming` in receipts) —
-*measures the artifact, not the engine.* The quantized payload is decoded
-exactly (the decode is bitwise-verified against an independent
-implementation) and run through a **reference forward** built on
-`transformers` — deliberately *not* vLLM or any production serving kernel.
-This is what the K6 (0.013723), K8 (0.012384), Dione-Q4 (0.027263) and
-BF16-floor (0.011506) numbers are. Because no serving nondeterminism is
-present, these runs are **bitwise deterministic** — five (or two) cold runs
-produce identical means to the last digit, and the receipts prove it with
-content hashes.
+*measures decoded weights through the stated reference engine.* Decoder
+evidence establishes the inspected reconstruction convention, not every
+native serving decoder or forward. The reference `transformers` forward
+is deliberately not the production serving kernel. K6 (0.013723), K8
+(0.012384), Dione-Q4 (0.027263) and BF16-control (0.011506) are measurements
+on their pinned paths. Their repeated cold-run tokenwise-KL digests agree
+in the recorded five/two runs; that is conditional repeatability, not proof
+that every logit, device, or future runtime is identical.
 
 **Serving lane** (`cross_stack` in the registry) — *measures the artifact
 and the stack together.* The body runs through the actual serving engine
@@ -130,8 +131,8 @@ release actually get.
 
 Neither lane is "wrong" — they answer different questions. "How good is
 this checkpoint?" is the checkpoint lane. "What do I actually get from this
-release, served?" is the serving lane. The registry keys them apart so they
-cannot be silently ranked against each other.
+release, served?" is the serving lane. The registry's secondary pair
+predicate, not key equality alone, must authorize a ranking.
 
 **A checkpoint-lane row on a W4A4-style artifact is weights-only, and says
 so.** Some community quants (the NVFP4 snapshots, `--source nvfp4`) quantize
@@ -140,10 +141,10 @@ and score the weights exactly; the activation half only exists at serve time,
 so it is **not in the number** — the same limitation the official FP8 release
 has, disclosed the same way. The surface reads the artifact's own config and
 index to decide which case it is, rather than assuming one per format family:
-a genuine W4A16 artifact is captured *fully* by a weights-only decode and gets
-no caveat, while an artifact that declares quantized activations or ships
-activation scale tensors carries `activation_quantization_not_captured` on its
-registry row.
+a W4A16 artifact has no declared activation quantization to omit, but
+native decode/forward arithmetic still needs qualification. An artifact that
+declares quantized activations or ships activation-scale tensors carries
+`activation_quantization_not_captured` on its registry row.
 
 ## 4. The floor — why zero quantization still scores above zero
 
@@ -165,8 +166,9 @@ materially. Consequences:
   mistake: a ratio of small residuals that magnifies control error.
 - **Cross-lane floor subtraction is invalid** and the registry's validator
   refuses it mechanically (invariant BIAS-006).
-- A quant scoring *at* the floor is not "perfect" — the panel has simply
-  run out of resolving power for it.
+- A quant scoring at the control is not "perfect": equal KL values to one
+  teacher need not imply equal candidate distributions. A lower control KL
+  is not a mathematical lower bound for every quant or runtime.
 
 ## 5. What a row must pin for two rows to be comparable
 
@@ -286,8 +288,8 @@ not folklore.
   default at the pinned commit — the capture harness *hard-refuses* to run
   without eager mode — or per-boot engine log, by log digest). What could
   not be established is listed as **unknown**, plainly: the sealed launches'
-  Triton autotune winner configs (bounded instead by the measured 8.7e-4
-  launch-noise floor), the DeepGEMM mHC JIT identity, the full 40-char vLLM
+  Triton autotune winner configs (the 8.7e-4 launch-noise measurement does
+  not identify or bound each cause), the DeepGEMM mHC JIT identity, the full 40-char vLLM
   commit behind `g487ecf187`.
 - **The rule going forward:** a receipt without a stack fingerprint — or a
   summary that does not cite its operands' fingerprints by digest — is
@@ -300,7 +302,7 @@ Everything above describes what a *number* must pin. This section is about
 *when the work is done*, and it is the one structural change of 2026-08-29.
 
 Until now, capture and comparison were **fused**: `engines/tools/stream_score.py`
-ran a model over the panel and `engines/tools/k6_kld_report.py` scored it against a
+ran a model over the panel and today's `engines/tools/kld_report.py` scored it against a
 teacher, and the only durable output was a number plus receipts pointing at
 filesystem paths. Three consequences, all of which bit us:
 
@@ -348,23 +350,22 @@ because the two sides of a comparison were produced by different stacks. Our
 published cross-stack floor is **0.012712 nats** — comparable in magnitude to
 K6's entire 0.013723. That number is comparison overhead, not quantization.
 
-When A and B are captured **on the same lane** and compared offline in fp64,
-that overhead is removed *structurally* rather than by subtraction — which the
-registry forbids across lanes anyway (**BIAS-006**). What remains is
-quantization error. The same-lane floor problem does not get corrected; it
-largely stops existing.
+Capturing both sides on one qualified lane avoids a deliberate cross-stack
+contrast. It does not structurally prove the remaining KL is caused only by
+quantization: reconstruction, head replay, kernel dispatch and interactions
+still define the measured function. A same-capture self-compare is exactly
+zero by identity, not independent validation of that forward's correctness.
 
 ### The three things the format makes checkable that prose could not
 
-* **Head identity.** "Shared head" means shared *application*, not shared
-  *weights*. Replaying a candidate's hidden states through the **reference**
-  head erases its head-quantization error and flatters it. Every capture now
-  declares its own `lm_head` by **tensor content** digest, and the comparator
-  **refuses** a hidden-form comparison across differing heads (HEAD-1b) unless
-  you pass `--disclose-head-substitution`, which forces `class: advisory`, a
-  downward bias block, and a **blocking** disclosure — i.e. not publishable.
+* **Head identity.** Replaying candidate hiddens through the reference head
+  changes the estimand and removes the candidate head's contribution. The
+  resulting KL can increase or decrease when body and head both differ; no
+  general downward bound follows. Each capture names its head by content
+  digest. Differing-head shared replay requires the blocking
+  `--disclose-head-substitution` override and stays advisory/unpublishable.
   There is one case that override must not reach: a quant that changes **only**
-  the head (stock EXL3 `head_bits` 6–8 does exactly this) produces post-norm
+  the head (not a claim about every stock EXL3 artifact) produces post-norm
   hiddens bitwise identical to the reference's, so its capture digest matches
   and replaying both sides through one head subtracts a quantity from itself —
   0.0 nats, top-1 1.0, labelled a reproduction. The comparator refuses that
@@ -384,28 +385,21 @@ largely stops existing.
 
 ### What is runnable today, and what is not
 
-The split is a format plus tooling, not yet a published corpus, and it is worth
-saying plainly which is which:
+**Availability correction, 2026-09-07.** The former blanket claims "no root
+dataset" and "no token panel" are obsolete. The local registry records public
+same-lane root references for Flash final25, full GLM-5.3 corpus5x5,
+GLM-5.2 corpus5x5, Fruit heldout-v1 and Qwen3.8 suite-v5-shard0-1m
+(`registry/data/references.jsonl`). Public panel locations are recorded in
+`registry/data/panels.jsonl`; tokenized corpus5x5 panels also live under
+`engines/panels/`.
 
-**Runnable now, on a laptop, with no GPU and no weights.** Step 3 in full:
-`verify`, `validate`, `describe`, `compare` (including the A == B reproduction
-confirmation and every gate refusal), `provenance-template`, `--emit-submission`
-with the registry's own gate run over the output, `adapt` from our published
-serving-lane capture or from a kimi-k3 artifact, `verify-k3-compat`, and the
-whole card generator and validator. The real BF16-vs-FP8 comparison in this
-document — 0.0353 nats over 4,094 positions through the real `[154880, 4096]`
-head — runs in about ten seconds on this Mac.
-
-**Not runnable yet, and both ends are the reason.** No conformant **root
-fidelity dataset** is published, so "download it rather than re-run it" is the
-architecture's promise and not yet its state; and no **token panel** is
-published, so `capture` cannot be started from a clean checkout. Publishing
-suite-scale captures is out of scope for v1 (spec §14) — the 85.9 GB is the easy
-part; deciding what a canonical root *is* is the operator decision. Until then
-the honest description of steps 1 and 2 is: the format is fixed and the wrapper
-is written, and the artifacts they consume have to be produced.
-[`bin/README.md`](bin/README.md#before-you-start--what-exists-today-and-what-does-not)
-states each gap at the point of use.
+These are repository-recorded publications, **not a fresh remote availability
+check**. Legacy private/partial panels and lost receipts remain route-specific
+limitations. Select the exact panel, root revision and supported capture
+surface; verify their bytes and coverage rather than generalizing one route's
+status to every family. Existing comparison, verification, adaptation and
+card tools do not require the original full model weights once conformant
+datasets and their own heads are present.
 
 Format: [`docs/FIDELITY-DATASET-SPEC.md`](docs/FIDELITY-DATASET-SPEC.md).
 Card annotation: [`docs/CARD-ANNOTATION-SPEC.md`](docs/CARD-ANNOTATION-SPEC.md).
@@ -427,8 +421,13 @@ Every clause is load-bearing: the panel (Rule 2: never one window), the full
 configuration (the comparability key is necessary, not sufficient — §5), the
 exact candidate (an artifact revision, not a format family), teacher-forced
 next-token distributions (not free-running generation), the direction, and the
-uncertainty (at its honest unit — for the Brandon panel that unit is the
-source document, of which there are four).
+uncertainty at its honest unit. Brandon final25 has four source documents,
+clean17 three; corpus5x5 has 25 declared documents but is purposively selected,
+not probability-sampled deployment text. Distinct IDs alone do not prove
+independence. Raw token-weighted means describe the fixed panel. Source-level
+uncertainty needs provenance and explicit sampling/exchangeability assumptions;
+without them it is descriptive/unknown. Equal-document summaries change
+weighting and must not silently replace the original token-weighted estimand.
 
 **Unsafe claims, without additional evidence none of this data supplies:**
 
