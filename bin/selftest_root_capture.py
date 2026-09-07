@@ -516,6 +516,56 @@ with tempfile.TemporaryDirectory() as tmp:
           committed is None
           or "must live inside the suite checkout" not in committed)
 
+# ROOT-2. A root capture must be sized from the TARGET's own geometry, not
+# from GLM-5.3-Flash's pinned census. The defect cost two paid attempts during
+# the GH200 qualification: a 10.10 GB Fruit checkpoint was refused on every
+# card under 63 GB -- including an A100 with free capacity -- because
+# lane_requirement(glm53_flash_census(), "streaming") quotes that constant for
+# any target. The committed counter-evidence measured the same capture at
+# 2.167 GB on one L4.
+#
+# Two rungs, and the second one is the important one: census.root_fit was
+# written to fix this and had ZERO callers in bin/measure_cloud.py, so the fix
+# existed and did nothing for weeks. Asserting the CALLER exists is what stops
+# it being re-orphaned by a refactor -- the same class as an orphan selftest.
+from fidelity import census as CEN                       # noqa: E402
+# A VERIFIED geometry, offline. root_fit deliberately refuses any model_type
+# whose per-layer arithmetic has not been reconciled to a real checkpoint --
+# which is correct, and is why this fixture uses one of the four that have
+# been (glm5_next, glm5_next_text, glm_moe_dsa, qwen3) rather than inventing
+# a plausible-looking `llama`.
+_SMALL_VERIFIED_CONFIG = {
+    "model_type": "qwen3", "num_hidden_layers": 32, "hidden_size": 4096,
+    "intermediate_size": 11008, "num_attention_heads": 32,
+    "num_key_value_heads": 8, "vocab_size": 32000, "head_dim": 128,
+    "torch_dtype": "bfloat16",
+}
+
+flash_streaming = CEN.lane_requirement(CEN.glm53_flash_census(), "streaming")
+try:
+    small = CEN.root_fit(_SMALL_VERIFIED_CONFIG, surface="native-bf16",
+                         windows=16, model_id="test/small-bf16")
+except CEN.GeometryUnknown as exc:
+    small = None
+    print("      root_fit refused this geometry: %s" % exc)
+check("ROOT-2: a small checkpoint's root fit is sized from ITS geometry, far "
+      "below the GLM-5.3-Flash streaming constant",
+      small is not None
+      and small.per_gpu_bytes < 0.5 * flash_streaming.per_gpu_bytes)
+if small is not None:
+    print("      required %.2f GB/GPU vs the flash streaming constant %.0f GB"
+          % (CEN.gb(small.per_gpu_bytes), CEN.gb(flash_streaming.per_gpu_bytes)))
+check("ROOT-2: the window count comes from the panel and is never defaulted",
+      small is not None and small.windows == 16
+      and small.windows_source == "explicit")
+
+_mc_src = Path(mc.__file__).read_text(encoding="utf-8")
+check("ROOT-2: bin/measure_cloud.py actually CALLS census.root_fit -- a "
+      "correct function with no caller is the defect, not the fix",
+      "C.root_fit(" in _mc_src)
+check("ROOT-2: and the root path refuses an unknown geometry instead of "
+      "falling back to another model's census",
+      "C.GeometryUnknown" in _mc_src and "PanelWindowsUnknown" in _mc_src)
 print()
 if FAILED:
     print("selftest_root_capture: %d FAILED" % len(FAILED))

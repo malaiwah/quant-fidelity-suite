@@ -3191,16 +3191,91 @@ def plan(args: argparse.Namespace, con: Console, jl: JL) -> Dict[str, Any]:
     con.say("")
     cen = C.glm53_flash_census()
     con.say("  fit")
-    con.kv("base decoded BF16", "%s  (non-routed %.2f GB + routed %.2f GB)"
-           % (human_bytes(cen.total_bf16_bytes), C.gb(cen.nonrouted_bytes),
-              C.gb(cen.routed_main_bytes + cen.routed_mtp_bytes)), indent=4)
-    con.kv("census source", cen.census_source, indent=4)
-    req = C.lane_requirement(cen, args.lane)
-    con.kv("lane", "%s -> %d GPU(s), EP%d" % (args.lane, req.gpus, req.ep_size), indent=4)
-    con.kv("required VRAM", "%.0f GB/GPU" % C.gb(req.per_gpu_bytes), indent=4)
-    for k, v in req.components.items():
-        con.kv("  %s" % k, "%.2f GB" % C.gb(v), indent=4)
-    plan["census"] = cen.to_dict()
+    # ROOT-2. A `--role root` capture does NOT run the window-major streaming
+    # lane: it runs hf_capture.py --schedule layer-outer, whose working set is
+    # the resident non-layer parameters plus ONE streamed layer -- never the
+    # decoded checkpoint. Sizing it against lane_requirement(glm53_flash_census)
+    # quoted a constant 63 GB/GPU for EVERY target, which refused a 10.10 GB
+    # Fruit checkpoint on every card under 63 GB during the GH200
+    # qualification, including an A100 that had capacity. The committed
+    # counter-evidence measured that exact capture at 2.167 GB on one L4:
+    # the refused hardware would have worked with a factor of twenty to spare.
+    #
+    # `census.root_fit` was written to fix this and had ZERO callers in this
+    # planner -- a correct function nobody used, which is the same class as an
+    # orphan selftest. measure_local.py already sizes from the target's own
+    # config.json; this is the planner that SPENDS money, so it mattered more
+    # here. Wired 2026-09-07.
+    root_fit = None
+    if args.role == "root" and getattr(args, "panel_dir", None):
+        target_config = None
+        if not offline and target is not None and target.has("config.json"):
+            try:
+                # One small GET. The census must come from THIS target's
+                # geometry, never from a pinned constant.
+                target_config = fetch_json(target.repo_id, "config.json",
+                                           revision=target.revision)
+            except HFError as exc:
+                if not args.dry_run:
+                    raise
+                con.warn("target config.json unavailable (%s); root fit "
+                         "cannot be sized from this target" % exc)
+        if target_config is not None:
+            try:
+                root_fit = C.root_fit(
+                    target_config, surface="native-bf16",
+                    panel_dir=args.panel_dir, model_id=target.repo_id)
+            except C.GeometryUnknown as exc:
+                # Refuse rather than fall back to another model's numbers: a
+                # root whose per-layer arithmetic has not been reconciled to a
+                # real checkpoint must not be planned against GLM-5.3-Flash.
+                raise Refusal(
+                    "cannot size a root capture of %s: %s"
+                    % (target.repo_id, exc),
+                    ["The layer geometry of this checkpoint is not known to "
+                     "bin/fidelity/census.py, and sizing it against another "
+                     "model's census is what ROOT-2 was.",
+                     "Reconcile the geometry against the real checkpoint "
+                     "first. Nothing was created. $0.00 spent."])
+            except C.PanelWindowsUnknown as exc:
+                raise Refusal(
+                    "cannot read the window count from %s: %s"
+                    % (args.panel_dir, exc),
+                    ["A panel that does not state its own window count "
+                     "cannot be priced; defaulting it to 25 is how a "
+                     "16-window job got priced as 25.",
+                     "Nothing was created. $0.00 spent."])
+    if root_fit is not None:
+        req = root_fit.requirement
+        con.kv("base decoded BF16", "%s  (NOT the working set: layer-outer "
+               "streams one layer at a time)"
+               % human_bytes(root_fit.geometry.total_bf16_bytes), indent=4)
+        con.kv("census source", "%s config.json" % target.repo_id, indent=4)
+        con.kv("windows", "%d  (%s)"
+               % (root_fit.windows, root_fit.windows_source), indent=4)
+        con.kv("lane", "root-layer-outer -> 1 GPU(s)", indent=4)
+        con.kv("required VRAM", "%.0f GB/GPU" % C.gb(req.per_gpu_bytes), indent=4)
+        for k, v in req.components.items():
+            con.kv("  %s" % k, "%.2f GB" % C.gb(v), indent=4)
+        con.kv("modelled peak", "%.2f GB" % C.gb(root_fit.modelled_peak_bytes),
+               indent=4)
+        if root_fit.measured:
+            con.kv("measured anchor", json.dumps(root_fit.measured,
+                                                 sort_keys=True)[:120], indent=4)
+        plan["census"] = cen.to_dict()
+        plan["root_fit"] = root_fit.to_dict()
+    else:
+        con.kv("base decoded BF16", "%s  (non-routed %.2f GB + routed %.2f GB)"
+               % (human_bytes(cen.total_bf16_bytes), C.gb(cen.nonrouted_bytes),
+                  C.gb(cen.routed_main_bytes + cen.routed_mtp_bytes)), indent=4)
+        con.kv("census source", cen.census_source, indent=4)
+        req = C.lane_requirement(cen, args.lane)
+        con.kv("lane", "%s -> %d GPU(s), EP%d"
+               % (args.lane, req.gpus, req.ep_size), indent=4)
+        con.kv("required VRAM", "%.0f GB/GPU" % C.gb(req.per_gpu_bytes), indent=4)
+        for k, v in req.components.items():
+            con.kv("  %s" % k, "%.2f GB" % C.gb(v), indent=4)
+        plan["census"] = cen.to_dict()
     plan["requirement"] = req.to_dict()
 
     # exl3hf artifacts additionally materialize their non-routed function as a
