@@ -104,6 +104,40 @@ def main():
               and opts.get("UserKnownHostsFile") == str(run_kh),
               (evidence, opts))
 
+        # DEP-03. ControlMaster reached the JarvisLabs box by hand in
+        # ~/.ssh/config and never reached the shared transport, where it
+        # serves RunPod, Vast and Lambda -- so every exec and every scp paid a
+        # full handshake, and the delta uploader sends one file per scp.
+        check("DEP-03 the shared transport multiplexes: ControlMaster, "
+              "ControlPath and ControlPersist are all present",
+              opts.get("ControlMaster") == "auto"
+              and bool(opts.get("ControlPath"))
+              and bool(opts.get("ControlPersist")),
+              {k: v for k, v in opts.items() if k.startswith("Control")})
+        cpath = opts.get("ControlPath") or ""
+        check("DEP-03 the socket path ends in %%C and is short enough for a "
+              "unix socket (len=%d, cap ~104)" % len(cpath),
+              cpath.endswith("%C") and len(cpath) < 90, cpath)
+        cdir = os.path.dirname(cpath)
+        check("DEP-03 the socket directory is per-process and owner-only "
+              "0700 -- a control socket is a live authenticated channel to a "
+              "box holding a token",
+              os.path.isdir(cdir)
+              and (os.stat(cdir).st_mode & 0o777) == 0o700, cdir)
+        # The rung that would have caught applying the DEP-03 patch as
+        # drafted: it predates the host-key work and shows
+        # StrictHostKeyChecking=no with UserKnownHostsFile=/dev/null.
+        # Multiplexing is a performance change and must never touch the
+        # authentication surface.
+        check("DEP-03 multiplexing did NOT weaken host-key verification",
+              opts.get("StrictHostKeyChecking") == "yes"
+              and opts.get("UserKnownHostsFile") not in (None, "/dev/null")
+              and opts.get("HostKeyAlgorithms") == "ssh-ed25519"
+              and opts.get("IdentitiesOnly") == "yes",
+              {k: opts.get(k) for k in ("StrictHostKeyChecking",
+                                        "UserKnownHostsFile",
+                                        "HostKeyAlgorithms")})
+
         mismatch_path = td / "mismatch" / "ssh_known_hosts"
         mismatch = T()
         mismatch.set_known_hosts(mismatch_path)

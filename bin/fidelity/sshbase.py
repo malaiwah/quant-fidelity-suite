@@ -517,8 +517,40 @@ class SSHTransport:
                 if line.strip()]
 
     # -- ssh ---------------------------------------------------------------
+    def _control_path(self) -> Optional[str]:
+        """A per-PROCESS multiplex socket directory, or None if unavailable.
+
+        DEP-03. Every exec and every scp otherwise pays a full SSH handshake,
+        and the delta uploader sends ONE FILE PER SCP -- so a bundle upload is
+        one handshake per file. JOURNAL already carries "ControlMaster from
+        minute one" as a lesson, and records it being set by hand in
+        ~/.ssh/config for the JarvisLabs box; it never reached the shared
+        transport, where it serves RunPod, Vast and Lambda at once.
+
+        Three constraints decide the shape:
+
+        * PER PROCESS, 0700. A control socket is a live authenticated channel
+          to a box holding a token: anything that can reach the socket can
+          reuse that channel without a key. A shared /tmp path would let a
+          second user on this workstation ride it, so the directory is created
+          0700 by tempfile and never shared between controllers -- which also
+          stops two concurrent controllers colliding on one socket.
+        * SHORT. A unix socket path is capped near 104 characters, and `%C`
+          (a hash of host/port/user) keeps it well inside that. Hanging it off
+          a long per-run output directory would silently break multiplexing.
+        * OPTIONAL. If the directory cannot be created, return None and run
+          exactly as before rather than failing a paid run over an
+          optimisation.
+        """
+        if getattr(self, "_control_dir", None) is None:
+            try:
+                self._control_dir = tempfile.mkdtemp(prefix="fidssh-")
+            except OSError:
+                return None
+        return os.path.join(self._control_dir, "%C")
+
     def _ssh_opts(self) -> List[str]:
-        return ["-o", "StrictHostKeyChecking=yes",
+        opts = ["-o", "StrictHostKeyChecking=yes",
                 "-o", "UserKnownHostsFile=%s" % self._known_hosts_file(),
                 "-o", "GlobalKnownHostsFile=/dev/null",
                 "-o", "HostKeyAlgorithms=ssh-ed25519",
@@ -535,6 +567,19 @@ class SSHTransport:
                 "-o", "RequestTTY=no",
                 "-o", "ServerAliveInterval=30",
                 "-o", "ServerAliveCountMax=3"]
+        # The three multiplexing flags are APPENDED, never substituted for any
+        # of the above. The patch drafted in REVIEW-DEFERRED DEP-03 predates
+        # the host-key work and shows StrictHostKeyChecking=no with
+        # UserKnownHostsFile=/dev/null; applying it verbatim would have undone
+        # the pinning that makes a measurement attributable to the machine we
+        # rented. Multiplexing is a performance change and must not touch the
+        # authentication surface.
+        control = self._control_path()
+        if control is not None:
+            opts += ["-o", "ControlMaster=auto",
+                     "-o", "ControlPath=%s" % control,
+                     "-o", "ControlPersist=60"]
+        return opts
 
     def exec(self, machine_id: Any, command: str, *,
              timeout: float = 600, check: bool = True) -> Any:
