@@ -132,7 +132,8 @@ def find_decoder_layers(model) -> Tuple[str, Any]:
     vision tower whose blocks are also a ModuleList, and its text stack is
     nested two levels down at `model.language_model.layers`.  The structural
     signature of a text decoder stack is that its PARENT also owns the input
-    embedding (`embed_tokens`), which the vision tower does not.
+    embedding (`embed_tokens` or the actual registered input embedding returned
+    by the model's getter), which the vision tower does not.
 
     Refuses on zero or several matches rather than picking one: running a
     layer-outer schedule over the wrong ModuleList would produce a capture that
@@ -142,6 +143,13 @@ def find_decoder_layers(model) -> Tuple[str, Any]:
 
     candidates = []
     modules = dict(model.named_modules())
+    input_embedding = None
+    getter = getattr(model, "get_input_embeddings", None)
+    if callable(getter):
+        try:
+            input_embedding = getter()
+        except (AttributeError, NotImplementedError):
+            pass
     for name, module in modules.items():
         if not isinstance(module, torch.nn.ModuleList) or len(module) == 0:
             continue
@@ -149,13 +157,16 @@ def find_decoder_layers(model) -> Tuple[str, Any]:
         if leaf != "layers":
             continue
         parent = modules.get(parent_name)
-        if parent is None or not hasattr(parent, "embed_tokens"):
+        owns_input = (parent is not None and isinstance(input_embedding, torch.nn.Embedding)
+                      and any(child is input_embedding for child in parent.children()))
+        if parent is None or not (hasattr(parent, "embed_tokens") or owns_input):
             continue
         candidates.append((name, module))
     if not candidates:
         raise LayerOuterError(
             "could not find the text decoder's layer list: no `nn.ModuleList` named "
-            "'layers' whose parent module also owns `embed_tokens`. The layer-outer "
+            "'layers' whose parent module owns `embed_tokens` or the actual registered "
+            "input embedding. The layer-outer "
             "schedule needs to know which modules are the per-layer weights it should "
             "stream, and guessing is worse than refusing. Model class: %s"
             % type(model).__name__)

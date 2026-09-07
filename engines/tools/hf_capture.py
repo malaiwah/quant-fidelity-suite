@@ -65,6 +65,7 @@ sys.path.insert(0, os.path.join(REPO, "bin"))
 from fidelity import dsformat as F  # noqa: E402
 from fidelity import dsmanifest, dsvalidate  # noqa: E402
 from fidelity import panel as panel_contract  # noqa: E402
+from fidelity import codepin  # noqa: E402
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -519,10 +520,42 @@ def neutralize_parallel_plan(config) -> List[str]:
     return emptied
 
 
+def _model_config(model_dir, trust_remote_code=False, code_revision=None,
+                  code_repository=None):
+    """Resolve native or explicitly pinned classes before any model code runs."""
+    import transformers
+
+    codepin.validate_options(trust_remote_code, code_revision, code_repository)
+    raw = codepin.raw_config(model_dir)
+    bundle = None
+    custom_cls = None
+    if trust_remote_code:
+        bundle = codepin.prepare(raw, code_revision, code_repository)
+        config_reference = bundle.references.get("AutoConfig")
+        if config_reference:
+            config_cls = bundle.load_class(config_reference)
+            config = config_cls.from_dict(raw)
+        else:
+            config = transformers.AutoConfig.from_pretrained(
+                model_dir, trust_remote_code=False)
+        reference = (bundle.references.get("AutoModelForImageTextToText")
+                     or bundle.references.get("AutoModelForCausalLM"))
+        custom_cls = bundle.load_class(reference)
+        bundle.verify_imports()
+    else:
+        # Explicit False disables both auto_map execution and interactive trust
+        # prompts, while allowing native model_type dispatch for legacy names.
+        config = transformers.AutoConfig.from_pretrained(
+            model_dir, trust_remote_code=False)
+    return config, custom_cls, bundle
+
+
 def load_model(model_dir: str, device: str, dtype_name: str,
                device_map: Any = None, max_memory: Optional[Dict[Any, str]] = None,
                offload_folder: Optional[str] = None,
-               drop_parallel_plan: bool = False):
+               drop_parallel_plan: bool = False, trust_remote_code: bool = False,
+               code_revision: Optional[str] = None,
+               code_repository: Optional[str] = None):
     """Instantiate the checkpoint, optionally without ever materialising it whole.
 
     `device_map` exists for the reason `docs/GLM53-ROOT-FEASIBILITY.md` R2
@@ -539,9 +572,10 @@ def load_model(model_dir: str, device: str, dtype_name: str,
 
     torch_dtype = {"bfloat16": torch.bfloat16, "float16": torch.float16,
                    "float32": torch.float32}[dtype_name]
-    config = transformers.AutoConfig.from_pretrained(model_dir)
+    config, custom_cls, bundle = _model_config(
+        model_dir, trust_remote_code, code_revision, code_repository)
     architectures = list(getattr(config, "architectures", None) or [])
-    extra: Dict[str, Any] = {}
+    extra: Dict[str, Any] = {"config": config, "trust_remote_code": False}
     if drop_parallel_plan:
         emptied = neutralize_parallel_plan(config)
         # Pass the edited config explicitly; otherwise `from_pretrained` reads
@@ -567,11 +601,12 @@ def load_model(model_dir: str, device: str, dtype_name: str,
     model = None
     info: Dict[str, Any] = {}
     errors = []
-    for name in architectures:
-        cls = getattr(transformers, name, None)
+    candidates = ([custom_cls] if custom_cls is not None else
+                  [getattr(transformers, name, None) for name in architectures])
+    for cls in candidates:
         if cls is None:
-            errors.append("transformers has no %s" % name)
             continue
+        name = cls.__name__
         try:
             model, info = _from_pretrained(cls, model_dir, torch_dtype, **extra)
             break
@@ -593,20 +628,27 @@ def load_model(model_dir: str, device: str, dtype_name: str,
                     "that loads and then dies on the first forward pass. (%s: %s: %s)"
                     % (name, type(exc).__name__, exc))
             errors.append("%s: %s: %s" % (name, type(exc).__name__, exc))
+    if model is None and custom_cls is None:
+        for auto_name in ("AutoModelForCausalLM", "AutoModelForImageTextToText"):
+            cls = getattr(transformers, auto_name, None)
+            if cls is None:
+                continue
+            try:
+                model, info = _from_pretrained(cls, model_dir, torch_dtype, **extra)
+                break
+            except Exception as exc:
+                if _is_fp8_tp_plan_bug(exc) and not drop_parallel_plan:
+                    raise fail(
+                        "REFUSED: transformers' FP8 quantizer crashed rewriting this config's "
+                        "parallel plan before any weight was read (upstream defect; see "
+                        "--drop-parallel-plan). %s: %s: %s"
+                        % (auto_name, type(exc).__name__, exc))
+                errors.append("%s: %s: %s" % (auto_name, type(exc).__name__, exc))
     if model is None:
-        try:
-            model, info = _from_pretrained(transformers.AutoModelForCausalLM,
-                                           model_dir, torch_dtype, **extra)
-        except Exception as exc:
-            if _is_fp8_tp_plan_bug(exc) and not drop_parallel_plan:
-                raise fail(
-                    "REFUSED: transformers' FP8 quantizer crashed rewriting this config's "
-                    "parallel plan before any weight was read (upstream defect; see "
-                    "--drop-parallel-plan). AutoModelForCausalLM: %s: %s"
-                    % (type(exc).__name__, exc))
-            raise fail("could not instantiate the model (%s); AutoModelForCausalLM: %s: %s"
-                       % ("; ".join(errors) or "no architectures declared",
-                          type(exc).__name__, exc))
+        raise fail("could not instantiate the model (%s)" % "; ".join(errors))
+    if bundle is not None:
+        bundle.verify_imports()
+        model._qfs_verified_code = bundle
     model.eval()
     if device_map is None:
         model.to(device)
@@ -896,10 +938,39 @@ def refuse_on_load_report(
 
 
 def head_module(model):
-    head = model.get_output_embeddings()
-    if head is None or not hasattr(head, "weight"):
-        raise fail("model.get_output_embeddings() did not return a weight-bearing head; "
-                   "a tied-embedding model must still expose one")
+    """Find a real registered output projection, never synthesize a head."""
+    head = None
+    chosen = None
+    # Multimodal wrappers sometimes omit the outer getter but expose the
+    # language model's actual head. Only inspect named language-model paths;
+    # searching arbitrary Linear children could select an attention projection.
+    for path in ("", "language_model", "model.language_model"):
+        owner = model
+        for part in path.split(".") if path else ():
+            owner = getattr(owner, part, None)
+        if owner is None:
+            continue
+        getter = getattr(owner, "get_output_embeddings", None)
+        try:
+            candidate = getter() if callable(getter) else None
+        except (AttributeError, NotImplementedError):
+            candidate = None
+        if candidate is None and path:
+            candidate = getattr(owner, "lm_head", None)
+        if candidate is not None and hasattr(candidate, "weight"):
+            head = candidate
+            chosen = (path + "." if path else "") + (
+                "get_output_embeddings()" if callable(getter) and candidate is not getattr(owner, "lm_head", None)
+                else "lm_head")
+            break
+    if head is None:
+        raise fail("no weight-bearing output head exposed by the model or its named "
+                   "nested language_model; cannot capture hidden-replay")
+    names = [name for name, module in model.named_modules() if module is head]
+    if not names or getattr(head.weight, "ndim", None) != 2:
+        raise fail("output head must be a registered module with a rank-2 weight")
+    model._qfs_head_path = names[0]
+    model._qfs_head_resolution = chosen
     if getattr(head, "bias", None) is not None:
         raise fail("the head carries a bias; the hidden-replay contract assumes none "
                    "(HEAD gate). Capture in logit form instead.")
@@ -1038,6 +1109,8 @@ def _source_files(args: argparse.Namespace) -> Dict[str, str]:
             os.path.abspath(layer_outer.__file__))
     files["bin/fidelity/panel.py"] = F.sha256_file(
         os.path.abspath(panel_contract.__file__))
+    files["bin/fidelity/codepin.py"] = F.sha256_file(
+        os.path.abspath(codepin.__file__))
     return files
 
 
@@ -1308,6 +1381,10 @@ def run_capture(args: argparse.Namespace) -> int:
     import torch
 
     started = time.monotonic()
+    trust_code = bool(getattr(args, "trust_remote_code", False))
+    code_revision = getattr(args, "code_revision", None)
+    code_repository = getattr(args, "code_repository", None)
+    codepin.validate_options(trust_code, code_revision, code_repository)
     # The one knob that flips every fp32 cuBLAS GEMM to TF32 from the environment
     # with no torch-side trace.  layer_outer refuses it for the trellis decode
     # only; the router GEMMs of EVERY capture are fp32 and deserve the same
@@ -1322,6 +1399,19 @@ def run_capture(args: argparse.Namespace) -> int:
         model_dir = snapshot_download(args.model, revision=args.model_revision,
                                       local_dir=args.model_cache)
         log(stage="snapshot", repo=args.model, dir=model_dir)
+    if trust_code and code_repository is None:
+        raw = codepin.raw_config(model_dir)
+        mapping = raw.get("auto_map") or {}
+        if not isinstance(mapping, dict):
+            raise codepin.CodePinError("REFUSED: auto_map must be an object")
+        qualified = any(isinstance(entry, str) and "--" in entry
+                        for value in mapping.values()
+                        for entry in (value if isinstance(value, (list, tuple)) else [value]))
+        # Qualified auto_map references identify their own code repository;
+        # multiple foreign repositories require the user's explicit bundle.
+        origin = args.weights_repository or args.model
+        if not qualified and codepin.REPOSITORY.fullmatch(origin) and not os.path.isdir(origin):
+            code_repository = origin
 
     # RACE MODE.  Start the background fetch before anything else touches the
     # tree: from here on the checkpoint is arriving, not present.
@@ -1391,13 +1481,14 @@ def run_capture(args: argparse.Namespace) -> int:
         # allocate the 1,486.8 GB this schedule exists to avoid.
         import transformers
 
-        config = transformers.AutoConfig.from_pretrained(model_dir)
+        config, cls, bundle = _model_config(
+            model_dir, trust_code, code_revision, code_repository)
         architectures = list(getattr(config, "architectures", None) or [])
-        cls = None
-        for name in architectures:
-            cls = getattr(transformers, name, None)
-            if cls is not None:
-                break
+        if cls is None:
+            for name in architectures:
+                cls = getattr(transformers, name, None)
+                if cls is not None:
+                    break
         if cls is None:
             # No AutoModelForCausalLM fallback here, unlike `load_model`: the
             # meta-device build calls `cls(config)` directly and an auto class
@@ -1432,7 +1523,16 @@ def run_capture(args: argparse.Namespace) -> int:
             raise fail(str(exc))
         except race_fetch.RaceFetchError as exc:
             raise fail(str(exc))
+        except (AttributeError, TypeError, NotImplementedError) as exc:
+            if bundle is None:
+                raise
+            raise fail("REFUSED: pinned class %s does not support the installed "
+                       "transformers meta-device streaming loader: %s: %s"
+                       % (cls.__name__, type(exc).__name__, exc))
         model = streamer.model
+        if bundle is not None:
+            bundle.verify_imports()
+            model._qfs_verified_code = bundle
         loading_info = layer_outer.streamed_loading_info(streamer)
         # The decode counts grow as layers stream; the receipt reads them
         # after the capture, from this streamer.
@@ -1441,7 +1541,12 @@ def run_capture(args: argparse.Namespace) -> int:
         model, config, loading_info = load_model(
             model_dir, args.device, args.dtype, device_map=args.device_map,
             max_memory=max_memory, offload_folder=args.offload_folder,
-            drop_parallel_plan=args.drop_parallel_plan)
+            drop_parallel_plan=args.drop_parallel_plan,
+            trust_remote_code=trust_code, code_revision=code_revision,
+            code_repository=code_repository)
+    args._verified_code = getattr(model, "_qfs_verified_code", None)
+    args._resolved_classes = {"model": type(model).__module__ + "." + type(model).__qualname__,
+                              "config": type(config).__module__ + "." + type(config).__qualname__}
     args._resources["resident_load_seconds"] = time.monotonic() - resident_started
 
     # CAPTURE-03.  A checkpoint whose tensors this `transformers` build cannot
@@ -1484,6 +1589,8 @@ def run_capture(args: argparse.Namespace) -> int:
     args.resident_watcher.sample()
 
     head = head_module(model)
+    args._head_module_path = model._qfs_head_path
+    args._head_resolution = model._qfs_head_resolution
     vocab_size = int(head.weight.shape[0])
     hidden_size = int(head.weight.shape[1])
     if int(getattr(config, "vocab_size", vocab_size)) != vocab_size:
@@ -2211,7 +2318,8 @@ def _assemble(args, writer, panel, panel_records, capture_records, *, context_le
     head_decoded = (layer_outer.head_decode_identity(args._weights_decode_streamer)
                     if getattr(args, "_weights_decode_streamer", None) is not None else None)
     head_doc = dsmanifest.head_identity(
-        present=True, tensor_key="lm_head.weight", shape=head_shape, dtype="BF16",
+        present=True, tensor_key=(getattr(args, "_head_module_path", None) or "lm_head") + ".weight",
+        shape=head_shape, dtype="BF16",
         file_sha256=head_digests["file_sha256"], tensor_content_sha256=head_content,
         quantized=bool(head_decoded), source=(head_decoded or {}).get("source", "native"),
         applied_in_capture=False, file=head_rel,
@@ -2228,6 +2336,14 @@ def _assemble(args, writer, panel, panel_records, capture_records, *, context_le
               "replay logits = hidden @ head^T without the weights"))
 
     fingerprint = _stack_fingerprint(args.device)
+    verified_code = getattr(args, "_verified_code", None)
+    code_evidence = verified_code.evidence() if verified_code is not None else None
+    if code_evidence is not None:
+        fingerprint["verified_code"] = {
+            "repository": code_evidence["repository"],
+            "revision": code_evidence["revision"],
+            "closure_sha256": code_evidence["closure_sha256"],
+            "resolved_classes": getattr(args, "_resolved_classes", {})}
     canonical = json.dumps(fingerprint, sort_keys=True, separators=(",", ":"))
     runtime_doc = dsmanifest.capture_runtime(
         lane=args.lane,
@@ -2254,6 +2370,10 @@ def _assemble(args, writer, panel, panel_records, capture_records, *, context_le
                       "sha256": F.sha256_file(os.path.abspath(__file__)),
                       "version": TOOL_VERSION, "wraps": [],
                       "schedule": args.schedule,
+                      "verified_code": code_evidence,
+                      "resolved_classes": getattr(args, "_resolved_classes", {}),
+                      "head_module_path": getattr(args, "_head_module_path", None),
+                      "head_resolution": getattr(args, "_head_resolution", None),
                       # Full expected and observed sets, plus both identities
                       # of the allowlist artifact, are inside this sealed
                       # runtime receipt. A count or a boolean is not evidence.
@@ -2643,6 +2763,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--role", choices=["root", "quant", "derived"], required=True)
     parser.add_argument("--lane", required=True)
     parser.add_argument("--device", default="cpu")
+    parser.add_argument("--trust-remote-code", action="store_true",
+                        help="execute explicitly trusted Python only after immutable Hub code verification")
+    parser.add_argument("--code-revision", default=None, metavar="40_HEX_SHA",
+                        help="required immutable code commit for --trust-remote-code")
+    parser.add_argument("--code-repository", default=None, metavar="OWNER/REPO",
+                        help="reviewed code bundle repository, independently pinned from unchanged model weights/config")
     parser.add_argument("--schedule", default=layer_outer.SCHEDULE_WINDOW_OUTER,
                         choices=[layer_outer.SCHEDULE_WINDOW_OUTER,
                                  layer_outer.SCHEDULE_LAYER_OUTER],
@@ -2878,6 +3004,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         return 3
     try:
         return run_capture(args)
+    except codepin.CodePinError as exc:
+        print("hf_capture: %s" % exc, file=sys.stderr)
+        return 3
     except SystemExit as exc:
         return int(exc.code or 1)
 
