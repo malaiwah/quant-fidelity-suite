@@ -320,6 +320,7 @@ class Runner:
         command = {"step": name, "argv": [str(a) for a in arguments], "started_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "returncode": None}
         self.commands.append(command)
         save(self.out / "commands.json", self.commands)
+        print(json.dumps({"step": name, "event": "started"}), flush=True)
         process = subprocess.Popen(command["argv"], cwd=ROOT, env=self.environment, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, start_new_session=True)
         selector = selectors.DefaultSelector()
         selector.register(process.stdout, selectors.EVENT_READ)
@@ -354,6 +355,7 @@ class Runner:
             process.stdout.close()
             command.update(returncode=process.returncode, log_bytes_retained=written, log_bytes_observed=seen, log_truncated=seen > written)
             save(self.out / "commands.json", self.commands)
+            print(json.dumps({"step": name, "returncode": process.returncode}), flush=True)
         if process.returncode not in allowed:
             raise RuntimeError(name + " refused or failed (exit " + str(process.returncode) + "); see bounded log and raw receipts")
         self.bound()
@@ -544,6 +546,8 @@ def main(argv=None):
         signal.setitimer(signal.ITIMER_REAL, 0)
     save(out / "result.json", seal(result, "result_sha256"))
     os.sync()
+    if result.get("error"):
+        print(json.dumps({"error": result["error"]}), flush=True)
     print(json.dumps({"status": status, "workflow_id": result["workflow_id"], "result_sha256": result["result_sha256"]}), flush=True)
     return 0 if status == "complete" else 1
 

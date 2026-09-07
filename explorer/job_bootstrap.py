@@ -49,6 +49,7 @@ def run(command, deadline, commands):
     record = {"argv": command, "returncode": None}
     commands.append(record)
     save(RECEIPT, {"schema": "qfs.hf-workflow-bootstrap.v1", "commands": commands})
+    print(json.dumps({"stage": "bootstrap", "command": command[:4], "event": "started"}), flush=True)
     process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, start_new_session=True)
     selector = selectors.DefaultSelector()
     selector.register(process.stdout, selectors.EVENT_READ)
@@ -74,6 +75,7 @@ def run(command, deadline, commands):
         process.stdout.close()
         record.update(returncode=process.returncode, output_bytes_observed=observed)
         save(RECEIPT, {"schema": "qfs.hf-workflow-bootstrap.v1", "commands": commands})
+        print(json.dumps({"stage": "bootstrap", "returncode": process.returncode}), flush=True)
     if process.returncode:
         raise RuntimeError("bootstrap command failed with exit " + str(process.returncode))
 
