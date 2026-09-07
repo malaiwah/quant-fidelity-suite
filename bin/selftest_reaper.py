@@ -3270,6 +3270,38 @@ def name_deadline_authorization_case():
             check("REAP-2: an instance whose LEASE says 24h left is not "
                   "destroyed by its name's 1970 deadline",
                   jl2.destroyed == [], jl2.destroyed)
+
+            # REAP-3: a preview that omits a DESTRUCTIVE action is worse than
+            # no preview. The phantom-retirement scan used to sit inside
+            # `if not dry:`, so the documented dry run printed "nothing
+            # expired" and the real run then silently deleted leases. Fixed;
+            # uncovered until now.
+            phantom = {"machine_id": "999004", "provider": "jarvislabs",
+                       "deadline_epoch": now + 86400, "job_id": "abcd1234"}
+            (MC.LEASE_DIR / "phantom.json").write_text(json.dumps(phantom))
+            jl_gone = _JL([])            # the instance is gone from the account
+            buf4 = io.StringIO()
+            with contextlib.redirect_stdout(buf4), \
+                    contextlib.redirect_stderr(buf4):
+                MC.reaper_sweep(MC.Console(), dry=True, jl=jl_gone,
+                                sleep=lambda _s: None)
+            out4 = buf4.getvalue()
+            check("REAP-3: the DRY run names the lease it would retire, "
+                  "instead of printing 'nothing expired'",
+                  "WOULD retire" in out4 and "phantom.json" in out4,
+                  out4.strip()[:150])
+            check("REAP-3: and the dry run does NOT delete it",
+                  (MC.LEASE_DIR / "phantom.json").is_file())
+            buf5 = io.StringIO()
+            with contextlib.redirect_stdout(buf5), \
+                    contextlib.redirect_stderr(buf5):
+                MC.reaper_sweep(MC.Console(), dry=False, jl=jl_gone,
+                                sleep=lambda _s: None)
+            check("REAP-3: the real run retires exactly what the preview "
+                  "named",
+                  "retiring lease" in buf5.getvalue()
+                  and not (MC.LEASE_DIR / "phantom.json").exists(),
+                  buf5.getvalue().strip()[:150])
         finally:
             MC.LEASE_DIR = saved_dir
 

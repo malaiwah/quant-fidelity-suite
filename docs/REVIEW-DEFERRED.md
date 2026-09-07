@@ -482,6 +482,26 @@ unscoped fetch, wrong globs and revision drift together.
 
 # MEDIUM
 
+**RESOLVED 2026-09-07** (additive note). The heredoc now REFUSES an empty or
+non-list scope instead of emitting an empty argv, and a shell-level
+`[ "${#INCLUDES[@]}" -gt 0 ]` guard mirrors the exact-manifest guard that
+`fetch_target` already had. The entry's own correction is honoured: `*` is not
+treated as protective, because it fetches the same 1,318 GB — the stage now
+prints `WARNING panel include is '*': fetching the WHOLE panel repository`
+before paying for it.
+
+**One defect found while fixing it and NOT named in the finding: a STRING
+include was iterated per CHARACTER.** `"include": "windows/*"` produced
+`--include w --include i --include n --include d --include o --include w …` —
+nine globs matching nothing, i.e. a panel fetch that silently downloads
+nothing and a capture that fails later for an unrelated-looking reason.
+Refused now.
+
+Six rungs in `selftest_stage_measure.py`, which extract the heredoc from the
+shell script VERBATIM and execute it — so the rung tests the code that ships,
+not a copy of it, exactly as the finding's own repro did. Four of the six
+verified failing against the pre-fix script.
+
 ## CC-07 — the packed_root pre-flight trap is disarmed by any `.materialization/` file
 
 > **APPLIED 2026-08-30 (M4)** — the predicate only. `store_published` now names the five
@@ -1302,6 +1322,17 @@ A preview that omits a destructive action is worse than no preview.
 ```
 
 ---
+
+**RESOLVED — code already fixed, COVERAGE added 2026-09-07** (additive note).
+The phantom-retirement scan is hoisted out of `if not dry:`, and the dry run
+prints `reaper: WOULD retire lease <name> (<why>)` while only the `unlink` is
+guarded — which is the shape this entry asked for.
+
+It was uncovered until now: a grep for `WOULD retire` across `bin/` matched
+only the implementation. Three rungs added, driving the real `reaper_sweep`
+against a stub provider and a scratch `LEASE_DIR`: the dry run names the lease
+it would retire rather than printing "nothing expired", the dry run does NOT
+delete it, and the real run then retires exactly what the preview named.
 
 ## REAP-4 — a `jl list` this client cannot read is no longer "an empty account" (fixed in jlapi)
 

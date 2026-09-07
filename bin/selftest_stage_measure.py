@@ -576,12 +576,83 @@ def job_root(**over):
     return jobcontract.finalize_job(job)
 
 
+def panel_include_scope_case():
+    """SH-10: an empty panel include scope must REFUSE, not fetch unscoped.
+
+    The `["*"]` default applies only when the KEY IS ABSENT. An explicit
+    `"include": []` produced an empty argv and `hf download` then ran with no
+    scope at all -- on the panel repo, where the Flash teacher-logits dataset
+    is 1,318 GB. Discovering that by downloading a terabyte on a rented GPU is
+    the most expensive way to find out.
+
+    The heredoc is extracted from the shell script VERBATIM and executed,
+    exactly as the finding's own repro did, so this rung tests the code that
+    ships rather than a copy of it.
+    """
+    import re as _re
+
+    print()
+    print("[SH-10] the panel include scope")
+    src = (ROOT / "bin" / "stage_measure.sh").read_text(encoding="utf-8")
+    m = _re.search(
+        r"mapfile -d '' -t INCLUDES < <\(python3 - \"\$CONF\" <<'PY'\n(.*?)\nPY\n",
+        src, _re.S)
+    if m is None:
+        check("SH-10 the panel include heredoc is still extractable", False,
+              "the mapfile idiom moved; re-point this rung")
+        return
+    code = m.group(1)
+
+    def run(doc):
+        with tempfile.NamedTemporaryFile("w", suffix=".json",
+                                         delete=False) as fh:
+            fh.write(doc)
+            path = fh.name
+        try:
+            res = subprocess.run([sys.executable, "-c", code, path],
+                                 capture_output=True, text=True)
+            return res.returncode, res.stdout.replace("\0", " ").strip()
+        finally:
+            os.unlink(path)
+
+    rc, out = run('{"panel":{"include":["windows/*","panel/*"]}}')
+    check("SH-10 a real include list still passes through, one argv entry per "
+          "pattern", rc == 0 and out == "--include windows/* --include panel/*",
+          "rc=%d %r" % (rc, out))
+
+    rc, out = run('{"panel":{"include":[]}}')
+    check("SH-10 an EMPTY include list is REFUSED rather than fetching the "
+          "whole panel repository", rc == 2, "rc=%d %r" % (rc, out))
+
+    rc, out = run('{"panel":{"include":null}}')
+    check("SH-10 a null include is refused with a message, not a TypeError "
+          "traceback", rc == 2, "rc=%d %r" % (rc, out))
+
+    # Found while fixing SH-10 and not named in the finding: a STRING include
+    # was iterated per CHARACTER, so "windows/*" became --include w --include i
+    # --include n ... -- nine bogus globs that match nothing, i.e. a fetch that
+    # silently downloads no panel at all.
+    rc, out = run('{"panel":{"include":"windows/*"}}')
+    check("SH-10 a STRING include is refused, not iterated per character",
+          rc == 2, "rc=%d %r" % (rc, out))
+
+    rc, out = run('{"panel":{}}')
+    check("SH-10 an ABSENT key still defaults to '*' -- the documented "
+          "whole-repo behaviour, which the stage now warns about",
+          rc == 0 and out == "--include *", "rc=%d %r" % (rc, out))
+    check("SH-10 and the stage warns when the scope is '*', because '*' is "
+          "NOT a protective fallback: it fetches the same 1,318 GB",
+          "WARNING panel include is '*'" in src)
+
+
 def main():
     bash = modern_bash()
     if bash is None:
         skip("every rung", "needs bash 4.4+ for `mapfile -d`; none found")
         print("\nselftest_stage_measure: %d skipped" % len(SKIPPED))
         return 0
+
+    panel_include_scope_case()
 
     with tempfile.TemporaryDirectory() as td:
         td = Path(td)

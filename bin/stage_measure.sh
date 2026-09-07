@@ -1125,10 +1125,39 @@ fetch_panel)
   mapfile -d '' -t INCLUDES < <(python3 - "$CONF" <<'PY'
 import json, sys
 doc = json.load(open(sys.argv[1]))
-for pattern in doc.get("panel", {}).get("include", ["*"]):
+# SH-10. The `["*"]` default applies only when the KEY IS ABSENT. An explicit
+# `"include": []` produced an EMPTY argv and `hf download` then ran UNSCOPED --
+# the comment on the target path calls include-scoping "the difference between
+# 32 GB and 1.3 TB", and this is the panel repo, where the Flash teacher-logits
+# dataset is 1,318 GB. Refuse rather than fetch: an empty scope is a job
+# document defect, and discovering it by downloading a terabyte on a rented GPU
+# is the most expensive way to find out.
+#
+# Note what is NOT claimed here: `--include '*'` is not a protective fallback,
+# it fetches the same 1,318 GB. So the absent-key default is reported loudly
+# below rather than treated as safe.
+patterns = doc.get("panel", {}).get("include", ["*"])
+if not isinstance(patterns, list) or not patterns:
+    sys.stderr.write(
+        "job.json panel.include is %r: an empty or non-list include scope "
+        "would download the WHOLE panel repository. Set the include globs "
+        "the capture needs, or remove the key to accept a whole-repo fetch "
+        "deliberately.\n" % (patterns,))
+    raise SystemExit(2)
+for pattern in patterns:
     sys.stdout.write("--include\0" + pattern + "\0")
 PY
   )
+  # Belt and braces at the shell level: the heredoc above refuses an empty
+  # scope, and this catches any future path that produces one without going
+  # through it. Mirrors the exact-manifest guard on fetch_target.
+  [ "${#INCLUDES[@]}" -gt 0 ] || {
+    echo "panel include scope is empty; refusing an unscoped panel fetch" >&2
+    exit 2
+  }
+  case " ${INCLUDES[*]} " in
+    *" * "*) log "WARNING panel include is '*': fetching the WHOLE panel repository" ;;
+  esac
   PUBLIC_HF_HOME="$FS/.hf-public-panel"
   mkdir -p "$PUBLIC_HF_HOME/hub"
   chmod 0700 "$PUBLIC_HF_HOME" "$PUBLIC_HF_HOME/hub"
