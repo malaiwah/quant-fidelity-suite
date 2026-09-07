@@ -1,4 +1,5 @@
 .venv/
+.venv-explorer/
 corpus_dl/
 tokenizer/
 cal_data/
