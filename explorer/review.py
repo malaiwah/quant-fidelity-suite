@@ -228,6 +228,8 @@ def request_review(actor, publication, *, confirm_public):
     head = api.repo_info(REGISTRY_REPOSITORY, repo_type="dataset").sha
     _public(api, REGISTRY_REPOSITORY, head)
     unsigned = {k: v for k, v in pub.items() if k != "attestation"}
+    incoming_verified = _attestation_verified(pub, actor.username)
+    superseded = []
     for n, existing in enumerate(api.get_repo_discussions(REGISTRY_REPOSITORY, repo_type="dataset", discussion_status="open")):
         _require(n < 500, "Review recovery scan reached its limit; inspect existing requests before posting another.")
         if existing.author != actor.username or existing.is_pull_request or not existing.title.startswith("QFS review:"):
@@ -237,8 +239,13 @@ def request_review(actor, publication, *, confirm_public):
         except ValueError:
             continue
         if {k: v for k, v in prior["publication"].items() if k != "attestation"} == unsigned:
-            return dict(_summary(original), request_sha256=digest)
+            if not incoming_verified or _attestation_verified(prior["publication"], actor.username):
+                return dict(_summary(original), request_sha256=digest)
+            superseded.append(existing.num)
     d = api.create_discussion(REGISTRY_REPOSITORY, "QFS review: " + pub["kind"] + " " + pub["repository"], description=body, repo_type="dataset")
+    for number in superseded:
+        api.change_discussion_status(REGISTRY_REPOSITORY, number, "closed", repo_type="dataset",
+                                     comment="Superseded by canonically revalidated request #%s; original evidence remains linked in the history." % d.num)
     return dict(_summary(d), request_sha256=_sha(_canonical(envelope)))
 
 

@@ -157,6 +157,7 @@ async def api_response(request):
         if action == "cancel" and method == "POST":return await asyncio.to_thread(jobs.cancel, actor, job_id, confirm=data.get("confirm") is True)
         if action == "results" and method == "POST":return _result_public(await asyncio.to_thread(jobs.fetch_result, actor, job_id))
         if action == "publish" and method == "POST":return await asyncio.to_thread(jobs.publish_result, actor, job_id, visibility=data.get("visibility", "private"), confirm_publish=data.get("confirm_publish") is True, confirm_redistribution=data.get("confirm_redistribution") is True)
+        if action == "metadata" and method == "POST":return await asyncio.to_thread(jobs.update_publication_metadata, actor, job_id, data.get("metadata"), confirm_metadata=data.get("confirm_metadata") is True)
         if action == "request-review" and method == "POST":return await asyncio.to_thread(jobs.request_review, actor, job_id, confirm_public=data.get("confirm_public") is True)
     if path == "/qfs/api/review" and method == "GET":return await asyncio.to_thread(review.list_requests, actor)
     if path == "/qfs/api/review/inspect" and method == "POST":return await asyncio.to_thread(review.inspect_request, actor, data.get("discussion_id"))

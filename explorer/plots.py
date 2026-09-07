@@ -1022,15 +1022,15 @@ def render_csv(payload):
     writer.writerow(columns)
 
     def row_for(item, plotted):
-        return [
+        values = [
             item.get("measurement_id"), item.get("artifact"), item.get("classification"),
             item.get("is_control"), item.get("is_highlight"), plotted,
             item.get("exclusion_reason") or "",
-            item.get("size_bytes") if plotted else "",
-            _fmt(item.get("size_gib")) if plotted else "",
+            item.get("size_bytes"),
+            item.get("size_gib"),
             item.get("size_basis") or "",
-            _fmt(item.get("kl_nats")) if plotted else "",
-            _fmt(item.get("kl_display")) if plotted else "",
+            item.get("kl_nats"),
+            item.get("kl_display"),
             payload.get("y_unit"), payload.get("scale"), payload.get("scale_note") or "",
             item.get("revision") or "",
             item.get("source_url") or "",
@@ -1040,6 +1040,8 @@ def render_csv(payload):
             payload.get("registry_revision") or "",
             payload.get("registry_origin") or "",
         ]
+        # CSV remains usable in spreadsheets without treating registry text as formulas.
+        return ["'" + v if isinstance(v, str) and v.lstrip().startswith(("=", "+", "-", "@")) else v for v in values]
 
     for p in payload.get("points") or []:
         writer.writerow(row_for(p, True))

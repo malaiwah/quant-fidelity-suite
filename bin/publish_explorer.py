@@ -24,6 +24,7 @@ ALLOW_PATTERNS = [
     "engines/panels/panel--fruit.malaiwah.heldout-v1/**",
     "engines/tools/layer-outer-evidence/fruit*unexpected-keys.json*",
     "registry/tools/*.py", "registry/data/*.jsonl", "registry/index.json",
+    "registry/receipts/**", "registry/protocol/**", "registry/README.head.md",
     "registry/publication-audit.json",
     "registry/schema/*.json", "docs/schema/*.json",
     "docs/CARD-ANNOTATION-SPEC.md",

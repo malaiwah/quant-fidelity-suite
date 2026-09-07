@@ -101,6 +101,12 @@ Only native supported loaders or explicitly reviewed code pins execute; an
 arbitrary model `auto_map` is not an execution grant. Failed captures remain
 failed, with bounded progress logs and private partial evidence.
 
+Small canonical input metadata is staged through the authenticated private bucket
+and verified against its sealed inventory. Large tensor sources use read-only Hub
+mounts; the worker builds a canonical dataset view rather than treating Hub
+sidecars as captured files. This also avoids the observed truncated JSON prefixes
+from some HF dataset-volume files without weakening checksum verification.
+
 The interactive registry loads one pinned public snapshot. A disclosed bundled
 fallback disables ranking and card generation. Live plot endpoints refresh the
 public registry at most every five minutes and print the resolved revision;
@@ -138,13 +144,20 @@ Authorize your own account; do not install an owner `HF_TOKEN` as an application
 secret. The canonical registry service uses a stable `QFS_REVIEW_SIGNING_KEY`
 for its provider-read attestations. Claims from other workspaces remain reported
 unless the caller imports and revalidates their original Job on this service.
+
+Root publication attribution can be completed or corrected after capture, without
+rerunning the model. The post-run editor validates the documented author fields,
+adds readable evidence navigation, and supersedes any pending request explicitly.
+It never changes captured tensors, the sealed execution plan or scientific scope.
+
 The generated `explorer/deployment.json` preserves explicitly reviewed source
 revisions so updates need not strand recoverable older Jobs.
 
 The privileged JSON API lives under `/qfs/api/`: `GET account`, `GET jobs`,
 `POST jobs/prepare`, `POST jobs/launch`, and per-Job `results`, `publish`,
-`request-review`, `cancel` actions. Reads of Job status/logs require the same
-caller identity. Use an explicit `Authorization: Bearer …` header, never a URL
+`request-review`, `metadata`, `cancel` actions. The `metadata` action requires
+`confirm_metadata: true` and original attribution facts. Reads of Job status/logs
+require the same caller identity. Use an explicit `Authorization: Bearer …` header, never a URL
 token. Anonymous calls are refused; general filesystem upload/download proxy
 routes are disabled. Public `/plots/` routes generate bounded images/data only.
 

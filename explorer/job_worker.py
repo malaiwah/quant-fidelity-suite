@@ -509,9 +509,11 @@ def workflow(plan, out, runner, outputs):
                 raise ValueError("registered artifact scope differs from the actually measured intervention")
             save(out / "submission-provenance.json", registered)
             measurer = {"name": plan["owner"], "handle": plan["owner"], "url": "https://huggingface.co/" + plan["owner"], "is_artifact_author": registered["artifact"]["repository"].split("/")[0] == plan["owner"]}
-            dscompare.emit_submission(comparison, str(out / "comparison/submission-receipt.json"), measurer=measurer, artifact=registered["artifact"], panel=registered["panel"], reference=registered["reference"])
-            runner.run("submission-validation", [sys.executable, ROOT / "registry/tools/registry_validate.py", "--submission", out / "comparison/submission-receipt.json"])
-            outputs["submission"] = "comparison/submission-receipt.json"
+            submission_path = out / "receipts" / plan["owner"] / "submission-receipt.json"
+            submission_path.parent.mkdir(parents=True, exist_ok=True)
+            dscompare.emit_submission(comparison, str(submission_path), measurer=measurer, artifact=registered["artifact"], panel=registered["panel"], reference=registered["reference"])
+            runner.run("submission-validation", [sys.executable, ROOT / "registry/tools/registry_validate.py", "--submission", submission_path])
+            outputs["submission"] = submission_path.relative_to(out).as_posix()
     runner.bound()
 
 

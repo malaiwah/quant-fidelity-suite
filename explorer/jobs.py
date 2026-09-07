@@ -361,8 +361,7 @@ def _registered(registry, reference, model, scope, codec, bits, actor):
                 "container": "gguf" if any(f["path"].endswith(".gguf") for f in model["files"]) else "safetensors",
                 "size_bytes": model["weight_bytes"], "codec": {"family": codec, "bits_per_weight_nominal": bits},
                 "scope": scope, "producer": {"name": model["publisher"], "handle": model["publisher"],
-                    "role": "model-publisher", "url": "https://huggingface.co/" + model["publisher"],
-                    "is_registry_maintainer": False}}}
+                    "url": "https://huggingface.co/" + model["publisher"]}}}
 
 
 def _prepare(actor, spec, registry=None):
@@ -374,8 +373,7 @@ def _prepare(actor, spec, registry=None):
                "review_metadata"}
     if set(spec) - allowed:
         raise JobsError("Unknown workflow input field.")
-    if "review_metadata" in spec and not isinstance(spec["review_metadata"], dict):
-        raise JobsError("Review metadata must be a JSON object containing original attribution and lineage facts.")
+    _validate_review_metadata(spec.get("review_metadata", {}))
     preset = next((p for p in presets() if p["id"] == spec.get("preset")), None)
     if spec.get("preset") and preset is None:
         raise JobsError("Choose a listed preset or custom workflow.")
@@ -1087,6 +1085,7 @@ def publish_result(actor, job_id, *, visibility="private", confirm_publish=False
             files.update({"job.json": Path(q["job_path"]), "qualification.json": Path(q["qualification_path"])})
         files.update({p: root / p for p in roles.values()})
         metadata = _root_metadata(proof) if plan["mode"] == "root" else {}
+        metadata.update(saved.get("publication_metadata") or {})
         pointers = {role: {"path": p, "sha256": _file_sha(root / p)} for role, p in roles.items()}
         if public:
             for pointer in pointers.values():
@@ -1106,6 +1105,10 @@ def publish_result(actor, job_id, *, visibility="private", confirm_publish=False
                                     state=attempt.setdefault("root", {}), persist=persist)
             metadata.update(root_repository=root_repo, root_revision=revision)
         repository = actor.username + "/qfs-evidence-" + plan["workflow_id"] + "-" + visibility
+        if "README.md" not in files:
+            card = root / "README.md"
+            card.write_bytes(_publication_card(proof, metadata, visibility))
+            files["README.md"] = card
         revision = _upload_tree(actor, repository, files, private=not public,
                                 state=attempt.setdefault("evidence", {}), persist=persist)
         publication = {"kind": "root" if plan["mode"] == "root" else "measurement", "repository": repository,
@@ -1178,14 +1181,94 @@ def request_review(actor, job_id, *, confirm_public=False):
         publication = (saved.get("publications") or {}).get("public")
         if publication is None:
             raise JobsError("Publish this Job publicly with redistribution consent first; private evidence is never exposed by review.")
+        if publication["kind"] == "root":
+            _validate_review_metadata({k: v for k, v in publication["metadata"].items()
+                                       if k not in {"root_repository", "root_revision"}}, complete=True)
         _check_saved_publication(actor, publication, proof, public=True)
         publication = review.attest_publication(actor, publication)
         saved["publications"]["public"] = publication
         head = _save_ledger(actor, repo, head, ledger)
-        if saved.get("review_request"):
-            return saved["review_request"]
         receipt = review.request_review(actor, publication, confirm_public=True)
         saved["review_request"] = receipt
         saved["state"] = "REVIEW_REQUESTED"
         _save_ledger(actor, repo, head, ledger)
         return receipt
+
+
+def _validate_review_metadata(value, *, complete=False):
+    fields = {"name", "family", "publisher", "panel_author", "toolchain_author", "corpus_lineage", "model_license"}
+    if not isinstance(value, dict) or set(value) - fields or len(canonical(value)) > 32768:
+        raise JobsError("Publication attribution must be a bounded object with the documented original-author fields.")
+    for key, item in value.items():
+        if key in {"publisher", "panel_author", "toolchain_author"}:
+            if not isinstance(item, dict) or set(item) != {"name", "handle", "url"}:
+                raise JobsError(key + " needs exactly name, handle and url.")
+            if not all(isinstance(v, str) and 0 < len(v.strip()) <= 2048 for v in item.values()):
+                raise JobsError(key + " attribution values must be known nonempty strings.")
+            if not item["url"].startswith("https://"):
+                raise JobsError(key + " needs its actual public HTTPS attribution URL.")
+        elif not isinstance(item, str) or not 0 < len(item.strip()) <= 4096:
+            raise JobsError(key + " must be a known nonempty string.")
+    missing = sorted(fields - value.keys())
+    if complete and missing:
+        raise JobsError("Complete publication attribution without rerunning the model: " + ", ".join(missing))
+    return missing
+
+
+def _publication_card(proof, metadata, visibility):
+    plan = proof["plan"]
+    text = "# QFS workflow evidence\n\n"
+    text += "Recovered and receipt-checked **%s** workflow. Provider verification and registry acceptance are not independent model reproduction.\n\n" % plan["mode"]
+    text += "- [Original HF Job](https://huggingface.co/jobs/%s/%s)\n" % (plan["owner"], proof["execution"]["job_id"])
+    text += "- [Exact producing source](%s/tree/%s)\n" % (plan["source"]["repository"], plan["source"]["revision"])
+    text += "- [Immutable execution plan](plan.json) · [Worker result inventory](result.json) · [Provider readback](hf-execution.json)\n"
+    if plan["mode"] in ("root", "candidate"):
+        text += "- [First capture](first/fidelity-dataset.json) · [Second cold capture](repeat/fidelity-dataset.json) · [Numerical reproduction control](reproduction/comparison-receipt.json)\n"
+        text += "- [Original raw panel](input-panel/panel.json) · [Panel build receipt](input-panel/panel.receipt.json) · [Original checkpoint license](first/LICENSE)\n"
+        text += "\nThe raw panel's referenced arrays are retained under `input-panel/`. Use the tokenizer pinned by the plan/receipt. The dataset's `other` license label does not replace the copied upstream license terms.\n"
+    if plan["mode"] != "root":
+        text += "\n[Own-head comparison](comparison/comparison-receipt.json). Reconstruction measures stored weights, not native serving arithmetic or optimizer quality.\n"
+    if metadata.get("root_repository"):
+        text += "\n[Canonical public native root](https://huggingface.co/datasets/%s/tree/%s).\n" % (metadata["root_repository"], metadata["root_revision"])
+    text += "\nPublication visibility: **%s**. Captured bytes and their original scientific receipts are unchanged by this explanatory card.\n\n" % visibility
+    text += "## Publication attribution\n\n```json\n" + json.dumps(metadata, indent=2, ensure_ascii=False).replace("`", "\\u0060") + "\n```\n"
+    return text.encode("utf-8")
+
+
+def update_publication_metadata(actor, job_id, metadata, *, confirm_metadata=False):
+    """Correct author-supplied attribution, never the sealed capture or measured plan."""
+    if confirm_metadata is not True:
+        raise JobsError("Confirm attribution corrections, including public evidence revisions where already public.")
+    _validate_review_metadata(metadata)
+    from huggingface_hub import CommitOperationAdd
+    with _LOCK, tempfile.TemporaryDirectory(prefix="qfs-attribution-", dir=CACHE) as td:
+        proof = _fetch_result(actor, job_id, Path(td))
+        if proof["plan"]["mode"] != "root":
+            raise JobsError("This attribution editor is for native roots, not post-hoc changes to candidate measurement scope.")
+        repo, head, ledger = _ledger(actor)
+        saved = ledger["runs"][proof["plan"]["workflow_id"]]
+        resolved = _root_metadata(proof)
+        resolved.update(saved.get("publication_metadata") or {})
+        resolved.update(metadata)
+        missing = _validate_review_metadata(resolved)
+        saved["publication_metadata"] = resolved
+        head = _save_ledger(actor, repo, head, ledger)
+        for visibility, publication in (saved.get("publications") or {}).items():
+            _check_saved_publication(actor, publication, proof, public=visibility == "public")
+            publication["metadata"].update(resolved)
+            if not any(r["path"] == "README.md" for r in proof["result"]["files"]):
+                commit = actor.client().create_commit(
+                    publication["repository"], repo_type="dataset", parent_commit=publication["revision"],
+                    operations=[CommitOperationAdd(path_in_repo="README.md", path_or_fileobj=_publication_card(proof, publication["metadata"], visibility))],
+                    commit_message="Complete original publication attribution; captured evidence unchanged")
+                publication["revision"] = commit.oid
+            publication.pop("attestation", None)
+            head = _save_ledger(actor, repo, head, ledger)
+        old_request = saved.pop("review_request", None)
+        if old_request:
+            actor.client().change_discussion_status(
+                REGISTRY, old_request["discussion_id"], "closed", repo_type="dataset",
+                comment="Publication attribution/card was explicitly updated by its author. Captured evidence is unchanged; request fresh review of the updated immutable publication.")
+            head = _save_ledger(actor, repo, head, ledger)
+        return {"job_id": job_id, "metadata": resolved, "missing_for_review": missing,
+                "publications": saved.get("publications", {}), "model_rerun": False}

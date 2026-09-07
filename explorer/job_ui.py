@@ -60,17 +60,9 @@ def build_jobs_ui():
             text = ("**Ready to run as %s** · %s · deadline %s seconds · conservative compute estimate **$%s**.\n\n"
                     "No Job was created by this preview. Output: `%s` (private staging); no worker token."
                     % (actor.username, plan["hardware"]["flavor"], plan["hardware"]["timeout_seconds"], plan["hardware"]["estimated_max_compute_usd"], plan["output"]["dataset_repository"]))
-            return prepared, text, plan
+            return prepared, text, plan, False
         except Exception as exc:
-            return None, "**Cannot prepare:** " + _error(exc), {}
-
-    def launch(prepared, consent, request: gr.Request, oauth_profile: gr.OAuthProfile | None, oauth_token: gr.OAuthToken | None):
-        try:
-            actor = actor_from_request(request, oauth_profile, oauth_token)
-            result = jobs.launch(actor, prepared, confirm_compute=consent)
-            return result["job_id"], "**Job submitted to your account.** " + result["url"], result
-        except Exception as exc:
-            return gr.skip(), "**Not launched / check saved state:** " + _error(exc), {}
+            return None, "**Cannot prepare:** " + _error(exc), {}, False
 
     def one_click(preset, flavor, seconds, maximum, mode, model_repo, model_rev, ref_repo, ref_rev, cand_repo, cand_rev, panel_repo, panel_rev, panel_path, scope, codec, bits, output_repo, review_metadata, consent,
                   request: gr.Request, oauth_profile: gr.OAuthProfile | None, oauth_token: gr.OAuthToken | None):
@@ -111,6 +103,14 @@ def build_jobs_ui():
             return result, "**Publication complete.** Check the exact visibility and immutable links below.", result
         except Exception as exc:return None, "**Publication refused:** " + _error(exc), {}
 
+    def update_metadata(job_id, text, consent, request: gr.Request, oauth_profile: gr.OAuthProfile | None, oauth_token: gr.OAuthToken | None):
+        try:
+            result = jobs.update_publication_metadata(actor_from_request(request, oauth_profile, oauth_token), job_id,
+                                                      json.loads(text), confirm_metadata=consent)
+            missing = result["missing_for_review"]
+            return "Attribution saved without rerunning the model. " + ("Still needed: " + ", ".join(missing) if missing else "Root attribution is complete; publish or request fresh review."), result, False
+        except Exception as exc:return "**Attribution not saved:** " + _error(exc), {}, False
+
     def request_review(job_id, consent, request: gr.Request, oauth_profile: gr.OAuthProfile | None, oauth_token: gr.OAuthToken | None):
         try:
             result = jobs.request_review(actor_from_request(request, oauth_profile, oauth_token), job_id, confirm_public=consent)
@@ -126,16 +126,20 @@ def build_jobs_ui():
     def inspect_review(discussion_id, request: gr.Request, oauth_profile: gr.OAuthProfile | None, oauth_token: gr.OAuthToken | None):
         try:
             result = review.inspect_request(actor_from_request(request, oauth_profile, oauth_token), int(discussion_id))
-            return result["approval_ticket"], "**Validated preview, not yet accepted.** Review all warnings, provenance and changed records.", result
-        except Exception as exc:return None, "**Review refused:** " + _error(exc), {}
+            bound = {"ticket": result["approval_ticket"], "discussion_id": int(discussion_id)}
+            summary = "**Validated claim #%s, not yet accepted.** Registry HEAD `%s`; ticket expires after 15 minutes. Review all warnings, provenance and changed records." % (discussion_id, result["registry_head"])
+            return bound, summary, result, False
+        except Exception as exc:return None, "**Review refused:** " + _error(exc), {}, False
 
-    def accept_review(ticket, consent, request: gr.Request, oauth_profile: gr.OAuthProfile | None, oauth_token: gr.OAuthToken | None):
+    def accept_review(bound, discussion_id, consent, request: gr.Request, oauth_profile: gr.OAuthProfile | None, oauth_token: gr.OAuthToken | None):
         try:
-            result = review.accept_request(actor_from_request(request, oauth_profile, oauth_token), ticket, confirm_accept=consent)
+            if not isinstance(bound, dict) or bound.get("discussion_id") != discussion_id:
+                raise ValueError("Validate the currently selected discussion before accepting it.")
+            result = review.accept_request(actor_from_request(request, oauth_profile, oauth_token), bound["ticket"], confirm_accept=consent)
             from .transport import invalidate_live_registry
             invalidate_live_registry()
-            return None, "**Accepted at an immutable registry commit.** Acceptance is not independent reproduction. " + result["commit_url"], result
-        except Exception as exc:return None, "**Not accepted:** " + _error(exc), {}
+            return None, "**Accepted at an immutable registry commit.** Acceptance is not independent reproduction. " + result["commit_url"], result, False
+        except Exception as exc:return None, "**Not accepted:** " + _error(exc), {}, False
 
     with gr.Tab("HF Jobs", id="jobs"):
         gr.Markdown("## Capture and measure in your own HF account\n**Sign in → choose a workflow → set a deadline/cost ceiling → run.** Read-only plots need no login. Jobs use your namespace, never the Space owner's credentials. Results are private by default and persist in a tokenless bucket volume.")
@@ -147,13 +151,13 @@ def build_jobs_ui():
         account_json = gr.JSON(visible=False)
         with gr.Row():
             preset = gr.Dropdown(choices=choices + [("Custom pinned model / existing datasets", "custom")], value=default, label="Workflow preset", scale=5)
-            flavor = gr.Dropdown(choices=[("CPU Basic · live price checked before launch", "cpu-basic"), ("CPU Upgrade · more memory for Fruit", "cpu-upgrade")], value="cpu-basic", label="HF hardware", scale=3)
+            flavor = gr.Dropdown(choices=[("CPU Basic · live price checked before launch", "cpu-basic"), ("CPU Upgrade · 32 GB RAM", "cpu-upgrade"), ("CPU Performance · tested with Fruit", "cpu-performance")], value="cpu-basic", label="HF hardware", scale=3)
         with gr.Row():
             seconds = gr.Number(value=600, precision=0, minimum=60, maximum=7200, label="Provider deadline (seconds)")
             maximum = gr.Textbox(value="0.25", label="Maximum compute estimate (USD)")
             output_repo = gr.Textbox(label="Optional NEW capture dataset repository", placeholder="Leave blank for a unique repo in your account")
-        gr.Markdown("**Cost boundary:** HF bills starting/running time by the minute. The preview includes the deadline plus two startup minutes; it is not an account-wide hard-dollar cap. Storage and other HF services are separate. CPU Basic Jobs are paid, unlike CPU Basic Space hosting. Fruit is ~10 GB of weights; choose CPU Upgrade and a longer deadline, not the smallest host.")
-        with gr.Accordion("Custom immutable inputs and actual intervention scope", open=False):
+        gr.Markdown("**Cost boundary:** HF bills starting/running time by the minute. The preview includes the deadline plus two startup minutes; it is not an account-wide hard-dollar cap. Storage and other HF services are separate. CPU Basic Jobs are paid, unlike CPU Basic Space hosting. **Observed example, not a runtime guarantee:** Fruit (~10 GB weights) completed two captures and reproduction in 693 seconds on CPU Performance with a 1200-second deadline and $0.75 estimate ceiling. Tiny fixtures use CPU Basic.")
+        with gr.Accordion("Custom immutable inputs and actual intervention scope", open=False, visible=False) as custom_inputs:
             mode = gr.Radio([("Native root: two captures + control", "root"), ("Candidate: two captures + reference measurement", "candidate"), ("Compare existing fidelity datasets", "compare")], value="root", label="Custom workflow")
             with gr.Row():
                 model_repo=gr.Textbox(label="Model repository");model_rev=gr.Textbox(label="Model commit (40 hex)")
@@ -166,13 +170,13 @@ def build_jobs_ui():
             scope=gr.Code(language="json",label="Actual scope JSON (or use model's pinned scope.json)")
             with gr.Row():codec=gr.Textbox(label="Codec");bits=gr.Number(label="Declared nominal bits",value=None)
             gr.Markdown("Unknown custom code is not granted execution authority. Use native Transformers classes or the listed reviewed immutable runtime pins. A raw GGUF file without its required config/layout contract is not an admitted model.")
-            review_metadata = gr.Code(language="json", label="Optional original model/panel attribution for a new root review", value="{}")
+        review_metadata = gr.Code(language="json", label="Optional root publication attribution (can also be completed after capture)", value="{}")
+        gr.Markdown("New root review needs `name`, `family`, `model_license`, `corpus_lineage`, and `publisher`, `panel_author`, `toolchain_author` objects with `name`, `handle`, `url`. Exact existing registry identities may supply these; missing facts are never guessed. Supply the original raw `panel.json`, its sealed build receipt and referenced token/mask arrays, with the exact matching tokenizer—not a sealed capture's internal panel view.")
         controls=[preset,flavor,seconds,maximum,mode,model_repo,model_rev,ref_repo,ref_rev,cand_repo,cand_rev,panel_repo,panel_rev,panel_path,scope,codec,bits,output_repo,review_metadata]
         consent=gr.Checkbox(value=False,label="I authorize this Job in MY HF account, with the selected deadline and compute estimate ceiling.")
         with gr.Row():
-            prepare_button=gr.Button("Preview exact plan")
+            prepare_button=gr.Button("Preview inputs and cost")
             run_button=gr.Button("Run selected workflow",variant="primary")
-            launch_button=gr.Button("Launch reviewed plan")
         status=gr.Markdown("Preparing is read-only. Only an explicitly confirmed launch creates compute.")
         with gr.Accordion("Exact plan / provider result",open=False):plan_json=gr.JSON()
         gr.Markdown("### My Jobs and durable results\nRefresh to recover Jobs after a page/Space restart. You can also paste your own QFS Job ID from a private duplicate. COMPLETED does not mean scientific verification or publication.")
@@ -192,19 +196,27 @@ def build_jobs_ui():
             publish_consent=gr.Checkbox(value=False,label="Save this verified result to my new HF repositories")
         rights=gr.Checkbox(value=False,label="For PUBLIC publication: I have the rights to redistribute these captures/head weights and accept public disclosure.")
         publish_button=gr.Button("Publish verified datasets/evidence")
+        with gr.Accordion("Complete or correct root attribution after capture", open=False):
+            publication_metadata = gr.Code(language="json", value="{}", label="Publication attribution JSON — original author facts, not measured scope")
+            metadata_consent = gr.Checkbox(value=False, label="Save attribution corrections; update public evidence cards if already public and supersede any pending review. Do not rerun the model.")
+            metadata_button = gr.Button("Save root publication attribution")
         review_consent=gr.Checkbox(value=False,label="Post this PUBLIC immutable evidence as a registry review request (not automatic acceptance)")
         review_button=gr.Button("Request registry review")
         request_status=gr.Markdown("")
         request_json=gr.JSON(open=False)
         load_account.click(account,outputs=[account_status,flavor,account_json],api_name=False)
-        prepare_button.click(prepare,controls,[prepared_state,status,plan_json],api_name=False)
-        launch_button.click(launch,[prepared_state,consent],[job_id,status,plan_json],api_name=False,concurrency_limit=1)
+        load_account.click(lambda: (None, False), outputs=[prepared_state,consent], api_name=False, queue=False)
+        prepare_button.click(prepare,controls,[prepared_state,status,plan_json,consent],api_name=False)
+        for control in controls:
+            control.input(lambda: (None, False, "Inputs changed. Preview again; Run uses the current inputs and ceiling.", {}), outputs=[prepared_state,consent,status,plan_json], api_name=False, queue=False)
+        preset.change(lambda selected: gr.Accordion(visible=selected=="custom"), [preset], [custom_inputs], api_name=False, queue=False)
         run_button.click(one_click,controls+[consent],[prepared_state,job_id,status,plan_json],api_name=False,concurrency_limit=1)
         refresh_button.click(refresh,[job_id],[job_id,job_json,job_log],api_name=False)
         cancel_button.click(stop,[job_id,cancel_consent],[job_json],api_name=False)
         recover_button.click(recover,[job_id],[result_status,result_json],api_name=False,concurrency_limit=2)
         publish_button.click(publish,[job_id,visibility,publish_consent,rights],[publication_state,result_status,result_json],api_name=False,concurrency_limit=1)
         review_button.click(request_review,[job_id,review_consent],[request_status,request_json],api_name=False,concurrency_limit=1)
+        metadata_button.click(update_metadata,[job_id,publication_metadata,metadata_consent],[result_status,result_json,metadata_consent],api_name=False,concurrency_limit=1)
 
     with gr.Tab("Registry review",id="review"):
         gr.Markdown("## Review claims without running contributor code\nAnyone can request review of public evidence. **Only the authenticated registry namespace owner can inspect an acceptance preview and commit it.** Validation is not independent reproduction; reported evidence stays labeled as such.")
@@ -215,8 +227,11 @@ def build_jobs_ui():
         review_json=gr.JSON(label="Evidence, warnings and exact registry changes",open=True)
         acceptance=gr.Checkbox(value=False,label="I reviewed these exact records/warnings and accept the claim into this registry; I am not asserting independent reproduction.")
         accept_button=gr.Button("Accept reviewed claim",variant="primary")
-        load_requests.click(review_list,outputs=[discussion,review_json],api_name=False)
-        inspect_button.click(inspect_review,[discussion],[approval_state,review_status,review_json],api_name=False,concurrency_limit=1)
-        accept_button.click(accept_review,[approval_state,acceptance],[approval_state,review_status,review_json],api_name=False,concurrency_limit=1)
+        load_requests.click(review_list,outputs=[discussion,review_json],api_name=False).then(
+            lambda: (None, False, "Choose and validate a discussion."), outputs=[approval_state,acceptance,review_status], api_name=False)
+        discussion.input(lambda: (None, False, "Selection changed. Validate this discussion before accepting.", {}),
+                         outputs=[approval_state,acceptance,review_status,review_json], api_name=False, queue=False)
+        inspect_button.click(inspect_review,[discussion],[approval_state,review_status,review_json,acceptance],api_name=False,concurrency_limit=1)
+        accept_button.click(accept_review,[approval_state,discussion,acceptance],[approval_state,review_status,review_json,acceptance],api_name=False,concurrency_limit=1)
 
     return {"prepared":prepared_state,"job_id":job_id,"status":status}
