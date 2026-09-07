@@ -79,6 +79,29 @@ lane in `bin/engines.json`** — asserts that the lane's authored entrypoint
 really accepts the surface, which needs `--probe-engines` evidence rather
 than a guess. That is the operator's call and the next concrete step.
 
+## Closed 2026-09-07, fifth pass — the backlog reads 33 closed / 0 open
+
+`docs/REVIEW-DEFERRED.md`'s status index is now **33 closed, 0 open**. That is
+not "the tree has no defects"; it means every entry in that file has a
+disposition backed by evidence, and the ones that are decisions rather than
+defects say so and name who decides.
+
+| item | state found | what was actually needed |
+|---|---|---|
+| **CLI-22 / SEC-03** | `_resolve` read a token **unconditionally**, so every compare and verify of a PUBLIC dataset sent a credential to a host that does not need one. | Anonymous first; token only when the anonymous read is refused. Two design points: an anonymous read is **evidence** (it proves a published dataset is publicly readable, the property a third party reproducing a row depends on), and the fallback keys on the **status** — only 401/403, so a 404 or a network fault cannot escalate and a typo in a repo name cannot send the token anywhere. Three rungs, all verified failing pre-fix. |
+| **CLI-28** | The HubError branch existed; a v1-format failure and an unreadable path — the two most likely first-run errors — still printed a stack. | Both refuse with their own code. **A real defect still tracebacks**, which is the point: swallowing everything in a catch-all turns a bug into an unexplained refusal. Verified pre-fix, where the suite *dies* with the un-diagnosed `FormatError`. |
+| **NUM-16** | `bf16-floor` mapped `decode_cache` and not `decode_cache_dir`, advertising a configuration its own entrypoint refuses. | Mapped, with the flag confirmed by **probing** `stream_score.py --help` rather than read from a doc. Second half left open as a **design question** — whether a `job.json` should steer `ep_emulate`/`device`/`inventory` at all, or whether the authored profile is the authority. |
+| **SH-22** | Two halves, and the entry's own analysis refutes one of them. | The resume-on-existence half is **unchanged**, because `capture-receipt.json` is written once after sealing and invalid JSON aborts the stage before `seal`. The swallowed-digest half was real: `\|\| true` left an **empty** `RECEIPT.sha256`, which is worse than a missing one because it looks like evidence. Now refuses. |
+| **DEP-05** | Two `GET /instance-types` in one `create`. | Hoisted — and the hazard the entry did not name is the better reason: **two reads can disagree**, so the disk check and the capacity check could pass against different catalogue snapshots while neither describes the instance about to launch. |
+| **DEP-02** | The inline comment was already excellent; module-level visibility was missing. | Docstring note, inline comment **unchanged** as the entry instructed. |
+| **SEC-01, CLI-01, CLI-11/SEC-08, CC-07, ROOT-1** | All already fixed with real regression suites; markers read "APPLIED" so the index did not count them. | Verified and normalised. `ROOT-1` confirmed closed by reading `resultsink._relevant(include_datasets=…)`. |
+
+**Final tally of the pattern across five passes: of the entries examined,
+most were already fixed and missing a caller, a rung, or a marker.** The
+backlog's real failure mode was never unfixed defects — it was dispositions
+living in commit messages and code comments instead of in the file that exists
+to hold them. Hence the status index, and hence the rule at the top of it.
+
 ## Checked and deliberately NOT changed
 
 - **`bin/engines.json` `minutes_per_window: 20.0`** for the sealed EP8 lane is
