@@ -1001,6 +1001,13 @@ def main():
         # ---------------------------------------------------------------
         print("\n== seal ==")
         sb = Sandbox(td / "seal", job_quant())
+        # The stub sealer records its argv and writes nothing, so the stage's
+        # digest step had nothing to hash. That was invisible while the stage
+        # swallowed the failure with `|| true` (SH-22); now that an
+        # uncomputable digest REFUSES, the fixture has to model the sealer's
+        # actual output contract -- `--out $RCPT/measurement-receipt.json`.
+        (sb.fs / "receipts" / "measurement-receipt.json").write_text(
+            '{"schema": "stub"}', encoding="utf-8")
         proc, calls = sb.run("seal", bash)
         sealer = [c for c in calls if c[0] == "PY"
                   and any("seal_receipt.py" in a for a in c[1])]
@@ -1008,6 +1015,24 @@ def main():
               proc.returncode == 0 and len(sealer) == 1
               and str(sb.fs / "receipts") in sealer[0][1], calls)
         check("S-MARK seal writes its marker", sb.marker("seal").is_file())
+        digest = sb.fs / "receipts" / "RECEIPT.sha256"
+        check("SH-22 seal writes a NON-EMPTY receipt digest",
+              digest.is_file() and digest.stat().st_size > 0,
+              digest.read_text() if digest.is_file() else "absent")
+
+        # SH-22, the property the `|| true` hid: if the digest cannot be
+        # computed, the stage must REFUSE rather than mark itself done with an
+        # empty RECEIPT.sha256, because an empty digest file looks like
+        # evidence. Reachable as a rung only now that the swallow is gone.
+        sb_nodigest = Sandbox(td / "seal-nodigest", job_quant())
+        proc_nd, _ = sb_nodigest.run("seal", bash)
+        nd_digest = sb_nodigest.fs / "receipts" / "RECEIPT.sha256"
+        check("SH-22 an uncomputable receipt digest REFUSES and leaves no "
+              "empty digest file and no done marker",
+              proc_nd.returncode != 0
+              and not nd_digest.exists()
+              and not sb_nodigest.marker("seal").is_file(),
+              (proc_nd.stdout + proc_nd.stderr)[-220:])
 
         sb = Sandbox(td / "seal2", job_quant(), real_scripts=["seal_receipt.py"])
         proc, _ = sb.run("seal", bash)
