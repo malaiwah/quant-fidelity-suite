@@ -317,12 +317,43 @@ def run_gates(reference: Dataset, candidate: Dataset, options: Dict[str, Any]
     if tok_diff:
         gates["panel"] = _gate(False, "tokenizer identity differs: %s"
                                % ", ".join(sorted(tok_diff)))
+        # PANEL-D6, third instance (T4Verdict, 2026-09-06). By the time we get
+        # here `suite_token_hash_sha256` and `scoring_window` have ALREADY
+        # matched, so the two captures scored the same token ids over the same
+        # window and only the declared NAME disagrees. That is the common case
+        # for the Fruit root: it records `glm-5.2-siq-fruit` from its panel
+        # receipt, while a fresh capture passing `--weights-repository` records
+        # `malaiwah/GLM-5.2-SIQ-Fruit-bf16`. The comparison is refused, the
+        # generic remedy says "recapture the candidate on the reference's
+        # panel" -- which is useless, because the panel was already identical
+        # -- and the working answer is a flag whose value can only be found by
+        # reading the published dataset's panel receipt.
+        #
+        # So when the disagreement is confined to the two NAME fields, name the
+        # flag and the reference's value: this function is holding both sides
+        # and can read it at the moment it refuses. It deliberately does NOT
+        # offer this when `vocab_size`, `add_special_tokens`,
+        # `chat_template_applied` or `revision` disagree -- those are evidence
+        # of a genuinely different tokenization, and suggesting an override
+        # there would turn an honest refusal into a footgun.
+        name_only = set(tok_diff) <= {"id", "repository"}
+        remedy = PANEL_REMEDY
+        if name_only:
+            ref_id = (pa.get("tokenizer") or {}).get("id")
+            remedy = (
+                "the token ids and the scoring window already MATCH, so only "
+                "the declared name differs. If you have established that "
+                "these are the same tokenizer, recapture with "
+                "--tokenizer-id %r (the reference's own declared value) -- "
+                "that flag records a declaration, it does not verify one, so "
+                "do not pass it to make an unexplained mismatch go away. "
+                "PANEL-D6." % ref_id)
         raise Refusal("panel", "panel_mismatch",
                       "the two captures declare different tokenizers (PANEL-D6); the token id "
                       "digest cannot see this because it hashes integers. Differing field(s): %s"
                       % "; ".join("%s %r vs %r" % (field, a, b)
                                   for field, (a, b) in sorted(tok_diff.items())),
-                      remedy=PANEL_REMEDY)
+                      remedy=remedy)
     ra = {int(r["index"]): r for r in reference.records}
     rb = {int(r["index"]): r for r in candidate.records}
     shared = sorted(set(ra) & set(rb))

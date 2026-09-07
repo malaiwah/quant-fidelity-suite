@@ -355,6 +355,55 @@ def main():
                   exc.code == "panel_mismatch" and "PANEL-D6" in exc.message
                   and exc.remedy, exc.message[:90])
 
+        # N13b PANEL-D6 third instance: when ONLY the declared NAME differs --
+        # same token ids, same scoring window, same vocab and flags -- the
+        # refusal must name the flag AND the reference's own value. That is
+        # the Fruit-root case: the published root records `glm-5.2-siq-fruit`
+        # from its panel receipt while a fresh capture passing
+        # --weights-repository records `malaiwah/GLM-5.2-SIQ-Fruit-bf16`, and
+        # the generic remedy ("recapture on the reference's panel") is useless
+        # because the panel was already identical. The working answer was a
+        # flag whose value could only be found by reading the published
+        # dataset's panel receipt.
+        name_only = os.path.join(tmp, "name-only-tokenizer")
+        base_tok = dscompare.load_dataset(a, verify=False).panel_doc.get("tokenizer") or {}
+        fixtures.build_dataset(
+            name_only, seed=3, role="quant", quantized=True,
+            model_revision="c" * 40, checkpoint_identity="d" * 64,
+            tokenizer=dict(base_tok, id="renamed-but-identical",
+                           repository="owner/Renamed-But-Identical"))
+        try:
+            dscompare.compare(a, name_only, os.path.join(tmp, "tok2"),
+                              {"vocab_chunk": 8})
+            check("N13b a name-only tokenizer divergence is still refused",
+                  False, "no refusal")
+        except dscompare.Refusal as exc:
+            declared = base_tok.get("id")
+            check("N13b a name-only divergence names --tokenizer-id AND the "
+                  "reference's own value, so the operator need not read the "
+                  "published panel receipt to find it",
+                  exc.code == "panel_mismatch"
+                  and "--tokenizer-id" in (exc.remedy or "")
+                  and repr(declared) in (exc.remedy or ""),
+                  (exc.remedy or "")[:150])
+            check("N13b and it says plainly that the flag records a "
+                  "declaration rather than verifying one",
+                  "does not verify" in (exc.remedy or ""),
+                  (exc.remedy or "")[:150])
+        # N13c the override must NOT be offered when the disagreement is
+        # evidence of a genuinely different tokenization. Suggesting it there
+        # would turn an honest refusal into a footgun.
+        try:
+            dscompare.compare(a, other_tok, os.path.join(tmp, "tok3"),
+                              {"vocab_chunk": 8})
+            check("N13c a real tokenizer difference is refused with NO "
+                  "override suggested", False, "no refusal")
+        except dscompare.Refusal as exc:
+            check("N13c a real tokenizer difference (vocab/flags/revision) is "
+                  "refused with NO --tokenizer-id suggestion",
+                  "--tokenizer-id" not in (exc.remedy or ""),
+                  (exc.remedy or "")[:120])
+
         # -- N14/N15 the submission's two structural refusals -----------------
         # A realistic pair: both sides declare a panel far larger than the shard
         # they captured, so the row is a SUBSET of the registry panel it names --
