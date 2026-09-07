@@ -901,7 +901,7 @@ def _review_files(proof, actor):
         paths[role] = sorted(choices, key=lambda p: (not p.startswith("first/"), p))[0]
     from registry.tools import harness_id
     source = _read_json(root / "source-manifest.json")
-    digests = [{"role": "source-%04d" % i, "path": f["path"], "sha256": f["sha256"]}
+    digests = [{"role": "source_%04d" % i, "path": f["path"], "sha256": f["sha256"]}
                for i, f in enumerate(sorted(source["source_files"], key=lambda f: f["path"]))]
     versions = {k: v for k, v in rt["stack_fingerprint"].items() if k.endswith("_version") and isinstance(v, str)}
     harness = {"recorded": True, "boundary": harness_id.BOUNDARY, "covers": ["metric.value"],
