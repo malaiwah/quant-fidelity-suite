@@ -132,7 +132,8 @@ def find_decoder_layers(model) -> Tuple[str, Any]:
     vision tower whose blocks are also a ModuleList, and its text stack is
     nested two levels down at `model.language_model.layers`.  The structural
     signature of a text decoder stack is that its PARENT also owns the input
-    embedding (`embed_tokens`), which the vision tower does not.
+    embedding (`embed_tokens` or the actual registered input embedding returned
+    by the model's getter), which the vision tower does not.
 
     Refuses on zero or several matches rather than picking one: running a
     layer-outer schedule over the wrong ModuleList would produce a capture that
@@ -142,6 +143,13 @@ def find_decoder_layers(model) -> Tuple[str, Any]:
 
     candidates = []
     modules = dict(model.named_modules())
+    input_embedding = None
+    getter = getattr(model, "get_input_embeddings", None)
+    if callable(getter):
+        try:
+            input_embedding = getter()
+        except (AttributeError, NotImplementedError):
+            pass
     for name, module in modules.items():
         if not isinstance(module, torch.nn.ModuleList) or len(module) == 0:
             continue
@@ -149,13 +157,16 @@ def find_decoder_layers(model) -> Tuple[str, Any]:
         if leaf != "layers":
             continue
         parent = modules.get(parent_name)
-        if parent is None or not hasattr(parent, "embed_tokens"):
+        owns_input = (parent is not None and isinstance(input_embedding, torch.nn.Embedding)
+                      and any(child is input_embedding for child in parent.children()))
+        if parent is None or not (hasattr(parent, "embed_tokens") or owns_input):
             continue
         candidates.append((name, module))
     if not candidates:
         raise LayerOuterError(
             "could not find the text decoder's layer list: no `nn.ModuleList` named "
-            "'layers' whose parent module also owns `embed_tokens`. The layer-outer "
+            "'layers' whose parent module owns `embed_tokens` or the actual registered "
+            "input embedding. The layer-outer "
             "schedule needs to know which modules are the per-layer weights it should "
             "stream, and guessing is worse than refusing. Model class: %s"
             % type(model).__name__)
@@ -2001,7 +2012,15 @@ def gguf_checkpoint_plan(config, model_dir: str) -> Optional[Dict[str, Any]]:
     cfg = _config_dict(config)
     try:
         container = surface_mod.GgufContainer([surface_mod.GgufFile(f) for f in files])
-        arch = surface_mod.arch_for(container.architecture)
+        if container.architecture == "qwen35":
+            import gguf_qwen35
+            surface = gguf_qwen35.load_gguf_surface(files, cfg, require_file_hashes=True)
+            plan = dict(gguf_qwen35.decode_contract(surface)["quantization_config"])
+            plan["_surface"] = surface
+            plan["_bridge"] = gguf_qwen35
+            plan["_observed"] = {"container_audit": surface_mod.audit_container(container)}
+            return plan
+        arch = surface_mod.arch_from_container(container, config=cfg)
         full = surface_mod.indexer_full_layers_from_config(cfg, arch)
         if arch.indexer_shared_copies and full is None:
             raise LayerOuterError(
@@ -2010,7 +2029,7 @@ def gguf_checkpoint_plan(config, model_dir: str) -> Optional[Dict[str, Any]]:
                 "config.json beside the build (the candidate stage does)" % arch.key)
         surface = surface_mod.load_gguf_surface(
             files, repo=None, revision=None, require_file_hashes=True,
-            indexer_full_layers=full)
+            indexer_full_layers=full, config=cfg)
         audit = surface_mod.audit_container(surface.container)
         copies = surface_mod.verify_shared_indexer_copies(surface.container, surface.census)
     except ValueError as exc:
@@ -2019,11 +2038,11 @@ def gguf_checkpoint_plan(config, model_dir: str) -> Optional[Dict[str, Any]]:
             "architecture and ggml types gguf_surface has proven; another form needs "
             "its kernel or name map authored and proven bitwise first." % exc) from None
     # the official geometry the model will be built with must be the GGUF's
-    layers_declared = cfg.get("num_hidden_layers")
-    if layers_declared != arch.mtp_layer:
+    layers_declared = (cfg.get("text_config") or cfg).get("num_hidden_layers")
+    if layers_declared != arch.decoder_layers:
         raise LayerOuterError(
             "REFUSED: config.json declares %r decoder layers but the %s GGUF carries "
-            "%d decoder blocks before its MTP block" % (layers_declared, arch.key, arch.mtp_layer))
+            "%d decoder blocks" % (layers_declared, arch.key, arch.decoder_layers))
     build = os.path.basename(os.path.dirname(files[0])) if os.path.dirname(files[0]) != model_dir.rstrip("/") else ""
     contract = surface_mod.decode_contract(surface.container, build)
     plan = dict(contract["quantization_config"])
@@ -2051,6 +2070,9 @@ def gguf_subsets(plan: Dict[str, Any]) -> Dict[str, Any]:
     reported as unexpected (the authored allowlist), the resident set is the
     three top-level tensors, and every decoder layer gets its own bucket.
     """
+    if "_bridge" in plan:
+        return {name: _GgufSlot(layer, name)
+                for name, layer in plan["_bridge"].slots(plan["_surface"]).items()}
     surface_mod = _gguf()
     surface = plan["_surface"]
     arch, census = surface.arch, surface.census
@@ -2096,7 +2118,7 @@ def materialize_gguf_subset(subset: Dict[str, Any], plan: Dict[str, Any], torch_
     by_layer: Dict[int, List[str]] = {}
     for key, value in subset.items():
         by_layer.setdefault(value.layer, []).append(key)
-    surface_mod = _gguf()
+    surface_mod = plan.get("_bridge") or _gguf()
     out: Dict[str, Any] = {}
     try:
         for layer, names in sorted(by_layer.items()):
@@ -2156,13 +2178,22 @@ def _materialized(subset: Dict[str, Any], fp8_plan, trellis_plan, trellis_fp8_pl
                   device: str = "cpu", expected_shape=None,
                   nvfp4_plan=None, nvfp4_stats=None,
                   fp8_parity_all: bool = False, sink=None,
-                  gguf_plan=None, gguf_stats=None) -> Dict[str, Any]:
+                  gguf_plan=None, gguf_stats=None, packed_plan=None,
+                  packed_stats=None, packed_slices=None) -> Dict[str, Any]:
     """Whichever decoders this artifact needs, in the one order that is safe.
 
     `fp8_parity_all` and `sink` reach the FP8 and trellis decoders (see
     `materialize_fp8_subset`); the NVFP4 decoder keeps its own contract and
     hands back the decoded dict, which `do_load` then offers to the sink.
     """
+    if packed_plan is not None:
+        import quant_stream
+        try:
+            return quant_stream.materialize(
+                subset, packed_plan, packed_slices, torch_dtype, device,
+                packed_stats, _eager, sink=sink, expected_shape=expected_shape)
+        except ValueError as exc:
+            raise LayerOuterError("REFUSED: %s" % exc) from None
     if trellis_plan is not None:
         composition = (trellis_plan.get("_observed") or {}).get("composition")
         if composition is None:
@@ -2581,42 +2612,44 @@ def is_trellis_checkpoint(config) -> bool:
     return _quant_method(config) == "exl3" or trellis_tail_declaration(config) is not None
 
 
-def checkpoint_decode_plans(config, model_dir: str, log: Callable[..., None]):
+def checkpoint_decode_plans(config, model_dir: str, log: Callable[..., None], gate=None):
     """Resolve which host-side decoders this checkpoint needs, before anything is built.
 
-    Returns `(fp8_plan, trellis_plan, trellis_fp8_plan, trellis_stats, nvfp4_plan,
-    gguf_plan)`. Exactly one of five shapes is admitted: a native tree (all None), the
-    block-scaled FP8 e4m3 weights-only form (`fp8_plan`), an EXL3 trellis
-    artifact (`trellis_plan`, with `trellis_fp8_plan` when the checkpoint ALSO
-    keeps tensors in block-scaled FP8 -- wrldsuksgo2mars keeps shared_experts
-    and self_attn that way), a modelopt NVFP4 artifact (`nvfp4_plan`), or a
-    llama.cpp GGUF build (`gguf_plan`: decided by the presence of .gguf files,
-    since a GGUF tree carries no config of its own -- the config.json beside it
-    is the official release's, copied there by the candidate stage). Any
-    other `quantization_config` is refused here by `fp8_checkpoint_plan`,
-    which is only consulted when the artifact is NEITHER a trellis nor a
-    modelopt one: a trellis artifact's `quantization_config` may be a
-    leftover that describes nothing in the checkpoint (see
-    `trellis_tail_declaration`), and a modelopt block is judged by
-    `nvfp4_checkpoint_plan`, which refuses every modelopt form but NVFP4 by
-    name.
-
-    The index is read ONLY for a trellis or modelopt artifact: a bf16 or FP8
-    checkpoint must not acquire a dependency on an index file it may not have
-    (a single-shard tree has none, and under a race-mode gate it has not
-    landed yet).
+    Returns `(fp8, trellis, trellis_fp8, trellis_stats, nvfp4, gguf, packed)`.
+    Legacy qualified readers keep their contracts. Affine and microfloat readers
+    require exhaustive metadata admission before the model can be constructed.
+    Native/legacy FP8 and trellis race loading retains incremental shard opening.
     """
     gguf_plan = gguf_checkpoint_plan(config, model_dir)
     if gguf_plan is not None:
         observed = gguf_plan.pop("_observed", {})
         log(stage="gguf_decode_plan", method=GGUF_DECODE_METHOD,
-            reference=GGUF_DECODE_REFERENCE, parity=GGUF_PARITY_EVIDENCE,
+            reference=("engines/tools/gguf_qwen35.py::materialize_layer"
+                       if "_bridge" in gguf_plan else GGUF_DECODE_REFERENCE),
+            parity=None if "_bridge" in gguf_plan else GGUF_PARITY_EVIDENCE,
             observed={k: v for k, v in observed.items() if k != "file_records"},
             **{k: v for k, v in gguf_plan.items() if not k.startswith("_")})
         gguf_plan["_observed"] = observed
         trellis_stats = {"decoded_modules": 0, "trellis_bits": 0}
-        return None, None, None, trellis_stats, None, gguf_plan
+        return None, None, None, trellis_stats, None, gguf_plan, None
     trellis = is_trellis_checkpoint(config)
+    if not trellis:
+        import quant_stream
+        try:
+            packed_plan = quant_stream.checkpoint_plan(
+                _config_dict(config), model_dir, _safetensors_header, gate=gate)
+        except ValueError as exc:
+            raise LayerOuterError("REFUSED: %s" % exc) from None
+        if packed_plan is not None:
+            log(stage="packed_decode_plan", method=quant_stream.METHODS[packed_plan["_reader"]],
+                modules=len(packed_plan["modules"]), components=len(packed_plan["consumed"]),
+                reference=packed_plan["reference"])
+            return None, None, None, {"decoded_modules": 0, "trellis_bits": 0}, None, None, packed_plan
+        quantization = quant_stream.quantization(_config_dict(config))
+        if quantization and not getattr(config, "quantization_config", None):
+            import copy
+            config = copy.deepcopy(config)
+            config.quantization_config = quantization
     nvfp4_plan = None if trellis else nvfp4_checkpoint_plan(config, model_dir)
     if nvfp4_plan is not None:
         observed = nvfp4_plan.pop("_observed", {})
@@ -2668,7 +2701,7 @@ def checkpoint_decode_plans(config, model_dir: str, log: Callable[..., None]):
         trellis_stats["quantized_module_count"] = observed.get(
             "quantized_module_count", 0)
         trellis_stats["codebook_histogram"] = observed.get("codebook_histogram", {})
-    return fp8_plan, trellis_plan, trellis_fp8_plan, trellis_stats, nvfp4_plan, None
+    return fp8_plan, trellis_plan, trellis_fp8_plan, trellis_stats, nvfp4_plan, None, None
 
 
 def _exl3hf():
@@ -2759,8 +2792,8 @@ def build_streamed_model(model_dir: str, cls, config, dtype_name: str, device: s
     # reaches the loader. "Dequantize-and-run, weights-only", the M1 method,
     # under the streaming schedule. Any other quantization_config is refused
     # by `fp8_checkpoint_plan` before anything is instantiated.
-    fp8_plan, trellis_plan, trellis_fp8_plan, trellis_stats, nvfp4_plan, gguf_plan = (
-        checkpoint_decode_plans(config, model_dir, log))
+    fp8_plan, trellis_plan, trellis_fp8_plan, trellis_stats, nvfp4_plan, gguf_plan, packed_plan = (
+        checkpoint_decode_plans(config, model_dir, log, gate=gate))
     if gguf_plan is not None and gate is not None:
         raise LayerOuterError("REFUSED: the GGUF lane has no gated (race-mode) loader")
     if gguf_plan is not None:
@@ -2771,12 +2804,28 @@ def build_streamed_model(model_dir: str, cls, config, dtype_name: str, device: s
     nvfp4_stats: Dict[str, Any] = {"decoded_modules": 0, "packed_bytes": 0,
                                    "scales_consumed": 0, "input_scales_skipped": 0,
                                    "plain_modules_passed": 0}
+    packed_stats = {"decoded_modules": 0, "formats": {}, "components": set(), "decoded_names": set(), "bytes_read": 0}
+    construction_config = _copy.deepcopy(config)
+    model_view = None
+    if gguf_plan is not None and "_bridge" in gguf_plan:
+        if not cls.__module__.startswith("transformers."):
+            raise LayerOuterError("REFUSED: native GGUF text view cannot replace a pinned custom model class")
+        cls, construction_config, model_view = gguf_plan["_bridge"].model_view(config)
+        gguf_plan["_model_view"] = model_view
+    if packed_plan is not None:
+        # Original config bytes/config object remain the checkpoint identity.
+        # Only a fully admitted decoder plan may remove quantizer construction.
+        for node in (construction_config, getattr(construction_config, "text_config", None)):
+            if node is not None:
+                for attr in ("quantization_config", "quantization"):
+                    if hasattr(node, attr):
+                        delattr(node, attr)
 
     # Build with the SAME context managers `from_pretrained` uses, so the module
     # tree (kernel patches, dtype, tie-weight suppression) is the one the
     # window-outer path would have built -- on meta, so nothing is allocated.
     with ContextManagers(cls.get_init_context(torch_dtype, False, False, None)):
-        model = cls(_copy.deepcopy(config))
+        model = cls(construction_config)
         patch_output_recorders(model)
     model.eval()
 
@@ -2824,6 +2873,8 @@ def build_streamed_model(model_dir: str, cls, config, dtype_name: str, device: s
     # reads a slice from here straight into its staging buffer -- the same
     # bytes `PySafeSlice[...]` would hand back, without the intermediate copy.
     locator: Dict[str, Tuple[str, int, int, str, Tuple[int, ...]]] = {}
+    packed_slices: Dict[str, Any] = {}
+    packed_consumed = set(packed_plan["consumed"]) if packed_plan is not None else set()
 
     def _open_shards(names: Sequence[str]) -> Dict[str, Any]:
         """Open shards not yet open; return {key: lazy slice} for the NEW ones only."""
@@ -2866,16 +2917,21 @@ def build_streamed_model(model_dir: str, cls, config, dtype_name: str, device: s
 
     def _stored_dtype(key: str) -> Optional[str]:
         located = locator.get(key)
+        if packed_plan is not None and key in packed_plan["modules"]:
+            return gguf_decoded_dtype
         if located is None and key in gguf_slot_keys:
             return gguf_decoded_dtype
         return located[3] if located is not None else None
 
     def _stored_shape(key: str) -> Optional[Tuple[int, ...]]:
+        if packed_plan is not None and key in packed_plan["modules"]:
+            return tuple(packed_plan["modules"][key]["shape"])
         located = locator.get(key)
         return located[4] if located is not None else None
 
     def _subset_bytes(keys: Iterable[str]) -> int:
-        return sum(locator[key][2] for key in keys if key in locator)
+        return sum(locator[key][2] for key in keys if key in locator
+                   and not (packed_plan is not None and key in packed_plan["modules"]))
 
     ungated_shard_names = (sorted(name for name in os.listdir(model_dir)
                                   if name.endswith(".safetensors"))
@@ -2979,6 +3035,9 @@ def build_streamed_model(model_dir: str, cls, config, dtype_name: str, device: s
         shard batch with one.
         """
         for key, value in slices.items():
+            if key in packed_consumed and not isinstance(value, quant_stream.WeightSlot):
+                packed_slices[key] = value
+                continue
             routing_counts["seen"] += 1
             target = routing_key(key)
             if target != key:
@@ -2990,6 +3049,9 @@ def build_streamed_model(model_dir: str, cls, config, dtype_name: str, device: s
             else:
                 layer_subset.setdefault(int(match.group(1)), {})[key] = value
 
+    if packed_plan is not None:
+        import quant_stream
+        bucket(quant_stream.slots(packed_plan))
     if gate is None:
         bucket(_open_shards(ungated_shard_names))
         if gguf_plan is not None:
@@ -3021,6 +3083,12 @@ def build_streamed_model(model_dir: str, cls, config, dtype_name: str, device: s
             audited_shards=len(resident_shards), waited_seconds=round(waited, 3),
             **audit)
         bucket(_open_shards(resident_shards))
+    if packed_plan is not None:
+        # Shared scales need not live in the canonical weight's layer or shard.
+        # The plan has already admitted every header; keep only lazy slices.
+        all_shards = packed_plan["_shards"]
+        audit_checkpoint_tree(model_dir, shards=all_shards if gate is not None else None)
+        bucket(_open_shards(all_shards))
     if routing_counts["routed"]:
         log(stage="stream_routing", renamed_checkpoint_keys=routing_counts["routed"],
             total_checkpoint_keys=routing_counts["seen"], layers_prefix=layers_prefix)
@@ -3087,11 +3155,12 @@ def build_streamed_model(model_dir: str, cls, config, dtype_name: str, device: s
                       expected_shape=expected_shape,
                       nvfp4_plan=nvfp4_plan, nvfp4_stats=nvfp4_stats,
                       fp8_parity_all=str(device) != "cpu",
-                      gguf_plan=gguf_plan, gguf_stats=gguf_stats),
+                      gguf_plan=gguf_plan, gguf_stats=gguf_stats,
+                      packed_plan=packed_plan, packed_stats=packed_stats, packed_slices=packed_slices),
         load_config)
     _absorb(base_info)
     timing["resident_load_seconds"] = time.monotonic() - resident_started
-    timing["resident_bytes"] = _subset_bytes(base_subset)
+    timing["resident_bytes"] = _subset_bytes(base_subset) + packed_stats["bytes_read"]
     timing["checkpoint_bytes_read"] += timing["resident_bytes"]
 
     # Finalisation would otherwise materialise AND randomly initialise every
@@ -3159,7 +3228,7 @@ def build_streamed_model(model_dir: str, cls, config, dtype_name: str, device: s
                 % (layers_prefix, index))
         load_started = time.monotonic()
         decoders_active = (fp8_plan is not None or trellis_plan is not None
-                           or nvfp4_plan is not None or gguf_plan is not None)
+                           or nvfp4_plan is not None or gguf_plan is not None or packed_plan is not None)
         # THE DIRECT EXPERT FILL (see EXPERT_FILL_REFERENCE). Planned per layer
         # from the model's own conversion mapping; the fused parameters are
         # allocated here, once, and every routed-expert source -- a checkpoint
@@ -3187,6 +3256,8 @@ def build_streamed_model(model_dir: str, cls, config, dtype_name: str, device: s
             before_trellis = dict(trellis_stats)
             before_nvfp4 = dict(nvfp4_stats)
             before_gguf = dict(gguf_stats)
+            before_packed = packed_stats["decoded_modules"]
+            before_packed_bytes = packed_stats["bytes_read"]
             # S1-2's gate: the FIRST layers decoded on a device re-decode every
             # FP8 tensor on the host and must agree bitwise, until one layer
             # that carries routed experts has passed; partial-block tensors
@@ -3199,7 +3270,9 @@ def build_streamed_model(model_dir: str, cls, config, dtype_name: str, device: s
                                     device=device, expected_shape=expected_shape,
                                     nvfp4_plan=nvfp4_plan, nvfp4_stats=nvfp4_stats,
                                     fp8_parity_all=parity_all, sink=sink,
-                                    gguf_plan=gguf_plan, gguf_stats=gguf_stats)
+                                    gguf_plan=gguf_plan, gguf_stats=gguf_stats,
+                                    packed_plan=packed_plan, packed_stats=packed_stats,
+                                    packed_slices=packed_slices)
             decode_seconds = time.monotonic() - started
             timing["decode_seconds"] += decode_seconds
             if parity_all and fp8_stats["dequantized"] > before["dequantized"]:
@@ -3210,6 +3283,7 @@ def build_streamed_model(model_dir: str, cls, config, dtype_name: str, device: s
                 stage=("trellis_decode_layer" if trellis_plan is not None
                        else "nvfp4_decode_layer" if nvfp4_plan is not None
                        else "gguf_decode_layer" if gguf_plan is not None
+                       else "packed_decode_layer" if packed_plan is not None
                        else "fp8_decode_layer"), index=index,
                 dequantized=fp8_stats["dequantized"] - before["dequantized"],
                 fp8_elements=fp8_stats["fp8_bytes"] - before["fp8_bytes"],
@@ -3218,8 +3292,10 @@ def build_streamed_model(model_dir: str, cls, config, dtype_name: str, device: s
                                  + (nvfp4_stats["decoded_modules"]
                                     - before_nvfp4["decoded_modules"])
                                  + (gguf_stats["tensors_decoded"]
-                                    - before_gguf["tensors_decoded"])) or None,
+                                    - before_gguf["tensors_decoded"])
+                                 + packed_stats["decoded_modules"] - before_packed) or None,
                 decode_seconds=round(decode_seconds, 3))
+            timing["checkpoint_bytes_read"] += packed_stats["bytes_read"] - before_packed_bytes
             if gguf_plan is not None:
                 timing["checkpoint_bytes_read"] += (gguf_stats["gguf_bytes_read"]
                                                     - before_gguf["gguf_bytes_read"])
@@ -3330,6 +3406,10 @@ def build_streamed_model(model_dir: str, cls, config, dtype_name: str, device: s
     streamer.nvfp4_stats = nvfp4_stats
     streamer.gguf_plan = gguf_plan
     streamer.gguf_stats = gguf_stats
+    streamer.packed_plan = packed_plan
+    streamer.packed_stats = packed_stats
+    streamer.output_dtype = dtype_name
+    streamer.model_view = model_view
     return streamer
 
 
@@ -3337,6 +3417,10 @@ def weights_decode_evidence(streamer: StreamedModel) -> Optional[Dict[str, Any]]
     """What the streamer did to the checkpoint's bytes before the forward, for
     the runtime receipt: None for a native checkpoint, else the FP8 plan and
     the counts of tensors decoded and scale tensors consumed."""
+    packed_plan = getattr(streamer, "packed_plan", None)
+    if packed_plan is not None:
+        import quant_stream
+        return quant_stream.evidence(packed_plan, streamer.packed_stats, streamer.output_dtype)
     trellis_plan = getattr(streamer, "trellis_plan", None)
     if trellis_plan is not None:
         # The candidate identity the qualification binds: the capture must
@@ -3442,6 +3526,16 @@ def weights_decode_evidence(streamer: StreamedModel) -> Optional[Dict[str, Any]]
     if gguf_plan is not None:
         stats = dict(getattr(streamer, "gguf_stats", {}))
         observed = dict(gguf_plan.get("_observed") or {})
+        if "_bridge" in gguf_plan:
+            return dict(gguf_plan["_bridge"].decode_contract(gguf_plan["_surface"]),
+                        output_dtype=streamer.output_dtype, model_view=streamer.model_view,
+                        reference="engines/tools/gguf_qwen35.py::materialize_layer",
+                        file_records=list(gguf_plan["_surface"].file_records),
+                        files_verified=gguf_plan["_surface"].file_hash_verification,
+                        head_source="artifact's own output.weight; text-only own-head capture",
+                        tensors_decoded=stats.get("tensors_decoded", 0),
+                        gguf_bytes_read=stats.get("gguf_bytes_read", 0),
+                        comparison_class="advisory", scope="weights_reconstructed")
         return {
             "method": GGUF_DECODE_METHOD,
             "reference": GGUF_DECODE_REFERENCE,
@@ -3497,6 +3591,12 @@ def head_decode_identity(streamer: StreamedModel) -> Optional[Dict[str, Any]]:
     head source table) -- and the comparison runs it under HEAD-1d, own
     heads, so the head's quantization error is inside the number.
     """
+    packed = getattr(streamer, "packed_plan", None)
+    if packed is not None and "lm_head.weight" in streamer.packed_stats["decoded_names"]:
+        import quant_stream
+        return {"quantized": True, "bits": packed["modules"]["lm_head.weight"].get("bits"),
+                "source": "artifact_dequantized", "method": quant_stream.METHODS[packed["_reader"]],
+                "reference": packed["reference"]}
     if getattr(streamer, "trellis_plan", None) is None:
         return None
     decoded = dict(getattr(streamer, "trellis_stats", {}) or {}).get("nonrouted_exl3_decoded") or {}

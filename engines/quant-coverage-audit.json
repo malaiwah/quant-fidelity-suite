@@ -1,0 +1,961 @@
+{
+  "schema": "qfs-read-only-quant-coverage-audit.v1",
+  "observed_date": "2026-09-07",
+  "actions": "Only metadata/source reads and peer coordination. No weights, model-code execution, commands, tests, builds, edits, publication, or provider actions.",
+  "sample": {
+    "query": "https://huggingface.co/api/models?sort=trendingScore&direction=-1&limit=150&filter=quantized&expand=trendingScore&expand=pipeline_tag&expand=tags",
+    "raw_artifact": "artifact://296",
+    "compact_artifact": "artifact://299",
+    "requested_raw_count": 150,
+    "returned_raw_count": 150,
+    "selected_count": 100,
+    "selection": "First 100 relevant public autoregressive LLM or VLM-text repositories in returned API order, deduplicated by repository ID, not format. Missing pipeline_tag retained when base-model/task metadata establishes relevance. Stop at nvidia/Qwen3.5-122B-A10B-NVFP4. Exclude non-text image/video/audio generation; no tiny random/test fixture admitted. Osaurus Raptor is a real 7.5B deployment despite its upstream model's 'tiny' marketing name.",
+    "exclusions_before_cutoff": [
+      [
+        "audio-cpp/audio.cpp-gguf",
+        "audio"
+      ],
+      [
+        "unsloth/Qwen-Image-Edit-2511-GGUF",
+        "image editing"
+      ],
+      [
+        "realrebelai/LLaDa-Image-Turbo_ComfyUI",
+        "image generation"
+      ],
+      [
+        "realrebelai/FastH3_GGUFs",
+        "video"
+      ],
+      [
+        "lilcheaty/MiniMax-H3-NVFP4",
+        "video"
+      ],
+      [
+        "Abiray/Minimax-H3-nvfp4-INT4-INT8-Convrot",
+        "video"
+      ],
+      [
+        "Abiray/LTX-2.5-Distilled-GGUF",
+        "video"
+      ],
+      [
+        "realrebelai/LLaDa-Image_ComfyUI",
+        "image generation"
+      ],
+      [
+        "t8star/Bernini-V2-Comfy",
+        "video"
+      ],
+      [
+        "unsloth/Z-Image-Turbo-GGUF",
+        "image generation"
+      ],
+      [
+        "dotexec/MiniMax-H3-T2V-NVFP4",
+        "video"
+      ],
+      [
+        "dgrauet/ltx-2.5-mlx-q8",
+        "video; Lightricks base-model metadata"
+      ],
+      [
+        "berryber09/10Eros-Max-h3-turbo-hybrid-beta4-w4a8",
+        "video"
+      ],
+      [
+        "FastVideo/FastVideo-FastH3-4-step-Preview-v1-Dense-DataFree-MLX-INT4",
+        "video"
+      ],
+      [
+        "unsloth/Qwen-Image-2512-GGUF",
+        "image generation"
+      ],
+      [
+        "unsloth/Z-Image-GGUF",
+        "image generation"
+      ],
+      [
+        "dgrauet/ltx-2.3-mlx-q4",
+        "audio/video; Lightricks base-model metadata"
+      ]
+    ],
+    "limitations": [
+      "This is the top 100 eligible repositories within the explicit quantized-tag frame, not the global top 100 quantized repositories. The API was not bounded to 50; no such claim is made.",
+      "Unfiltered https://huggingface.co/api/models?sort=trendingScore&direction=-1&limit=200&expand=trendingScore&expand=pipeline_tag&expand=tags returned artifact://320. It contains omitted high-score quantized releases: DeepSeek-V4-Flash-Vision-Exp 427, ISTA-DASLab/Qwen3.8-27B-GSQ-RCO-GGUF 401, unsloth/Qwen3.8-27B-GGUF 288, zai-org/GLM-5.3-Flash 274, zai-org/GLM-5.3 252. Thus tagged-frame percentages must never be presented as global HF coverage.",
+      "Scores and tie order are the frozen API response, not an independently verified ranking algorithm. TrendingScore is not downloads, use, or market share.",
+      "GGUF classification here establishes container family from metadata/sibling files, not every internal tensor type. A repository can contain many builds and mixed K/IQ/native tensors; no representative filename proves all builds supported.",
+      "Uninspected or unresolved export dialects remain unknown even when metadata advertises NVFP4, MLX, EXL3, or AutoRound. No repository was executed. No sample row is an achieved-coverage numerator.",
+      "Initial /raw/ HF reads were rewritten by the reader into model cards; configuration evidence below uses /resolve/<sha>/config.json:raw and is explicitly separated from card-only statements.",
+      "Repository counts are not a Cartesian architecture-by-codec matrix. Mixed repositories count once. Unknowns remain in the denominator. No weighted or unweighted achieved-coverage percentage is reported."
+    ],
+    "row_columns": [
+      "eligible_rank",
+      "repository",
+      "trendingScore",
+      "classification",
+      "detail_or_unverified_hint"
+    ],
+    "classification_legend": {
+      "G": "GGUF container established by metadata/files; internal codec mixture unknown unless detailed",
+      "U": "Unknown export dialect; hint is not counted as verified family coverage",
+      "MO_MIX": "Actual ModelOpt MIXED_PRECISION config",
+      "EXL3": "Actual inline EXL3 config",
+      "CT_INT": "Compressed-tensors integer pack-quantized; config or explicit card evidence",
+      "MLX_AFFINE": "Actual MLX affine config",
+      "CT_MIX": "Explicit card describes compressed-tensors NVFP4/FP8 mixed export; full config not audited",
+      "MO_MXFP8": "Actual ModelOpt nested MXFP8 config",
+      "CUSTOM": "Actual named custom quant_method; unsupported/unknown packing",
+      "MLX_MXFP4": "Actual MLX mode=mxfp4 config; not CT MXFP4"
+    },
+    "rows": [
+      [
+        1,
+        "nvidia/Qwen3.8-Flash-Next-NVFP4",
+        129,
+        "MO_MIX",
+        "NVFP4 experts + FP8 PLE + FP8_PB_WO MTP"
+      ],
+      [
+        2,
+        "JonathanColetti/Qwen3.8-27B-Uncensored-GGUF",
+        104,
+        "G",
+        "siblings include IQ2_M, IQ4_XS, Q4_K_M, Q5_K_M, Q6_K, Q8_0; IQ2_M is a build label, not an inferred ggml type"
+      ],
+      [
+        3,
+        "orcarouter/Qwen3.8-27B-Uncensored-MLX",
+        54,
+        "U",
+        "MLX; multiple bit-rate subdirectories, no single root artifact"
+      ],
+      [
+        4,
+        "empero-ai/Qwythos-9B-Claude-Mythos-5-1M-GGUF",
+        40,
+        "G",
+        null
+      ],
+      [
+        5,
+        "nvidia/DeepSeek-V4-Flash-0731-NVFP4",
+        38,
+        "U",
+        "ModelOpt/NVFP4 advertised; exact mixed state unaudited"
+      ],
+      [
+        6,
+        "AtomicChat/Qwen3.8-Flash-Next-GGUF",
+        27,
+        "G",
+        null
+      ],
+      [
+        7,
+        "RadixArk/Qwen3.8-Flash-Next-NVFP4",
+        26,
+        "U",
+        "ModelOpt advertised"
+      ],
+      [
+        8,
+        "empero-ai/Qwen3.8-27B-Ridge-GGUF",
+        24,
+        "G",
+        null
+      ],
+      [
+        9,
+        "mudler/Qwen3.8-Flash-Next-APEX-GGUF",
+        16,
+        "G",
+        null
+      ],
+      [
+        10,
+        "AtomicChat/Qwen3.8-27B-GGUF",
+        15,
+        "G",
+        null
+      ],
+      [
+        11,
+        "empero-ai/Qwen3.8-9B-Distill-GGUF",
+        14,
+        "G",
+        null
+      ],
+      [
+        12,
+        "ethanfel/Qwen3-VL-32B-Ultra-Heretic-H3-ComfyUI-INT8-ConvRot",
+        13,
+        "U",
+        "VLM text model in ComfyUI INT8/ConvRot packaging; not excluded merely because H3 occurs in name"
+      ],
+      [
+        13,
+        "GestaltLabs/Qwen3.8-27B-EXL3-11.5GB",
+        13,
+        "EXL3",
+        "version1.4.6 mul1; out_scales=always; head4 vision6 MTP4"
+      ],
+      [
+        14,
+        "RadixArk/Qwen3.8-27B-NVFP4",
+        12,
+        "U",
+        "ModelOpt advertised"
+      ],
+      [
+        15,
+        "empero-ai/Qwen3.8-2B-Distill-GGUF",
+        12,
+        "G",
+        null
+      ],
+      [
+        16,
+        "mudler/Qwen3.8-27B-APEX-GGUF",
+        11,
+        "G",
+        null
+      ],
+      [
+        17,
+        "huihui-ai/Huihui-DeepSeek-V4-Flash-0731-abliterated-GGUF",
+        10,
+        "G",
+        null
+      ],
+      [
+        18,
+        "Blackfrost-AI/Qwen3.8-27B-ABLITERATED-GGUF",
+        10,
+        "G",
+        null
+      ],
+      [
+        19,
+        "empero-ai/Qwen3.8-4B-Distill-GGUF",
+        10,
+        "G",
+        null
+      ],
+      [
+        20,
+        "crucible-labs/Qwen3.6-35B-A3B-REAP-48-v2-GGUF",
+        10,
+        "G",
+        null
+      ],
+      [
+        21,
+        "nvidia/Qwen3.6-35B-A3B-NVFP4",
+        9,
+        "U",
+        "ModelOpt advertised"
+      ],
+      [
+        22,
+        "ggml-org/Qwen3.8-27B-GGUF",
+        9,
+        "G",
+        null
+      ],
+      [
+        23,
+        "lued/Qwen3.8-27B-INT8-W8A16-MTP",
+        9,
+        "CT_INT",
+        "Card explicitly CT pack-quantized symmetric RTN INT8 g128; not AutoRound"
+      ],
+      [
+        24,
+        "peonist-ai/halogen-qwen3.8-flash-next",
+        9,
+        "U",
+        "halogen runtime; unknown storage"
+      ],
+      [
+        25,
+        "soyaakinohara/qwen3.8-27b-abliterated-3.69bpw-12GB-MTP.gguf",
+        8,
+        "G",
+        null
+      ],
+      [
+        26,
+        "OsaurusAI/Raptor-v0.5-8B-A1B-JANG_6M",
+        8,
+        "MLX_AFFINE",
+        "g64 per_tensor override dialect; fused switch_mlp;5/6/8bit"
+      ],
+      [
+        27,
+        "Ryanchen911/Kimi-K3-Uncensored-GGUF",
+        7,
+        "G",
+        null
+      ],
+      [
+        28,
+        "primitive-ai/Qwen3.8-Flash-Next-mixed-NVFP4-FP8",
+        7,
+        "CT_MIX",
+        "Card: NVFP4 experts + FP8 attention; BF16 MTP preserved"
+      ],
+      [
+        29,
+        "incoai/GLM-5.3-NVFP4",
+        7,
+        "U",
+        "NVFP4 advertised"
+      ],
+      [
+        30,
+        "nvidia/DeepSeek-V4-Pro-0813-NVFP4",
+        7,
+        "U",
+        "ModelOpt advertised"
+      ],
+      [
+        31,
+        "RadixArk/GLM-5.3-Flash-NVFP4",
+        7,
+        "U",
+        "ModelOpt advertised"
+      ],
+      [
+        32,
+        "soyaakinohara/Spark-X2.5-4B-Heretic-jp-gguf",
+        7,
+        "G",
+        null
+      ],
+      [
+        33,
+        "mlx-community/Qwen3.5-9B-MLX-4bit",
+        6,
+        "MLX_AFFINE",
+        "bits4 g64 mode affine in matching quantization and quantization_config"
+      ],
+      [
+        34,
+        "canada-quant/glm-5.3-w4a16-mtp",
+        6,
+        "U",
+        "W4A16; exporter not established"
+      ],
+      [
+        35,
+        "nvidia/Muse-Glimmer-30B-NVFP4",
+        6,
+        "U",
+        "ModelOpt advertised"
+      ],
+      [
+        36,
+        "garnermccloud/Qwen3.8-Flash-Next-NVFP4-SSD-Stream",
+        6,
+        "U",
+        "sglang NVFP4 advertised"
+      ],
+      [
+        37,
+        "ivanfioravanti/Qwen3.8-Flash-Next-DS4-Q4",
+        6,
+        "U",
+        "DS4-Q4 packaging unresolved"
+      ],
+      [
+        38,
+        "dbirks/Qwen3.8-27B-W4A16-AutoRound",
+        5,
+        "CT_INT",
+        "Actual CT pack-quantized INT4 g128 symmetric; gptq tag does not describe export"
+      ],
+      [
+        39,
+        "kingjones777/Qwen3.8-27B-ROCmFP4-STRIX-MTP-GGUF",
+        5,
+        "G",
+        "FP4 in name does not establish internal ggml type"
+      ],
+      [
+        40,
+        "Jundot/Qwen3.8-27B-oQ4e-mtp",
+        5,
+        "U",
+        "oQ/MLX advertised"
+      ],
+      [
+        41,
+        "mudler/Ornith-1.5-35B-A3B-APEX-MTP-GGUF",
+        5,
+        "G",
+        null
+      ],
+      [
+        42,
+        "RadixArk/Qwen3.8-27B-NVFP4-BF16-LMHead",
+        5,
+        "U",
+        "ModelOpt advertised"
+      ],
+      [
+        43,
+        "peculiar-ragdoll/Dirk-Qwen3.8-27B-MLX-oQ4e",
+        5,
+        "U",
+        "MLX/oQ advertised"
+      ],
+      [
+        44,
+        "nvidia/Qwen3.8-2.4T-A95B-NVFP4",
+        5,
+        "U",
+        "ModelOpt advertised"
+      ],
+      [
+        45,
+        "primitive-ai/Qwen3.8-Flash-Next-NVFP4",
+        5,
+        "U",
+        "NVFP4 advertised"
+      ],
+      [
+        46,
+        "RadixArk/GLM-5.3-NVFP4",
+        5,
+        "U",
+        "Existing QFS pin-specific support evidence exists; sample config not independently re-audited"
+      ],
+      [
+        47,
+        "butterf1ying/Qwen3.8-Flash-Next-Uncensored-REAP288-MTP-MLX-4bit",
+        5,
+        "U",
+        "MLX mixed/pruned model"
+      ],
+      [
+        48,
+        "NANI-Nithin/K2-Horizon-7B-GGUF",
+        5,
+        "G",
+        null
+      ],
+      [
+        49,
+        "empero-ai/Qwythos-9B-v2-GGUF",
+        4,
+        "G",
+        null
+      ],
+      [
+        50,
+        "GnLOLot/MiniCPM5-1B-Claude-Opus-Fable5-V2-Thinking-GGUF",
+        4,
+        "G",
+        null
+      ],
+      [
+        51,
+        "empero-ai/Qwythos-27B-v1-GGUF",
+        4,
+        "G",
+        null
+      ],
+      [
+        52,
+        "nvidia/Kimi-K3-NVFP4",
+        4,
+        "U",
+        "ModelOpt advertised"
+      ],
+      [
+        53,
+        "mudler/Ornith-1.5-35B-A3B-APEX-GGUF",
+        4,
+        "G",
+        null
+      ],
+      [
+        54,
+        "mlx-community/Qwen3.8-27B-Uncensored-OptiQ-4bit",
+        4,
+        "U",
+        "MLX/OptiQ advertised"
+      ],
+      [
+        55,
+        "Jundot/Qwen3.8-Flash-Next-oQ4e-mtp",
+        4,
+        "U",
+        "oQ/MLX advertised"
+      ],
+      [
+        56,
+        "tencent/Hy4-preview-FP8",
+        4,
+        "MO_MXFP8",
+        "Actual quant_method=modelopt; nested quantization.quant_algo=MXFP8, not finegrained FP8"
+      ],
+      [
+        57,
+        "PhalaCloud/GLM-5.3-W4AFP8",
+        4,
+        "CUSTOM",
+        "quant_method=w4afp8 g128; not ordinary AWQ/GPTQ inferred from W4"
+      ],
+      [
+        58,
+        "jarrelscy/GLM-5.3-Vision-NVFP4-AQLM-hybrid",
+        4,
+        "CUSTOM",
+        "Top/text quant_method=nvfp4_aqlm_hybrid; nested ModelOpt plus AQLM65536 entries g8"
+      ],
+      [
+        59,
+        "ggml-org/DeepSeek-V4-Flash-Vision-Exp-GGUF",
+        4,
+        "G",
+        null
+      ],
+      [
+        60,
+        "Shiftedx/qwopus3.8-27b-flash-mxfp4-vision-mtplx",
+        4,
+        "MLX_MXFP4",
+        "bits4 g32 mode=mxfp4; MTP separate mtp/weights.safetensors"
+      ],
+      [
+        61,
+        "mlx-community/Qwen3.6-35B-A3B-OptiQ-4bit",
+        3,
+        "U",
+        "MLX/OptiQ advertised"
+      ],
+      [
+        62,
+        "antirez/deepseek-v4-gguf",
+        3,
+        "G",
+        null
+      ],
+      [
+        63,
+        "nvidia/DeepSeek-V4-Flash-NVFP4",
+        3,
+        "U",
+        "ModelOpt advertised"
+      ],
+      [
+        64,
+        "deadbydawn101/RavenX-CyberAgent-Qwen3.6-35B-A3B-Opus-4.7-OpenMythos-Pentester-BugHunter-RATH-GGUF",
+        3,
+        "G",
+        null
+      ],
+      [
+        65,
+        "SC117/gemma-4-26B-A4B-it-qat-heretic-GGUF",
+        3,
+        "G",
+        null
+      ],
+      [
+        66,
+        "empero-ai/Qwable-9B-Claude-Fable-5-GGUF",
+        3,
+        "G",
+        null
+      ],
+      [
+        67,
+        "OTMFLY/Qwen3-VL-32B-Ultra-Heretic-MiniMax-H3-ComfyUI-INT8-ConvRot",
+        3,
+        "U",
+        "VLM text model in ComfyUI INT8/ConvRot packaging"
+      ],
+      [
+        68,
+        "Blackfrost-AI/Muse-Glimmer-30B-Abliterated-GGUF",
+        3,
+        "G",
+        null
+      ],
+      [
+        69,
+        "ggml-org/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-GGUF",
+        3,
+        "G",
+        null
+      ],
+      [
+        70,
+        "lukaskremla/Qwen3.8-27B-3bit-MLX-TextOnly",
+        3,
+        "U",
+        "MLX3bit advertised"
+      ],
+      [
+        71,
+        "goldhub/Qwen3.8-27B-BF16-INT4-W4A16-G32-AutoRound",
+        3,
+        "U",
+        "AutoRound optimizer name does not identify export ABI"
+      ],
+      [
+        72,
+        "vmarcelo/Qwen3.8-27B-MIX_GGUF",
+        3,
+        "G",
+        null
+      ],
+      [
+        73,
+        "TeichAI/Qwen3.8-27B-Fable-Distill-GGUF",
+        3,
+        "G",
+        null
+      ],
+      [
+        74,
+        "primitive-ai/Qwen3.8-27B-mixed-NVFP4-FP8",
+        3,
+        "U",
+        "Mixed NVFP4/FP8 advertised; do not substitute sibling config"
+      ],
+      [
+        75,
+        "dfischermittwald/Qwen3.8-27B-NVFP4-DFlash2",
+        3,
+        "U",
+        "NVFP4 advertised"
+      ],
+      [
+        76,
+        "Sawfwair/Qwen3.8-Flash-Next-MLX-Mixed-2bit",
+        3,
+        "U",
+        "MLX mixed2bit advertised"
+      ],
+      [
+        77,
+        "MirkoCovizzi/Qwen3.8-27B-QUASAR-NVFP4-NInfer",
+        3,
+        "U",
+        "NInfer deployment packaging; no assumed HF ABI"
+      ],
+      [
+        78,
+        "Mia-AiLab/GLM-5.3-Flash-EXL3-TR3-4bpw",
+        3,
+        "U",
+        "EXL3/TR3 advertised; exact rotations/tail unaudited"
+      ],
+      [
+        79,
+        "wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3-v1",
+        3,
+        "U",
+        "EXL3 advertised; existing QFS pin-specific evidence not repeated"
+      ],
+      [
+        80,
+        "0xKitkat/Qwen3.8-Flash-Next-125B-UltraLite-37GiB-GGUF",
+        3,
+        "G",
+        null
+      ],
+      [
+        81,
+        "minima-ai/mnma_qwen3.8_27b_nvfp4",
+        3,
+        "U",
+        "CT NVFP4 metadata; config not audited"
+      ],
+      [
+        82,
+        "edougawa/Qwen3.8-Flash-Next-NVFP4-PLE-MMap-MTP-Spark",
+        3,
+        "U",
+        "ModelOpt metadata; PLE packaging unaudited"
+      ],
+      [
+        83,
+        "SeatownSin/Qwen3.8-27B-TURBO-Fable-Cold-Fusion-735-882-Heretic-Uncensored-NM-DAU-NVFP4-W4A16",
+        3,
+        "U",
+        "modelopt_mixed and weight-only tags; not assumed W4A4"
+      ],
+      [
+        84,
+        "zviratko/Qwen3.8-27B-TURBO-Fable-Cold-Fusion-735-882-Heretic-Uncensored-NM-DAU-oQ4e-mtp",
+        3,
+        "U",
+        "MLX/oQ metadata"
+      ],
+      [
+        85,
+        "NikiKrutan/Kiwen1.1-27B-MTP-GGUF",
+        3,
+        "G",
+        null
+      ],
+      [
+        86,
+        "RentedNoodle/Qwen3.8-27B-GSQ-RCO-IQ3_XXS-Uncensored",
+        3,
+        "G",
+        "gguf metadata; IQ3_XXS name not complete tensor census"
+      ],
+      [
+        87,
+        "ngquocvinh/Spark-X2.5-4B-GGUF",
+        3,
+        "G",
+        null
+      ],
+      [
+        88,
+        "Jommarn/UNSEEN_Gemma_4_26B_NSFW-GGUF",
+        2.9000000000000004,
+        "G",
+        null
+      ],
+      [
+        89,
+        "AaryanK/NousCoder-14B-GGUF",
+        2,
+        "G",
+        null
+      ],
+      [
+        90,
+        "mlx-community/Qwen3.5-4B-MLX-4bit",
+        2,
+        "U",
+        "MLX metadata; do not substitute 9B config"
+      ],
+      [
+        91,
+        "dealignai/Qwen3.5-VL-9B-JANG_4S-CRACK",
+        2,
+        "U",
+        "MLX JANG metadata; exact per_tensor layout unaudited"
+      ],
+      [
+        92,
+        "dealignai/Nemotron-Cascade-2-30B-A3B-JANG_2L-CRACK",
+        2,
+        "U",
+        "MLX JANG custom-code metadata"
+      ],
+      [
+        93,
+        "ggml-org/gemma-4-26B-A4B-it-GGUF",
+        2,
+        "G",
+        null
+      ],
+      [
+        94,
+        "nvidia/Gemma-4-31B-IT-NVFP4",
+        2,
+        "U",
+        "ModelOpt metadata"
+      ],
+      [
+        95,
+        "deadbydawn101/gemma-4-E2B-Heretic-Uncensored-mlx-4bit",
+        2,
+        "U",
+        "MLX metadata; KV-cache compression tags are not weight format"
+      ],
+      [
+        96,
+        "groxaxo/Huihui-gemma-4-26B-A4B-it-abliterated-GGUF",
+        2,
+        "G",
+        "mxfp4 tag does not identify all tensor types"
+      ],
+      [
+        97,
+        "lyf/Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive-NVFP4",
+        2,
+        "U",
+        "CT NVFP4 metadata"
+      ],
+      [
+        98,
+        "nvidia/Gemma-4-26B-A4B-NVFP4",
+        2,
+        "U",
+        "ModelOpt metadata"
+      ],
+      [
+        99,
+        "AtomicChat/gemma-4-31B-it-assistant-GGUF",
+        2,
+        "G",
+        null
+      ],
+      [
+        100,
+        "nvidia/Qwen3.5-122B-A10B-NVFP4",
+        2,
+        "U",
+        "ModelOpt metadata"
+      ]
+    ],
+    "classification_counts": {
+      "G": 42,
+      "U": 47,
+      "MO_MIX": 1,
+      "EXL3": 1,
+      "CT_INT": 2,
+      "MLX_AFFINE": 2,
+      "CT_MIX": 1,
+      "MO_MXFP8": 1,
+      "CUSTOM": 2,
+      "MLX_MXFP4": 1
+    },
+    "counts_meaning": "Evidence classifications, not achieved-reader or execution coverage. G still has unknown internal type mixtures; U hints are intentionally not promoted to verified dialect counts.",
+    "achieved_coverage": null,
+    "weighted_coverage": null
+  },
+  "config_sources": [
+    {
+      "url": "https://huggingface.co/nvidia/Qwen3.8-Flash-Next-NVFP4/resolve/fc694b54fb0174e0913e6adf86691ef85a4ead47/config.json",
+      "artifact": "artifact://306",
+      "finding": "ModelOpt MIXED_PRECISION with per-module quantized_layers; a reader accepting only quant_algo NVFP4 misses the highest-ranked tagged repo."
+    },
+    {
+      "url": "https://huggingface.co/GestaltLabs/Qwen3.8-27B-EXL3-11.5GB/resolve/18028352ac6686c45c170f823ed6d8476ac4b292/config.json",
+      "finding": "EXL3 1.4.6 mul1, out_scales always. Audit actual out-scale tensor semantics against upstream before claiming this newest dialect covered by older trellis groups."
+    },
+    {
+      "url": "https://huggingface.co/dbirks/Qwen3.8-27B-W4A16-AutoRound/resolve/1f05c441c4e64ae0549de44fa9ea5a6d43610314/config.json",
+      "artifact": "artifact://304",
+      "finding": "CT pack-quantized INT4; symmetric g128, dynamic false, input/output activations null. AutoRound is optimizer provenance, not GPTQ storage."
+    },
+    {
+      "url": "https://huggingface.co/OsaurusAI/Raptor-v0.5-8B-A1B-JANG_6M/resolve/190391d3b7ac60d93a0af911b92322ebe02b54cc/config.json",
+      "artifact": "artifact://308",
+      "finding": "MLX affine per_tensor override nesting plus switch_mlp fused experts; default8 cannot replace module5/6 values."
+    },
+    {
+      "url": "https://huggingface.co/mlx-community/Qwen3.5-9B-MLX-4bit/resolve/938d8919941c6e7efd3c7150eff7fe9d12afa631/config.json",
+      "finding": "Matching quantization and quantization_config, bits4/g64/mode affine."
+    },
+    {
+      "url": "https://huggingface.co/tencent/Hy4-preview-FP8/resolve/4215ec29de873a998e849cee902654490c7ff4d1/config.json",
+      "artifact": "artifact://305",
+      "finding": "ModelOpt MXFP8 nested under quantization; model_type hy_v4. Neither FP8 name nor 8-bit tag establishes FineGrainedFP8."
+    },
+    {
+      "url": "https://huggingface.co/PhalaCloud/GLM-5.3-W4AFP8/resolve/03179e95916f9f79a92536e76da63f9251d93d4f/config.json",
+      "finding": "Custom quant_method w4afp8, g128."
+    },
+    {
+      "url": "https://huggingface.co/jarrelscy/GLM-5.3-Vision-NVFP4-AQLM-hybrid/resolve/f02f66fe7ec3a14a63d885f8cf18ab997afed15b/config.json",
+      "artifact": "artifact://309",
+      "finding": "Top-level and nested text configs name nvfp4_aqlm_hybrid; AQLM books cannot be silently stripped to reuse NVFP4."
+    },
+    {
+      "url": "https://huggingface.co/Shiftedx/qwopus3.8-27b-flash-mxfp4-vision-mtplx/resolve/1ce5aeddb63a8479f11b4bbf54a06f1076aa317b/config.json",
+      "finding": "MLX mode mxfp4 g32 and separate MTP tensor file, not compressed-tensors layout."
+    },
+    {
+      "url": "https://huggingface.co/lued/Qwen3.8-27B-INT8-W8A16-MTP",
+      "finding": "Card-only explicit CT pack-quantized symmetric RTN INT8 g128; its reported HF-decompressed KL is author evidence, not a QFS capture receipt or Marlin kernel validation."
+    },
+    {
+      "url": "https://huggingface.co/primitive-ai/Qwen3.8-Flash-Next-mixed-NVFP4-FP8",
+      "finding": "Card-only mixed CT NVFP4 experts/FP8 attention with runtime-specific GDN and PLE requirements; publication claims not independently executed."
+    }
+  ],
+  "supplemental_format_checks_outside_denominator": [
+    {
+      "url": "https://huggingface.co/deepseek-ai/DeepSeek-V4-Flash-Vision-Exp/resolve/6821d6ad3681a4b137b066b76094fa82ebd0a380/config.json",
+      "finding": "quant_method fp8, fmt e4m3, scale_fmt ue8m0, block128x128, BUT expert_dtype fp4. Header-level expert storage remains necessary; an FP8 config alone cannot establish every tensor is FP8."
+    },
+    {
+      "url": "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct-AWQ/resolve/b25037543e9394b818fdfca67ab2a00ecc7dd641/config.json",
+      "finding": "Real AWQ GEMM asymmetric INT4 g128. Supports prioritizing this specific dialect without claiming GEMV/Marlin/optimizer equivalence."
+    },
+    {
+      "url": "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct-GPTQ-Int4/resolve/e9c932ac1893a49ae0fc497ad6e1e86e2e39af20/config.json",
+      "finding": "Real GPTQ INT4 g128 sym, desc_act false, old exllama runtime options. No explicit checkpoint_format field; v1/v2 zero convention must be established from exporter contract, never model filename."
+    },
+    {
+      "url": "https://huggingface.co/RedHatAI/gpt-oss-20b/resolve/9fff8613d547ba9b79bf4604fa9820877d0f6aff/config.json",
+      "finding": "Actual quant_method mxfp4, not CT despite publisher association. It has attention_bias true and expert/model-specific fused tensors, separate architecture/head admission concerns."
+    },
+    {
+      "url": "https://huggingface.co/ISTA-DASLab/Meta-Llama-3-8B-Instruct-GPTQ/resolve/main/config.json",
+      "finding": "Read failed HTTP401; replaced supplemental GPTQ lookup with public Qwen config, not counted as absence."
+    }
+  ],
+  "capture_path_audit": {
+    "layer_outer": "Inspected layer_outer.py:320-363,469-550,675-727,1087-1225,1754-1900,1989-2043,2164-2198 and hf_capture.py model-selection sections. The schedule needs one unambiguous text decoder ModuleList named layers, whose parent owns input embeddings. Streaming needs transformers.core_model_loading.convert_and_load_state_dict_in_model; transformers.modeling_utils.LoadStateDictConfig, _load_parameter_into_model, patch_output_recorders; transformers.conversion_mapping.get_model_conversion_mapping. Architecture class construction on meta and canonical name conversion remain required after decoding. Baseline dispatcher has FP8, trellis with mixed FP8, restricted ModelOpt NVFP4, and GGUF branches; no generic new-reader dispatch was verified.",
+    "fp8": "Baseline fp8_checkpoint_plan accepts e4m3 block2D dynamic/unstated activation config but does not record scale_fmt. dequantize_block_fp8 requires weight float8_e4m3fn and scale float32, each rank2. Thus UE8M0 cannot be counted as executable support merely because config recognition succeeds. No silent casting exponent bytes to numerical scales.",
+    "exl3_siq": "Existing trellis APIs handle per-module mul1/mcg, TP composition, shared_h_v1/r7_shared rotations, r7 unpermutation, and mixed retained FP8. These are real independent surfaces, not proof arbitrary trellis fixture data came from optimized EXL3/SIQ. Current Fruit evidence is not negated. New version1.4.6 out_scales requires a storage audit; no assertion of compatibility from matching quant_method alone.",
+    "nvfp4": "Baseline materializer explicitly restricts packed state to known routed expert modules, rejecting packed/non-BF16 payloads outside that geometry. Tensor dequant_nvfp4 is reusable beyond this narrow adapter, but top-ranked dense/head/embedding/mixed exporters require more than the arithmetic primitive.",
+    "gguf": "At initial read gguf_surface architecture table covered fixed GLM5NEXT/GLM_DSA geometries; types and mappings were being expanded by sibling during audit. Block support does not create qwen3_5/qwen4_exp/deepseek_v4/gemma4/nemotron/spark model mappings. GGUF shelf selection, split manifests, tensor census, fused expert ordering, MLA composition and tokenizer order are separate requirements. Current integrated loader requires file-hash marker and official-config geometry agreement.",
+    "mlx": "Existing mlx_surface.dequant_affine is reusable, but the adapter binds an official GLM-Flash shape census and explicitly rejects .switch_mlp., language_model.model., vision_model. aliases. New affine plans therefore still need architecture-aware canonicalization and fused-rank3 handling/refusal. Per_tensor override nesting and mixed bit rates are significant practical dialects.",
+    "window_outer": "hf_capture.py:451-643 uses native or pinned remote classes, from_pretrained and then AutoModelForCausalLM/AutoModelForImageTextToText fallbacks. It does not automatically call QFS primitive surface decoders. The installed HF quantizer, compression packages, hardware support, head interface, loading report and available memory determine reachability. accelerate is required for device_map. trust_remote_code defaults false; explicit pinned code goes through codepin. Window-outer is not a guaranteed escape hatch for unsupported layer-outer quantization.",
+    "primitive_only": "A plan_modules/decode_module API is independently useful and can be verified on packed fixtures without full model execution. Until hf_capture/layer_outer and provenance consumers are integrated, it is reader coverage only, not capture coverage. No monkeypatch path should be used to promote it.",
+    "science_admission": "dscompare gates bind panel/tokenizer, reference, head semantics, stack/engine, lossy capture and decode disclosures. At inspected lines614-615 only methods beginning exl3-trellis- enter weights_reconstructed; activation declarations are separately examined. New reconstruction methods need explicit truthful advisory handling. Registry measurement schema also requires estimator, determinism, measurement_scope, provenance, comparability and disclosures. Author benchmark prose, upstream kernel parity, decoded fixture success, real optimized quantizer quality and sealed QFS comparison are different evidence categories. BF16-forward decoded weights must not claim served activation/KV/kernel behavior or mathematical lower-bound status."
+  },
+  "recommendations": [
+    {
+      "priority": 1,
+      "item": "Integrate and verify common-format plans end-to-end before publishing coverage claims. New readers must preserve unconsumed quantstate, exact top/text conflict handling, activation declarations and provenance. Main owns capture/science integration."
+    },
+    {
+      "priority": 1,
+      "item": "ModelOpt MIXED_PRECISION plus quantized_layers and FP8 per-tensor/per-block forms are a higher-impact missing dialect than another homogeneous NVFP4 fixture. Evidence includes the highest-ranked tagged repo. Handle unsupported constituent schemes by explicit refusal, not metadata stripping."
+    },
+    {
+      "priority": 1,
+      "item": "CT integer pack-quantized is needed alongside AWQ/GPTQ; AutoRound exports already use it. INT8 matters too: sibling affine draft seen in search advertised CT INT4 only, while lued is INT8. Optimizer identity and storage identity must stay separate."
+    },
+    {
+      "priority": 1,
+      "item": "General GGUF architecture/name maps are load-bearing for trending Qwen/Gemma/DeepSeek, independently of completing K/IQ types. Verify whole-build mixed-type census; IQ1/IQ2 and older Q4_0/Q5_0 are meaningful gaps, not every possible codec/model pair."
+    },
+    {
+      "priority": 2,
+      "item": "MLX fused experts, per_tensor override dialect and3/5/6bit payloads deserve priority over only4/8bit homogeneous matrices. MLX MXFP4 is distinct from CT/native GPT-OSS MXFP4."
+    },
+    {
+      "priority": 2,
+      "item": "Audit EXL3 1.4.6 out_scales and codebook/rotation state. Keep real Fruit SIQ/EXL3 evidence and avoid claiming a synthetic packer measures optimized trellis quality."
+    },
+    {
+      "priority": 2,
+      "item": "Treat ModelOpt MXFP8, custom W4AFP8, NVFP4+AQLM, NInfer and halogen as named unknowns/refusals, not covered cousins. Hy4 and Flash-Next also require their actual HF architecture implementations."
+    },
+    {
+      "priority": 2,
+      "item": "BNB NF4 is a reasonable next independent reader, but rank cannot be inferred from this biased tagged sample. Upstream QuantState requires quant map, absmax, block size, shape/dtype and optional nested absmax/map/offset. The API's optional small value only for weight_shape is insufficient for packed quant_state JSON unless metadata extraction is deliberately extended or decoder parses it. Never drop nested quantstate."
+    },
+    {
+      "priority": 3,
+      "item": "HQQ and EXL2 are lower immediate implementation priorities than the observed mixed ModelOpt/CT/MLX gaps; this is engineering prioritization, not a measured popularity conclusion. HQQ carries axis, packing, nbits, shape, scale/zero, view dtype and optional quantized scale/zero state. EXL2 has q_weight/q_scale/permutations and runtime reconstruction; it is neither GPTQ qweight nor EXL3 trellis."
+    },
+    {
+      "priority": 1,
+      "item": "Before Main computes global achieved coverage, replace or augment this tagged-frame denominator with a fully classified unfiltered ranked sample. artifact://320 already exposes the bias. Do not silently combine supplemental targeted examples with the frozen sample or weight by score as if it represented use."
+    }
+  ],
+  "upstream_legacy_sources": [
+    "https://github.com/bitsandbytes-foundation/bitsandbytes/blob/main/bitsandbytes/functional.py#L410",
+    "https://github.com/mobiusml/hqq/blob/master/hqq/core/quantize.py",
+    "https://github.com/turboderp-org/exllamav2/blob/master/exllamav2/linear.py"
+  ],
+  "verification_status": "Read-only source and metadata investigation only. All execution/coverage percentages intentionally null; Main must validate integrated code and fixture comparisons. The requested globally representative top100 is not established by the tagged-frame sample, and this limitation is explicit rather than concealed."
+}

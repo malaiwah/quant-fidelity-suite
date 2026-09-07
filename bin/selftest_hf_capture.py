@@ -287,6 +287,150 @@ def main():
         shutil.rmtree(work, ignore_errors=True)
 
 
+def pinned_code_checks(work, capture_module):
+    """Code can run only after every immutable bundle byte has been verified."""
+    from pathlib import Path
+    from unittest import mock
+    import huggingface_hub
+    import torch
+    from fidelity import codepin
+
+    marker = Path(work) / "code-executed"
+    sources = {
+        "modeling_pin.py": (
+            "from pathlib import Path\n"
+            "Path(%r).write_text('executed')\n"
+            "from .dependency import VALUE\n"
+            "class PinnedModel:\n"
+            "    value = VALUE\n" % str(marker)).encode(),
+        "dependency.py": b"VALUE = 17\n",
+    }
+    cached = Path(work) / "code-cache"
+    cached.mkdir()
+    entries = []
+    for name, payload in sources.items():
+        (cached / name).write_bytes(payload)
+        blob = hashlib.sha1(b"blob " + str(len(payload)).encode() + b"\0" + payload).hexdigest()
+        entries.append(SimpleNamespace(path=name, size=len(payload), blob_id=blob, lfs=None))
+    api = SimpleNamespace(
+        model_info=lambda *a, **k: SimpleNamespace(sha="a" * 40),
+        list_repo_tree=lambda *a, **k: entries)
+    raw = {"auto_map": {"AutoModelForCausalLM": "modeling_pin.PinnedModel"}}
+
+    def refused(fn):
+        try:
+            fn()
+        except codepin.CodePinError:
+            return True
+        return False
+
+    with mock.patch.object(huggingface_hub, "HfApi", return_value=api), \
+            mock.patch.object(huggingface_hub, "hf_hub_download",
+                              side_effect=lambda repo, path, **kw: str(cached / path)):
+        check("A34 mutable code revision refuses before model code executes",
+              refused(lambda: codepin.prepare(raw, "main", "selftest/code")) and not marker.exists())
+        # Same byte count defeats a size-only verifier. The entry module writes
+        # a marker before importing this dependency, so verifying only on each
+        # import (rather than the whole closure first) also fails this check.
+        (cached / "dependency.py").write_bytes(b"VALUE = 99\n")
+        check("A35 tampered transitive dependency refuses BEFORE entry execution",
+              refused(lambda: codepin.prepare(raw, "a" * 40, "selftest/code")) and not marker.exists())
+        (cached / "dependency.py").write_bytes(sources["dependency.py"])
+        bundle = codepin.prepare(raw, "a" * 40, "selftest/code")
+        try:
+            cls = bundle.load_class("modeling_pin.PinnedModel")
+            check("A36 verified relative dependency supplies actual executable behavior",
+                  cls.value == 17 and marker.read_text() == "executed")
+            dependency = bundle.root / "dependency.py"
+            dependency.chmod(0o600)
+            dependency.write_bytes(b"VALUE = 99\n")
+            check("A37 post-import code tamper refuses sealing evidence",
+                  refused(bundle.evidence))
+        finally:
+            sys.meta_path.remove(bundle.finder)
+            for name in list(sys.modules):
+                if name == bundle.namespace or name.startswith(bundle.namespace + "."):
+                    del sys.modules[name]
+            bundle._temporary.cleanup()
+
+        mapping_payload = json.dumps({"auto_map": raw["auto_map"], "vocab_size": 99999}).encode()
+        mapping_blob = hashlib.sha1(
+            b"blob " + str(len(mapping_payload)).encode() + b"\0" + mapping_payload).hexdigest()
+        entries.append(SimpleNamespace(path="config.json", size=len(mapping_payload),
+                                       blob_id=mapping_blob, lfs=None))
+        (cached / "config.json").write_bytes(mapping_payload.replace(b"99999", b"11111"))
+        marker.unlink()
+        check("A42 forged remote dispatch metadata refuses before execution",
+              refused(lambda: codepin.prepare({}, "a" * 40, "selftest/code")) and not marker.exists())
+        (cached / "config.json").write_bytes(mapping_payload)
+        original_config = Path(work) / "reference" / "config.json"
+        original_bytes = original_config.read_bytes()
+        actual_config, cls, bundle = capture_module._model_config(
+            str(original_config.parent), True, "a" * 40, "selftest/code")
+        try:
+            check("A43 pinned fork supplies dispatch only, never changes original model dimensions",
+                  actual_config.vocab_size == 64 and cls.value == 17
+                  and original_config.read_bytes() == original_bytes
+                  and bundle.evidence()["mapping_source"]["sha256"]
+                  == hashlib.sha256(mapping_payload).hexdigest())
+        finally:
+            sys.meta_path.remove(bundle.finder)
+            for name in list(sys.modules):
+                if name == bundle.namespace or name.startswith(bundle.namespace + "."):
+                    del sys.modules[name]
+            bundle._temporary.cleanup()
+
+    # A native checkpoint with a poison auto_map MUST prefer installed classes.
+    native_dir = Path(work) / "native-with-auto-map"
+    tiny_model(str(native_dir))
+    config_path = native_dir / "config.json"
+    config = json.loads(config_path.read_text())
+    config["auto_map"] = {"AutoConfig": "poison.Config",
+                          "AutoModelForCausalLM": "poison.Model"}
+    config_path.write_text(json.dumps(config))
+    marker.unlink()
+    (native_dir / "poison.py").write_text(
+        "from pathlib import Path\nPath(%r).write_text('unsafe')\n" % str(marker))
+    native, _, _ = capture_module.load_model(str(native_dir), "cpu", "bfloat16")
+    tokens = torch.tensor([[1, 2]], dtype=torch.long)
+    check("A38 native fallback does not execute local auto_map code",
+          native(tokens).logits.shape == (1, 2, 64) and not marker.exists())
+
+    wrapper = torch.nn.Module()
+    wrapper.language_model = torch.nn.Module()
+    wrapper.language_model.lm_head = torch.nn.Linear(4, 7, bias=False)
+    head = capture_module.head_module(wrapper)
+    hidden = torch.tensor([[1., 2., 3., 4.]])
+    check("A39 nested head fallback is the registered language projection",
+          head is wrapper.language_model.lm_head
+          and torch.equal(head(hidden), hidden @ wrapper.language_model.lm_head.weight.T))
+    impostor = torch.nn.Module()
+    impostor.language_model = SimpleNamespace(lm_head=torch.nn.Linear(4, 7, bias=False))
+    try:
+        capture_module.head_module(impostor)
+        unregistered_refused = False
+    except SystemExit:
+        unregistered_refused = True
+    check("A40 unregistered lookalike language head is refused", unregistered_refused)
+
+    class AlternateEmbeddingModel(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.text = torch.nn.Module()
+            self.text.embedding = torch.nn.Embedding(7, 4)
+            self.text.layers = torch.nn.ModuleList([torch.nn.Linear(4, 4)])
+            self.vision = torch.nn.Module()
+            self.vision.layers = torch.nn.ModuleList([torch.nn.Linear(4, 4)])
+
+        def get_input_embeddings(self):
+            return self.text.embedding
+
+    alternate = AlternateEmbeddingModel()
+    prefix, layers = capture_module.layer_outer.find_decoder_layers(alternate)
+    check("A41 streamed decoder discovery uses actual input embedding, not vision layers",
+          layers is alternate.text.layers and prefix == "text.layers")
+
+
 def _body(work):
     from fidelity import dsformat as F
     from fidelity import panel as panel_contract
@@ -300,6 +444,7 @@ def _body(work):
     # semantic receipt identity and exact tokenizer to the resolved job binding.
     sys.path.insert(0, os.path.join(REPO, "engines", "tools"))
     import hf_capture as HFC  # noqa: WPS433
+    pinned_code_checks(work, HFC)
     resolved_tokenizer = {
         "repository": "selftest/tokenizer",
         "revision": "a" * 40,

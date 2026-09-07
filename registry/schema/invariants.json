@@ -247,7 +247,7 @@
       "amended": "v1.0.0: restated as a family rule. Two sibling scoring-window views of one parent share the parent's digest without either deriving from the other, which the original pairwise wording rejected.",
       "id": "PANEL-004",
       "severity": "error",
-      "statement": "Two panels never share an identity.panel_token_sha256 unless they belong to one token-identity family: a connected component of the derived_from graph in which every edge has derivation.kind in {reformat, scoring_window_change}. Those derivations re-score identical tokens; every other derivation changes which tokens are in the panel and must therefore change the digest."
+      "statement": "Two panels bound to the same tokenizer.id never share an identity.panel_token_sha256 unless they belong to one token-identity family: a connected component of the derived_from graph in which every edge has derivation.kind in {reformat, scoring_window_change}. Those derivations re-score identical tokens; every other derivation changes which tokens are in the panel and must therefore change the digest. Equal numeric token IDs under different tokenizers do not establish token identity and are not grouped by this rule."
     },
     {
       "id": "PANEL-005",

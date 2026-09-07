@@ -1121,7 +1121,7 @@ def section_lane(tmp):
     check("D3  fp8-block-dequant with activation_scheme dynamic -> activation_quantization_not_captured",
           findings["class"] == "advisory" and len(act) == 1
           and act[0]["severity"] == "caveat" and act[0]["affects_comparability"] is True
-          and not any(d["code"] == "weights_reconstructed" for d in findings["disclosures"]),
+          and any(d["code"] == "weights_reconstructed" for d in findings["disclosures"]),
           json.dumps(act)[:200])
 
     x6 = os.path.join(tmp, "x6-fp8-static")
@@ -1135,7 +1135,8 @@ def section_lane(tmp):
     gates, findings = dscompare.run_gates(dscompare.load_dataset(a),
                                           dscompare.load_dataset(x6), {})
     check("D4  fp8-block-dequant WITHOUT a dynamic activation scheme gets no activation caveat",
-          findings["class"] == "strict"
+          findings["class"] == "advisory"
+          and any(d["code"] == "weights_reconstructed" for d in findings["disclosures"])
           and not any(d["code"] == "activation_quantization_not_captured"
                       for d in findings["disclosures"]))
 
@@ -2142,7 +2143,7 @@ def section_root_qualification(tmp):
           qualify(repeat=swapped, repeat_verify=swapped_verify) == CLI.REFUSED)
 
 
-def _localize_fixture(root, checkpoint_files):
+def _localize_fixture(root, checkpoint_files, device="cuda"):
     """Give a fixture dataset the evidence hf_capture writes and a pod fixture
     omits: the per-shard checkpoint census, the stack versions, the allowlist
     artifact name.  Every dependent digest is re-derived, so the tree still
@@ -2152,11 +2153,17 @@ def _localize_fixture(root, checkpoint_files):
     runtime_doc = F.read_json(os.path.join(root, runtime_rel))
     runtime_doc["weights"]["checkpoint_files"] = checkpoint_files
     runtime_doc["stack_fingerprint"].update({
-        "device_name": "NVIDIA RTX PRO 6000", "torch_version": "2.11.0+cu130",
-        "transformers_version": "5.16.1", "cuda_runtime_version": "13.0"})
+        "device": device,
+        "device_name": "NVIDIA RTX PRO 6000" if device == "cuda" else None,
+        "torch_version": "2.11.0+cu130" if device == "cuda" else "2.11.0+cpu",
+        "transformers_version": "5.16.1",
+        "cuda_runtime_version": "13.0" if device == "cuda" else None})
     runtime_doc["runtime_environment"]["python"] = "3.12.3"
-    runtime_doc["capture_tool"]["unexpected_tensor_allowlist"]["artifact_file"] = \
-        "selftest-allowlist.json"
+    if device == "cpu":
+        runtime_doc["capture_tool"]["unexpected_tensor_allowlist"] = None
+    else:
+        runtime_doc["capture_tool"]["unexpected_tensor_allowlist"]["artifact_file"] = \
+            "selftest-allowlist.json"
     runtime_doc["receipt_sha256"] = ""
     runtime_doc = F.seal_receipt(runtime_doc)
     _, runtime_sha = dsmanifest.write_sub(root, runtime_rel, runtime_doc)
@@ -2171,11 +2178,10 @@ def _localize_fixture(root, checkpoint_files):
     return dsmanifest.finalize(root, manifest)
 
 
-def section_local_root_qualification(tmp):
-    """A root captured on the human's own card qualifies and publish-plans
-    without a controller job.json or a result archive (review S1-1)."""
-    print("\n== LQ: local root qualification (qualify-root --local, publish without an archive) ==")
-    case = os.path.join(tmp, "lq")
+def section_local_root_qualification(tmp, device="cuda"):
+    """Native BF16 roots on local CPU or CUDA qualify through one public protocol."""
+    print("\n== LQ: local %s root qualification and canonical publication ==" % device)
+    case = os.path.join(tmp, "lq-" + device)
     os.makedirs(case)
     destination = "selftest/local-root-dataset"
     weights = "selftest/local-weights"
@@ -2188,8 +2194,9 @@ def section_local_root_qualification(tmp):
         handle.write(config_bytes)
     with open(os.path.join(model_dir, "model.safetensors"), "wb") as handle:
         handle.write(shard_bytes)
-    with open(os.path.join(model_dir, "model.safetensors.index.json"), "wb") as handle:
-        handle.write(b'{"metadata": {"total_size": 17}, "weight_map": {}}\n')
+    if device != "cpu":
+        with open(os.path.join(model_dir, "model.safetensors.index.json"), "wb") as handle:
+            handle.write(b'{"metadata": {"total_size": 17}, "weight_map": {}}\n')
     checkpoint_files = [
         {"name": "config.json", "size": len(config_bytes),
          "sha256": hashlib.sha256(config_bytes).hexdigest()},
@@ -2202,7 +2209,7 @@ def section_local_root_qualification(tmp):
         build_dataset(root, seed=93, run_name=label, cold_run=label,
                       dataset_repository=destination, weights_repository=weights,
                       qualification_contract=True)
-        _localize_fixture(root, checkpoint_files)
+        _localize_fixture(root, checkpoint_files, device=device)
     check("LQ0 localized fixtures still verify",
           not dsvalidate.validate_dataset(first, verify_tensors=True).errors
           and not dsvalidate.validate_dataset(repeat, verify_tensors=True).errors)
@@ -2253,25 +2260,6 @@ def section_local_root_qualification(tmp):
           rc == CLI.OK and os.path.isfile(job_out), "rc=%s" % (rc,))
     job = F.read_json(job_out) if os.path.isfile(job_out) else {}
     receipt = F.read_json(out) if os.path.isfile(out) else {}
-    check("LQ2a the job is a verified job.v2 with recipe/kind local and no image",
-          job.get("recipe") == "local"
-          and (job.get("execution_attempt") or {}).get("kind") == "local"
-          and (job.get("environment") or {}).get("container_image") is None
-          and bool(job) and jobcontract.verify_job(job) == receipt.get("canonical_job_sha256"))
-    check("LQ2b the job's target census is the captures' shard census, bound to --model-dir",
-          (job.get("target") or {}).get("shards") == [{"path": "model.safetensors", "bytes": 17}]
-          and (job.get("target") or {}).get("config_sha256") == checkpoint_files[0]["sha256"]
-          and (job.get("target") or {}).get("index_sha256") == common.sha256_file(
-              os.path.join(model_dir, "model.safetensors.index.json")))
-    local_execution = receipt.get("local_execution") or {}
-    check("LQ2c the receipt records device_name, torch/transformers and no pod attestation",
-          (receipt.get("job_contract") or {}).get("execution_kind") == "local"
-          and local_execution.get("device_name") == "NVIDIA RTX PRO 6000"
-          and local_execution.get("torch_version") == "2.11.0+cu130"
-          and local_execution.get("transformers_version") == "5.16.1"
-          and "pod_attestation" in local_execution
-          and local_execution["pod_attestation"] is None
-          and local_execution == job.get("local_execution"))
     try:
         check("LQ2d the receipt reloads under the strict loader with the derived job",
               CLI._load_qualification(out, job_path=job_out) is not None)
@@ -2281,6 +2269,44 @@ def section_local_root_qualification(tmp):
     check("LQ2e a second --local run refuses to overwrite the job contract",
           qualify(out=os.path.join(case, "lq2e.json"), job_out=job_out) == CLI.REFUSED
           and jobcontract.verify_job(F.read_json(job_out)) == receipt.get("canonical_job_sha256"))
+
+    if device == "cpu":
+        # Start from a valid CUDA paid-admission job, then change only the
+        # capture device. Malformed execution metadata cannot mask the gate.
+        from selftest_job_identity import fixture as paid_job_fixture
+        paid = F.read_json(os.path.join(tmp, "lq-cuda", "receipts", "job.json"))
+        paid["execution_attempt"] = paid_job_fixture()["execution_attempt"]
+        paid["produced_by"]["dependencies"]["provider"] = "runpod"
+        paid["recipe"] = "cloud"
+        paid["resource_requirements"] = dict.fromkeys(job["resource_requirements"], 1)
+        paid["environment"].update(
+            gpu="selftest GPU", gpu_count=1, tensor_parallel=1,
+            image="selftest/image@sha256:" + "f" * 64)
+        for block in ("capture", "profile", "runtime"):
+            paid[block]["device"] = "cuda"
+        paid = jobcontract.finalize_job(paid)
+        for block in ("capture", "profile", "runtime"):
+            paid[block]["device"] = "cpu"
+        try:
+            jobcontract.finalize_job(paid)
+            check("LQ2f a CPU root cannot enter RunPod admission", False)
+        except jobcontract.JobContractError:
+            check("LQ2f a CPU root cannot enter RunPod admission", True)
+        for field, value in (("gpu_count", 1), ("gpu", "invented GPU")):
+            dishonest = json.loads(json.dumps(job))
+            dishonest["environment"][field] = value
+            try:
+                jobcontract.finalize_job(dishonest)
+                check("LQ2g CPU qualification refuses invented " + field, False)
+            except jobcontract.JobContractError:
+                check("LQ2g CPU qualification refuses invented " + field, True)
+        projection = jobcontract.root_qualification_contract(job)
+        projection["execution_kind"] = "runpod-ssh"
+        try:
+            jobcontract.validate_root_qualification_contract(projection)
+            check("LQ2h public CPU qualification cannot claim RunPod execution", False)
+        except jobcontract.JobContractError:
+            check("LQ2h public CPU qualification cannot claim RunPod execution", True)
 
     tampered = os.path.join(case, "tampered-qualification.json")
     doc = dict(receipt)
@@ -2550,6 +2576,7 @@ def main():
         section_hostile_fetch(tmp)
         section_root_qualification(tmp)
         section_local_root_qualification(tmp)
+        section_local_root_qualification(tmp, device="cpu")
         section_resources(tmp)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)

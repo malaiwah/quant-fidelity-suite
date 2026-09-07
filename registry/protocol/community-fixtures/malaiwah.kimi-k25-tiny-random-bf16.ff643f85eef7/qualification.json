@@ -1,0 +1,587 @@
+{
+  "canonical_job_sha256": "941b544a8213150273a8147f2c2f29d8eb09f1fa10fc8723b0002d2676293469",
+  "captures": {
+    "canonical": {
+      "capture_content_digest": "2f760cb067272ddc3d3f17acb2acc89bbc78db5ce597defdc0160c4682416934",
+      "capture_dtype": "BF16",
+      "capture_form": "hidden",
+      "capture_manifest": "capture/manifest.json",
+      "capture_manifest_sha256": "4fdcf2e7440be5bc8f067843f65834b709ce04d7a755d8aea818d52c37b13d9a",
+      "capture_schedule": "layer-outer",
+      "capture_tool_file": "engines/tools/hf_capture.py",
+      "dataset_author": "malaiwah",
+      "dataset_id": "fidelity--kimi-k25.community-root",
+      "dataset_license": "other",
+      "dataset_manifest_file_sha256": "a617a9a8a9048c90c63ac1b62bf8d7b036e6c44465e2af8d00af547ccc2b02d9",
+      "dataset_name": "kimi-k25 random CPU fixture root",
+      "dataset_repository": "malaiwah/kimi-k25-tiny-fidelity-root-v1",
+      "dataset_sha256": "29336d88a8aa2634131c09edafd8ca5036106c8ca5e70e8aa2ea4ab308be16e3",
+      "determinism_run_count": 1,
+      "lane_identity_sha256": "34f640ff350d24093734d97a81c1048ce0443d8b3c7bda0953f8283b8ea9269f",
+      "panel": {
+        "panel_id": "panel--kimi-k25-tiny.malaiwah.cpu-smoke-v1",
+        "panel_receipt_sha256": "21ef3956f5c59f363f238e6c5a54f16e518c6bb033918ae29b6d43169d784c85",
+        "resolved_binding_evidence": {
+          "binding": {
+            "content": {
+              "archive": {
+                "algorithm": "sha256(ustar: sorted regular files; mode=0644; uid=gid=mtime=0)",
+                "bytes": 20480,
+                "compression": "none",
+                "format": "ustar",
+                "sha256": "7fd714e8a7e298ebaca2ba7b4a88e2a2b803d303074de73f60fdbae1e4d558e1"
+              },
+              "manifest": [
+                {
+                  "bytes": 192,
+                  "path": "arrays/causal-mask-64.npy",
+                  "sha256": "a38fba8bfd9cd25a81b0e37fa144e8e13e84f769ae7f609ceebc94a64f4f5d02"
+                },
+                {
+                  "bytes": 384,
+                  "path": "arrays/final-0000.tokens.npy",
+                  "sha256": "d60234f4b3b6044fb21eca18f7df82de9822f388e4d93d19d8a4eb69d6d490af"
+                },
+                {
+                  "bytes": 384,
+                  "path": "arrays/final-0001.tokens.npy",
+                  "sha256": "20188213e4dfaaed04b1396a4ec46a5a2a6236c87d870c64d7102568d585ceea"
+                },
+                {
+                  "bytes": 384,
+                  "path": "arrays/final-0002.tokens.npy",
+                  "sha256": "00341b323c286034a1c3a80ae66318cb6ce67153c08b1eedf6990b7a0310662c"
+                },
+                {
+                  "bytes": 384,
+                  "path": "arrays/final-0003.tokens.npy",
+                  "sha256": "a13ec9b40a39027396ec752ee8595e0613569b78e27ef25d254f4f9a82d8775a"
+                },
+                {
+                  "bytes": 4189,
+                  "path": "panel.json",
+                  "sha256": "6c6d91faa5b7465b6bf66c51bd9967b4201ce97bf4657d5e5cf0a628ce2a436a"
+                },
+                {
+                  "bytes": 7796,
+                  "path": "panel.receipt.json",
+                  "sha256": "bdc3e4ccdbb5a6b011ca219fce87144fb3ef77a738109815e878298b16526934"
+                }
+              ],
+              "manifest_sha256": "9dd33fdc6d7f3eb489911f450b009e06446ba57db17577c05721e981c6632896"
+            },
+            "panel": {
+              "bytes": 4189,
+              "context_length": 64,
+              "contexts": 4,
+              "file": "panel.json",
+              "id": "panel--kimi-k25-tiny.malaiwah.cpu-smoke-v1",
+              "name": "Tiny random-init kimi-k25 synthetic CPU smoke (not a benchmark)",
+              "positions_per_context": 63,
+              "role": "final",
+              "scored_positions_total": 252,
+              "sha256": "6c6d91faa5b7465b6bf66c51bd9967b4201ce97bf4657d5e5cf0a628ce2a436a",
+              "suite_token_hash_sha256": "525cb6c625096ddb0ab19771a252e83223de98cc984733ef7da25a5eb076db36"
+            },
+            "receipt": {
+              "bytes": 7796,
+              "declared_receipt_sha256": "21ef3956f5c59f363f238e6c5a54f16e518c6bb033918ae29b6d43169d784c85",
+              "file": "panel.receipt.json",
+              "receipt_file_sha256": "bdc3e4ccdbb5a6b011ca219fce87144fb3ef77a738109815e878298b16526934",
+              "receipt_seal_mode": "self-blank"
+            },
+            "schema": "malaiwah.resolved-panel.v1",
+            "tokenizer": {
+              "files": [
+                {
+                  "bytes": 2084,
+                  "name": "config.json",
+                  "sha256": "5a25e66471e703670ef7f69820ca27085742d9931260f9f5de9b3f7efbbe45e7"
+                },
+                {
+                  "bytes": 216,
+                  "name": "generation_config.json",
+                  "sha256": "1d59e0fb61ca550ea84bd37a6bdf553ab364bc2689b17ba69f6a1adbc9d61e34"
+                },
+                {
+                  "bytes": 9335,
+                  "name": "tokenizer.json",
+                  "sha256": "c5f05830d9b8e3fc7042f20c32c18e056a5ee87c48313606849794bf1b485677"
+                },
+                {
+                  "bytes": 516,
+                  "name": "tokenizer_config.json",
+                  "sha256": "9f24ab4c9150115747c129e162d2700bf8ef6fc9ba69703d13b99274463283e3"
+                }
+              ],
+              "files_verified": true,
+              "id": "malaiwah/kimi-k25-tiny-random-bf16",
+              "identity_sha256": "a5384d5c24d23c99fbb877e88f7e3fbdb99fca638441e3b7a38213d78787f7d2",
+              "maximum_token_id_exclusive": 272,
+              "receipt": null,
+              "repository": "malaiwah/kimi-k25-tiny-random-bf16",
+              "revision": "07fec4f0e008a5947066b80cc7cb7c8058e5cfe0",
+              "vocab_size": 272
+            }
+          },
+          "binding_file": "panel-binding.json",
+          "binding_file_sha256": "58d3d7a862ed061cb211d834a99f3abc35dcb6e7608bff423d9fe3b8252a61bb",
+          "tokenizer_equivalences": []
+        },
+        "suite_token_hash_sha256": "525cb6c625096ddb0ab19771a252e83223de98cc984733ef7da25a5eb076db36",
+        "tokenizer": {
+          "files": [
+            {
+              "bytes": 2084,
+              "name": "config.json",
+              "sha256": "5a25e66471e703670ef7f69820ca27085742d9931260f9f5de9b3f7efbbe45e7"
+            },
+            {
+              "bytes": 216,
+              "name": "generation_config.json",
+              "sha256": "1d59e0fb61ca550ea84bd37a6bdf553ab364bc2689b17ba69f6a1adbc9d61e34"
+            },
+            {
+              "bytes": 9335,
+              "name": "tokenizer.json",
+              "sha256": "c5f05830d9b8e3fc7042f20c32c18e056a5ee87c48313606849794bf1b485677"
+            },
+            {
+              "bytes": 516,
+              "name": "tokenizer_config.json",
+              "sha256": "9f24ab4c9150115747c129e162d2700bf8ef6fc9ba69703d13b99274463283e3"
+            }
+          ],
+          "files_verified": true,
+          "id": "malaiwah/kimi-k25-tiny-random-bf16",
+          "identity_sha256": "a5384d5c24d23c99fbb877e88f7e3fbdb99fca638441e3b7a38213d78787f7d2",
+          "maximum_token_id_exclusive": 272,
+          "receipt": null,
+          "repository": "malaiwah/kimi-k25-tiny-random-bf16",
+          "revision": "07fec4f0e008a5947066b80cc7cb7c8058e5cfe0",
+          "vocab_size": 272
+        }
+      },
+      "process_label": "fidelity--kimi-k25.community-root-first",
+      "runtime_container": {
+        "image_digest": null,
+        "image_reference": null,
+        "image_repository_digest": null
+      },
+      "runtime_device": "cpu",
+      "runtime_engine": "transformers-eager",
+      "runtime_lane": "other",
+      "runtime_manifest": "runtime/capture-runtime.json",
+      "runtime_manifest_sha256": "5263d3c9b30c343cd1c2c2f19cad16ce8bf93e01ce70e7f5cd0f4248b0c0693c",
+      "stack_fingerprint_sha256": "a83c4de13e06b8727c3a05959e470708b1fa396b0fcbd78c2f9deac666fea6cd",
+      "unexpected_tensor_allowlist": null,
+      "weights_license": {
+        "bytes": 1470,
+        "dataset_path": "LICENSE",
+        "sha256": "9cb73476cecdfabac7775bf7c225bd5f6017d5d678372917e4456964c0454f7a",
+        "source_file": "LICENSE"
+      },
+      "weights_license_file_bytes": 1470,
+      "weights_license_file_sha256": "9cb73476cecdfabac7775bf7c225bd5f6017d5d678372917e4456964c0454f7a",
+      "weights_repository": "malaiwah/kimi-k25-tiny-random-bf16",
+      "weights_revision": "721c97dd956f23b6b5c1040d633539a162a19094"
+    },
+    "repeat": {
+      "capture_content_digest": "2f760cb067272ddc3d3f17acb2acc89bbc78db5ce597defdc0160c4682416934",
+      "capture_dtype": "BF16",
+      "capture_form": "hidden",
+      "capture_manifest": "capture/manifest.json",
+      "capture_manifest_sha256": "9611555cf419ede85b3649ee3b9f912c35c53f394019d9c8fab70629d8d74813",
+      "capture_schedule": "layer-outer",
+      "capture_tool_file": "engines/tools/hf_capture.py",
+      "dataset_author": "malaiwah",
+      "dataset_id": "fidelity--kimi-k25.community-root",
+      "dataset_license": "other",
+      "dataset_manifest_file_sha256": "5addcada5284e2c5262aa4eb2334dc86951dfd40298b7856d19a974d77ca6614",
+      "dataset_name": "kimi-k25 random CPU fixture root",
+      "dataset_repository": "malaiwah/kimi-k25-tiny-fidelity-root-v1",
+      "dataset_sha256": "4c8ce221750845789649d0f0c419607df0016b19bac7b1ef6efbf40fefb3ce41",
+      "determinism_run_count": 1,
+      "lane_identity_sha256": "34f640ff350d24093734d97a81c1048ce0443d8b3c7bda0953f8283b8ea9269f",
+      "panel": {
+        "panel_id": "panel--kimi-k25-tiny.malaiwah.cpu-smoke-v1",
+        "panel_receipt_sha256": "21ef3956f5c59f363f238e6c5a54f16e518c6bb033918ae29b6d43169d784c85",
+        "resolved_binding_evidence": {
+          "binding": {
+            "content": {
+              "archive": {
+                "algorithm": "sha256(ustar: sorted regular files; mode=0644; uid=gid=mtime=0)",
+                "bytes": 20480,
+                "compression": "none",
+                "format": "ustar",
+                "sha256": "7fd714e8a7e298ebaca2ba7b4a88e2a2b803d303074de73f60fdbae1e4d558e1"
+              },
+              "manifest": [
+                {
+                  "bytes": 192,
+                  "path": "arrays/causal-mask-64.npy",
+                  "sha256": "a38fba8bfd9cd25a81b0e37fa144e8e13e84f769ae7f609ceebc94a64f4f5d02"
+                },
+                {
+                  "bytes": 384,
+                  "path": "arrays/final-0000.tokens.npy",
+                  "sha256": "d60234f4b3b6044fb21eca18f7df82de9822f388e4d93d19d8a4eb69d6d490af"
+                },
+                {
+                  "bytes": 384,
+                  "path": "arrays/final-0001.tokens.npy",
+                  "sha256": "20188213e4dfaaed04b1396a4ec46a5a2a6236c87d870c64d7102568d585ceea"
+                },
+                {
+                  "bytes": 384,
+                  "path": "arrays/final-0002.tokens.npy",
+                  "sha256": "00341b323c286034a1c3a80ae66318cb6ce67153c08b1eedf6990b7a0310662c"
+                },
+                {
+                  "bytes": 384,
+                  "path": "arrays/final-0003.tokens.npy",
+                  "sha256": "a13ec9b40a39027396ec752ee8595e0613569b78e27ef25d254f4f9a82d8775a"
+                },
+                {
+                  "bytes": 4189,
+                  "path": "panel.json",
+                  "sha256": "6c6d91faa5b7465b6bf66c51bd9967b4201ce97bf4657d5e5cf0a628ce2a436a"
+                },
+                {
+                  "bytes": 7796,
+                  "path": "panel.receipt.json",
+                  "sha256": "bdc3e4ccdbb5a6b011ca219fce87144fb3ef77a738109815e878298b16526934"
+                }
+              ],
+              "manifest_sha256": "9dd33fdc6d7f3eb489911f450b009e06446ba57db17577c05721e981c6632896"
+            },
+            "panel": {
+              "bytes": 4189,
+              "context_length": 64,
+              "contexts": 4,
+              "file": "panel.json",
+              "id": "panel--kimi-k25-tiny.malaiwah.cpu-smoke-v1",
+              "name": "Tiny random-init kimi-k25 synthetic CPU smoke (not a benchmark)",
+              "positions_per_context": 63,
+              "role": "final",
+              "scored_positions_total": 252,
+              "sha256": "6c6d91faa5b7465b6bf66c51bd9967b4201ce97bf4657d5e5cf0a628ce2a436a",
+              "suite_token_hash_sha256": "525cb6c625096ddb0ab19771a252e83223de98cc984733ef7da25a5eb076db36"
+            },
+            "receipt": {
+              "bytes": 7796,
+              "declared_receipt_sha256": "21ef3956f5c59f363f238e6c5a54f16e518c6bb033918ae29b6d43169d784c85",
+              "file": "panel.receipt.json",
+              "receipt_file_sha256": "bdc3e4ccdbb5a6b011ca219fce87144fb3ef77a738109815e878298b16526934",
+              "receipt_seal_mode": "self-blank"
+            },
+            "schema": "malaiwah.resolved-panel.v1",
+            "tokenizer": {
+              "files": [
+                {
+                  "bytes": 2084,
+                  "name": "config.json",
+                  "sha256": "5a25e66471e703670ef7f69820ca27085742d9931260f9f5de9b3f7efbbe45e7"
+                },
+                {
+                  "bytes": 216,
+                  "name": "generation_config.json",
+                  "sha256": "1d59e0fb61ca550ea84bd37a6bdf553ab364bc2689b17ba69f6a1adbc9d61e34"
+                },
+                {
+                  "bytes": 9335,
+                  "name": "tokenizer.json",
+                  "sha256": "c5f05830d9b8e3fc7042f20c32c18e056a5ee87c48313606849794bf1b485677"
+                },
+                {
+                  "bytes": 516,
+                  "name": "tokenizer_config.json",
+                  "sha256": "9f24ab4c9150115747c129e162d2700bf8ef6fc9ba69703d13b99274463283e3"
+                }
+              ],
+              "files_verified": true,
+              "id": "malaiwah/kimi-k25-tiny-random-bf16",
+              "identity_sha256": "a5384d5c24d23c99fbb877e88f7e3fbdb99fca638441e3b7a38213d78787f7d2",
+              "maximum_token_id_exclusive": 272,
+              "receipt": null,
+              "repository": "malaiwah/kimi-k25-tiny-random-bf16",
+              "revision": "07fec4f0e008a5947066b80cc7cb7c8058e5cfe0",
+              "vocab_size": 272
+            }
+          },
+          "binding_file": "panel-binding.json",
+          "binding_file_sha256": "58d3d7a862ed061cb211d834a99f3abc35dcb6e7608bff423d9fe3b8252a61bb",
+          "tokenizer_equivalences": []
+        },
+        "suite_token_hash_sha256": "525cb6c625096ddb0ab19771a252e83223de98cc984733ef7da25a5eb076db36",
+        "tokenizer": {
+          "files": [
+            {
+              "bytes": 2084,
+              "name": "config.json",
+              "sha256": "5a25e66471e703670ef7f69820ca27085742d9931260f9f5de9b3f7efbbe45e7"
+            },
+            {
+              "bytes": 216,
+              "name": "generation_config.json",
+              "sha256": "1d59e0fb61ca550ea84bd37a6bdf553ab364bc2689b17ba69f6a1adbc9d61e34"
+            },
+            {
+              "bytes": 9335,
+              "name": "tokenizer.json",
+              "sha256": "c5f05830d9b8e3fc7042f20c32c18e056a5ee87c48313606849794bf1b485677"
+            },
+            {
+              "bytes": 516,
+              "name": "tokenizer_config.json",
+              "sha256": "9f24ab4c9150115747c129e162d2700bf8ef6fc9ba69703d13b99274463283e3"
+            }
+          ],
+          "files_verified": true,
+          "id": "malaiwah/kimi-k25-tiny-random-bf16",
+          "identity_sha256": "a5384d5c24d23c99fbb877e88f7e3fbdb99fca638441e3b7a38213d78787f7d2",
+          "maximum_token_id_exclusive": 272,
+          "receipt": null,
+          "repository": "malaiwah/kimi-k25-tiny-random-bf16",
+          "revision": "07fec4f0e008a5947066b80cc7cb7c8058e5cfe0",
+          "vocab_size": 272
+        }
+      },
+      "process_label": "fidelity--kimi-k25.community-root-repeat",
+      "runtime_container": {
+        "image_digest": null,
+        "image_reference": null,
+        "image_repository_digest": null
+      },
+      "runtime_device": "cpu",
+      "runtime_engine": "transformers-eager",
+      "runtime_lane": "other",
+      "runtime_manifest": "runtime/capture-runtime.json",
+      "runtime_manifest_sha256": "154ccde87bdd40c27e9b32aa5459642c6fc9c14a14fbe635fa38dce1f92c6470",
+      "stack_fingerprint_sha256": "a83c4de13e06b8727c3a05959e470708b1fa396b0fcbd78c2f9deac666fea6cd",
+      "unexpected_tensor_allowlist": null,
+      "weights_license": {
+        "bytes": 1470,
+        "dataset_path": "LICENSE",
+        "sha256": "9cb73476cecdfabac7775bf7c225bd5f6017d5d678372917e4456964c0454f7a",
+        "source_file": "LICENSE"
+      },
+      "weights_license_file_bytes": 1470,
+      "weights_license_file_sha256": "9cb73476cecdfabac7775bf7c225bd5f6017d5d678372917e4456964c0454f7a",
+      "weights_repository": "malaiwah/kimi-k25-tiny-random-bf16",
+      "weights_revision": "721c97dd956f23b6b5c1040d633539a162a19094"
+    }
+  },
+  "comparator": {
+    "accumulation_dtype": "float64",
+    "device": "cpu",
+    "estimator_backend": "numpy_fp64",
+    "force_compute_agreed": true,
+    "replay_backend": "numpy:cpu:float32",
+    "requested_replay_device": "numpy",
+    "requested_replay_dtype": "float32",
+    "requested_vocab_chunk": 8192,
+    "vocab_chunk": 8192
+  },
+  "comparison": {
+    "comparison_kind": "reproduction_confirmation",
+    "file_sha256": "b2dce0c7667214a1e87a03c007dc98ab864a48801435cb66a4fc1ebfb860ecb4",
+    "max_kld": 0.0,
+    "mean_kld": 0.0,
+    "path": "comparison-receipt.json",
+    "receipt_sha256": "96968fae6bcf323729c2c14f7c1c5d2f2b0ef3e7ceb5dfafcb70e0a8fc92fa81",
+    "top1_agreement": 1.0
+  },
+  "dataset_repository": "malaiwah/kimi-k25-tiny-fidelity-root-v1",
+  "destination_repository": "malaiwah/kimi-k25-tiny-fidelity-root-v1",
+  "job_contract": {
+    "author": "malaiwah",
+    "candidate": null,
+    "container_image_digest": null,
+    "container_image_reference": null,
+    "dataset_id": "fidelity--kimi-k25.community-root",
+    "dataset_license": "other",
+    "dataset_name": "kimi-k25 random CPU fixture root",
+    "dataset_repository": "malaiwah/kimi-k25-tiny-fidelity-root-v1",
+    "device": "cpu",
+    "dtype": "bfloat16",
+    "engine": "hf-transformers",
+    "execution_kind": "local",
+    "form": "hidden",
+    "lane": "other",
+    "panel_binding_file_sha256": "58d3d7a862ed061cb211d834a99f3abc35dcb6e7608bff423d9fe3b8252a61bb",
+    "panel_binding_path": "panel-binding.json",
+    "panel_id": "panel--kimi-k25-tiny.malaiwah.cpu-smoke-v1",
+    "panel_receipt_file_bytes": 7796,
+    "panel_receipt_file_sha256": "bdc3e4ccdbb5a6b011ca219fce87144fb3ef77a738109815e878298b16526934",
+    "panel_receipt_seal_mode": "self-blank",
+    "panel_receipt_sha256": "21ef3956f5c59f363f238e6c5a54f16e518c6bb033918ae29b6d43169d784c85",
+    "panel_resolved_binding": {
+      "content": {
+        "archive": {
+          "algorithm": "sha256(ustar: sorted regular files; mode=0644; uid=gid=mtime=0)",
+          "bytes": 20480,
+          "compression": "none",
+          "format": "ustar",
+          "sha256": "7fd714e8a7e298ebaca2ba7b4a88e2a2b803d303074de73f60fdbae1e4d558e1"
+        },
+        "manifest": [
+          {
+            "bytes": 192,
+            "path": "arrays/causal-mask-64.npy",
+            "sha256": "a38fba8bfd9cd25a81b0e37fa144e8e13e84f769ae7f609ceebc94a64f4f5d02"
+          },
+          {
+            "bytes": 384,
+            "path": "arrays/final-0000.tokens.npy",
+            "sha256": "d60234f4b3b6044fb21eca18f7df82de9822f388e4d93d19d8a4eb69d6d490af"
+          },
+          {
+            "bytes": 384,
+            "path": "arrays/final-0001.tokens.npy",
+            "sha256": "20188213e4dfaaed04b1396a4ec46a5a2a6236c87d870c64d7102568d585ceea"
+          },
+          {
+            "bytes": 384,
+            "path": "arrays/final-0002.tokens.npy",
+            "sha256": "00341b323c286034a1c3a80ae66318cb6ce67153c08b1eedf6990b7a0310662c"
+          },
+          {
+            "bytes": 384,
+            "path": "arrays/final-0003.tokens.npy",
+            "sha256": "a13ec9b40a39027396ec752ee8595e0613569b78e27ef25d254f4f9a82d8775a"
+          },
+          {
+            "bytes": 4189,
+            "path": "panel.json",
+            "sha256": "6c6d91faa5b7465b6bf66c51bd9967b4201ce97bf4657d5e5cf0a628ce2a436a"
+          },
+          {
+            "bytes": 7796,
+            "path": "panel.receipt.json",
+            "sha256": "bdc3e4ccdbb5a6b011ca219fce87144fb3ef77a738109815e878298b16526934"
+          }
+        ],
+        "manifest_sha256": "9dd33fdc6d7f3eb489911f450b009e06446ba57db17577c05721e981c6632896"
+      },
+      "panel": {
+        "bytes": 4189,
+        "context_length": 64,
+        "contexts": 4,
+        "file": "panel.json",
+        "id": "panel--kimi-k25-tiny.malaiwah.cpu-smoke-v1",
+        "name": "Tiny random-init kimi-k25 synthetic CPU smoke (not a benchmark)",
+        "positions_per_context": 63,
+        "role": "final",
+        "scored_positions_total": 252,
+        "sha256": "6c6d91faa5b7465b6bf66c51bd9967b4201ce97bf4657d5e5cf0a628ce2a436a",
+        "suite_token_hash_sha256": "525cb6c625096ddb0ab19771a252e83223de98cc984733ef7da25a5eb076db36"
+      },
+      "receipt": {
+        "bytes": 7796,
+        "declared_receipt_sha256": "21ef3956f5c59f363f238e6c5a54f16e518c6bb033918ae29b6d43169d784c85",
+        "file": "panel.receipt.json",
+        "receipt_file_sha256": "bdc3e4ccdbb5a6b011ca219fce87144fb3ef77a738109815e878298b16526934",
+        "receipt_seal_mode": "self-blank"
+      },
+      "schema": "malaiwah.resolved-panel.v1",
+      "tokenizer": {
+        "files": [
+          {
+            "bytes": 2084,
+            "name": "config.json",
+            "sha256": "5a25e66471e703670ef7f69820ca27085742d9931260f9f5de9b3f7efbbe45e7"
+          },
+          {
+            "bytes": 216,
+            "name": "generation_config.json",
+            "sha256": "1d59e0fb61ca550ea84bd37a6bdf553ab364bc2689b17ba69f6a1adbc9d61e34"
+          },
+          {
+            "bytes": 9335,
+            "name": "tokenizer.json",
+            "sha256": "c5f05830d9b8e3fc7042f20c32c18e056a5ee87c48313606849794bf1b485677"
+          },
+          {
+            "bytes": 516,
+            "name": "tokenizer_config.json",
+            "sha256": "9f24ab4c9150115747c129e162d2700bf8ef6fc9ba69703d13b99274463283e3"
+          }
+        ],
+        "files_verified": true,
+        "id": "malaiwah/kimi-k25-tiny-random-bf16",
+        "identity_sha256": "a5384d5c24d23c99fbb877e88f7e3fbdb99fca638441e3b7a38213d78787f7d2",
+        "maximum_token_id_exclusive": 272,
+        "receipt": null,
+        "repository": "malaiwah/kimi-k25-tiny-random-bf16",
+        "revision": "07fec4f0e008a5947066b80cc7cb7c8058e5cfe0",
+        "vocab_size": 272
+      }
+    },
+    "panel_suite_token_hash_sha256": "525cb6c625096ddb0ab19771a252e83223de98cc984733ef7da25a5eb076db36",
+    "profile": {
+      "compute_dtype": "bfloat16",
+      "device": "cpu",
+      "engine": "hf-transformers",
+      "form": "hidden",
+      "lane": "root",
+      "profile_id": "root-hf-transformers-bf16",
+      "schedule": "two-fresh-process-qualification",
+      "source": "native",
+      "surface": "native-bf16"
+    },
+    "publish_root_to": "malaiwah/kimi-k25-tiny-fidelity-root-v1",
+    "resume_capture": null,
+    "schedule": "layer-outer",
+    "target": {
+      "bits": 16,
+      "codec": "bf16",
+      "path": null,
+      "repo_id": "malaiwah/kimi-k25-tiny-random-bf16",
+      "revision": "721c97dd956f23b6b5c1040d633539a162a19094",
+      "surface": "native-bf16"
+    },
+    "tokenizer_identity_sha256": "a5384d5c24d23c99fbb877e88f7e3fbdb99fca638441e3b7a38213d78787f7d2",
+    "unexpected_tensor_allowlist": null,
+    "weights_license": {
+      "bytes": 1470,
+      "dataset_path": "LICENSE",
+      "sha256": "9cb73476cecdfabac7775bf7c225bd5f6017d5d678372917e4456964c0454f7a",
+      "source_path": "LICENSE"
+    },
+    "weights_repository": "malaiwah/kimi-k25-tiny-random-bf16",
+    "weights_revision": "721c97dd956f23b6b5c1040d633539a162a19094"
+  },
+  "job_file_sha256": "935730bed2ee38ccd0cea2d3cab7e0f760d995ae5b3da8d7f12bbc2311f4bbf7",
+  "local_execution": {
+    "capture_dataset_bytes": 248133,
+    "cuda_runtime_version": null,
+    "device": "cpu",
+    "device_name": null,
+    "note": "captured on hardware the author controls; there is no provider, no pod attestation, no container pin and no paid meter. resource_requirements are admission minima, not measurements: null means not applicable to an already completed local run; CPU capture uses zero GPUs and zero VRAM. capture_dataset_bytes is the observed combined size of the two sealed datasets.",
+    "pod_attestation": null,
+    "python": "3.12.14",
+    "torch_version": "2.11.0+cpu",
+    "transformers_version": "5.16.1"
+  },
+  "qualified_at": "2026-09-07T18:01:13Z",
+  "receipt_sha256": "cbe2d1cdebeb18d44fd5d8a770c02713b3f080a855b95bf852ffc20e19255f18",
+  "reproduction_confirmation": {
+    "both_independently_verified": true,
+    "canonical_dataset_only": true,
+    "distinct_dataset_roots": true,
+    "exact_zero_comparison": true,
+    "two_fresh_processes": true
+  },
+  "schema": "fidelity.root-qualification-receipt.v1",
+  "verification": {
+    "canonical": {
+      "file_sha256": "950f7d71438670ea5aa2db8f4b4d96a4591dcd7347683f5dc7d76c5d8d96d6fa",
+      "receipt_sha256": "66a6d14db43e229ec618f6913bc1fa07e895ef45cb9585a4b9ff8986acdeb0a7"
+    },
+    "repeat": {
+      "file_sha256": "f1c07264d6b112e0d60681451cc767291f6cb9cf865d8427363e832e745a1588",
+      "receipt_sha256": "ae21f8c1faf66e1284c9598ba1b0eaeb73be5ebe7ba4e62036de9e00a05aa02d"
+    }
+  }
+}

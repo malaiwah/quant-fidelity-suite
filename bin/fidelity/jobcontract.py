@@ -224,8 +224,22 @@ def validate_job(document: dict) -> None:
         raise JobContractError(
             "job target requires repo_id and exact lowercase 40-hex revision")
     verify_bundle_manifest(document.get("bundle"))
+    single_file_local = (
+        document.get("role") == "root"
+        and isinstance(document.get("execution_attempt"), dict)
+        and document["execution_attempt"].get("kind") == "local"
+        and isinstance(document.get("capture"), dict)
+        and document["capture"].get("device") == "cpu"
+        and target.get("surface") == "native-bf16"
+        and target.get("index_source") == "single-safetensors")
+    if target.get("index_source") == "single-safetensors" and not single_file_local:
+        raise JobContractError("an unindexed native checkpoint is supported only for a local CPU root")
+    if single_file_local and (target.get("index_sha256") is not None or target.get("index_bytes") is not None):
+        raise JobContractError("an unindexed local CPU root must not claim an index digest or size")
     for name in ("config_sha256", "index_sha256",
                  "shard_manifest_sha256"):
+        if name == "index_sha256" and single_file_local:
+            continue
         if _HEX64.fullmatch(str(target.get(name, ""))) is None:
             raise JobContractError("job target lacks exact %s" % name)
     if (isinstance(target.get("model_bytes"), bool)
@@ -235,6 +249,9 @@ def validate_job(document: dict) -> None:
     shards = target.get("shards")
     if not isinstance(shards, list) or not shards:
         raise JobContractError("job target requires a non-empty shard census")
+    if single_file_local and (len(shards) != 1 or not isinstance(shards[0], dict)
+                              or not str(shards[0].get("path", "")).endswith(".safetensors")):
+        raise JobContractError("an unindexed local CPU root requires exactly one safetensors file")
     for shard in shards:
         if (not isinstance(shard, dict)
                 or set(shard) != {"path", "bytes"}
@@ -298,8 +315,11 @@ def validate_job(document: dict) -> None:
         # jobs keep the safetensors-shaped identity they always carried.
         gguf_target = (target.get("surface") == "gguf" and document.get("role") == "root")
         if not gguf_target:
-            for required_path in (
-                    "config.json", "model.safetensors.index.json"):
+            required_paths = ("config.json",) if single_file_local else (
+                "config.json", "model.safetensors.index.json")
+            if single_file_local and "model.safetensors.index.json" in download_by_path:
+                raise JobContractError("unindexed local CPU root includes an index in its download manifest")
+            for required_path in required_paths:
                 if download_by_path.get(required_path, 0) <= 0:
                     raise JobContractError(
                         "job target download manifest lacks positive %s"
@@ -321,6 +341,10 @@ def validate_job(document: dict) -> None:
     if not isinstance(document.get("lane"), str) or not document["lane"]:
         raise JobContractError("job lane must be non-empty")
     profile = document["profile"]
+    attempt_value = document.get("execution_attempt")
+    attempt_kind = (
+        attempt_value.get("kind") if isinstance(attempt_value, dict) else None)
+    local_root = document["role"] == "root" and attempt_kind == "local"
     if profile.get("lane") not in (document["lane"], "root"):
         raise JobContractError("job profile lane differs from job lane")
     if document.get("recipe") != "runpod-controller-loss-drill":
@@ -342,15 +366,25 @@ def validate_job(document: dict) -> None:
             "container_available_bytes_minimum",
             "min_vcpu_count", "min_memory_gb", "expected_vram_bytes",
         }
-        if (not isinstance(resources, dict)
-                or set(resources) != required_resource_keys
-                or any(
-                    isinstance(resources[name], bool)
-                    or not isinstance(resources[name], int)
-                    or resources[name] <= 0
-                    for name in required_resource_keys)):
-            raise JobContractError(
-                "job resource requirements are noncanonical")
+        if not isinstance(resources, dict) or set(resources) != required_resource_keys:
+            raise JobContractError("job resource requirements are noncanonical")
+        if local_root:
+            # Post-hoc local qualification has no admission minima. Unknown
+            # hardware capacity must not be represented as a fictitious GPU.
+            expected = dict.fromkeys(required_resource_keys)
+            if document["runtime"].get("device") == "cpu":
+                expected["expected_vram_bytes"] = 0
+            if (resources != expected
+                    or (resources["expected_vram_bytes"] is not None
+                        and type(resources["expected_vram_bytes"]) is not int)):
+                raise JobContractError(
+                    "local root resource requirements must be inapplicable; CPU VRAM is zero")
+        elif any(
+                isinstance(resources[name], bool)
+                or not isinstance(resources[name], int)
+                or resources[name] <= 0
+                for name in required_resource_keys):
+            raise JobContractError("job resource requirements are noncanonical")
     control = document.get("control_plane")
     if (not isinstance(control, dict)
             or control.get("schema")
@@ -399,7 +433,8 @@ def validate_job(document: dict) -> None:
         if (not isinstance(capture, dict)
                 or capture.get("engine") != "hf-transformers"
                 or capture.get("dtype") != "bfloat16"
-                or capture.get("device") != "cuda"
+                or capture.get("device") not in (
+                    ("cpu", "cuda") if local_root else ("cuda",))
                 or capture.get("schedule") != "layer-outer"
                 or capture.get("replay_device") != "numpy"
                 or capture.get("replay_dtype") != "float32"
@@ -414,6 +449,18 @@ def validate_job(document: dict) -> None:
                 or not valid_candidate(capture.get("candidate"))):
             raise JobContractError("root capture contract is incomplete")
         candidate = capture.get("candidate")
+        if local_root:
+            device = capture["device"]
+            environment = document["environment"]
+            if (document["runtime"].get("device") != device
+                    or environment.get("gpu_count") != (0 if device == "cpu" else 1)
+                    or type(environment.get("gpu_count")) is not int
+                    or (device == "cpu" and (
+                        environment.get("gpu") is not None
+                        or environment.get("tensor_parallel") is not None))
+                    or candidate is not None):
+                raise JobContractError(
+                    "local root must bind native capture device and honest GPU resources")
         if candidate is not None:
             if candidate["reference"]["panel_id"] != (
                     ((panel.get("resolved_binding") or {}).get("panel") or {}).get("id")):
@@ -482,10 +529,6 @@ def validate_job(document: dict) -> None:
                 or dependencies.get("profile") != profile.get("profile_id")):
             raise JobContractError(
                 "root producing-code profile dependency differs from job profile")
-        attempt_value = document.get("execution_attempt")
-        attempt_kind = (
-            attempt_value.get("kind")
-            if isinstance(attempt_value, dict) else None)
         if attempt_kind == "runpod-ssh" and (
                 dependencies.get("provider") != "runpod"
                 or dependencies.get("lane") != document.get("lane")):
@@ -528,7 +571,7 @@ def validate_job(document: dict) -> None:
                 or profile.get("form") != capture.get("form")
                 or profile.get("engine") != "hf-transformers"
                 or profile.get("compute_dtype") != "bfloat16"
-                or profile.get("device") != "cuda"
+                or profile.get("device") != capture.get("device")
                 or profile.get("schedule")
                 != "two-fresh-process-qualification"):
             raise JobContractError("root profile contract is incomplete")
@@ -1068,6 +1111,13 @@ def validate_root_qualification_contract(contract: dict) -> None:
     if not valid_candidate(contract.get("candidate")):
         raise JobContractError(
             "root qualification job_contract candidate block is invalid")
+    device = contract.get("device")
+    if (device not in ("cpu", "cuda")
+            or (device == "cpu" and (
+                contract.get("execution_kind") != "local"
+                or contract.get("candidate") is not None))):
+        raise JobContractError(
+            "CPU root qualification requires native execution_kind=local")
     dataset_license = contract.get("dataset_license")
     weights_license = contract.get("weights_license")
     if dataset_license == "mit":
@@ -1218,18 +1268,19 @@ def validate_root_qualification_contract(contract: dict) -> None:
     canonical_relative_path(
         contract.get("panel_binding_path"),
         "root qualification panel binding_path")
-    if (not isinstance(allowlist, dict)
-            or set(allowlist) != {
-                "path", "artifact_sha256",
-                "canonical_sorted_names_sha256"}
-            or any(_HEX64.fullmatch(str(allowlist.get(name, ""))) is None
-                   for name in (
-                       "artifact_sha256",
-                       "canonical_sorted_names_sha256"))):
-        raise JobContractError(
-            "root qualification allowlist contract differs")
-    canonical_relative_path(
-        allowlist.get("path"), "root qualification allowlist path")
+    if allowlist is not None:
+        if (not isinstance(allowlist, dict)
+                or set(allowlist) != {
+                    "path", "artifact_sha256",
+                    "canonical_sorted_names_sha256"}
+                or any(_HEX64.fullmatch(str(allowlist.get(name, ""))) is None
+                       for name in (
+                           "artifact_sha256",
+                           "canonical_sorted_names_sha256"))):
+            raise JobContractError(
+                "root qualification allowlist contract differs")
+        canonical_relative_path(
+            allowlist.get("path"), "root qualification allowlist path")
 
 
 def _root_execution_identity(document: dict):

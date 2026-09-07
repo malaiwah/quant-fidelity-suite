@@ -8008,6 +8008,11 @@ def main():
     collections_out = [("models", MODELS), ("artifacts", ARTIFACTS), ("panels", panels_out),
                        ("references", references_out), ("pipelines", PIPELINES),
                        ("measurements", measurements)]
+    # Qualified community fixture roots are maintained receipt-backed sources,
+    # not edits to generated JSONL. Preserve their real reference/floor records
+    # through every authoritative reseed, without changing historical groups.
+    import community_fixtures
+    collections_out = community_fixtures.apply(collections_out, sys.modules[__name__])
 
     changed = []
     for name, records in collections_out:

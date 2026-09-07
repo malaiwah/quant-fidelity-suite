@@ -1,0 +1,587 @@
+{
+  "canonical_job_sha256": "f37984659a1a9bb384b13755442c23b2a37116715324d06ab31fa79e75189bae",
+  "captures": {
+    "canonical": {
+      "capture_content_digest": "17ccbb9a64d4bd470148b6f358f4cc77175cc0acda1773a4c629ded73a5a807d",
+      "capture_dtype": "BF16",
+      "capture_form": "hidden",
+      "capture_manifest": "capture/manifest.json",
+      "capture_manifest_sha256": "4a1fdf69e7bc3938054fb0afbd547f51172bdc1b3a7e6f6683d86b5c2427c8f6",
+      "capture_schedule": "layer-outer",
+      "capture_tool_file": "engines/tools/hf_capture.py",
+      "dataset_author": "malaiwah",
+      "dataset_id": "fidelity--qwen4-exp.community-root",
+      "dataset_license": "other",
+      "dataset_manifest_file_sha256": "cf5464e611a5ee1975599dd7ebad7b0ee292fa18ff42f1e72ae9c17332be68c6",
+      "dataset_name": "qwen4_exp random CPU fixture root",
+      "dataset_repository": "malaiwah/qwen4-exp-tiny-fidelity-root-v1",
+      "dataset_sha256": "cbec16fe7bff9a888b314d3f0f96ef720e90c43b75040323c2c492c2595504c6",
+      "determinism_run_count": 1,
+      "lane_identity_sha256": "34f640ff350d24093734d97a81c1048ce0443d8b3c7bda0953f8283b8ea9269f",
+      "panel": {
+        "panel_id": "panel--qwen4-exp-tiny.malaiwah.cpu-smoke-v1",
+        "panel_receipt_sha256": "6eacabd9015f3a395cb8a78aec40544e58c2147c3ec5dace3597513cb5a11773",
+        "resolved_binding_evidence": {
+          "binding": {
+            "content": {
+              "archive": {
+                "algorithm": "sha256(ustar: sorted regular files; mode=0644; uid=gid=mtime=0)",
+                "bytes": 20480,
+                "compression": "none",
+                "format": "ustar",
+                "sha256": "00b9e1a4b443bfdc63d07fdc6a8dde4894fba8556f58db9980ef71448561d93c"
+              },
+              "manifest": [
+                {
+                  "bytes": 192,
+                  "path": "arrays/causal-mask-64.npy",
+                  "sha256": "a38fba8bfd9cd25a81b0e37fa144e8e13e84f769ae7f609ceebc94a64f4f5d02"
+                },
+                {
+                  "bytes": 384,
+                  "path": "arrays/final-0000.tokens.npy",
+                  "sha256": "205530c1886b9885ea555fe4858d2c3c388071678f1ab2ef8f4aa52928903139"
+                },
+                {
+                  "bytes": 384,
+                  "path": "arrays/final-0001.tokens.npy",
+                  "sha256": "8ead0e95a8ad763b7c7ee2fea7ec909d3852cb5b419da02c74a8bfd84ed68947"
+                },
+                {
+                  "bytes": 384,
+                  "path": "arrays/final-0002.tokens.npy",
+                  "sha256": "f1538f0b601b507234d206cdd8729218adc15ba3606d7a3463d843d0555c46b0"
+                },
+                {
+                  "bytes": 384,
+                  "path": "arrays/final-0003.tokens.npy",
+                  "sha256": "3cb4927829ef7e402591b5a82d5162dd82ed16ce82b807c9474a6fa518615781"
+                },
+                {
+                  "bytes": 4191,
+                  "path": "panel.json",
+                  "sha256": "81db1b132dcca90f69a6b2cb54336271ce8786c7b3a22f353802df20388611a1"
+                },
+                {
+                  "bytes": 7800,
+                  "path": "panel.receipt.json",
+                  "sha256": "9233bbc829663568c2c3dac06e0a85a44480df9eafea5e1a7a1bbfc2ee2e7cfd"
+                }
+              ],
+              "manifest_sha256": "f1efad205381c6036ea9885f7832fc3080fbe1843087f04b242d807999475695"
+            },
+            "panel": {
+              "bytes": 4191,
+              "context_length": 64,
+              "contexts": 4,
+              "file": "panel.json",
+              "id": "panel--qwen4-exp-tiny.malaiwah.cpu-smoke-v1",
+              "name": "Tiny random-init Qwen4-Exp synthetic CPU smoke (not a benchmark)",
+              "positions_per_context": 63,
+              "role": "final",
+              "scored_positions_total": 252,
+              "sha256": "81db1b132dcca90f69a6b2cb54336271ce8786c7b3a22f353802df20388611a1",
+              "suite_token_hash_sha256": "d0ae96d07d4a9888d03573ea01b56f774d8854dd7229a675d7ba0f37b0168d9d"
+            },
+            "receipt": {
+              "bytes": 7800,
+              "declared_receipt_sha256": "6eacabd9015f3a395cb8a78aec40544e58c2147c3ec5dace3597513cb5a11773",
+              "file": "panel.receipt.json",
+              "receipt_file_sha256": "9233bbc829663568c2c3dac06e0a85a44480df9eafea5e1a7a1bbfc2ee2e7cfd",
+              "receipt_seal_mode": "self-blank"
+            },
+            "schema": "malaiwah.resolved-panel.v1",
+            "tokenizer": {
+              "files": [
+                {
+                  "bytes": 2570,
+                  "name": "config.json",
+                  "sha256": "e205718d15ca6188eaff9f62d2d15e0615714cfbe18f83b0bcff0d568782a6dc"
+                },
+                {
+                  "bytes": 216,
+                  "name": "generation_config.json",
+                  "sha256": "1d59e0fb61ca550ea84bd37a6bdf553ab364bc2689b17ba69f6a1adbc9d61e34"
+                },
+                {
+                  "bytes": 7591,
+                  "name": "tokenizer.json",
+                  "sha256": "2d1ad04802d16634faa7f5cc8244a55e7a0fe86622c5d237fd4c62474b2f1588"
+                },
+                {
+                  "bytes": 340,
+                  "name": "tokenizer_config.json",
+                  "sha256": "4e462f0abce0d49ffd5cf5fdd558a1a3459b11db8745f5940d3beb6522520cfa"
+                }
+              ],
+              "files_verified": true,
+              "id": "malaiwah/qwen4-exp-tiny-random-bf16",
+              "identity_sha256": "794b742c3c89df76a92fe34292d540ccaa75a8a08f9cbfaf2c8e02d013735f26",
+              "maximum_token_id_exclusive": 264,
+              "receipt": null,
+              "repository": "malaiwah/qwen4-exp-tiny-random-bf16",
+              "revision": "ae3f6ab374b103aabc71418aefebf44579d0685e",
+              "vocab_size": 264
+            }
+          },
+          "binding_file": "panel-binding.json",
+          "binding_file_sha256": "f9cbfdc18520fb908df7aaf6a0e9692b0f68351ebb2eb8f50329e7dcf5a52acf",
+          "tokenizer_equivalences": []
+        },
+        "suite_token_hash_sha256": "d0ae96d07d4a9888d03573ea01b56f774d8854dd7229a675d7ba0f37b0168d9d",
+        "tokenizer": {
+          "files": [
+            {
+              "bytes": 2570,
+              "name": "config.json",
+              "sha256": "e205718d15ca6188eaff9f62d2d15e0615714cfbe18f83b0bcff0d568782a6dc"
+            },
+            {
+              "bytes": 216,
+              "name": "generation_config.json",
+              "sha256": "1d59e0fb61ca550ea84bd37a6bdf553ab364bc2689b17ba69f6a1adbc9d61e34"
+            },
+            {
+              "bytes": 7591,
+              "name": "tokenizer.json",
+              "sha256": "2d1ad04802d16634faa7f5cc8244a55e7a0fe86622c5d237fd4c62474b2f1588"
+            },
+            {
+              "bytes": 340,
+              "name": "tokenizer_config.json",
+              "sha256": "4e462f0abce0d49ffd5cf5fdd558a1a3459b11db8745f5940d3beb6522520cfa"
+            }
+          ],
+          "files_verified": true,
+          "id": "malaiwah/qwen4-exp-tiny-random-bf16",
+          "identity_sha256": "794b742c3c89df76a92fe34292d540ccaa75a8a08f9cbfaf2c8e02d013735f26",
+          "maximum_token_id_exclusive": 264,
+          "receipt": null,
+          "repository": "malaiwah/qwen4-exp-tiny-random-bf16",
+          "revision": "ae3f6ab374b103aabc71418aefebf44579d0685e",
+          "vocab_size": 264
+        }
+      },
+      "process_label": "fidelity--qwen4-exp.community-root-first",
+      "runtime_container": {
+        "image_digest": null,
+        "image_reference": null,
+        "image_repository_digest": null
+      },
+      "runtime_device": "cpu",
+      "runtime_engine": "transformers-eager",
+      "runtime_lane": "other",
+      "runtime_manifest": "runtime/capture-runtime.json",
+      "runtime_manifest_sha256": "030302c5682091b69b5f958fcc82bd5478d506c278e323a739785ea1273072f6",
+      "stack_fingerprint_sha256": "a83c4de13e06b8727c3a05959e470708b1fa396b0fcbd78c2f9deac666fea6cd",
+      "unexpected_tensor_allowlist": null,
+      "weights_license": {
+        "bytes": 1071,
+        "dataset_path": "LICENSE",
+        "sha256": "6456969dd395bff476628945088b4cbd9d9c761b01a64e281c07b09daf9f94c3",
+        "source_file": "LICENSE"
+      },
+      "weights_license_file_bytes": 1071,
+      "weights_license_file_sha256": "6456969dd395bff476628945088b4cbd9d9c761b01a64e281c07b09daf9f94c3",
+      "weights_repository": "malaiwah/qwen4-exp-tiny-random-bf16",
+      "weights_revision": "90fcdd52d45a200a1b6d446886638af14957117c"
+    },
+    "repeat": {
+      "capture_content_digest": "17ccbb9a64d4bd470148b6f358f4cc77175cc0acda1773a4c629ded73a5a807d",
+      "capture_dtype": "BF16",
+      "capture_form": "hidden",
+      "capture_manifest": "capture/manifest.json",
+      "capture_manifest_sha256": "6542889df55f9703831d2ba1fb6dddfe58ac0a6fb5d53af2149a3b1957633044",
+      "capture_schedule": "layer-outer",
+      "capture_tool_file": "engines/tools/hf_capture.py",
+      "dataset_author": "malaiwah",
+      "dataset_id": "fidelity--qwen4-exp.community-root",
+      "dataset_license": "other",
+      "dataset_manifest_file_sha256": "665c06b39839ad802fc5cbe5de031fc70db7f7fd99a4ccddea395e0215812cf9",
+      "dataset_name": "qwen4_exp random CPU fixture root",
+      "dataset_repository": "malaiwah/qwen4-exp-tiny-fidelity-root-v1",
+      "dataset_sha256": "7fef26755bd55e12216d79ce48f7cfdb4ed1fb01a729c86be11e0d843e1c5fa2",
+      "determinism_run_count": 1,
+      "lane_identity_sha256": "34f640ff350d24093734d97a81c1048ce0443d8b3c7bda0953f8283b8ea9269f",
+      "panel": {
+        "panel_id": "panel--qwen4-exp-tiny.malaiwah.cpu-smoke-v1",
+        "panel_receipt_sha256": "6eacabd9015f3a395cb8a78aec40544e58c2147c3ec5dace3597513cb5a11773",
+        "resolved_binding_evidence": {
+          "binding": {
+            "content": {
+              "archive": {
+                "algorithm": "sha256(ustar: sorted regular files; mode=0644; uid=gid=mtime=0)",
+                "bytes": 20480,
+                "compression": "none",
+                "format": "ustar",
+                "sha256": "00b9e1a4b443bfdc63d07fdc6a8dde4894fba8556f58db9980ef71448561d93c"
+              },
+              "manifest": [
+                {
+                  "bytes": 192,
+                  "path": "arrays/causal-mask-64.npy",
+                  "sha256": "a38fba8bfd9cd25a81b0e37fa144e8e13e84f769ae7f609ceebc94a64f4f5d02"
+                },
+                {
+                  "bytes": 384,
+                  "path": "arrays/final-0000.tokens.npy",
+                  "sha256": "205530c1886b9885ea555fe4858d2c3c388071678f1ab2ef8f4aa52928903139"
+                },
+                {
+                  "bytes": 384,
+                  "path": "arrays/final-0001.tokens.npy",
+                  "sha256": "8ead0e95a8ad763b7c7ee2fea7ec909d3852cb5b419da02c74a8bfd84ed68947"
+                },
+                {
+                  "bytes": 384,
+                  "path": "arrays/final-0002.tokens.npy",
+                  "sha256": "f1538f0b601b507234d206cdd8729218adc15ba3606d7a3463d843d0555c46b0"
+                },
+                {
+                  "bytes": 384,
+                  "path": "arrays/final-0003.tokens.npy",
+                  "sha256": "3cb4927829ef7e402591b5a82d5162dd82ed16ce82b807c9474a6fa518615781"
+                },
+                {
+                  "bytes": 4191,
+                  "path": "panel.json",
+                  "sha256": "81db1b132dcca90f69a6b2cb54336271ce8786c7b3a22f353802df20388611a1"
+                },
+                {
+                  "bytes": 7800,
+                  "path": "panel.receipt.json",
+                  "sha256": "9233bbc829663568c2c3dac06e0a85a44480df9eafea5e1a7a1bbfc2ee2e7cfd"
+                }
+              ],
+              "manifest_sha256": "f1efad205381c6036ea9885f7832fc3080fbe1843087f04b242d807999475695"
+            },
+            "panel": {
+              "bytes": 4191,
+              "context_length": 64,
+              "contexts": 4,
+              "file": "panel.json",
+              "id": "panel--qwen4-exp-tiny.malaiwah.cpu-smoke-v1",
+              "name": "Tiny random-init Qwen4-Exp synthetic CPU smoke (not a benchmark)",
+              "positions_per_context": 63,
+              "role": "final",
+              "scored_positions_total": 252,
+              "sha256": "81db1b132dcca90f69a6b2cb54336271ce8786c7b3a22f353802df20388611a1",
+              "suite_token_hash_sha256": "d0ae96d07d4a9888d03573ea01b56f774d8854dd7229a675d7ba0f37b0168d9d"
+            },
+            "receipt": {
+              "bytes": 7800,
+              "declared_receipt_sha256": "6eacabd9015f3a395cb8a78aec40544e58c2147c3ec5dace3597513cb5a11773",
+              "file": "panel.receipt.json",
+              "receipt_file_sha256": "9233bbc829663568c2c3dac06e0a85a44480df9eafea5e1a7a1bbfc2ee2e7cfd",
+              "receipt_seal_mode": "self-blank"
+            },
+            "schema": "malaiwah.resolved-panel.v1",
+            "tokenizer": {
+              "files": [
+                {
+                  "bytes": 2570,
+                  "name": "config.json",
+                  "sha256": "e205718d15ca6188eaff9f62d2d15e0615714cfbe18f83b0bcff0d568782a6dc"
+                },
+                {
+                  "bytes": 216,
+                  "name": "generation_config.json",
+                  "sha256": "1d59e0fb61ca550ea84bd37a6bdf553ab364bc2689b17ba69f6a1adbc9d61e34"
+                },
+                {
+                  "bytes": 7591,
+                  "name": "tokenizer.json",
+                  "sha256": "2d1ad04802d16634faa7f5cc8244a55e7a0fe86622c5d237fd4c62474b2f1588"
+                },
+                {
+                  "bytes": 340,
+                  "name": "tokenizer_config.json",
+                  "sha256": "4e462f0abce0d49ffd5cf5fdd558a1a3459b11db8745f5940d3beb6522520cfa"
+                }
+              ],
+              "files_verified": true,
+              "id": "malaiwah/qwen4-exp-tiny-random-bf16",
+              "identity_sha256": "794b742c3c89df76a92fe34292d540ccaa75a8a08f9cbfaf2c8e02d013735f26",
+              "maximum_token_id_exclusive": 264,
+              "receipt": null,
+              "repository": "malaiwah/qwen4-exp-tiny-random-bf16",
+              "revision": "ae3f6ab374b103aabc71418aefebf44579d0685e",
+              "vocab_size": 264
+            }
+          },
+          "binding_file": "panel-binding.json",
+          "binding_file_sha256": "f9cbfdc18520fb908df7aaf6a0e9692b0f68351ebb2eb8f50329e7dcf5a52acf",
+          "tokenizer_equivalences": []
+        },
+        "suite_token_hash_sha256": "d0ae96d07d4a9888d03573ea01b56f774d8854dd7229a675d7ba0f37b0168d9d",
+        "tokenizer": {
+          "files": [
+            {
+              "bytes": 2570,
+              "name": "config.json",
+              "sha256": "e205718d15ca6188eaff9f62d2d15e0615714cfbe18f83b0bcff0d568782a6dc"
+            },
+            {
+              "bytes": 216,
+              "name": "generation_config.json",
+              "sha256": "1d59e0fb61ca550ea84bd37a6bdf553ab364bc2689b17ba69f6a1adbc9d61e34"
+            },
+            {
+              "bytes": 7591,
+              "name": "tokenizer.json",
+              "sha256": "2d1ad04802d16634faa7f5cc8244a55e7a0fe86622c5d237fd4c62474b2f1588"
+            },
+            {
+              "bytes": 340,
+              "name": "tokenizer_config.json",
+              "sha256": "4e462f0abce0d49ffd5cf5fdd558a1a3459b11db8745f5940d3beb6522520cfa"
+            }
+          ],
+          "files_verified": true,
+          "id": "malaiwah/qwen4-exp-tiny-random-bf16",
+          "identity_sha256": "794b742c3c89df76a92fe34292d540ccaa75a8a08f9cbfaf2c8e02d013735f26",
+          "maximum_token_id_exclusive": 264,
+          "receipt": null,
+          "repository": "malaiwah/qwen4-exp-tiny-random-bf16",
+          "revision": "ae3f6ab374b103aabc71418aefebf44579d0685e",
+          "vocab_size": 264
+        }
+      },
+      "process_label": "fidelity--qwen4-exp.community-root-repeat",
+      "runtime_container": {
+        "image_digest": null,
+        "image_reference": null,
+        "image_repository_digest": null
+      },
+      "runtime_device": "cpu",
+      "runtime_engine": "transformers-eager",
+      "runtime_lane": "other",
+      "runtime_manifest": "runtime/capture-runtime.json",
+      "runtime_manifest_sha256": "93390c72eee9ed2b0f6b29c704c00bd9707542c42860e0bdc13351d3a77b6d63",
+      "stack_fingerprint_sha256": "a83c4de13e06b8727c3a05959e470708b1fa396b0fcbd78c2f9deac666fea6cd",
+      "unexpected_tensor_allowlist": null,
+      "weights_license": {
+        "bytes": 1071,
+        "dataset_path": "LICENSE",
+        "sha256": "6456969dd395bff476628945088b4cbd9d9c761b01a64e281c07b09daf9f94c3",
+        "source_file": "LICENSE"
+      },
+      "weights_license_file_bytes": 1071,
+      "weights_license_file_sha256": "6456969dd395bff476628945088b4cbd9d9c761b01a64e281c07b09daf9f94c3",
+      "weights_repository": "malaiwah/qwen4-exp-tiny-random-bf16",
+      "weights_revision": "90fcdd52d45a200a1b6d446886638af14957117c"
+    }
+  },
+  "comparator": {
+    "accumulation_dtype": "float64",
+    "device": "cpu",
+    "estimator_backend": "numpy_fp64",
+    "force_compute_agreed": true,
+    "replay_backend": "numpy:cpu:float32",
+    "requested_replay_device": "numpy",
+    "requested_replay_dtype": "float32",
+    "requested_vocab_chunk": 8192,
+    "vocab_chunk": 8192
+  },
+  "comparison": {
+    "comparison_kind": "reproduction_confirmation",
+    "file_sha256": "5a6a72ab5e73f4afba2e168a820628bd0fa0f57fdcf1a42ec44b43298f7550c6",
+    "max_kld": 0.0,
+    "mean_kld": 0.0,
+    "path": "comparison-receipt.json",
+    "receipt_sha256": "8ba57920f6e4f6ba756da123a38f0016cd775a6f5f1b95c960e80b03d391ff08",
+    "top1_agreement": 1.0
+  },
+  "dataset_repository": "malaiwah/qwen4-exp-tiny-fidelity-root-v1",
+  "destination_repository": "malaiwah/qwen4-exp-tiny-fidelity-root-v1",
+  "job_contract": {
+    "author": "malaiwah",
+    "candidate": null,
+    "container_image_digest": null,
+    "container_image_reference": null,
+    "dataset_id": "fidelity--qwen4-exp.community-root",
+    "dataset_license": "other",
+    "dataset_name": "qwen4_exp random CPU fixture root",
+    "dataset_repository": "malaiwah/qwen4-exp-tiny-fidelity-root-v1",
+    "device": "cpu",
+    "dtype": "bfloat16",
+    "engine": "hf-transformers",
+    "execution_kind": "local",
+    "form": "hidden",
+    "lane": "other",
+    "panel_binding_file_sha256": "f9cbfdc18520fb908df7aaf6a0e9692b0f68351ebb2eb8f50329e7dcf5a52acf",
+    "panel_binding_path": "panel-binding.json",
+    "panel_id": "panel--qwen4-exp-tiny.malaiwah.cpu-smoke-v1",
+    "panel_receipt_file_bytes": 7800,
+    "panel_receipt_file_sha256": "9233bbc829663568c2c3dac06e0a85a44480df9eafea5e1a7a1bbfc2ee2e7cfd",
+    "panel_receipt_seal_mode": "self-blank",
+    "panel_receipt_sha256": "6eacabd9015f3a395cb8a78aec40544e58c2147c3ec5dace3597513cb5a11773",
+    "panel_resolved_binding": {
+      "content": {
+        "archive": {
+          "algorithm": "sha256(ustar: sorted regular files; mode=0644; uid=gid=mtime=0)",
+          "bytes": 20480,
+          "compression": "none",
+          "format": "ustar",
+          "sha256": "00b9e1a4b443bfdc63d07fdc6a8dde4894fba8556f58db9980ef71448561d93c"
+        },
+        "manifest": [
+          {
+            "bytes": 192,
+            "path": "arrays/causal-mask-64.npy",
+            "sha256": "a38fba8bfd9cd25a81b0e37fa144e8e13e84f769ae7f609ceebc94a64f4f5d02"
+          },
+          {
+            "bytes": 384,
+            "path": "arrays/final-0000.tokens.npy",
+            "sha256": "205530c1886b9885ea555fe4858d2c3c388071678f1ab2ef8f4aa52928903139"
+          },
+          {
+            "bytes": 384,
+            "path": "arrays/final-0001.tokens.npy",
+            "sha256": "8ead0e95a8ad763b7c7ee2fea7ec909d3852cb5b419da02c74a8bfd84ed68947"
+          },
+          {
+            "bytes": 384,
+            "path": "arrays/final-0002.tokens.npy",
+            "sha256": "f1538f0b601b507234d206cdd8729218adc15ba3606d7a3463d843d0555c46b0"
+          },
+          {
+            "bytes": 384,
+            "path": "arrays/final-0003.tokens.npy",
+            "sha256": "3cb4927829ef7e402591b5a82d5162dd82ed16ce82b807c9474a6fa518615781"
+          },
+          {
+            "bytes": 4191,
+            "path": "panel.json",
+            "sha256": "81db1b132dcca90f69a6b2cb54336271ce8786c7b3a22f353802df20388611a1"
+          },
+          {
+            "bytes": 7800,
+            "path": "panel.receipt.json",
+            "sha256": "9233bbc829663568c2c3dac06e0a85a44480df9eafea5e1a7a1bbfc2ee2e7cfd"
+          }
+        ],
+        "manifest_sha256": "f1efad205381c6036ea9885f7832fc3080fbe1843087f04b242d807999475695"
+      },
+      "panel": {
+        "bytes": 4191,
+        "context_length": 64,
+        "contexts": 4,
+        "file": "panel.json",
+        "id": "panel--qwen4-exp-tiny.malaiwah.cpu-smoke-v1",
+        "name": "Tiny random-init Qwen4-Exp synthetic CPU smoke (not a benchmark)",
+        "positions_per_context": 63,
+        "role": "final",
+        "scored_positions_total": 252,
+        "sha256": "81db1b132dcca90f69a6b2cb54336271ce8786c7b3a22f353802df20388611a1",
+        "suite_token_hash_sha256": "d0ae96d07d4a9888d03573ea01b56f774d8854dd7229a675d7ba0f37b0168d9d"
+      },
+      "receipt": {
+        "bytes": 7800,
+        "declared_receipt_sha256": "6eacabd9015f3a395cb8a78aec40544e58c2147c3ec5dace3597513cb5a11773",
+        "file": "panel.receipt.json",
+        "receipt_file_sha256": "9233bbc829663568c2c3dac06e0a85a44480df9eafea5e1a7a1bbfc2ee2e7cfd",
+        "receipt_seal_mode": "self-blank"
+      },
+      "schema": "malaiwah.resolved-panel.v1",
+      "tokenizer": {
+        "files": [
+          {
+            "bytes": 2570,
+            "name": "config.json",
+            "sha256": "e205718d15ca6188eaff9f62d2d15e0615714cfbe18f83b0bcff0d568782a6dc"
+          },
+          {
+            "bytes": 216,
+            "name": "generation_config.json",
+            "sha256": "1d59e0fb61ca550ea84bd37a6bdf553ab364bc2689b17ba69f6a1adbc9d61e34"
+          },
+          {
+            "bytes": 7591,
+            "name": "tokenizer.json",
+            "sha256": "2d1ad04802d16634faa7f5cc8244a55e7a0fe86622c5d237fd4c62474b2f1588"
+          },
+          {
+            "bytes": 340,
+            "name": "tokenizer_config.json",
+            "sha256": "4e462f0abce0d49ffd5cf5fdd558a1a3459b11db8745f5940d3beb6522520cfa"
+          }
+        ],
+        "files_verified": true,
+        "id": "malaiwah/qwen4-exp-tiny-random-bf16",
+        "identity_sha256": "794b742c3c89df76a92fe34292d540ccaa75a8a08f9cbfaf2c8e02d013735f26",
+        "maximum_token_id_exclusive": 264,
+        "receipt": null,
+        "repository": "malaiwah/qwen4-exp-tiny-random-bf16",
+        "revision": "ae3f6ab374b103aabc71418aefebf44579d0685e",
+        "vocab_size": 264
+      }
+    },
+    "panel_suite_token_hash_sha256": "d0ae96d07d4a9888d03573ea01b56f774d8854dd7229a675d7ba0f37b0168d9d",
+    "profile": {
+      "compute_dtype": "bfloat16",
+      "device": "cpu",
+      "engine": "hf-transformers",
+      "form": "hidden",
+      "lane": "root",
+      "profile_id": "root-hf-transformers-bf16",
+      "schedule": "two-fresh-process-qualification",
+      "source": "native",
+      "surface": "native-bf16"
+    },
+    "publish_root_to": "malaiwah/qwen4-exp-tiny-fidelity-root-v1",
+    "resume_capture": null,
+    "schedule": "layer-outer",
+    "target": {
+      "bits": 16,
+      "codec": "bf16",
+      "path": null,
+      "repo_id": "malaiwah/qwen4-exp-tiny-random-bf16",
+      "revision": "90fcdd52d45a200a1b6d446886638af14957117c",
+      "surface": "native-bf16"
+    },
+    "tokenizer_identity_sha256": "794b742c3c89df76a92fe34292d540ccaa75a8a08f9cbfaf2c8e02d013735f26",
+    "unexpected_tensor_allowlist": null,
+    "weights_license": {
+      "bytes": 1071,
+      "dataset_path": "LICENSE",
+      "sha256": "6456969dd395bff476628945088b4cbd9d9c761b01a64e281c07b09daf9f94c3",
+      "source_path": "LICENSE"
+    },
+    "weights_repository": "malaiwah/qwen4-exp-tiny-random-bf16",
+    "weights_revision": "90fcdd52d45a200a1b6d446886638af14957117c"
+  },
+  "job_file_sha256": "51c817053153d7359f7dc2ea7efc025bb60ec51cc5c5a80a95acfd37f0d08330",
+  "local_execution": {
+    "capture_dataset_bytes": 243363,
+    "cuda_runtime_version": null,
+    "device": "cpu",
+    "device_name": null,
+    "note": "captured on hardware the author controls; there is no provider, no pod attestation, no container pin and no paid meter. resource_requirements are admission minima, not measurements: null means not applicable to an already completed local run; CPU capture uses zero GPUs and zero VRAM. capture_dataset_bytes is the observed combined size of the two sealed datasets.",
+    "pod_attestation": null,
+    "python": "3.12.14",
+    "torch_version": "2.11.0+cpu",
+    "transformers_version": "5.16.1"
+  },
+  "qualified_at": "2026-09-07T18:01:12Z",
+  "receipt_sha256": "b851eb6cbbc751bc813b0d08e918d58a7fcd12e3c60fde408d2fb30956693dae",
+  "reproduction_confirmation": {
+    "both_independently_verified": true,
+    "canonical_dataset_only": true,
+    "distinct_dataset_roots": true,
+    "exact_zero_comparison": true,
+    "two_fresh_processes": true
+  },
+  "schema": "fidelity.root-qualification-receipt.v1",
+  "verification": {
+    "canonical": {
+      "file_sha256": "420b1ff682133648b9c9deb261e4c3787c43ad4d3221fab983c8f1b3fb565fc9",
+      "receipt_sha256": "0ed6bafba4a60d9907e7510bbcb5e9d8beb22eea2d3ae48cfaff87035bc5e137"
+    },
+    "repeat": {
+      "file_sha256": "89c8fd622b7cee2d6fbe314459b6eb011bce773c37bc3a3f31e4bfee566c95f6",
+      "receipt_sha256": "625287c0622faafee5a220996626dc36c15b148e6053b25a0e344f026ca26ac2"
+    }
+  }
+}

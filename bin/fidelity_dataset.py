@@ -1189,7 +1189,8 @@ def _load_qualification(
                 or local_execution != job.get("local_execution")
                 or not isinstance(local_execution, dict)
                 or local_execution.get("pod_attestation") is not None
-                or not local_execution.get("device_name")
+                or (contract.get("device") == "cuda"
+                    and not local_execution.get("device_name"))
                 or not local_execution.get("torch_version")
                 or not local_execution.get("transformers_version")):
             raise RootQualificationError(
@@ -1348,15 +1349,18 @@ def _local_checkpoint_census(runtime_doc, label):
     return census
 
 
-def _local_model_dir_identity(model_dir, census, weights_license):
+def _local_model_dir_identity(model_dir, census, weights_license, *, allow_single_file=False):
     """Bind the checkpoint directory the captures ran from to their census."""
     if not os.path.isdir(model_dir) or os.path.islink(model_dir):
         raise RootQualificationError(
             "--model-dir %s is not a directory" % model_dir)
     config_path = os.path.join(model_dir, "config.json")
     index_path = os.path.join(model_dir, "model.safetensors.index.json")
-    for path, what in ((config_path, "config.json"),
-                       (index_path, "model.safetensors.index.json")):
+    index_present = os.path.isfile(index_path) and not os.path.islink(index_path)
+    required_files = [(config_path, "config.json")]
+    if os.path.lexists(index_path) or not allow_single_file:
+        required_files.append((index_path, "model.safetensors.index.json"))
+    for path, what in required_files:
         if os.path.islink(path) or not os.path.isfile(path):
             raise RootQualificationError(
                 "--model-dir lacks %s (a regular file)" % what)
@@ -1385,6 +1389,11 @@ def _local_model_dir_identity(model_dir, census, weights_license):
         shards.append({"path": name, "bytes": row["bytes"]})
     if not shards:
         raise RootQualificationError("the captures' checkpoint census names no shards")
+    if not index_present and (
+            len(shards) != 1 or {row["path"] for row in shards}
+            != {name for name in by_path if name.endswith(".safetensors")}):
+        raise RootQualificationError(
+            "an unindexed local CPU root must contain exactly one complete safetensors file")
     if weights_license is not None:
         if by_path.get("LICENSE") != weights_license["bytes"]:
             raise RootQualificationError(
@@ -1397,8 +1406,9 @@ def _local_model_dir_identity(model_dir, census, weights_license):
     return {
         "config_sha256": config_sha256,
         "config_bytes": os.path.getsize(config_path),
-        "index_sha256": common.sha256_file(index_path),
-        "index_bytes": os.path.getsize(index_path),
+        "index_sha256": common.sha256_file(index_path) if index_present else None,
+        "index_bytes": os.path.getsize(index_path) if index_present else None,
+        "index_source": "model.safetensors.index.json" if index_present else "single-safetensors",
         "shards": shards,
         "shard_manifest_sha256": common.sha256_hex(common.canonical_json(shards)),
         "model_bytes": sum(row["bytes"] for row in shards),
@@ -1445,10 +1455,10 @@ def _local_root_job(first_root, repeat_root, comparison, *, model_dir, measurer)
             "`--panel-binding <ResolvedPanel JSON> --panel-binding-sha256 <sha>` "
             "(bin/fidelity/panel.py resolve_panel writes it)")
     device = fingerprint.get("device")
-    if device != "cuda":
+    if device not in ("cpu", "cuda"):
         raise RootQualificationError(
-            "the root contract binds capture device 'cuda' exactly; these captures "
-            "record %r -- capture with `--device cuda`, not an indexed device" % device)
+            "the local root contract binds capture device 'cpu' or 'cuda' exactly; "
+            "these captures record %r (indexed devices are unsupported)" % device)
     comparator = comparison.get("comparator") or {}
     replay_backend = comparator.get("replay_backend")
     if (replay_backend != "numpy:cpu:float32"
@@ -1475,7 +1485,8 @@ def _local_root_job(first_root, repeat_root, comparison, *, model_dir, measurer)
             "canonical_sorted_names_sha256":
                 allowlist_evidence.get("canonical_sorted_names_sha256"),
         }
-    identity = _local_model_dir_identity(model_dir, census, weights_license)
+    identity = _local_model_dir_identity(
+        model_dir, census, weights_license, allow_single_file=device == "cpu")
     author = (dataset.get("author") or {}).get("name")
     measurer = measurer or author
     dtype = {"BF16": "bfloat16"}.get(str(capture_manifest.get("dtype")))
@@ -1499,21 +1510,24 @@ def _local_root_job(first_root, repeat_root, comparison, *, model_dir, measurer)
     profile = {
         "profile_id": "root-hf-transformers-bf16", "lane": "root", "source": "native",
         "surface": "native-bf16", "form": form, "engine": "hf-transformers",
-        "compute_dtype": "bfloat16", "device": "cuda",
+        "compute_dtype": "bfloat16", "device": device,
         "schedule": "two-fresh-process-qualification",
     }
     local_execution = {
+        "device": device,
         "device_name": fingerprint.get("device_name"),
         "torch_version": fingerprint.get("torch_version"),
         "transformers_version": fingerprint.get("transformers_version"),
         "cuda_runtime_version": fingerprint.get("cuda_runtime_version"),
         "python": (first_runtime.get("runtime_environment") or {}).get("python"),
+        "capture_dataset_bytes": dataset_bytes,
         "pod_attestation": None,
         "note": "captured on hardware the author controls; there is no provider, "
                 "no pod attestation, no container pin and no paid meter. "
-                "resource_requirements holds the pod-admission fields the "
-                "job.v2 schema requires, filled post hoc: the two datasets' "
-                "bytes, and 1 where a local run has nothing to admit against.",
+                "resource_requirements are admission minima, not measurements: "
+                "null means not applicable to an already completed local run; "
+                "CPU capture uses zero GPUs and zero VRAM. capture_dataset_bytes "
+                "is the observed combined size of the two sealed datasets.",
     }
     doc = {
         "schema": "fidelity-suite/job.v2",
@@ -1550,16 +1564,19 @@ def _local_root_job(first_root, repeat_root, comparison, *, model_dir, measurer)
         "reference": {"reference_ref": None, "teacher_receipt_sha256": None,
                       "teacher_backend_identity_sha256": None},
         "environment": {
-            "gpu": fingerprint.get("device_name"), "gpu_count": 1,
-            "tensor_parallel": 1, "host": None, "execution_mode": "local",
+            "gpu": fingerprint.get("device_name") if device == "cuda" else None,
+            "gpu_count": 1 if device == "cuda" else 0,
+            "tensor_parallel": 1 if device == "cuda" else None,
+            "host": None, "execution_mode": "local",
             "container_image": None, "container_digest": None,
         },
-        "runtime": {"device": "cuda", "reduce_order": "fp32"},
+        "runtime": {"device": device, "reduce_order": "fp32"},
         "keep_student_logits": False,
         "resource_requirements": {
-            "workspace_available_bytes_minimum": max(1, dataset_bytes),
-            "container_available_bytes_minimum": max(1, dataset_bytes),
-            "min_vcpu_count": 1, "min_memory_gb": 1, "expected_vram_bytes": 1,
+            "workspace_available_bytes_minimum": None,
+            "container_available_bytes_minimum": None,
+            "min_vcpu_count": None, "min_memory_gb": None,
+            "expected_vram_bytes": 0 if device == "cpu" else None,
         },
         "disclosures": [],
         "scope": {"kind": "root-capture", "engine": "hf-transformers",
@@ -1853,7 +1870,7 @@ def cmd_qualify_root(args):
         }
         if contract.get("execution_kind") == "local":
             # The receipt says, in itself, what stands behind a local root: the
-            # card and stack that captured it, and that no pod attested to it.
+            # device and stack that captured it, and that no pod attested to it.
             receipt["local_execution"] = job["local_execution"]
         receipt = common.seal(receipt)
         common.write_json(args.out, receipt)
@@ -1865,7 +1882,7 @@ def cmd_qualify_root(args):
     emit("  comparison          exact +0.0 mean/max, top-1 1.0")
     if local:
         emit("  execution           local (%s, torch %s, transformers %s; no pod attestation)"
-             % (job["local_execution"].get("device_name"),
+             % (job["local_execution"].get("device_name") or job["runtime"]["device"],
                 job["local_execution"].get("torch_version"),
                 job["local_execution"].get("transformers_version")))
         emit("  job contract        %s" % args.job)
@@ -2126,7 +2143,8 @@ def _cmd_publish_private_extraction(
         emit("  execution           %s%s"
              % (execution_kind,
                 (" (%s; no pod attestation)"
-                 % (qualification.get("local_execution") or {}).get("device_name"))
+                 % ((qualification.get("local_execution") or {}).get("device_name")
+                    or qualification["job_contract"]["device"]))
                 if local else ""))
         emit("  expected HEAD       %s" % (getattr(args, "expected_head", None) or "absent"))
         return OK
@@ -2243,6 +2261,8 @@ def build_parser():
         prog="fidelity-dataset", description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command")
+    from fidelity import coverage
+    coverage.configure_parser(sub)
 
     def common_dataset_flags(p):
         p.add_argument("--cache", help="where hf:// datasets are fetched")
@@ -2468,7 +2488,7 @@ def build_parser():
                     "with execution_kind local, which the receipt and any later "
                     "publication carry as 'no pod attestation'.",
         epilog="local example (both captures ran with --engine hf-transformers, "
-               "--panel-binding, --device cuda; the comparison with --replay-device "
+               "--panel-binding, --device cpu (or cuda); the comparison with --replay-device "
                "numpy --vocab-chunk 8192):\n"
                "  bin/fidelity-dataset qualify-root --local --model-dir /nvme/models/m \\\n"
                "      --first /nvme/ds/root-1 --repeat /nvme/ds/root-2 \\\n"

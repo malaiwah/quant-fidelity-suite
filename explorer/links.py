@@ -85,20 +85,24 @@ def _dataset_repo(url):
     if parsed.scheme != "https" or parsed.netloc != "huggingface.co" or parsed.query or parsed.fragment:
         return None
     parts = parsed.path.strip("/").split("/")
-    if len(parts) != 3 or parts[0] != "datasets":
+    if parts[0] != "datasets" or not (
+            len(parts) == 3 or (len(parts) == 5 and parts[3] == "tree" and SHA.fullmatch(parts[4]))):
         return None
-    repo = "/".join(parts[1:])
+    repo = "/".join(parts[1:3])
     return repo if REPO.fullmatch(repo) else None
 
 
 @lru_cache(maxsize=16)
-def _root_descriptor(repo):
+def _root_descriptor(repo, revision=None):
     """Resolve a public descriptor once; return immutable bytes, not a mutable cache."""
     if not REPO.fullmatch(repo):
         raise ValueError("Invalid fidelity dataset repository.")
-    meta = json.loads(_public_get("https://huggingface.co/api/datasets/" + repo))
-    revision = meta.get("sha")
-    if not isinstance(revision, str) or not SHA.fullmatch(revision) or meta.get("private") or meta.get("gated"):
+    if revision is None:
+        meta = json.loads(_public_get("https://huggingface.co/api/datasets/" + repo))
+        revision = meta.get("sha")
+        if meta.get("private") or meta.get("gated"):
+            raise ValueError("Dataset does not expose a public immutable revision.")
+    if not isinstance(revision, str) or not SHA.fullmatch(revision):
         raise ValueError("Dataset does not expose a public immutable revision.")
     raw = _public_get("https://huggingface.co/datasets/%s/raw/%s/fidelity-dataset.json" % (repo, revision))
     if len(raw) > 256 * 1024:
@@ -133,7 +137,8 @@ def enrich_root_reference(registry, measurement_ids):
             if not repo:
                 continue
             try:
-                revision, raw = _root_descriptor(repo)
+                parts = urlsplit(source["uri"]).path.strip("/").split("/")
+                revision, raw = _root_descriptor(repo, parts[4] if len(parts) == 5 else None)
                 manifest = json.loads(raw)
                 if manifest.get("schema") != F.DATASET_SCHEMA or manifest.get("dataset_sha256") != expected_seal:
                     continue
@@ -147,8 +152,17 @@ def enrich_root_reference(registry, measurement_ids):
                     continue
                 if identity.get("revision") and weights.get("revision") != identity["revision"]:
                     continue
-                if (manifest.get("panel") or {}).get("panel_id") != measurement.get("panel_ref"):
-                    continue
+                panel = manifest.get("panel") or {}
+                if panel.get("panel_id") != measurement.get("panel_ref"):
+                    registered_panel = registry.get("panels", {}).get(measurement.get("panel_ref")) or {}
+                    registered_model = registry.get("models", {}).get(measurement.get("model_ref")) or {}
+                    expected_files = (registered_model.get("tokenizer") or {}).get("files_sha256") or {}
+                    actual_files = {f["name"]: f["sha256"] for f in (panel.get("tokenizer") or {}).get("files") or []}
+                    if (not expected_files
+                            or any(actual_files.get(name) != sha for name, sha in expected_files.items())
+                            or panel.get("suite_token_hash_sha256") != (registered_panel.get("identity") or {}).get("panel_token_sha256")
+                            or panel.get("scoring_window") != (registered_panel.get("structure") or {}).get("scoring_window")):
+                        continue
                 if expected_head and (manifest.get("head") or {}).get("tensor_content_sha256") != expected_head:
                     continue
                 capture = manifest.get("capture") or {}

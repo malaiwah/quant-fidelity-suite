@@ -2,39 +2,39 @@
   "collections": {
     "artifacts": {
       "file": "data/artifacts.jsonl",
-      "record_count": 58,
+      "record_count": 90,
       "schema": "schema/artifact.schema.json",
-      "sha256": "b074edf39f1f0d63003096f1ee7bcbf8c6544b4b9bee73960fad3882010691a2"
+      "sha256": "511a20e2fd4d9181ffa58fcec882a92451031af938e4da4a2837de4c9bb66521"
     },
     "measurements": {
       "file": "data/measurements.jsonl",
-      "record_count": 95,
+      "record_count": 107,
       "schema": "schema/measurement.schema.json",
-      "sha256": "210567e485cc82c85a0999d3e45241c26b465df74a029e7bda8d9e1fccf21078"
+      "sha256": "750e46279da86ae776ee7d69309de37c4cdb7f9e646a35211f8f68e688ff537f"
     },
     "models": {
       "file": "data/models.jsonl",
-      "record_count": 5,
+      "record_count": 17,
       "schema": "schema/model.schema.json",
-      "sha256": "5b03d7bda928b9ef72ba8c3dc7307e3bc6aec3a87cf01b862d98f2d665188e05"
+      "sha256": "7082eefadd239f22617363d92876828899eaccd96c537ac8b24e2ff50452c847"
     },
     "panels": {
       "file": "data/panels.jsonl",
-      "record_count": 13,
+      "record_count": 18,
       "schema": "schema/panel.schema.json",
-      "sha256": "4707baf7b5b8251c9b42bfd6e8bc0a5b9f7b23704133263e310c0db8251debcb"
+      "sha256": "296a6105bf1252a076010ad96fef133e2d31f89ce3d063cf641906b3470697d0"
     },
     "pipelines": {
       "file": "data/pipelines.jsonl",
-      "record_count": 16,
+      "record_count": 28,
       "schema": "schema/pipeline.schema.json",
-      "sha256": "065591e9667b5cb7676ca6b62b8f0faf90f905465aee7c0d7ec613edb8527260"
+      "sha256": "9f9131de1588227fcd04c945f868c0d6bad06b7c09a296c183b2fd8abe2b1320"
     },
     "references": {
       "file": "data/references.jsonl",
-      "record_count": 16,
+      "record_count": 28,
       "schema": "schema/reference.schema.json",
-      "sha256": "6a28cff30710410dcf93b2f61246a13eb777f0979d4803ef4678ae768cc34599"
+      "sha256": "8f607dff9ad1b0dda35993318a32b52b26c0eca19ac8fee28e51f86b41f9d40c"
     }
   },
   "comparability_keys": [
@@ -286,6 +286,164 @@
     {
       "accumulation_dtype": "float64",
       "comparability": {
+        "comparable": "unknown",
+        "live_member_count": 1,
+        "predicate_version": "comparability-predicate/v2",
+        "reasons": [
+          "stack: unrecorded for 1 member; homogeneity cannot be certified",
+          "replay_backend: unrecorded for 1 member; homogeneity cannot be certified",
+          "replay_env: unrecorded for 1 member; homogeneity cannot be certified",
+          "hardware: unrecorded for 1 member; homogeneity cannot be certified"
+        ],
+        "secondary": {
+          "hardware": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "harness": {
+            "status": "pass",
+            "values": [
+              "harness--396fa2949104507e"
+            ]
+          },
+          "key": {
+            "status": "pass",
+            "values": [
+              "cmp--1b9cc52aa250300f"
+            ]
+          },
+          "lane": {
+            "status": "pass",
+            "values": [
+              "other"
+            ]
+          },
+          "pipeline": {
+            "status": "pass",
+            "values": [
+              "pipeline--fixture.cpu.spark2-5.396fa2949104507e"
+            ]
+          },
+          "replay_backend": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "replay_env": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "scope": {
+            "status": "pass",
+            "values": [
+              "unquantized"
+            ]
+          },
+          "stack": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          }
+        }
+      },
+      "direction": "reference_to_candidate",
+      "head_policy": "native_head",
+      "key": "cmp--1b9cc52aa250300f",
+      "label": "mean_tokenwise_kld on panel--fixture.9d187d1dab31575b41ab4b00 (same_stack, native_head)",
+      "member_count": 1,
+      "metric_name": "mean_tokenwise_kld",
+      "panel_id": "panel--fixture.9d187d1dab31575b41ab4b00",
+      "reference_id": "reference--fixture.spark2-5.022a11db4e1e3331",
+      "stack_relation": "same_stack"
+    },
+    {
+      "accumulation_dtype": "float64",
+      "comparability": {
+        "comparable": "unknown",
+        "live_member_count": 1,
+        "predicate_version": "comparability-predicate/v2",
+        "reasons": [
+          "stack: unrecorded for 1 member; homogeneity cannot be certified",
+          "replay_backend: unrecorded for 1 member; homogeneity cannot be certified",
+          "replay_env: unrecorded for 1 member; homogeneity cannot be certified",
+          "hardware: unrecorded for 1 member; homogeneity cannot be certified"
+        ],
+        "secondary": {
+          "hardware": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "harness": {
+            "status": "pass",
+            "values": [
+              "harness--a9860489ffc00e4b"
+            ]
+          },
+          "key": {
+            "status": "pass",
+            "values": [
+              "cmp--1fc318e7eb2a6ed5"
+            ]
+          },
+          "lane": {
+            "status": "pass",
+            "values": [
+              "other"
+            ]
+          },
+          "pipeline": {
+            "status": "pass",
+            "values": [
+              "pipeline--fixture.cpu.k2-horizon.a9860489ffc00e4b"
+            ]
+          },
+          "replay_backend": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "replay_env": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "scope": {
+            "status": "pass",
+            "values": [
+              "unquantized"
+            ]
+          },
+          "stack": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          }
+        }
+      },
+      "direction": "reference_to_candidate",
+      "head_policy": "native_head",
+      "key": "cmp--1fc318e7eb2a6ed5",
+      "label": "mean_tokenwise_kld on panel--fixture.53326a9cd31fede1ea932442 (same_stack, native_head)",
+      "member_count": 1,
+      "metric_name": "mean_tokenwise_kld",
+      "panel_id": "panel--fixture.53326a9cd31fede1ea932442",
+      "reference_id": "reference--fixture.k2-horizon.baeeb09002899e7b",
+      "stack_relation": "same_stack"
+    },
+    {
+      "accumulation_dtype": "float64",
+      "comparability": {
         "comparable": "false",
         "live_member_count": 11,
         "predicate_version": "comparability-predicate/v2",
@@ -377,6 +535,85 @@
     {
       "accumulation_dtype": "float64",
       "comparability": {
+        "comparable": "unknown",
+        "live_member_count": 1,
+        "predicate_version": "comparability-predicate/v2",
+        "reasons": [
+          "stack: unrecorded for 1 member; homogeneity cannot be certified",
+          "replay_backend: unrecorded for 1 member; homogeneity cannot be certified",
+          "replay_env: unrecorded for 1 member; homogeneity cannot be certified",
+          "hardware: unrecorded for 1 member; homogeneity cannot be certified"
+        ],
+        "secondary": {
+          "hardware": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "harness": {
+            "status": "pass",
+            "values": [
+              "harness--89df8965fe821f7b"
+            ]
+          },
+          "key": {
+            "status": "pass",
+            "values": [
+              "cmp--238563353ac89178"
+            ]
+          },
+          "lane": {
+            "status": "pass",
+            "values": [
+              "other"
+            ]
+          },
+          "pipeline": {
+            "status": "pass",
+            "values": [
+              "pipeline--fixture.cpu.qwen3-5.89df8965fe821f7b"
+            ]
+          },
+          "replay_backend": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "replay_env": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "scope": {
+            "status": "pass",
+            "values": [
+              "unquantized"
+            ]
+          },
+          "stack": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          }
+        }
+      },
+      "direction": "reference_to_candidate",
+      "head_policy": "native_head",
+      "key": "cmp--238563353ac89178",
+      "label": "mean_tokenwise_kld on panel--fixture.a53145fb225cc15b73887d0f (same_stack, native_head)",
+      "member_count": 1,
+      "metric_name": "mean_tokenwise_kld",
+      "panel_id": "panel--fixture.a53145fb225cc15b73887d0f",
+      "reference_id": "reference--fixture.qwen3-5.1847b664a523e921",
+      "stack_relation": "same_stack"
+    },
+    {
+      "accumulation_dtype": "float64",
+      "comparability": {
         "comparable": "false",
         "live_member_count": 4,
         "predicate_version": "comparability-predicate/v2",
@@ -457,6 +694,85 @@
       "metric_name": "mean_of_run_means_tokenwise_kld",
       "panel_id": "panel--glm53.brandonmusic.final25-clean17",
       "reference_id": "reference--brandonmusic.glm53-bf16-fp32-logits.final25-clean17",
+      "stack_relation": "same_stack"
+    },
+    {
+      "accumulation_dtype": "float64",
+      "comparability": {
+        "comparable": "unknown",
+        "live_member_count": 1,
+        "predicate_version": "comparability-predicate/v2",
+        "reasons": [
+          "stack: unrecorded for 1 member; homogeneity cannot be certified",
+          "replay_backend: unrecorded for 1 member; homogeneity cannot be certified",
+          "replay_env: unrecorded for 1 member; homogeneity cannot be certified",
+          "hardware: unrecorded for 1 member; homogeneity cannot be certified"
+        ],
+        "secondary": {
+          "hardware": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "harness": {
+            "status": "pass",
+            "values": [
+              "harness--89df8965fe821f7b"
+            ]
+          },
+          "key": {
+            "status": "pass",
+            "values": [
+              "cmp--2cd2acab7abc566a"
+            ]
+          },
+          "lane": {
+            "status": "pass",
+            "values": [
+              "other"
+            ]
+          },
+          "pipeline": {
+            "status": "pass",
+            "values": [
+              "pipeline--fixture.cpu.kimi-k25.89df8965fe821f7b"
+            ]
+          },
+          "replay_backend": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "replay_env": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "scope": {
+            "status": "pass",
+            "values": [
+              "unquantized"
+            ]
+          },
+          "stack": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          }
+        }
+      },
+      "direction": "reference_to_candidate",
+      "head_policy": "native_head",
+      "key": "cmp--2cd2acab7abc566a",
+      "label": "mean_tokenwise_kld on panel--fixture.a53145fb225cc15b73887d0f (same_stack, native_head)",
+      "member_count": 1,
+      "metric_name": "mean_tokenwise_kld",
+      "panel_id": "panel--fixture.a53145fb225cc15b73887d0f",
+      "reference_id": "reference--fixture.kimi-k25.29336d88a8aa2634",
       "stack_relation": "same_stack"
     },
     {
@@ -707,6 +1023,164 @@
       "accumulation_dtype": "float64",
       "comparability": {
         "comparable": "unknown",
+        "live_member_count": 1,
+        "predicate_version": "comparability-predicate/v2",
+        "reasons": [
+          "stack: unrecorded for 1 member; homogeneity cannot be certified",
+          "replay_backend: unrecorded for 1 member; homogeneity cannot be certified",
+          "replay_env: unrecorded for 1 member; homogeneity cannot be certified",
+          "hardware: unrecorded for 1 member; homogeneity cannot be certified"
+        ],
+        "secondary": {
+          "hardware": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "harness": {
+            "status": "pass",
+            "values": [
+              "harness--89df8965fe821f7b"
+            ]
+          },
+          "key": {
+            "status": "pass",
+            "values": [
+              "cmp--4941dc6687219470"
+            ]
+          },
+          "lane": {
+            "status": "pass",
+            "values": [
+              "other"
+            ]
+          },
+          "pipeline": {
+            "status": "pass",
+            "values": [
+              "pipeline--fixture.cpu.qwen35-gguf.89df8965fe821f7b"
+            ]
+          },
+          "replay_backend": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "replay_env": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "scope": {
+            "status": "pass",
+            "values": [
+              "unquantized"
+            ]
+          },
+          "stack": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          }
+        }
+      },
+      "direction": "reference_to_candidate",
+      "head_policy": "native_head",
+      "key": "cmp--4941dc6687219470",
+      "label": "mean_tokenwise_kld on panel--fixture.a53145fb225cc15b73887d0f (same_stack, native_head)",
+      "member_count": 1,
+      "metric_name": "mean_tokenwise_kld",
+      "panel_id": "panel--fixture.a53145fb225cc15b73887d0f",
+      "reference_id": "reference--fixture.qwen35-gguf.5976d6ef519b46f8",
+      "stack_relation": "same_stack"
+    },
+    {
+      "accumulation_dtype": "float64",
+      "comparability": {
+        "comparable": "unknown",
+        "live_member_count": 1,
+        "predicate_version": "comparability-predicate/v2",
+        "reasons": [
+          "stack: unrecorded for 1 member; homogeneity cannot be certified",
+          "replay_backend: unrecorded for 1 member; homogeneity cannot be certified",
+          "replay_env: unrecorded for 1 member; homogeneity cannot be certified",
+          "hardware: unrecorded for 1 member; homogeneity cannot be certified"
+        ],
+        "secondary": {
+          "hardware": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "harness": {
+            "status": "pass",
+            "values": [
+              "harness--c7d11a9648194cf6"
+            ]
+          },
+          "key": {
+            "status": "pass",
+            "values": [
+              "cmp--4a66bc7afad67fe2"
+            ]
+          },
+          "lane": {
+            "status": "pass",
+            "values": [
+              "other"
+            ]
+          },
+          "pipeline": {
+            "status": "pass",
+            "values": [
+              "pipeline--fixture.cpu.kimi-k3.c7d11a9648194cf6"
+            ]
+          },
+          "replay_backend": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "replay_env": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "scope": {
+            "status": "pass",
+            "values": [
+              "unquantized"
+            ]
+          },
+          "stack": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          }
+        }
+      },
+      "direction": "reference_to_candidate",
+      "head_policy": "native_head",
+      "key": "cmp--4a66bc7afad67fe2",
+      "label": "mean_tokenwise_kld on panel--fixture.a53145fb225cc15b73887d0f (same_stack, native_head)",
+      "member_count": 1,
+      "metric_name": "mean_tokenwise_kld",
+      "panel_id": "panel--fixture.a53145fb225cc15b73887d0f",
+      "reference_id": "reference--fixture.kimi-k3.c90350e92d0b404a",
+      "stack_relation": "same_stack"
+    },
+    {
+      "accumulation_dtype": "float64",
+      "comparability": {
+        "comparable": "unknown",
         "live_member_count": 2,
         "predicate_version": "comparability-predicate/v2",
         "reasons": [
@@ -782,6 +1256,164 @@
       "panel_id": "panel--glm53.brandonmusic.final25",
       "reference_id": "reference--brandonmusic.glm53-bf16-fp32-logits.final25",
       "stack_relation": "cross_stack"
+    },
+    {
+      "accumulation_dtype": "float64",
+      "comparability": {
+        "comparable": "unknown",
+        "live_member_count": 1,
+        "predicate_version": "comparability-predicate/v2",
+        "reasons": [
+          "stack: unrecorded for 1 member; homogeneity cannot be certified",
+          "replay_backend: unrecorded for 1 member; homogeneity cannot be certified",
+          "replay_env: unrecorded for 1 member; homogeneity cannot be certified",
+          "hardware: unrecorded for 1 member; homogeneity cannot be certified"
+        ],
+        "secondary": {
+          "hardware": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "harness": {
+            "status": "pass",
+            "values": [
+              "harness--89df8965fe821f7b"
+            ]
+          },
+          "key": {
+            "status": "pass",
+            "values": [
+              "cmp--57fd571961121fe6"
+            ]
+          },
+          "lane": {
+            "status": "pass",
+            "values": [
+              "other"
+            ]
+          },
+          "pipeline": {
+            "status": "pass",
+            "values": [
+              "pipeline--fixture.cpu.qwen4-exp.89df8965fe821f7b"
+            ]
+          },
+          "replay_backend": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "replay_env": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "scope": {
+            "status": "pass",
+            "values": [
+              "unquantized"
+            ]
+          },
+          "stack": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          }
+        }
+      },
+      "direction": "reference_to_candidate",
+      "head_policy": "native_head",
+      "key": "cmp--57fd571961121fe6",
+      "label": "mean_tokenwise_kld on panel--fixture.2218037d11b09e931ba412f6 (same_stack, native_head)",
+      "member_count": 1,
+      "metric_name": "mean_tokenwise_kld",
+      "panel_id": "panel--fixture.2218037d11b09e931ba412f6",
+      "reference_id": "reference--fixture.qwen4-exp.cbec16fe7bff9a88",
+      "stack_relation": "same_stack"
+    },
+    {
+      "accumulation_dtype": "float64",
+      "comparability": {
+        "comparable": "unknown",
+        "live_member_count": 1,
+        "predicate_version": "comparability-predicate/v2",
+        "reasons": [
+          "stack: unrecorded for 1 member; homogeneity cannot be certified",
+          "replay_backend: unrecorded for 1 member; homogeneity cannot be certified",
+          "replay_env: unrecorded for 1 member; homogeneity cannot be certified",
+          "hardware: unrecorded for 1 member; homogeneity cannot be certified"
+        ],
+        "secondary": {
+          "hardware": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "harness": {
+            "status": "pass",
+            "values": [
+              "harness--89df8965fe821f7b"
+            ]
+          },
+          "key": {
+            "status": "pass",
+            "values": [
+              "cmp--6757032314e38a59"
+            ]
+          },
+          "lane": {
+            "status": "pass",
+            "values": [
+              "other"
+            ]
+          },
+          "pipeline": {
+            "status": "pass",
+            "values": [
+              "pipeline--fixture.cpu.glm5-next.89df8965fe821f7b"
+            ]
+          },
+          "replay_backend": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "replay_env": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "scope": {
+            "status": "pass",
+            "values": [
+              "unquantized"
+            ]
+          },
+          "stack": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          }
+        }
+      },
+      "direction": "reference_to_candidate",
+      "head_policy": "native_head",
+      "key": "cmp--6757032314e38a59",
+      "label": "mean_tokenwise_kld on panel--fixture.3e2777903c672346baceac98 (same_stack, native_head)",
+      "member_count": 1,
+      "metric_name": "mean_tokenwise_kld",
+      "panel_id": "panel--fixture.3e2777903c672346baceac98",
+      "reference_id": "reference--fixture.glm5-next.d0b33dd18e79aba0",
+      "stack_relation": "same_stack"
     },
     {
       "accumulation_dtype": "float64",
@@ -1037,6 +1669,85 @@
         "live_member_count": 1,
         "predicate_version": "comparability-predicate/v2",
         "reasons": [
+          "stack: unrecorded for 1 member; homogeneity cannot be certified",
+          "replay_backend: unrecorded for 1 member; homogeneity cannot be certified",
+          "replay_env: unrecorded for 1 member; homogeneity cannot be certified",
+          "hardware: unrecorded for 1 member; homogeneity cannot be certified"
+        ],
+        "secondary": {
+          "hardware": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "harness": {
+            "status": "pass",
+            "values": [
+              "harness--89df8965fe821f7b"
+            ]
+          },
+          "key": {
+            "status": "pass",
+            "values": [
+              "cmp--7e10ab9bcc7628b7"
+            ]
+          },
+          "lane": {
+            "status": "pass",
+            "values": [
+              "other"
+            ]
+          },
+          "pipeline": {
+            "status": "pass",
+            "values": [
+              "pipeline--fixture.cpu.minimax-m3.89df8965fe821f7b"
+            ]
+          },
+          "replay_backend": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "replay_env": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "scope": {
+            "status": "pass",
+            "values": [
+              "unquantized"
+            ]
+          },
+          "stack": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          }
+        }
+      },
+      "direction": "reference_to_candidate",
+      "head_policy": "native_head",
+      "key": "cmp--7e10ab9bcc7628b7",
+      "label": "mean_tokenwise_kld on panel--fixture.a53145fb225cc15b73887d0f (same_stack, native_head)",
+      "member_count": 1,
+      "metric_name": "mean_tokenwise_kld",
+      "panel_id": "panel--fixture.a53145fb225cc15b73887d0f",
+      "reference_id": "reference--fixture.minimax-m3.d193c0296d88fa50",
+      "stack_relation": "same_stack"
+    },
+    {
+      "accumulation_dtype": "float64",
+      "comparability": {
+        "comparable": "unknown",
+        "live_member_count": 1,
+        "predicate_version": "comparability-predicate/v2",
+        "reasons": [
           "harness: unrecorded for 1 member; homogeneity cannot be certified",
           "stack: unrecorded for 1 member; homogeneity cannot be certified",
           "replay_backend: unrecorded for 1 member; homogeneity cannot be certified",
@@ -1107,6 +1818,164 @@
       "metric_name": "mean_tokenwise_kld",
       "panel_id": "panel--glm53.malaiwah.suite-v5-10m",
       "reference_id": "reference--malaiwah.glm53-bf16-vllm.suite-v5-10m",
+      "stack_relation": "same_stack"
+    },
+    {
+      "accumulation_dtype": "float64",
+      "comparability": {
+        "comparable": "unknown",
+        "live_member_count": 1,
+        "predicate_version": "comparability-predicate/v2",
+        "reasons": [
+          "stack: unrecorded for 1 member; homogeneity cannot be certified",
+          "replay_backend: unrecorded for 1 member; homogeneity cannot be certified",
+          "replay_env: unrecorded for 1 member; homogeneity cannot be certified",
+          "hardware: unrecorded for 1 member; homogeneity cannot be certified"
+        ],
+        "secondary": {
+          "hardware": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "harness": {
+            "status": "pass",
+            "values": [
+              "harness--89df8965fe821f7b"
+            ]
+          },
+          "key": {
+            "status": "pass",
+            "values": [
+              "cmp--9b87b6d52c97e8ca"
+            ]
+          },
+          "lane": {
+            "status": "pass",
+            "values": [
+              "other"
+            ]
+          },
+          "pipeline": {
+            "status": "pass",
+            "values": [
+              "pipeline--fixture.cpu.glm-moe-dsa.89df8965fe821f7b"
+            ]
+          },
+          "replay_backend": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "replay_env": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "scope": {
+            "status": "pass",
+            "values": [
+              "unquantized"
+            ]
+          },
+          "stack": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          }
+        }
+      },
+      "direction": "reference_to_candidate",
+      "head_policy": "native_head",
+      "key": "cmp--9b87b6d52c97e8ca",
+      "label": "mean_tokenwise_kld on panel--fixture.9d187d1dab31575b41ab4b00 (same_stack, native_head)",
+      "member_count": 1,
+      "metric_name": "mean_tokenwise_kld",
+      "panel_id": "panel--fixture.9d187d1dab31575b41ab4b00",
+      "reference_id": "reference--fixture.glm-moe-dsa.29e66b3afcf292da",
+      "stack_relation": "same_stack"
+    },
+    {
+      "accumulation_dtype": "float64",
+      "comparability": {
+        "comparable": "unknown",
+        "live_member_count": 1,
+        "predicate_version": "comparability-predicate/v2",
+        "reasons": [
+          "stack: unrecorded for 1 member; homogeneity cannot be certified",
+          "replay_backend: unrecorded for 1 member; homogeneity cannot be certified",
+          "replay_env: unrecorded for 1 member; homogeneity cannot be certified",
+          "hardware: unrecorded for 1 member; homogeneity cannot be certified"
+        ],
+        "secondary": {
+          "hardware": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "harness": {
+            "status": "pass",
+            "values": [
+              "harness--89df8965fe821f7b"
+            ]
+          },
+          "key": {
+            "status": "pass",
+            "values": [
+              "cmp--a99c67940f387a86"
+            ]
+          },
+          "lane": {
+            "status": "pass",
+            "values": [
+              "other"
+            ]
+          },
+          "pipeline": {
+            "status": "pass",
+            "values": [
+              "pipeline--fixture.cpu.minimax-m2.89df8965fe821f7b"
+            ]
+          },
+          "replay_backend": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "replay_env": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "scope": {
+            "status": "pass",
+            "values": [
+              "unquantized"
+            ]
+          },
+          "stack": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          }
+        }
+      },
+      "direction": "reference_to_candidate",
+      "head_policy": "native_head",
+      "key": "cmp--a99c67940f387a86",
+      "label": "mean_tokenwise_kld on panel--fixture.a53145fb225cc15b73887d0f (same_stack, native_head)",
+      "member_count": 1,
+      "metric_name": "mean_tokenwise_kld",
+      "panel_id": "panel--fixture.a53145fb225cc15b73887d0f",
+      "reference_id": "reference--fixture.minimax-m2.9a0b71a3347e072b",
       "stack_relation": "same_stack"
     },
     {
@@ -1191,6 +2060,85 @@
       "metric_name": "mean_of_run_means_tokenwise_kld",
       "panel_id": "panel--glm53.brandonmusic.final-0000",
       "reference_id": "reference--brandonmusic.glm53-bf16-fp32-logits.final-0000",
+      "stack_relation": "same_stack"
+    },
+    {
+      "accumulation_dtype": "float64",
+      "comparability": {
+        "comparable": "unknown",
+        "live_member_count": 1,
+        "predicate_version": "comparability-predicate/v2",
+        "reasons": [
+          "stack: unrecorded for 1 member; homogeneity cannot be certified",
+          "replay_backend: unrecorded for 1 member; homogeneity cannot be certified",
+          "replay_env: unrecorded for 1 member; homogeneity cannot be certified",
+          "hardware: unrecorded for 1 member; homogeneity cannot be certified"
+        ],
+        "secondary": {
+          "hardware": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "harness": {
+            "status": "pass",
+            "values": [
+              "harness--0e86ec05d2104689"
+            ]
+          },
+          "key": {
+            "status": "pass",
+            "values": [
+              "cmp--b9834d82706b4192"
+            ]
+          },
+          "lane": {
+            "status": "pass",
+            "values": [
+              "other"
+            ]
+          },
+          "pipeline": {
+            "status": "pass",
+            "values": [
+              "pipeline--fixture.cpu.deepseek-v4.0e86ec05d2104689"
+            ]
+          },
+          "replay_backend": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "replay_env": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "scope": {
+            "status": "pass",
+            "values": [
+              "unquantized"
+            ]
+          },
+          "stack": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          }
+        }
+      },
+      "direction": "reference_to_candidate",
+      "head_policy": "native_head",
+      "key": "cmp--b9834d82706b4192",
+      "label": "mean_tokenwise_kld on panel--fixture.53326a9cd31fede1ea932442 (same_stack, native_head)",
+      "member_count": 1,
+      "metric_name": "mean_tokenwise_kld",
+      "panel_id": "panel--fixture.53326a9cd31fede1ea932442",
+      "reference_id": "reference--fixture.deepseek-v4.bb5f2cdf5ea90c38",
       "stack_relation": "same_stack"
     },
     {
@@ -1686,18 +2634,18 @@
   "comparability_predicate_rule": "Per group: comparable='true' means lane, pipeline, scope coverage and hardware are recorded and homogeneous across live members; 'false' means a recorded dimension differs (ranking across it attributes a lane/pipeline/hardware/scope effect to quantization quality); 'unknown' means no recorded difference but at least one dimension is unrecorded. Recomputed by the validator (CMP-007); a hand-edited predicate is rejected.",
   "comparability_rule": "The seven-field comparability.key is a NECESSARY partition key, not a sufficient certificate: two measurement values with different keys are NEVER comparable, and a table that mixes keys is malformed. Equal keys make two rows candidates for comparison ONLY -- the key deliberately omits measurement lane, candidate pipeline, hardware and artifact scope, all of which this project has MEASURED moving results by more than the gaps it publishes between quantizers. Before ranking rows as like-for-like, a consumer must also check each group's comparability_keys[].comparability predicate: comparable=true/false/unknown with machine-readable reasons.",
   "counts": {
-    "artifacts": 58,
-    "measurements": 95,
-    "measurements_advisory": 87,
+    "artifacts": 90,
+    "measurements": 107,
+    "measurements_advisory": 99,
     "measurements_author_reported": 15,
     "measurements_independently_verified": 0,
-    "measurements_self_measured": 80,
+    "measurements_self_measured": 92,
     "measurements_strict": 8,
     "measurements_third_party_reported": 0,
-    "models": 5,
-    "panels": 13,
-    "pipelines": 16,
-    "references": 16
+    "models": 17,
+    "panels": 18,
+    "pipelines": 28,
+    "references": 28
   },
   "cross_refs": {
     "local_ai_registry": {
@@ -1707,13 +2655,13 @@
       "url": "https://huggingface.co/datasets/0xSero/local-ai-registry"
     }
   },
-  "generated_at": "2026-09-07T14:32:06+00:00",
+  "generated_at": "2026-09-07T19:18:56+00:00",
   "registry_id": "malaiwah/quant-fidelity-registry",
   "resolver_rule": "Every *_ref is the id field of a record in the collection named by the ref's id prefix: model--, artifact--, panel--, reference--, pipeline--, measurement--.",
   "schema_version": "quant-fidelity-registry/v1",
   "validator": {
     "invariants_file": "schema/invariants.json",
-    "last_run_at": "2026-09-07T14:32:06+00:00",
+    "last_run_at": "2026-09-07T19:18:56+00:00",
     "passed": true,
     "tool": "tools/registry_validate.py"
   }

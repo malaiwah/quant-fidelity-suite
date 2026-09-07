@@ -1,0 +1,473 @@
+{
+  "candidate": {
+    "capture_content_digest": "b7a15a5a9eadd507af83c8c4a77ca96cfc67bf9e06e5d3233562bddd15b5f7d6",
+    "dataset_id": "fidelity--qwen35-gguf-tiny.malaiwah.quant-format-q8_0",
+    "dataset_sha256": "f28b12b1b16b04deeed6d18d94ced403a2ca286e716496a2a9ee2333f234a90e",
+    "form": "hidden",
+    "head": {
+      "bits": 16,
+      "quantized": false,
+      "raw_tensor_sha256": "5f51845f52290b91abb33c0f231a9ddb7b4a36950e0fa16d583d6a1458c42f6f",
+      "source": "native",
+      "tensor_content_sha256": "5f51845f52290b91abb33c0f231a9ddb7b4a36950e0fa16d583d6a1458c42f6f"
+    },
+    "label": "candidate",
+    "lane": "other",
+    "lane_identity_sha256": "34f640ff350d24093734d97a81c1048ce0443d8b3c7bda0953f8283b8ea9269f",
+    "repository": null,
+    "revision": null,
+    "role": "quant",
+    "scope_digest": "attn.other=quantized:mixed|embed_tokens=quantized:gguf-k-quant@8|lm_head=quantized:gguf-k-quant@8|mlp.down=quantized:gguf-k-quant@8|mlp.gate=quantized:gguf-k-quant@8|mlp.up=quantized:gguf-k-quant@8|norm=native:fp32@32|head=quantized|kv=not_applicable",
+    "stack_fingerprint_sha256": "a83c4de13e06b8727c3a05959e470708b1fa396b0fcbd78c2f9deac666fea6cd",
+    "weights": {
+      "artifact_ref": null,
+      "checkpoint_identity_sha256": "797b63cf656740aef8b0c17237b4e0bdfa8e48f05c48027e7a264915d55ff820",
+      "codec": "gguf-k-quant",
+      "config_sha256": "af379f490737e9834a34adbf85c995fc8b834a675b9d90494c58fd17afa62ebd",
+      "declared_bits": 8.0,
+      "declared_head_bits": 16,
+      "index_sha256": null,
+      "model_ref": null,
+      "model_revision": null,
+      "quantized": true,
+      "repository": "/tmp/qfs-quant-qwen-gguf-release/stage-final/q8_0",
+      "revision": null
+    }
+  },
+  "comparability": {
+    "bias": null,
+    "class": "advisory",
+    "key": "cmp--f3432449ee88ddbc",
+    "key_inputs": {
+      "accumulation_dtype": "float64",
+      "direction": "reference_to_candidate",
+      "head_policy": "native_head",
+      "metric_name": "mean_tokenwise_kld",
+      "note": "provisional; the registry recomputes with its reference record id (registry CMP-001)",
+      "panel_id": "panel--panel-main",
+      "reference_id": "fidelity--qwen35-gguf-tiny.malaiwah.quant-format-reference",
+      "stack_relation": "same_stack"
+    },
+    "same_lane": true,
+    "usable_as_floor": true
+  },
+  "comparator": {
+    "accumulation_dtype": "float64",
+    "bf16_reduced_precision_reduction": false,
+    "cublas_workspace_config": null,
+    "deterministic_algorithms": true,
+    "device": "cpu",
+    "estimator_backend": "torch:k6_kld_report._token_kld",
+    "head_applied_candidate_tensor_content_sha256": "5f51845f52290b91abb33c0f231a9ddb7b4a36950e0fa16d583d6a1458c42f6f",
+    "head_applied_reference_tensor_content_sha256": "b734800ed6511a3be2f761be1702058bc2d88eea82329b239da887b67858c628",
+    "head_applied_tensor_content_sha256": null,
+    "logprob_dtype": "float64",
+    "position_block": 128,
+    "replay_backend": "numpy:cpu:float32",
+    "replay_env": {
+      "blas_configuration": "OpenBLAS 0.3.34.106.0  USE64BITINT DYNAMIC_ARCH NO_AFFINITY Haswell MAX_THREADS=64",
+      "blas_name": "scipy-openblas",
+      "blas_threads": 2,
+      "blas_threads_source": "ctypes:scipy_openblas_get_num_threads64_",
+      "blas_version": "0.3.34.106.0",
+      "cpu_model": "Intel(R) Xeon(R) CPU           X5570  @ 2.93GHz",
+      "library": "numpy",
+      "numpy_version": "2.5.3",
+      "replay_dtype": "float32"
+    },
+    "replay_peak_device_bytes": null,
+    "short_circuited": false,
+    "source_file_hashes_verified": true,
+    "tensor_content_digests_verified": true,
+    "tf32": false,
+    "tool": {
+      "entrypoint": "bin/fidelity-dataset compare",
+      "note": "the fp64 estimator is k6_kld_report._token_kld, imported not copied, whenever torch is importable; estimator_backend records which path ran."
+    },
+    "two_pass": true,
+    "vocab_chunk": null
+  },
+  "comparison_kind": "measurement",
+  "context_depth_buckets": {
+    "0000-0255": 2.783642811116105e-06
+  },
+  "created_utc": "2026-09-07T17:03:15Z",
+  "determinism": {
+    "cold_start_per_run": null,
+    "distinct_evidence_hash_count": 2,
+    "evidence_hashes": [
+      "2abb38fae18f1ad7c8b87b77c41b93b7829e92a5a1216ddf5c7191316eb47e8d",
+      "b7a15a5a9eadd507af83c8c4a77ca96cfc67bf9e06e5d3233562bddd15b5f7d6"
+    ],
+    "evidence_kind": "hidden_state_tensor_sha256",
+    "identical_across_runs": null,
+    "max_run_mean": 2.783642811116105e-06,
+    "min_run_mean": 2.783642811116105e-06,
+    "note": "one comparison of two sealed captures. identical_across_runs is null, not true: that claim needs two independently produced captures of the SAME weights (SC-2), which is a different receipt.",
+    "population_stddev_of_run_means": 0.0,
+    "run_count": 1,
+    "run_means": [
+      2.783642811116105e-06
+    ]
+  },
+  "disclosures": [
+    {
+      "affects_comparability": false,
+      "code": "native_head_replay",
+      "detail": "HEAD-1d: each side replayed through its own sealed head (reference b734800ed651, candidate 5f51845f5229); head error is inside the measurement, as under HEAD-2, and nothing is substituted. The heads differ in content.",
+      "severity": "info"
+    },
+    {
+      "affects_comparability": true,
+      "code": "weights_reconstructed",
+      "detail": "candidate was captured from a WEIGHTS-ONLY RECONSTRUCTION (gguf-dequant-to-bf16, output bfloat16). The stored weights were decoded before the model forward; native quantized GEMM and serving activation arithmetic are not measured. Decoder provenance is in the sealed runtime receipt. The comparison is advisory.",
+      "severity": "caveat"
+    }
+  ],
+  "estimator": {
+    "accumulation_dtype": "float64",
+    "head_policy": "native_head",
+    "hidden_dtype": "bf16",
+    "logits_dtype": "float32",
+    "softmax_note": "full vocabulary, torch.log_softmax in float64; no truncation, no top-k, no clamp. A non-finite intermediate is a hard refusal.",
+    "stack_relation": "same_stack",
+    "two_pass": true,
+    "vocab_chunk": null,
+    "zero_handling": null
+  },
+  "format_version": 1,
+  "gates": {
+    "coverage": {
+      "detail": "4 of 4/4 declared records shared",
+      "overridden_by": null,
+      "passed": true
+    },
+    "decode": {
+      "detail": "weights_decode reference none; candidate gguf-dequant-to-bf16",
+      "overridden_by": null,
+      "passed": true
+    },
+    "form": {
+      "detail": "hidden vs hidden",
+      "overridden_by": null,
+      "passed": true
+    },
+    "geometry": {
+      "detail": "vocab_size 272 equal; hidden_width 64",
+      "overridden_by": null,
+      "passed": true
+    },
+    "head": {
+      "detail": "HEAD-1d: own heads on both sides (b734800ed651 vs 5f51845f5229)",
+      "overridden_by": null,
+      "passed": true
+    },
+    "lane": {
+      "detail": "lane=other vs other",
+      "overridden_by": null,
+      "passed": true
+    },
+    "lossy": {
+      "detail": "lossy_codec null on both sides",
+      "overridden_by": null,
+      "passed": true
+    },
+    "panel": {
+      "detail": "suite_token_hash_sha256 equal; 4 shared records; per-record token and mask digests equal; scoring_window equal",
+      "overridden_by": null,
+      "passed": true
+    },
+    "seal": {
+      "detail": "both manifests self-seal and checksums.txt verified; every tensor_content_sha256 recomputed",
+      "overridden_by": null,
+      "passed": true
+    },
+    "stack": {
+      "detail": "lane_identity equal / stack_fingerprint equal -> same_stack",
+      "overridden_by": null,
+      "passed": true
+    }
+  },
+  "high_kld_contexts": [
+    {
+      "allocation_stratum": null,
+      "domain": "code",
+      "index": 2,
+      "max": 4.513159938997141e-06,
+      "mean": 2.8808905117546723e-06,
+      "scored_rows": 63,
+      "window_id": "final-0002"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "garden",
+      "index": 0,
+      "max": 5.8463958418741694e-06,
+      "mean": 2.8083050620261693e-06,
+      "scored_rows": 63,
+      "window_id": "final-0000"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "arithmetic",
+      "index": 1,
+      "max": 4.886888302710157e-06,
+      "mean": 2.7413736926642784e-06,
+      "scored_rows": 63,
+      "window_id": "final-0001"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "instructions",
+      "index": 3,
+      "max": 5.57420803555452e-06,
+      "mean": 2.7040019780192993e-06,
+      "scored_rows": 63,
+      "window_id": "final-0003"
+    }
+  ],
+  "kl": {
+    "max": 5.8463958418741694e-06,
+    "mean": 2.783642811116105e-06,
+    "median": 2.6361854284135464e-06,
+    "p95": 4.089606256317056e-06,
+    "p99": 5.223674971803902e-06,
+    "p99_9": 5.809214913282923e-06
+  },
+  "kl_macro_stratum_mean": null,
+  "kl_micro_token_mean": 2.783642811116105e-06,
+  "measurement_scope": {
+    "contexts": 4,
+    "covers_full_panel": true,
+    "position_filter": "all",
+    "positions_per_context": 63,
+    "scored_positions": 252,
+    "subset_detail": null
+  },
+  "metric": {
+    "direction": "reference_to_candidate",
+    "direction_label": "KL(reference || candidate)",
+    "higher_is_better": false,
+    "name": "mean_tokenwise_kld",
+    "units": "nats",
+    "value": 2.783642811116105e-06
+  },
+  "panel": {
+    "context_length": 64,
+    "contexts": 4,
+    "panel_id": "panel--panel-main",
+    "panel_token_sha256_legacy": "3c9467c85be43d238926f6d18bf825c2e4748814c95b8b0e8b8f1420546c3089",
+    "scored_positions": 252,
+    "scoring_window": {
+      "dropped_positions_total": 0,
+      "min_left_context_tokens": 1,
+      "policy": "every causal prediction position of every window is scored; nothing is dropped",
+      "score_from": 0,
+      "windowed": false
+    },
+    "suite_token_hash_sha256": "525cb6c625096ddb0ab19771a252e83223de98cc984733ef7da25a5eb076db36",
+    "tokenizer": {
+      "files": [
+        {
+          "bytes": 1827,
+          "name": "config.json",
+          "sha256": "af379f490737e9834a34adbf85c995fc8b834a675b9d90494c58fd17afa62ebd"
+        },
+        {
+          "bytes": 216,
+          "name": "generation_config.json",
+          "sha256": "1d59e0fb61ca550ea84bd37a6bdf553ab364bc2689b17ba69f6a1adbc9d61e34"
+        },
+        {
+          "bytes": 9335,
+          "name": "tokenizer.json",
+          "sha256": "c5f05830d9b8e3fc7042f20c32c18e056a5ee87c48313606849794bf1b485677"
+        },
+        {
+          "bytes": 516,
+          "name": "tokenizer_config.json",
+          "sha256": "9f24ab4c9150115747c129e162d2700bf8ef6fc9ba69703d13b99274463283e3"
+        }
+      ],
+      "files_verified": true,
+      "id": "malaiwah/qwen3-5-gguf-tiny-random-bf16",
+      "identity_sha256": "67f958e249bca7ebc29721d0aef5a632a944961903cccc699011df2e82bbb4c2",
+      "maximum_token_id_exclusive": 272,
+      "receipt": null,
+      "repository": "malaiwah/qwen3-5-gguf-tiny-random-bf16",
+      "revision": "490767e58441a55c5a9f6375ea0e31e2cdc9da76",
+      "vocab_size": 272
+    },
+    "tokenizer_candidate": {
+      "files": [
+        {
+          "bytes": 1827,
+          "name": "config.json",
+          "sha256": "af379f490737e9834a34adbf85c995fc8b834a675b9d90494c58fd17afa62ebd"
+        },
+        {
+          "bytes": 216,
+          "name": "generation_config.json",
+          "sha256": "1d59e0fb61ca550ea84bd37a6bdf553ab364bc2689b17ba69f6a1adbc9d61e34"
+        },
+        {
+          "bytes": 9335,
+          "name": "tokenizer.json",
+          "sha256": "c5f05830d9b8e3fc7042f20c32c18e056a5ee87c48313606849794bf1b485677"
+        },
+        {
+          "bytes": 516,
+          "name": "tokenizer_config.json",
+          "sha256": "9f24ab4c9150115747c129e162d2700bf8ef6fc9ba69703d13b99274463283e3"
+        }
+      ],
+      "files_verified": true,
+      "id": "malaiwah/qwen3-5-gguf-tiny-random-bf16",
+      "identity_sha256": "67f958e249bca7ebc29721d0aef5a632a944961903cccc699011df2e82bbb4c2",
+      "maximum_token_id_exclusive": 272,
+      "receipt": null,
+      "repository": "malaiwah/qwen3-5-gguf-tiny-random-bf16",
+      "revision": "490767e58441a55c5a9f6375ea0e31e2cdc9da76",
+      "vocab_size": 272
+    },
+    "tokenizer_identity_equal": true,
+    "tokenizer_reference": {
+      "files": [
+        {
+          "bytes": 1827,
+          "name": "config.json",
+          "sha256": "af379f490737e9834a34adbf85c995fc8b834a675b9d90494c58fd17afa62ebd"
+        },
+        {
+          "bytes": 216,
+          "name": "generation_config.json",
+          "sha256": "1d59e0fb61ca550ea84bd37a6bdf553ab364bc2689b17ba69f6a1adbc9d61e34"
+        },
+        {
+          "bytes": 9335,
+          "name": "tokenizer.json",
+          "sha256": "c5f05830d9b8e3fc7042f20c32c18e056a5ee87c48313606849794bf1b485677"
+        },
+        {
+          "bytes": 516,
+          "name": "tokenizer_config.json",
+          "sha256": "9f24ab4c9150115747c129e162d2700bf8ef6fc9ba69703d13b99274463283e3"
+        }
+      ],
+      "files_verified": true,
+      "id": "malaiwah/qwen3-5-gguf-tiny-random-bf16",
+      "identity_sha256": "67f958e249bca7ebc29721d0aef5a632a944961903cccc699011df2e82bbb4c2",
+      "maximum_token_id_exclusive": 272,
+      "receipt": null,
+      "repository": "malaiwah/qwen3-5-gguf-tiny-random-bf16",
+      "revision": "490767e58441a55c5a9f6375ea0e31e2cdc9da76",
+      "vocab_size": 272
+    }
+  },
+  "per_context": [
+    {
+      "allocation_stratum": null,
+      "domain": "garden",
+      "index": 0,
+      "max": 5.8463958418741694e-06,
+      "mean": 2.8083050620261693e-06,
+      "scored_rows": 63,
+      "window_id": "final-0000"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "arithmetic",
+      "index": 1,
+      "max": 4.886888302710157e-06,
+      "mean": 2.7413736926642784e-06,
+      "scored_rows": 63,
+      "window_id": "final-0001"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "code",
+      "index": 2,
+      "max": 4.513159938997141e-06,
+      "mean": 2.8808905117546723e-06,
+      "scored_rows": 63,
+      "window_id": "final-0002"
+    },
+    {
+      "allocation_stratum": null,
+      "domain": "instructions",
+      "index": 3,
+      "max": 5.57420803555452e-06,
+      "mean": 2.7040019780192993e-06,
+      "scored_rows": 63,
+      "window_id": "final-0003"
+    }
+  ],
+  "per_domain": {
+    "arithmetic": 2.7413736926642784e-06,
+    "code": 2.8808905117546723e-06,
+    "garden": 2.8083050620261693e-06,
+    "instructions": 2.7040019780192993e-06
+  },
+  "per_stratum": null,
+  "receipt_sha256": "36d7b222b4909ebd75c7674f0f8f324053a56e8ca2951b2281c6f70b70bf6882",
+  "reference": {
+    "capture_content_digest": "2abb38fae18f1ad7c8b87b77c41b93b7829e92a5a1216ddf5c7191316eb47e8d",
+    "dataset_id": "fidelity--qwen35-gguf-tiny.malaiwah.quant-format-reference",
+    "dataset_sha256": "c2f0d027a9070cf3990af2f8233be69266368b1349d4f1c0bbf06a14de7bd3b7",
+    "form": "hidden",
+    "head": {
+      "bits": 16,
+      "quantized": false,
+      "raw_tensor_sha256": "b734800ed6511a3be2f761be1702058bc2d88eea82329b239da887b67858c628",
+      "source": "native",
+      "tensor_content_sha256": "b734800ed6511a3be2f761be1702058bc2d88eea82329b239da887b67858c628"
+    },
+    "label": "reference",
+    "lane": "other",
+    "lane_identity_sha256": "34f640ff350d24093734d97a81c1048ce0443d8b3c7bda0953f8283b8ea9269f",
+    "repository": null,
+    "revision": null,
+    "role": "root",
+    "scope_digest": "attn.o=native:bf16@16|attn.qkv=native:bf16@16|embed_tokens=native:bf16@16|lm_head=native:bf16@16|mlp.down=native:bf16@16|mlp.gate=native:bf16@16|mlp.up=native:bf16@16|moe.experts=native:bf16@16|norm=native:bf16@16|head=native|kv=bf16",
+    "stack_fingerprint_sha256": "a83c4de13e06b8727c3a05959e470708b1fa396b0fcbd78c2f9deac666fea6cd",
+    "weights": {
+      "artifact_ref": null,
+      "checkpoint_identity_sha256": "320527902d412346d533fd1ac62066bd4cd278016a44f8cfd071318dc3b36a4b",
+      "codec": null,
+      "config_sha256": "af379f490737e9834a34adbf85c995fc8b834a675b9d90494c58fd17afa62ebd",
+      "declared_bits": null,
+      "declared_head_bits": 16,
+      "index_sha256": null,
+      "model_ref": null,
+      "model_revision": "490767e58441a55c5a9f6375ea0e31e2cdc9da76",
+      "quantized": false,
+      "repository": "malaiwah/qwen3-5-gguf-tiny-random-bf16",
+      "revision": "490767e58441a55c5a9f6375ea0e31e2cdc9da76"
+    }
+  },
+  "schema": "malaiwah.fidelity-comparison-receipt.v1",
+  "self_compare": null,
+  "submission": {
+    "emitted": false,
+    "path": null,
+    "receipt_sha256": null,
+    "refusal": null,
+    "submission_schema": null
+  },
+  "tokenwise": {
+    "bytes": 2144,
+    "path": "tokenwise-kld.npy",
+    "sha256": "b9940b446dcc5f5938f138fd815d64d1142d9f82e86b88296e23ade395dc8fdd"
+  },
+  "top1_agreement": 0.9841269841269841,
+  "top1_discordant_contexts": [],
+  "uncertainty": {
+    "ci95_high": null,
+    "ci95_low": null,
+    "cluster_unit": null,
+    "clusters": null,
+    "method": "none",
+    "samples": null,
+    "seed": null
+  }
+}

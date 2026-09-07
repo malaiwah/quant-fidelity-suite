@@ -953,7 +953,7 @@ def check_panels(C, rep):
             rep.err("PANEL-003", "%s: %d contexts x %d positions = %d, but scored_positions_total is %d"
                     % (pid, c, ppc, c * ppc, tot), pid)
         if ident.get("panel_token_sha256"):
-            by_token.setdefault(ident["panel_token_sha256"], []).append(pid)
+            by_token.setdefault((ident["panel_token_sha256"], (p.get("tokenizer") or {}).get("id")), []).append(pid)
         parent = C["panels"].get(p.get("derived_from"))
         deriv = p.get("derivation") or {}
         if parent:
@@ -973,11 +973,11 @@ def check_panels(C, rep):
                     rep.err("PANEL-009", "%s scores %d positions, not fewer than its parent's %d"
                             % (pid, tot, pt), pid)
 
-    for token, pids in by_token.items():
+    for (token, tokenizer_id), pids in by_token.items():
         if len(pids) > 1 and not _one_token_family(C["panels"], pids):
-            rep.err("PANEL-004", "panels %s share token digest %s but are not one token-identity family "
+            rep.err("PANEL-004", "panels %s share tokenizer %r and token digest %s but are not one token-identity family "
                                  "(connected only by reformat / scoring_window_change derivations)"
-                    % (", ".join(sorted(pids)), token[:12]), sorted(pids)[0])
+                    % (", ".join(sorted(pids)), tokenizer_id, token[:12]), sorted(pids)[0])
 
 
 def _one_token_family(panels, pids):

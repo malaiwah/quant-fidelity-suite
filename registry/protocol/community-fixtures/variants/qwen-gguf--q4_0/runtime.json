@@ -1,0 +1,453 @@
+{
+  "capture_tool": {
+    "expert_fill": {
+      "bytes_filled": 0,
+      "declined": {},
+      "decoded_slices": 0,
+      "identity": "a byte copy into the fused parameter's slice; bin/selftest_layer_outer.py L4/L6 assert equality with from_pretrained and with the converter path",
+      "layers_filled": 0,
+      "mode": "direct",
+      "reference": "transformers.core_model_loading.MergeModulelist(dim=0) + Concatenate(dim=1)",
+      "slices_filled": 0,
+      "staged_slices": 0,
+      "staging": "pageable",
+      "targets_filled": 0
+    },
+    "file": "engines/tools/hf_capture.py",
+    "head_module_path": "lm_head",
+    "head_resolution": "lm_head",
+    "layer_residency": "stream",
+    "mechanism": "transformers forward pass, layer-outer/window-inner schedule: for each decoder layer the model's own forward is run once per window with the layers below replaying their memoised output and the layers above suspending, so each layer's weights are materialised once for the whole panel. Windows are pushed through sequentially, never batched. Forward pre-hook on model.get_output_embeddings(), fired by the model's own epilogue after the last layer",
+    "model_view": {
+      "derived_config": {
+        "_name_or_path": "",
+        "architectures": [
+          "Qwen3_5ForCausalLM"
+        ],
+        "attention_bias": false,
+        "attention_dropout": 0.0,
+        "bos_token_id": 1,
+        "chunk_size_feed_forward": 0,
+        "dtype": "bfloat16",
+        "eos_token_id": 2,
+        "head_dim": 32,
+        "hidden_act": "silu",
+        "hidden_size": 64,
+        "id2label": {
+          "0": "LABEL_0",
+          "1": "LABEL_1"
+        },
+        "initializer_range": 0.02,
+        "intermediate_size": 128,
+        "is_encoder_decoder": false,
+        "label2id": {
+          "LABEL_0": 0,
+          "LABEL_1": 1
+        },
+        "layer_types": [
+          "linear_attention",
+          "linear_attention",
+          "linear_attention",
+          "full_attention"
+        ],
+        "linear_conv_kernel_dim": 4,
+        "linear_key_head_dim": 16,
+        "linear_num_key_heads": 2,
+        "linear_num_value_heads": 6,
+        "linear_value_head_dim": 16,
+        "max_position_embeddings": 256,
+        "model_type": "qwen3_5_text",
+        "num_attention_heads": 6,
+        "num_hidden_layers": 4,
+        "num_key_value_heads": 1,
+        "output_attentions": false,
+        "output_hidden_states": false,
+        "pad_token_id": 0,
+        "partial_rotary_factor": 0.25,
+        "problem_type": null,
+        "return_dict": true,
+        "rms_norm_eps": 1e-06,
+        "rope_parameters": {
+          "mrope_interleaved": true,
+          "mrope_section": [
+            2,
+            1,
+            1
+          ],
+          "partial_rotary_factor": 0.25,
+          "rope_theta": 10000.0,
+          "rope_type": "default"
+        },
+        "tie_word_embeddings": false,
+        "transformers_version": "5.16.1",
+        "use_cache": true,
+        "vocab_size": 272
+      },
+      "identity_policy": "original config and packed files retained",
+      "mtp": "not supported",
+      "native_class": "Qwen3_5ForCausalLM",
+      "original_architectures": [
+        "Qwen3_5ForConditionalGeneration"
+      ],
+      "original_config_sha256": "4f3063941f1448076fb760434ef3fd1c5b6b32e4dd39ef4ea7c18d3654ec631f",
+      "original_model_type": "qwen3_5",
+      "schema": "qfs.qwen35-native-text-view.v1",
+      "scope": "text-only",
+      "vision": "not present in language GGUF; not borrowed or synthesized"
+    },
+    "parallel_plan_dropped": false,
+    "resolved_classes": {
+      "config": "transformers.models.qwen3_5.configuration_qwen3_5.Qwen3_5Config",
+      "model": "transformers.models.qwen3_5.modeling_qwen3_5.Qwen3_5ForCausalLM"
+    },
+    "resolved_panel_binding": {
+      "binding": {
+        "content": {
+          "archive": {
+            "algorithm": "sha256(ustar: sorted regular files; mode=0644; uid=gid=mtime=0)",
+            "bytes": 20480,
+            "compression": "none",
+            "format": "ustar",
+            "sha256": "39852dc06e2721a412e1bab0952034b745e4397ca4498403ad86f388c225390c"
+          },
+          "manifest": [
+            {
+              "bytes": 192,
+              "path": "arrays/causal-mask-64.npy",
+              "sha256": "a38fba8bfd9cd25a81b0e37fa144e8e13e84f769ae7f609ceebc94a64f4f5d02"
+            },
+            {
+              "bytes": 384,
+              "path": "arrays/final-0000.tokens.npy",
+              "sha256": "d60234f4b3b6044fb21eca18f7df82de9822f388e4d93d19d8a4eb69d6d490af"
+            },
+            {
+              "bytes": 384,
+              "path": "arrays/final-0001.tokens.npy",
+              "sha256": "20188213e4dfaaed04b1396a4ec46a5a2a6236c87d870c64d7102568d585ceea"
+            },
+            {
+              "bytes": 384,
+              "path": "arrays/final-0002.tokens.npy",
+              "sha256": "00341b323c286034a1c3a80ae66318cb6ce67153c08b1eedf6990b7a0310662c"
+            },
+            {
+              "bytes": 384,
+              "path": "arrays/final-0003.tokens.npy",
+              "sha256": "a13ec9b40a39027396ec752ee8595e0613569b78e27ef25d254f4f9a82d8775a"
+            },
+            {
+              "bytes": 4194,
+              "path": "panel.json",
+              "sha256": "3cf6223c9e2cc67d6f491ed526d155396cd55ff975b21ebebf01e5b92aa7df34"
+            },
+            {
+              "bytes": 7809,
+              "path": "panel.receipt.json",
+              "sha256": "984d298d74769f13fd8019b3f5eb7c64479b080624fd2ffbd873a8ccab15827d"
+            }
+          ],
+          "manifest_sha256": "827a8439df3d393dd1d0e51520ae6719b15138506b9e05a8166e93b53457dcea"
+        },
+        "panel": {
+          "bytes": 4194,
+          "context_length": 64,
+          "contexts": 4,
+          "file": "panel.json",
+          "id": "panel--qwen3-5-tiny.malaiwah.cpu-smoke-v1",
+          "name": "Tiny random-init Qwen3.5 hybrid synthetic CPU smoke (not a benchmark)",
+          "positions_per_context": 63,
+          "role": "final",
+          "scored_positions_total": 252,
+          "sha256": "3cf6223c9e2cc67d6f491ed526d155396cd55ff975b21ebebf01e5b92aa7df34",
+          "suite_token_hash_sha256": "525cb6c625096ddb0ab19771a252e83223de98cc984733ef7da25a5eb076db36"
+        },
+        "receipt": {
+          "bytes": 7809,
+          "declared_receipt_sha256": "bece9e53f34c1e4c719f9c760cdbd6dfafcf7e354f122427758a1d582deeb309",
+          "file": "panel.receipt.json",
+          "receipt_file_sha256": "984d298d74769f13fd8019b3f5eb7c64479b080624fd2ffbd873a8ccab15827d",
+          "receipt_seal_mode": "self-blank"
+        },
+        "schema": "malaiwah.resolved-panel.v1",
+        "tokenizer": {
+          "files": [
+            {
+              "bytes": 1827,
+              "name": "config.json",
+              "sha256": "af379f490737e9834a34adbf85c995fc8b834a675b9d90494c58fd17afa62ebd"
+            },
+            {
+              "bytes": 216,
+              "name": "generation_config.json",
+              "sha256": "1d59e0fb61ca550ea84bd37a6bdf553ab364bc2689b17ba69f6a1adbc9d61e34"
+            },
+            {
+              "bytes": 9335,
+              "name": "tokenizer.json",
+              "sha256": "c5f05830d9b8e3fc7042f20c32c18e056a5ee87c48313606849794bf1b485677"
+            },
+            {
+              "bytes": 516,
+              "name": "tokenizer_config.json",
+              "sha256": "9f24ab4c9150115747c129e162d2700bf8ef6fc9ba69703d13b99274463283e3"
+            }
+          ],
+          "files_verified": true,
+          "id": "malaiwah/qwen3-5-gguf-tiny-random-bf16",
+          "identity_sha256": "67f958e249bca7ebc29721d0aef5a632a944961903cccc699011df2e82bbb4c2",
+          "maximum_token_id_exclusive": 272,
+          "receipt": null,
+          "repository": "malaiwah/qwen3-5-gguf-tiny-random-bf16",
+          "revision": "490767e58441a55c5a9f6375ea0e31e2cdc9da76",
+          "vocab_size": 272
+        }
+      },
+      "binding_file": "panel-binding.json",
+      "binding_file_sha256": "0482ff678dce2d458a225b1ab6f90cfee25b5d608074e8c239a9ce8eee70f141",
+      "tokenizer_equivalences": []
+    },
+    "schedule": "layer-outer",
+    "sha256": "44afcdac9f7c9cb26a35a2b7d9c1aed562344b76c8045a753651d2f2dbae99d0",
+    "unexpected_tensor_allowlist": null,
+    "verified_code": null,
+    "version": "hf_capture/1",
+    "weights_decode": {
+      "comparison_class": "advisory",
+      "file_records": [
+        {
+          "bytes": 156544,
+          "name": "qwen35-tiny-Q4_0.gguf",
+          "sha256": "e368e1be98c4ad0ea259578fc21d4847afbfc6b37608f1c5ce9dfb9f5b6763d1"
+        }
+      ],
+      "files_verified": "full",
+      "gguf_bytes_read": 147808,
+      "head_source": "artifact's own output.weight; text-only own-head capture",
+      "method": "gguf-dequant-to-bf16",
+      "model_view": {
+        "derived_config": {
+          "_name_or_path": "",
+          "architectures": [
+            "Qwen3_5ForCausalLM"
+          ],
+          "attention_bias": false,
+          "attention_dropout": 0.0,
+          "bos_token_id": 1,
+          "chunk_size_feed_forward": 0,
+          "dtype": "bfloat16",
+          "eos_token_id": 2,
+          "head_dim": 32,
+          "hidden_act": "silu",
+          "hidden_size": 64,
+          "id2label": {
+            "0": "LABEL_0",
+            "1": "LABEL_1"
+          },
+          "initializer_range": 0.02,
+          "intermediate_size": 128,
+          "is_encoder_decoder": false,
+          "label2id": {
+            "LABEL_0": 0,
+            "LABEL_1": 1
+          },
+          "layer_types": [
+            "linear_attention",
+            "linear_attention",
+            "linear_attention",
+            "full_attention"
+          ],
+          "linear_conv_kernel_dim": 4,
+          "linear_key_head_dim": 16,
+          "linear_num_key_heads": 2,
+          "linear_num_value_heads": 6,
+          "linear_value_head_dim": 16,
+          "max_position_embeddings": 256,
+          "model_type": "qwen3_5_text",
+          "num_attention_heads": 6,
+          "num_hidden_layers": 4,
+          "num_key_value_heads": 1,
+          "output_attentions": false,
+          "output_hidden_states": false,
+          "pad_token_id": 0,
+          "partial_rotary_factor": 0.25,
+          "problem_type": null,
+          "return_dict": true,
+          "rms_norm_eps": 1e-06,
+          "rope_parameters": {
+            "mrope_interleaved": true,
+            "mrope_section": [
+              2,
+              1,
+              1
+            ],
+            "partial_rotary_factor": 0.25,
+            "rope_theta": 10000.0,
+            "rope_type": "default"
+          },
+          "tie_word_embeddings": false,
+          "transformers_version": "5.16.1",
+          "use_cache": true,
+          "vocab_size": 272
+        },
+        "identity_policy": "original config and packed files retained",
+        "mtp": "not supported",
+        "native_class": "Qwen3_5ForCausalLM",
+        "original_architectures": [
+          "Qwen3_5ForConditionalGeneration"
+        ],
+        "original_config_sha256": "4f3063941f1448076fb760434ef3fd1c5b6b32e4dd39ef4ea7c18d3654ec631f",
+        "original_model_type": "qwen3_5",
+        "schema": "qfs.qwen35-native-text-view.v1",
+        "scope": "text-only",
+        "vision": "not present in language GGUF; not borrowed or synthesized"
+      },
+      "output_dtype": "bfloat16",
+      "quantization_config": {
+        "build": "Q4_0",
+        "canonical_tensor_count": 56,
+        "classification": "weights_reconstructed",
+        "container": "gguf",
+        "decode": "GGUF blocks to fp32, inverse norm offsets/negative exponent/V-head tile order, then requested capture dtype; native text forward, not GGUF serving kernels",
+        "files": [
+          "qwen35-tiny-Q4_0.gguf"
+        ],
+        "general": {
+          "general.architecture": "qwen35",
+          "general.file_type": 2,
+          "general.quantization_version": 2,
+          "general.quantized_by": "pinned gguf-py RTN FORMAT fixture, not an optimizer"
+        },
+        "layout": {
+          "build": "Q4_0",
+          "converter_revision": "9a7570587ce908b0073a0458877205b80627f393",
+          "converter_source_sha256": "b783f53598e1a65cb0ef7fbe0d0f52da472e2784f63acf13a5aea00f623cfaa6",
+          "files": {
+            "qwen35-tiny-Q4_0.gguf": "e368e1be98c4ad0ea259578fc21d4847afbfc6b37608f1c5ce9dfb9f5b6763d1"
+          },
+          "full_attention_q_layout": "per head Q then gate, unchanged",
+          "layout": "qwen35-split-qkv-z-grouped-to-tiled-v1",
+          "method": "exact pinned upstream transform AST + pinned TensorNameMap/GGUFWriter; not converter CLI",
+          "schema": "qfs.qwen35-converter-layout.v1",
+          "source_projection_layout": "split_qkv_z"
+        },
+        "model_view": "Qwen3_5ForCausalLM text-only; vision/MTP absent",
+        "tensor_count": 56,
+        "tensor_table_sha256": "5ce17017ce321a7a80cfc46d4136d91a050cdbdbe8f9b7d0fedcb94dc1b43917",
+        "type_census": {
+          "F32": 23,
+          "Q4_0": 33
+        }
+      },
+      "reference": "engines/tools/gguf_qwen35.py::materialize_layer",
+      "scope": "weights_reconstructed",
+      "tensors_decoded": 56
+    },
+    "weights_license": null,
+    "wraps": []
+  },
+  "container": {
+    "image_digest": null,
+    "image_reference": null,
+    "image_repository_digest": null
+  },
+  "format_version": 1,
+  "lane": "other",
+  "lane_identity_inputs": [
+    "torch_version",
+    "cuda_runtime_version",
+    "device_name",
+    "grouped_mm_kernel",
+    "numeric_policy",
+    "attention_backend",
+    "experts_implementation",
+    "parallelism",
+    "ep_emulate",
+    "reduce_order"
+  ],
+  "lane_identity_sha256": "34f640ff350d24093734d97a81c1048ce0443d8b3c7bda0953f8283b8ea9269f",
+  "lane_inferred": false,
+  "receipt_sha256": "de21b0b9df2003dc7aeabad619af71174329ab65410440d73ec3b94087cdaace",
+  "resources": {
+    "bytes": {
+      "checkpoint_read": 127968,
+      "hidden_d2h": 36640,
+      "weights_h2d": null
+    },
+    "checkpoint_bytes": 158371,
+    "checkpoint_files": 2,
+    "device_name": null,
+    "forward_timing": "wall-clock",
+    "note": "provenance, not identity: peaks and stage seconds this run measured; forward_sum is device time under cuda-events, wall time otherwise; seal covers head serialisation up to this block's assembly",
+    "peak_cuda_allocated_bytes": null,
+    "peak_cuda_reserved_bytes": null,
+    "peak_resident_weight_bytes": 201248,
+    "peak_rss_bytes": 367521792,
+    "rss_units_source": "Linux ru_maxrss",
+    "seconds": {
+      "decode_sum": 0.017,
+      "elapsed": 4.246,
+      "fill_sum": null,
+      "forward_sum": 0.3,
+      "identity": 0.002,
+      "layer_load_max": 0.013,
+      "layer_load_sum": 0.046,
+      "layer_loads": 4,
+      "resident_load": 3.239,
+      "seal": 0.006
+    }
+  },
+  "runtime_environment": {
+    "cold_run": "format-q4_0",
+    "numeric_policy_observed": {
+      "NVIDIA_TF32_OVERRIDE": null,
+      "allow_tf32_cudnn": true,
+      "allow_tf32_matmul": false,
+      "deviates_from_default": false,
+      "float32_matmul_precision": "highest",
+      "observed_at": "seal time, after the forward"
+    },
+    "python": "3.12.14"
+  },
+  "schema": "malaiwah.fidelity-capture-runtime.v1",
+  "source_files": {
+    "bin/fidelity/codepin.py": "ce2a2c04d64adf7a268978a7ffe163c7d4cb5b675d5dc8e156f8a26a3b7bb5fd",
+    "bin/fidelity/panel.py": "0bf78fca76289920e0dc10d58082f42f24f4f2db6e0ecde61daefa4c22de286d",
+    "engines/tools/gguf_qwen35.py": "c43a02276ca4a9df2c260382f1c051e2c3cc3a77338849a21dc44f4c41cad41c",
+    "engines/tools/gguf_surface.py": "2f3a5fbab7aedb9675cfc8541173d24247e73190bead9acec7ba306034f0316a",
+    "engines/tools/hf_capture.py": "44afcdac9f7c9cb26a35a2b7d9c1aed562344b76c8045a753651d2f2dbae99d0",
+    "engines/tools/layer_outer.py": "e3ea5715112663b1b60cf596eeffc2140e49b399809ece89a174bce41a969274"
+  },
+  "stack_fingerprint": {
+    "attention_backend": "model default",
+    "cuda_runtime_version": null,
+    "device": "cpu",
+    "device_name": null,
+    "engine": "transformers-eager",
+    "numeric_policy": "default torch matmul precision; no TF32 override applied",
+    "schema": "malaiwah.stack-fingerprint.v1",
+    "torch_version": "2.11.0+cpu",
+    "transformers_version": "5.16.1"
+  },
+  "stack_fingerprint_sha256": "a83c4de13e06b8727c3a05959e470708b1fa396b0fcbd78c2f9deac666fea6cd",
+  "upstream_receipts": [],
+  "weights": {
+    "checkpoint_files": [
+      {
+        "name": "config.json",
+        "sha256": "af379f490737e9834a34adbf85c995fc8b834a675b9d90494c58fd17afa62ebd",
+        "size": 1827
+      },
+      {
+        "name": "qwen35-tiny-Q4_0.gguf",
+        "sha256": "e368e1be98c4ad0ea259578fc21d4847afbfc6b37608f1c5ce9dfb9f5b6763d1",
+        "size": 156544
+      }
+    ],
+    "checkpoint_identity_algorithm": "sha256 over the canonical JSON {\"algorithm\": <this string>, \"files\": [{\"name\", \"size\", \"sha256\"}, ...]} of every *.safetensors shard plus config.json in the checkpoint directory, sorted by name; for a llama.cpp GGUF tree the shards are every *.gguf of the one build directory (name = <build>/<file>) and config.json is the official release's copy beside it",
+    "checkpoint_identity_sha256": "d363f79292d50fe42460d428f6783fca24f3c56ecf3214af5aa002c025f77334",
+    "model_revision": null,
+    "repository": "/tmp/qfs-quant-qwen-gguf-release/stage-final/q4_0",
+    "revision": null
+  }
+}

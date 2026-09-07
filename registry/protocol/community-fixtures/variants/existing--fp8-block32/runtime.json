@@ -1,0 +1,294 @@
+{
+  "capture_tool": {
+    "expert_fill": {
+      "bytes_filled": 294912,
+      "declined": {},
+      "decoded_slices": 72,
+      "identity": "a byte copy into the fused parameter's slice; bin/selftest_layer_outer.py L4/L6 assert equality with from_pretrained and with the converter path",
+      "layers_filled": 3,
+      "mode": "direct",
+      "reference": "transformers.core_model_loading.MergeModulelist(dim=0) + Concatenate(dim=1)",
+      "slices_filled": 72,
+      "staged_slices": 0,
+      "staging": "pageable",
+      "targets_filled": 6
+    },
+    "file": "engines/tools/hf_capture.py",
+    "head_module_path": "lm_head",
+    "head_resolution": "lm_head",
+    "layer_residency": "stream",
+    "mechanism": "transformers forward pass, layer-outer/window-inner schedule: for each decoder layer the model's own forward is run once per window with the layers below replaying their memoised output and the layers above suspending, so each layer's weights are materialised once for the whole panel. Windows are pushed through sequentially, never batched. Forward pre-hook on model.get_output_embeddings(), fired by the model's own epilogue after the last layer",
+    "model_view": null,
+    "parallel_plan_dropped": false,
+    "resolved_classes": {
+      "config": "transformers.models.glm_moe_dsa.configuration_glm_moe_dsa.GlmMoeDsaConfig",
+      "model": "transformers.models.glm_moe_dsa.modeling_glm_moe_dsa.GlmMoeDsaForCausalLM"
+    },
+    "resolved_panel_binding": {
+      "binding": {
+        "content": {
+          "archive": {
+            "algorithm": "sha256(ustar: sorted regular files; mode=0644; uid=gid=mtime=0)",
+            "bytes": 20480,
+            "compression": "none",
+            "format": "ustar",
+            "sha256": "389706dfa3335a75ec70a40d079995af1a60c05512334125dbd336790f12702f"
+          },
+          "manifest": [
+            {
+              "bytes": 192,
+              "path": "arrays/causal-mask-64.npy",
+              "sha256": "a38fba8bfd9cd25a81b0e37fa144e8e13e84f769ae7f609ceebc94a64f4f5d02"
+            },
+            {
+              "bytes": 384,
+              "path": "arrays/final-0000.tokens.npy",
+              "sha256": "d60234f4b3b6044fb21eca18f7df82de9822f388e4d93d19d8a4eb69d6d490af"
+            },
+            {
+              "bytes": 384,
+              "path": "arrays/final-0001.tokens.npy",
+              "sha256": "20188213e4dfaaed04b1396a4ec46a5a2a6236c87d870c64d7102568d585ceea"
+            },
+            {
+              "bytes": 384,
+              "path": "arrays/final-0002.tokens.npy",
+              "sha256": "00341b323c286034a1c3a80ae66318cb6ce67153c08b1eedf6990b7a0310662c"
+            },
+            {
+              "bytes": 384,
+              "path": "arrays/final-0003.tokens.npy",
+              "sha256": "a13ec9b40a39027396ec752ee8595e0613569b78e27ef25d254f4f9a82d8775a"
+            },
+            {
+              "bytes": 4195,
+              "path": "panel.json",
+              "sha256": "fe67acc87ce549ce174fa521a775e9e41c8e1ccbc66155ee673a080fea5e24a6"
+            },
+            {
+              "bytes": 7808,
+              "path": "panel.receipt.json",
+              "sha256": "b0ffc18b0de3b30bb797855a55097083222f6c651bf207dad58c3a7f02384263"
+            }
+          ],
+          "manifest_sha256": "e5f2d6410a6290da1197016c5b57ae522a3570665215ddc23e2a0bd45f912181"
+        },
+        "panel": {
+          "bytes": 4195,
+          "context_length": 64,
+          "contexts": 4,
+          "file": "panel.json",
+          "id": "panel--glm-moe-dsa-tiny.malaiwah.cpu-smoke-v1",
+          "name": "Tiny random-init GLM-MoE-DSA synthetic CPU smoke (not a benchmark)",
+          "positions_per_context": 63,
+          "role": "final",
+          "scored_positions_total": 252,
+          "sha256": "fe67acc87ce549ce174fa521a775e9e41c8e1ccbc66155ee673a080fea5e24a6",
+          "suite_token_hash_sha256": "525cb6c625096ddb0ab19771a252e83223de98cc984733ef7da25a5eb076db36"
+        },
+        "receipt": {
+          "bytes": 7808,
+          "declared_receipt_sha256": "3432d5ccee92559c0999bc80d976183faaffc1accf7c00d5fdca151b0e357ba5",
+          "file": "panel.receipt.json",
+          "receipt_file_sha256": "b0ffc18b0de3b30bb797855a55097083222f6c651bf207dad58c3a7f02384263",
+          "receipt_seal_mode": "self-blank"
+        },
+        "schema": "malaiwah.resolved-panel.v1",
+        "tokenizer": {
+          "files": [
+            {
+              "bytes": 1479,
+              "name": "config.json",
+              "sha256": "7d5880677655ece868c12425a204f539243244af121bc8ad09b881a7546930d7"
+            },
+            {
+              "bytes": 216,
+              "name": "generation_config.json",
+              "sha256": "1d59e0fb61ca550ea84bd37a6bdf553ab364bc2689b17ba69f6a1adbc9d61e34"
+            },
+            {
+              "bytes": 6763,
+              "name": "tokenizer.json",
+              "sha256": "8557198de5989f11dc18c955f6bc98143d2f301c141a8dcab7461a14f78591da"
+            },
+            {
+              "bytes": 236,
+              "name": "tokenizer_config.json",
+              "sha256": "e0b489082ac322f131a544ca0833983e1cecb99c2817b2e72184e5ffbdb6ce63"
+            }
+          ],
+          "files_verified": true,
+          "id": "malaiwah/glm-moe-dsa-tiny-random-bf16",
+          "identity_sha256": "d352eac9d82f64010d4094b2dc548d67bf6020df8f7fd4f529bb66f22ceaa9b1",
+          "maximum_token_id_exclusive": 260,
+          "receipt": null,
+          "repository": "malaiwah/glm-moe-dsa-tiny-random-bf16",
+          "revision": "45563636ef723acfb826755493447dc40c7a0c37",
+          "vocab_size": 260
+        }
+      },
+      "binding_file": "panel-binding.json",
+      "binding_file_sha256": "333b063b8f4cac60c9ee62a8a4cc5913dbdb3c7e3055680dcc3fa7bc5c208d69",
+      "tokenizer_equivalences": []
+    },
+    "schedule": "layer-outer",
+    "sha256": "44afcdac9f7c9cb26a35a2b7d9c1aed562344b76c8045a753651d2f2dbae99d0",
+    "unexpected_tensor_allowlist": null,
+    "verified_code": null,
+    "version": "hf_capture/1",
+    "weights_decode": {
+      "fp8_decode_device": "cpu",
+      "fp8_device_parity": "not-applicable",
+      "fp8_device_parity_checked_partial_block": 0,
+      "fp8_device_parity_checked_tensors": 0,
+      "fp8_device_parity_full_layers": [],
+      "fp8_elements": 241664,
+      "method": "fp8-block-dequant-to-bf16",
+      "output_dtype": "bfloat16",
+      "quantization_config": {
+        "activation_scheme": "dynamic",
+        "fmt": "e4m3",
+        "modules_to_not_convert": [
+          "lm_head",
+          "model.embed_tokens",
+          "model.layers.0.input_layernorm",
+          "model.layers.0.post_attention_layernorm",
+          "model.layers.0.self_attn.indexer.k_norm",
+          "model.layers.0.self_attn.indexer.weights_proj",
+          "model.layers.0.self_attn.kv_a_layernorm",
+          "model.layers.0.self_attn.q_a_layernorm",
+          "model.layers.1.input_layernorm",
+          "model.layers.1.mlp.gate",
+          "model.layers.1.post_attention_layernorm",
+          "model.layers.1.self_attn.kv_a_layernorm",
+          "model.layers.1.self_attn.q_a_layernorm",
+          "model.layers.2.input_layernorm",
+          "model.layers.2.mlp.gate",
+          "model.layers.2.post_attention_layernorm",
+          "model.layers.2.self_attn.indexer.k_norm",
+          "model.layers.2.self_attn.indexer.weights_proj",
+          "model.layers.2.self_attn.kv_a_layernorm",
+          "model.layers.2.self_attn.q_a_layernorm",
+          "model.layers.3.input_layernorm",
+          "model.layers.3.mlp.gate",
+          "model.layers.3.post_attention_layernorm",
+          "model.layers.3.self_attn.kv_a_layernorm",
+          "model.layers.3.self_attn.q_a_layernorm",
+          "model.norm"
+        ],
+        "quant_method": "fp8",
+        "weight_block_size": [
+          32,
+          32
+        ]
+      },
+      "reference": "transformers.integrations.finegrained_fp8.Fp8Dequantize._dequantize_one",
+      "scale_tensors_consumed": 108,
+      "tensors_dequantized": 108
+    },
+    "weights_license": null,
+    "wraps": []
+  },
+  "container": {
+    "image_digest": null,
+    "image_reference": null,
+    "image_repository_digest": null
+  },
+  "format_version": 1,
+  "lane": "other",
+  "lane_identity_inputs": [
+    "torch_version",
+    "cuda_runtime_version",
+    "device_name",
+    "grouped_mm_kernel",
+    "numeric_policy",
+    "attention_backend",
+    "experts_implementation",
+    "parallelism",
+    "ep_emulate",
+    "reduce_order"
+  ],
+  "lane_identity_sha256": "34f640ff350d24093734d97a81c1048ce0443d8b3c7bda0953f8283b8ea9269f",
+  "lane_inferred": false,
+  "receipt_sha256": "ccbd02f0f58595990186495d20f4da0a05d672edfc2d841a471a8dcd458411a0",
+  "resources": {
+    "bytes": {
+      "checkpoint_read": 315064,
+      "hidden_d2h": 36616,
+      "weights_h2d": null
+    },
+    "checkpoint_bytes": 345495,
+    "checkpoint_files": 2,
+    "device_name": null,
+    "forward_timing": "wall-clock",
+    "note": "provenance, not identity: peaks and stage seconds this run measured; forward_sum is device time under cuda-events, wall time otherwise; seal covers head serialisation up to this block's assembly",
+    "peak_cuda_allocated_bytes": null,
+    "peak_cuda_reserved_bytes": null,
+    "peak_resident_weight_bytes": 208032,
+    "peak_rss_bytes": 366415872,
+    "rss_units_source": "Linux ru_maxrss",
+    "seconds": {
+      "decode_sum": 0.032,
+      "elapsed": 4.859,
+      "fill_sum": 0.0,
+      "forward_sum": 0.178,
+      "identity": 0.003,
+      "layer_load_max": 0.026,
+      "layer_load_sum": 0.083,
+      "layer_loads": 4,
+      "resident_load": 3.82,
+      "seal": 0.006
+    }
+  },
+  "runtime_environment": {
+    "cold_run": "format-fp8-block32",
+    "numeric_policy_observed": {
+      "NVIDIA_TF32_OVERRIDE": null,
+      "allow_tf32_cudnn": true,
+      "allow_tf32_matmul": false,
+      "deviates_from_default": false,
+      "float32_matmul_precision": "highest",
+      "observed_at": "seal time, after the forward"
+    },
+    "python": "3.12.14"
+  },
+  "schema": "malaiwah.fidelity-capture-runtime.v1",
+  "source_files": {
+    "bin/fidelity/codepin.py": "ce2a2c04d64adf7a268978a7ffe163c7d4cb5b675d5dc8e156f8a26a3b7bb5fd",
+    "bin/fidelity/panel.py": "0bf78fca76289920e0dc10d58082f42f24f4f2db6e0ecde61daefa4c22de286d",
+    "engines/tools/hf_capture.py": "44afcdac9f7c9cb26a35a2b7d9c1aed562344b76c8045a753651d2f2dbae99d0",
+    "engines/tools/layer_outer.py": "e3ea5715112663b1b60cf596eeffc2140e49b399809ece89a174bce41a969274"
+  },
+  "stack_fingerprint": {
+    "attention_backend": "model default",
+    "cuda_runtime_version": null,
+    "device": "cpu",
+    "device_name": null,
+    "engine": "transformers-eager",
+    "numeric_policy": "default torch matmul precision; no TF32 override applied",
+    "schema": "malaiwah.stack-fingerprint.v1",
+    "torch_version": "2.11.0+cpu",
+    "transformers_version": "5.16.1"
+  },
+  "stack_fingerprint_sha256": "a83c4de13e06b8727c3a05959e470708b1fa396b0fcbd78c2f9deac666fea6cd",
+  "upstream_receipts": [],
+  "weights": {
+    "checkpoint_files": [
+      {
+        "name": "config.json",
+        "sha256": "4f89c2d6f5698cf2ba2ff0add80273607770a708e23abbe0bafdde8db066475e",
+        "size": 2799
+      },
+      {
+        "name": "model.safetensors",
+        "sha256": "a51f06349335c31650be9f28e05a1dcf1bc72b00e9b124fe01d88bc65c3a2652",
+        "size": 342696
+      }
+    ],
+    "checkpoint_identity_algorithm": "sha256 over the canonical JSON {\"algorithm\": <this string>, \"files\": [{\"name\", \"size\", \"sha256\"}, ...]} of every *.safetensors shard plus config.json in the checkpoint directory, sorted by name; for a llama.cpp GGUF tree the shards are every *.gguf of the one build directory (name = <build>/<file>) and config.json is the official release's copy beside it",
+    "checkpoint_identity_sha256": "e4f5fbe4fbdf92d8c64a3248d020e59cb183a97d246514cb4916349df126efbe",
+    "model_revision": null,
+    "repository": "/tmp/qfs-quant-existing-release/stage-main/fp8-block32",
+    "revision": null
+  }
+}

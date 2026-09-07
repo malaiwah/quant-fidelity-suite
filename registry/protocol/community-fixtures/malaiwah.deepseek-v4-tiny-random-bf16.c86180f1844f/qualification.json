@@ -1,0 +1,587 @@
+{
+  "canonical_job_sha256": "8bad7c6dd4057f24af0389125dd97f3625f5dd4396e65cdb3cb3f83377259348",
+  "captures": {
+    "canonical": {
+      "capture_content_digest": "4c091d00bcbfa482e7255b298fe8e5be16fe8318ff688ac8d25c13351ff82f4f",
+      "capture_dtype": "BF16",
+      "capture_form": "hidden",
+      "capture_manifest": "capture/manifest.json",
+      "capture_manifest_sha256": "291382050235a802c6cf4d8e793135f6d0b852cc0b139c94902ed7d7137f6ec4",
+      "capture_schedule": "layer-outer",
+      "capture_tool_file": "engines/tools/hf_capture.py",
+      "dataset_author": "malaiwah",
+      "dataset_id": "fidelity--deepseek-v4.community-root",
+      "dataset_license": "other",
+      "dataset_manifest_file_sha256": "9b939c6baec8fd90421bc4310ca02fba34c4eef3939a380c98f382b74b6d821f",
+      "dataset_name": "deepseek-v4 random CPU fixture root",
+      "dataset_repository": "malaiwah/deepseek-v4-tiny-fidelity-root-v1",
+      "dataset_sha256": "bb5f2cdf5ea90c382fab0364825aba1d6c25ec6fe5f49978508f9db377677b13",
+      "determinism_run_count": 1,
+      "lane_identity_sha256": "34f640ff350d24093734d97a81c1048ce0443d8b3c7bda0953f8283b8ea9269f",
+      "panel": {
+        "panel_id": "panel--deepseek-v4-tiny.malaiwah.cpu-smoke-v1",
+        "panel_receipt_sha256": "db3b3912f062ff834acbd2b5384b5242f727757e1dbcc487411781aded5ee038",
+        "resolved_binding_evidence": {
+          "binding": {
+            "content": {
+              "archive": {
+                "algorithm": "sha256(ustar: sorted regular files; mode=0644; uid=gid=mtime=0)",
+                "bytes": 20480,
+                "compression": "none",
+                "format": "ustar",
+                "sha256": "fa7a95f847c6029c2a2df73ea42f89866880dfa2833b40577ea303ec04ee656b"
+              },
+              "manifest": [
+                {
+                  "bytes": 192,
+                  "path": "arrays/causal-mask-64.npy",
+                  "sha256": "a38fba8bfd9cd25a81b0e37fa144e8e13e84f769ae7f609ceebc94a64f4f5d02"
+                },
+                {
+                  "bytes": 384,
+                  "path": "arrays/final-0000.tokens.npy",
+                  "sha256": "d60234f4b3b6044fb21eca18f7df82de9822f388e4d93d19d8a4eb69d6d490af"
+                },
+                {
+                  "bytes": 384,
+                  "path": "arrays/final-0001.tokens.npy",
+                  "sha256": "20188213e4dfaaed04b1396a4ec46a5a2a6236c87d870c64d7102568d585ceea"
+                },
+                {
+                  "bytes": 384,
+                  "path": "arrays/final-0002.tokens.npy",
+                  "sha256": "00341b323c286034a1c3a80ae66318cb6ce67153c08b1eedf6990b7a0310662c"
+                },
+                {
+                  "bytes": 384,
+                  "path": "arrays/final-0003.tokens.npy",
+                  "sha256": "a13ec9b40a39027396ec752ee8595e0613569b78e27ef25d254f4f9a82d8775a"
+                },
+                {
+                  "bytes": 4200,
+                  "path": "panel.json",
+                  "sha256": "e3310e1f06847d27401153a624bc3f39e60de270a0630b2f52f035ac1daeaf41"
+                },
+                {
+                  "bytes": 7813,
+                  "path": "panel.receipt.json",
+                  "sha256": "c51a1071d9073da0e44d036cf337cdec337f72b601ccc6c04a49e18780b1d462"
+                }
+              ],
+              "manifest_sha256": "a127f243bf80e091fc2a11a2b41b9919e534d319d845b46b7cda4606e221adf9"
+            },
+            "panel": {
+              "bytes": 4200,
+              "context_length": 64,
+              "contexts": 4,
+              "file": "panel.json",
+              "id": "panel--deepseek-v4-tiny.malaiwah.cpu-smoke-v1",
+              "name": "Tiny random-init DeepSeek-V4 text synthetic CPU smoke (not a benchmark)",
+              "positions_per_context": 63,
+              "role": "final",
+              "scored_positions_total": 252,
+              "sha256": "e3310e1f06847d27401153a624bc3f39e60de270a0630b2f52f035ac1daeaf41",
+              "suite_token_hash_sha256": "525cb6c625096ddb0ab19771a252e83223de98cc984733ef7da25a5eb076db36"
+            },
+            "receipt": {
+              "bytes": 7813,
+              "declared_receipt_sha256": "db3b3912f062ff834acbd2b5384b5242f727757e1dbcc487411781aded5ee038",
+              "file": "panel.receipt.json",
+              "receipt_file_sha256": "c51a1071d9073da0e44d036cf337cdec337f72b601ccc6c04a49e18780b1d462",
+              "receipt_seal_mode": "self-blank"
+            },
+            "schema": "malaiwah.resolved-panel.v1",
+            "tokenizer": {
+              "files": [
+                {
+                  "bytes": 2023,
+                  "name": "config.json",
+                  "sha256": "93e0925c4eb97d80a1f5832fe957cd101cd106610a3bc9650fc37679037ae111"
+                },
+                {
+                  "bytes": 216,
+                  "name": "generation_config.json",
+                  "sha256": "1d59e0fb61ca550ea84bd37a6bdf553ab364bc2689b17ba69f6a1adbc9d61e34"
+                },
+                {
+                  "bytes": 9367,
+                  "name": "tokenizer.json",
+                  "sha256": "48e5691e1cb5f5680d917f22f96e57553fcb08d0c3b819f82de272ee4fac3a6f"
+                },
+                {
+                  "bytes": 532,
+                  "name": "tokenizer_config.json",
+                  "sha256": "a4c0a82de638188cb726a5db59668659369934b3af475154b5f3cbe4ecf5295d"
+                }
+              ],
+              "files_verified": true,
+              "id": "malaiwah/deepseek-v4-tiny-random-bf16",
+              "identity_sha256": "02f2483ec7af3d1462525009ddb6b88a77de9a652423cd5844898b677ade4298",
+              "maximum_token_id_exclusive": 272,
+              "receipt": null,
+              "repository": "malaiwah/deepseek-v4-tiny-random-bf16",
+              "revision": "4f9dcfcbabdbe336f5f83e836dd8fac7138dda23",
+              "vocab_size": 272
+            }
+          },
+          "binding_file": "panel-binding.json",
+          "binding_file_sha256": "434f18780ab22ea57d86d6551ccb35c32a7ce5107ac89d66c3181b80d2e63ffd",
+          "tokenizer_equivalences": []
+        },
+        "suite_token_hash_sha256": "525cb6c625096ddb0ab19771a252e83223de98cc984733ef7da25a5eb076db36",
+        "tokenizer": {
+          "files": [
+            {
+              "bytes": 2023,
+              "name": "config.json",
+              "sha256": "93e0925c4eb97d80a1f5832fe957cd101cd106610a3bc9650fc37679037ae111"
+            },
+            {
+              "bytes": 216,
+              "name": "generation_config.json",
+              "sha256": "1d59e0fb61ca550ea84bd37a6bdf553ab364bc2689b17ba69f6a1adbc9d61e34"
+            },
+            {
+              "bytes": 9367,
+              "name": "tokenizer.json",
+              "sha256": "48e5691e1cb5f5680d917f22f96e57553fcb08d0c3b819f82de272ee4fac3a6f"
+            },
+            {
+              "bytes": 532,
+              "name": "tokenizer_config.json",
+              "sha256": "a4c0a82de638188cb726a5db59668659369934b3af475154b5f3cbe4ecf5295d"
+            }
+          ],
+          "files_verified": true,
+          "id": "malaiwah/deepseek-v4-tiny-random-bf16",
+          "identity_sha256": "02f2483ec7af3d1462525009ddb6b88a77de9a652423cd5844898b677ade4298",
+          "maximum_token_id_exclusive": 272,
+          "receipt": null,
+          "repository": "malaiwah/deepseek-v4-tiny-random-bf16",
+          "revision": "4f9dcfcbabdbe336f5f83e836dd8fac7138dda23",
+          "vocab_size": 272
+        }
+      },
+      "process_label": "fidelity--deepseek-v4.community-root-first",
+      "runtime_container": {
+        "image_digest": null,
+        "image_reference": null,
+        "image_repository_digest": null
+      },
+      "runtime_device": "cpu",
+      "runtime_engine": "transformers-eager",
+      "runtime_lane": "other",
+      "runtime_manifest": "runtime/capture-runtime.json",
+      "runtime_manifest_sha256": "a17baddd5a3bee6a43233e054a14e333720a6e4c2dbebd65b26cf8aedc1563cf",
+      "stack_fingerprint_sha256": "d4de1239e0d02e893fc23558cf4807b395712dc4d3eefa8d267a36a31fa5e468",
+      "unexpected_tensor_allowlist": null,
+      "weights_license": {
+        "bytes": 1071,
+        "dataset_path": "LICENSE",
+        "sha256": "6456969dd395bff476628945088b4cbd9d9c761b01a64e281c07b09daf9f94c3",
+        "source_file": "LICENSE"
+      },
+      "weights_license_file_bytes": 1071,
+      "weights_license_file_sha256": "6456969dd395bff476628945088b4cbd9d9c761b01a64e281c07b09daf9f94c3",
+      "weights_repository": "malaiwah/deepseek-v4-tiny-random-bf16",
+      "weights_revision": "185723bec10ee57db86e8c269b3c6a811122a0ca"
+    },
+    "repeat": {
+      "capture_content_digest": "4c091d00bcbfa482e7255b298fe8e5be16fe8318ff688ac8d25c13351ff82f4f",
+      "capture_dtype": "BF16",
+      "capture_form": "hidden",
+      "capture_manifest": "capture/manifest.json",
+      "capture_manifest_sha256": "aea9907198a03b8d4fafcf735eb74241bc9d3edeb2fb2a2c4a473764a4d0d148",
+      "capture_schedule": "layer-outer",
+      "capture_tool_file": "engines/tools/hf_capture.py",
+      "dataset_author": "malaiwah",
+      "dataset_id": "fidelity--deepseek-v4.community-root",
+      "dataset_license": "other",
+      "dataset_manifest_file_sha256": "00782ed4470e90cfff58d4b49599a6df001355e69ac5f054ecec8983a43cd60a",
+      "dataset_name": "deepseek-v4 random CPU fixture root",
+      "dataset_repository": "malaiwah/deepseek-v4-tiny-fidelity-root-v1",
+      "dataset_sha256": "2ec1e7fefb86706297cf7e3d261a93014d501d004599d4e8015d227159b6936b",
+      "determinism_run_count": 1,
+      "lane_identity_sha256": "34f640ff350d24093734d97a81c1048ce0443d8b3c7bda0953f8283b8ea9269f",
+      "panel": {
+        "panel_id": "panel--deepseek-v4-tiny.malaiwah.cpu-smoke-v1",
+        "panel_receipt_sha256": "db3b3912f062ff834acbd2b5384b5242f727757e1dbcc487411781aded5ee038",
+        "resolved_binding_evidence": {
+          "binding": {
+            "content": {
+              "archive": {
+                "algorithm": "sha256(ustar: sorted regular files; mode=0644; uid=gid=mtime=0)",
+                "bytes": 20480,
+                "compression": "none",
+                "format": "ustar",
+                "sha256": "fa7a95f847c6029c2a2df73ea42f89866880dfa2833b40577ea303ec04ee656b"
+              },
+              "manifest": [
+                {
+                  "bytes": 192,
+                  "path": "arrays/causal-mask-64.npy",
+                  "sha256": "a38fba8bfd9cd25a81b0e37fa144e8e13e84f769ae7f609ceebc94a64f4f5d02"
+                },
+                {
+                  "bytes": 384,
+                  "path": "arrays/final-0000.tokens.npy",
+                  "sha256": "d60234f4b3b6044fb21eca18f7df82de9822f388e4d93d19d8a4eb69d6d490af"
+                },
+                {
+                  "bytes": 384,
+                  "path": "arrays/final-0001.tokens.npy",
+                  "sha256": "20188213e4dfaaed04b1396a4ec46a5a2a6236c87d870c64d7102568d585ceea"
+                },
+                {
+                  "bytes": 384,
+                  "path": "arrays/final-0002.tokens.npy",
+                  "sha256": "00341b323c286034a1c3a80ae66318cb6ce67153c08b1eedf6990b7a0310662c"
+                },
+                {
+                  "bytes": 384,
+                  "path": "arrays/final-0003.tokens.npy",
+                  "sha256": "a13ec9b40a39027396ec752ee8595e0613569b78e27ef25d254f4f9a82d8775a"
+                },
+                {
+                  "bytes": 4200,
+                  "path": "panel.json",
+                  "sha256": "e3310e1f06847d27401153a624bc3f39e60de270a0630b2f52f035ac1daeaf41"
+                },
+                {
+                  "bytes": 7813,
+                  "path": "panel.receipt.json",
+                  "sha256": "c51a1071d9073da0e44d036cf337cdec337f72b601ccc6c04a49e18780b1d462"
+                }
+              ],
+              "manifest_sha256": "a127f243bf80e091fc2a11a2b41b9919e534d319d845b46b7cda4606e221adf9"
+            },
+            "panel": {
+              "bytes": 4200,
+              "context_length": 64,
+              "contexts": 4,
+              "file": "panel.json",
+              "id": "panel--deepseek-v4-tiny.malaiwah.cpu-smoke-v1",
+              "name": "Tiny random-init DeepSeek-V4 text synthetic CPU smoke (not a benchmark)",
+              "positions_per_context": 63,
+              "role": "final",
+              "scored_positions_total": 252,
+              "sha256": "e3310e1f06847d27401153a624bc3f39e60de270a0630b2f52f035ac1daeaf41",
+              "suite_token_hash_sha256": "525cb6c625096ddb0ab19771a252e83223de98cc984733ef7da25a5eb076db36"
+            },
+            "receipt": {
+              "bytes": 7813,
+              "declared_receipt_sha256": "db3b3912f062ff834acbd2b5384b5242f727757e1dbcc487411781aded5ee038",
+              "file": "panel.receipt.json",
+              "receipt_file_sha256": "c51a1071d9073da0e44d036cf337cdec337f72b601ccc6c04a49e18780b1d462",
+              "receipt_seal_mode": "self-blank"
+            },
+            "schema": "malaiwah.resolved-panel.v1",
+            "tokenizer": {
+              "files": [
+                {
+                  "bytes": 2023,
+                  "name": "config.json",
+                  "sha256": "93e0925c4eb97d80a1f5832fe957cd101cd106610a3bc9650fc37679037ae111"
+                },
+                {
+                  "bytes": 216,
+                  "name": "generation_config.json",
+                  "sha256": "1d59e0fb61ca550ea84bd37a6bdf553ab364bc2689b17ba69f6a1adbc9d61e34"
+                },
+                {
+                  "bytes": 9367,
+                  "name": "tokenizer.json",
+                  "sha256": "48e5691e1cb5f5680d917f22f96e57553fcb08d0c3b819f82de272ee4fac3a6f"
+                },
+                {
+                  "bytes": 532,
+                  "name": "tokenizer_config.json",
+                  "sha256": "a4c0a82de638188cb726a5db59668659369934b3af475154b5f3cbe4ecf5295d"
+                }
+              ],
+              "files_verified": true,
+              "id": "malaiwah/deepseek-v4-tiny-random-bf16",
+              "identity_sha256": "02f2483ec7af3d1462525009ddb6b88a77de9a652423cd5844898b677ade4298",
+              "maximum_token_id_exclusive": 272,
+              "receipt": null,
+              "repository": "malaiwah/deepseek-v4-tiny-random-bf16",
+              "revision": "4f9dcfcbabdbe336f5f83e836dd8fac7138dda23",
+              "vocab_size": 272
+            }
+          },
+          "binding_file": "panel-binding.json",
+          "binding_file_sha256": "434f18780ab22ea57d86d6551ccb35c32a7ce5107ac89d66c3181b80d2e63ffd",
+          "tokenizer_equivalences": []
+        },
+        "suite_token_hash_sha256": "525cb6c625096ddb0ab19771a252e83223de98cc984733ef7da25a5eb076db36",
+        "tokenizer": {
+          "files": [
+            {
+              "bytes": 2023,
+              "name": "config.json",
+              "sha256": "93e0925c4eb97d80a1f5832fe957cd101cd106610a3bc9650fc37679037ae111"
+            },
+            {
+              "bytes": 216,
+              "name": "generation_config.json",
+              "sha256": "1d59e0fb61ca550ea84bd37a6bdf553ab364bc2689b17ba69f6a1adbc9d61e34"
+            },
+            {
+              "bytes": 9367,
+              "name": "tokenizer.json",
+              "sha256": "48e5691e1cb5f5680d917f22f96e57553fcb08d0c3b819f82de272ee4fac3a6f"
+            },
+            {
+              "bytes": 532,
+              "name": "tokenizer_config.json",
+              "sha256": "a4c0a82de638188cb726a5db59668659369934b3af475154b5f3cbe4ecf5295d"
+            }
+          ],
+          "files_verified": true,
+          "id": "malaiwah/deepseek-v4-tiny-random-bf16",
+          "identity_sha256": "02f2483ec7af3d1462525009ddb6b88a77de9a652423cd5844898b677ade4298",
+          "maximum_token_id_exclusive": 272,
+          "receipt": null,
+          "repository": "malaiwah/deepseek-v4-tiny-random-bf16",
+          "revision": "4f9dcfcbabdbe336f5f83e836dd8fac7138dda23",
+          "vocab_size": 272
+        }
+      },
+      "process_label": "fidelity--deepseek-v4.community-root-repeat",
+      "runtime_container": {
+        "image_digest": null,
+        "image_reference": null,
+        "image_repository_digest": null
+      },
+      "runtime_device": "cpu",
+      "runtime_engine": "transformers-eager",
+      "runtime_lane": "other",
+      "runtime_manifest": "runtime/capture-runtime.json",
+      "runtime_manifest_sha256": "c32cae21da8c9991f4e8dd807793a695dca5536a47c2d3ac6858df050feefe0a",
+      "stack_fingerprint_sha256": "d4de1239e0d02e893fc23558cf4807b395712dc4d3eefa8d267a36a31fa5e468",
+      "unexpected_tensor_allowlist": null,
+      "weights_license": {
+        "bytes": 1071,
+        "dataset_path": "LICENSE",
+        "sha256": "6456969dd395bff476628945088b4cbd9d9c761b01a64e281c07b09daf9f94c3",
+        "source_file": "LICENSE"
+      },
+      "weights_license_file_bytes": 1071,
+      "weights_license_file_sha256": "6456969dd395bff476628945088b4cbd9d9c761b01a64e281c07b09daf9f94c3",
+      "weights_repository": "malaiwah/deepseek-v4-tiny-random-bf16",
+      "weights_revision": "185723bec10ee57db86e8c269b3c6a811122a0ca"
+    }
+  },
+  "comparator": {
+    "accumulation_dtype": "float64",
+    "device": "cpu",
+    "estimator_backend": "numpy_fp64",
+    "force_compute_agreed": true,
+    "replay_backend": "numpy:cpu:float32",
+    "requested_replay_device": "numpy",
+    "requested_replay_dtype": "float32",
+    "requested_vocab_chunk": 8192,
+    "vocab_chunk": 8192
+  },
+  "comparison": {
+    "comparison_kind": "reproduction_confirmation",
+    "file_sha256": "1fbe801650a9bcde327256e6c9a0ba2a39ca6e5e37f54a048631004d83f36d7e",
+    "max_kld": 0.0,
+    "mean_kld": 0.0,
+    "path": "comparison-receipt.json",
+    "receipt_sha256": "55d284c17c025a99a2a7da774d1b381ac2331ea3afcae9cc148f18b44a88d160",
+    "top1_agreement": 1.0
+  },
+  "dataset_repository": "malaiwah/deepseek-v4-tiny-fidelity-root-v1",
+  "destination_repository": "malaiwah/deepseek-v4-tiny-fidelity-root-v1",
+  "job_contract": {
+    "author": "malaiwah",
+    "candidate": null,
+    "container_image_digest": null,
+    "container_image_reference": null,
+    "dataset_id": "fidelity--deepseek-v4.community-root",
+    "dataset_license": "other",
+    "dataset_name": "deepseek-v4 random CPU fixture root",
+    "dataset_repository": "malaiwah/deepseek-v4-tiny-fidelity-root-v1",
+    "device": "cpu",
+    "dtype": "bfloat16",
+    "engine": "hf-transformers",
+    "execution_kind": "local",
+    "form": "hidden",
+    "lane": "other",
+    "panel_binding_file_sha256": "434f18780ab22ea57d86d6551ccb35c32a7ce5107ac89d66c3181b80d2e63ffd",
+    "panel_binding_path": "panel-binding.json",
+    "panel_id": "panel--deepseek-v4-tiny.malaiwah.cpu-smoke-v1",
+    "panel_receipt_file_bytes": 7813,
+    "panel_receipt_file_sha256": "c51a1071d9073da0e44d036cf337cdec337f72b601ccc6c04a49e18780b1d462",
+    "panel_receipt_seal_mode": "self-blank",
+    "panel_receipt_sha256": "db3b3912f062ff834acbd2b5384b5242f727757e1dbcc487411781aded5ee038",
+    "panel_resolved_binding": {
+      "content": {
+        "archive": {
+          "algorithm": "sha256(ustar: sorted regular files; mode=0644; uid=gid=mtime=0)",
+          "bytes": 20480,
+          "compression": "none",
+          "format": "ustar",
+          "sha256": "fa7a95f847c6029c2a2df73ea42f89866880dfa2833b40577ea303ec04ee656b"
+        },
+        "manifest": [
+          {
+            "bytes": 192,
+            "path": "arrays/causal-mask-64.npy",
+            "sha256": "a38fba8bfd9cd25a81b0e37fa144e8e13e84f769ae7f609ceebc94a64f4f5d02"
+          },
+          {
+            "bytes": 384,
+            "path": "arrays/final-0000.tokens.npy",
+            "sha256": "d60234f4b3b6044fb21eca18f7df82de9822f388e4d93d19d8a4eb69d6d490af"
+          },
+          {
+            "bytes": 384,
+            "path": "arrays/final-0001.tokens.npy",
+            "sha256": "20188213e4dfaaed04b1396a4ec46a5a2a6236c87d870c64d7102568d585ceea"
+          },
+          {
+            "bytes": 384,
+            "path": "arrays/final-0002.tokens.npy",
+            "sha256": "00341b323c286034a1c3a80ae66318cb6ce67153c08b1eedf6990b7a0310662c"
+          },
+          {
+            "bytes": 384,
+            "path": "arrays/final-0003.tokens.npy",
+            "sha256": "a13ec9b40a39027396ec752ee8595e0613569b78e27ef25d254f4f9a82d8775a"
+          },
+          {
+            "bytes": 4200,
+            "path": "panel.json",
+            "sha256": "e3310e1f06847d27401153a624bc3f39e60de270a0630b2f52f035ac1daeaf41"
+          },
+          {
+            "bytes": 7813,
+            "path": "panel.receipt.json",
+            "sha256": "c51a1071d9073da0e44d036cf337cdec337f72b601ccc6c04a49e18780b1d462"
+          }
+        ],
+        "manifest_sha256": "a127f243bf80e091fc2a11a2b41b9919e534d319d845b46b7cda4606e221adf9"
+      },
+      "panel": {
+        "bytes": 4200,
+        "context_length": 64,
+        "contexts": 4,
+        "file": "panel.json",
+        "id": "panel--deepseek-v4-tiny.malaiwah.cpu-smoke-v1",
+        "name": "Tiny random-init DeepSeek-V4 text synthetic CPU smoke (not a benchmark)",
+        "positions_per_context": 63,
+        "role": "final",
+        "scored_positions_total": 252,
+        "sha256": "e3310e1f06847d27401153a624bc3f39e60de270a0630b2f52f035ac1daeaf41",
+        "suite_token_hash_sha256": "525cb6c625096ddb0ab19771a252e83223de98cc984733ef7da25a5eb076db36"
+      },
+      "receipt": {
+        "bytes": 7813,
+        "declared_receipt_sha256": "db3b3912f062ff834acbd2b5384b5242f727757e1dbcc487411781aded5ee038",
+        "file": "panel.receipt.json",
+        "receipt_file_sha256": "c51a1071d9073da0e44d036cf337cdec337f72b601ccc6c04a49e18780b1d462",
+        "receipt_seal_mode": "self-blank"
+      },
+      "schema": "malaiwah.resolved-panel.v1",
+      "tokenizer": {
+        "files": [
+          {
+            "bytes": 2023,
+            "name": "config.json",
+            "sha256": "93e0925c4eb97d80a1f5832fe957cd101cd106610a3bc9650fc37679037ae111"
+          },
+          {
+            "bytes": 216,
+            "name": "generation_config.json",
+            "sha256": "1d59e0fb61ca550ea84bd37a6bdf553ab364bc2689b17ba69f6a1adbc9d61e34"
+          },
+          {
+            "bytes": 9367,
+            "name": "tokenizer.json",
+            "sha256": "48e5691e1cb5f5680d917f22f96e57553fcb08d0c3b819f82de272ee4fac3a6f"
+          },
+          {
+            "bytes": 532,
+            "name": "tokenizer_config.json",
+            "sha256": "a4c0a82de638188cb726a5db59668659369934b3af475154b5f3cbe4ecf5295d"
+          }
+        ],
+        "files_verified": true,
+        "id": "malaiwah/deepseek-v4-tiny-random-bf16",
+        "identity_sha256": "02f2483ec7af3d1462525009ddb6b88a77de9a652423cd5844898b677ade4298",
+        "maximum_token_id_exclusive": 272,
+        "receipt": null,
+        "repository": "malaiwah/deepseek-v4-tiny-random-bf16",
+        "revision": "4f9dcfcbabdbe336f5f83e836dd8fac7138dda23",
+        "vocab_size": 272
+      }
+    },
+    "panel_suite_token_hash_sha256": "525cb6c625096ddb0ab19771a252e83223de98cc984733ef7da25a5eb076db36",
+    "profile": {
+      "compute_dtype": "bfloat16",
+      "device": "cpu",
+      "engine": "hf-transformers",
+      "form": "hidden",
+      "lane": "root",
+      "profile_id": "root-hf-transformers-bf16",
+      "schedule": "two-fresh-process-qualification",
+      "source": "native",
+      "surface": "native-bf16"
+    },
+    "publish_root_to": "malaiwah/deepseek-v4-tiny-fidelity-root-v1",
+    "resume_capture": null,
+    "schedule": "layer-outer",
+    "target": {
+      "bits": 16,
+      "codec": "bf16",
+      "path": null,
+      "repo_id": "malaiwah/deepseek-v4-tiny-random-bf16",
+      "revision": "185723bec10ee57db86e8c269b3c6a811122a0ca",
+      "surface": "native-bf16"
+    },
+    "tokenizer_identity_sha256": "02f2483ec7af3d1462525009ddb6b88a77de9a652423cd5844898b677ade4298",
+    "unexpected_tensor_allowlist": null,
+    "weights_license": {
+      "bytes": 1071,
+      "dataset_path": "LICENSE",
+      "sha256": "6456969dd395bff476628945088b4cbd9d9c761b01a64e281c07b09daf9f94c3",
+      "source_path": "LICENSE"
+    },
+    "weights_repository": "malaiwah/deepseek-v4-tiny-random-bf16",
+    "weights_revision": "185723bec10ee57db86e8c269b3c6a811122a0ca"
+  },
+  "job_file_sha256": "9b751304f901d6a2da510adb8a50deefc70a856927bd75c558cdbeec18f38a0e",
+  "local_execution": {
+    "capture_dataset_bytes": 251646,
+    "cuda_runtime_version": null,
+    "device": "cpu",
+    "device_name": null,
+    "note": "captured on hardware the author controls; there is no provider, no pod attestation, no container pin and no paid meter. resource_requirements are admission minima, not measurements: null means not applicable to an already completed local run; CPU capture uses zero GPUs and zero VRAM. capture_dataset_bytes is the observed combined size of the two sealed datasets.",
+    "pod_attestation": null,
+    "python": "3.12.14",
+    "torch_version": "2.11.0+cpu",
+    "transformers_version": "5.16.1"
+  },
+  "qualified_at": "2026-09-07T18:01:13Z",
+  "receipt_sha256": "a14f378a9a6fa515767ff07901e0a912934acdb62d2b80664da0a367a4ce1032",
+  "reproduction_confirmation": {
+    "both_independently_verified": true,
+    "canonical_dataset_only": true,
+    "distinct_dataset_roots": true,
+    "exact_zero_comparison": true,
+    "two_fresh_processes": true
+  },
+  "schema": "fidelity.root-qualification-receipt.v1",
+  "verification": {
+    "canonical": {
+      "file_sha256": "eed9741fbd8b1677321ac8185cce027afa2f3d62bd4792d691f94d4469a2a6dc",
+      "receipt_sha256": "f2acb340a747d2c1461c333b644ec6087857d21505c7c3755ba02577ad158872"
+    },
+    "repeat": {
+      "file_sha256": "684a401b5448fa51af7a595f13eb609df0914d11d25329159b2a8076d6c1d986",
+      "receipt_sha256": "8d9835a50dcb3020c4089a810357bea1468ef295425a0a07e7e6dad71ac078cb"
+    }
+  }
+}

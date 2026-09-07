@@ -1,0 +1,394 @@
+{
+  "capture": {
+    "capture_content_digest": "3f0dac613a405f654ac55820c4139a0e34413fc7a847061d06570d4a2f2ab058",
+    "dtype": "BF16",
+    "dtype_lossless": true,
+    "form": "hidden",
+    "head_not_separable_reason": null,
+    "head_separable": true,
+    "hidden_width": 64,
+    "lossy_codec": null,
+    "manifest_file": "capture/manifest.json",
+    "manifest_file_sha256": "3c425b7c1ff489be8f7efed4c78fa26c6965f14ca51ed4445627733489041c2b",
+    "records_count": 4,
+    "scored_rows_total": 252,
+    "semantic_point": "after_final_rmsnorm_before_lm_head",
+    "tensor_key": "hidden_states",
+    "total_size_bytes": 33296,
+    "vocab_size": 272
+  },
+  "coverage": {
+    "complete": true,
+    "declared_records": 4,
+    "index_range": [
+      0,
+      3
+    ],
+    "missing_indices_sample": [],
+    "present_records": 4,
+    "shard_of": null,
+    "subset_detail": null
+  },
+  "created_utc": "2026-09-07T17:02:58Z",
+  "dataset": {
+    "author": {
+      "handle": null,
+      "is_registry_maintainer": false,
+      "name": "malaiwah",
+      "role": "capture-author",
+      "url": null
+    },
+    "base_capture": {
+      "capture_content_digest": null,
+      "dataset_sha256": null,
+      "note": "named by --base-capture; digests not pinned because the comparison partner was not read at capture time",
+      "repository": "/tmp/qfs-quant-qwen-gguf-release/proof-counted/reference",
+      "revision": null
+    },
+    "id": "fidelity--qwen35-gguf-tiny.malaiwah.quant-format-q4_0",
+    "license": "mit",
+    "name": "Dense Qwen3.5 tiny q4_0 CPU FORMAT fixture",
+    "qualification": null,
+    "repository": null,
+    "revision": null,
+    "role": "quant",
+    "structural_status": "sealed"
+  },
+  "dataset_sha256": "a460d20b874704d26c6442155332a0b9699825bf070cbb622145952c4d0bf6b3",
+  "determinism": {
+    "cold_start_per_run": true,
+    "distinct_evidence_hash_count": 1,
+    "evidence_hashes": [
+      "3f0dac613a405f654ac55820c4139a0e34413fc7a847061d06570d4a2f2ab058"
+    ],
+    "evidence_kind": "hidden_state_tensor_sha256",
+    "identical_across_runs": null,
+    "note": "a single cold capture; cross-run determinism is NOT asserted here. Capture a second cold run and run `fidelity-dataset compare --self-compare` -- an exactly 0.0 result is the SC-1 reproduction confirmation.",
+    "repeat_noise": null,
+    "repeats": [],
+    "run_count": 1
+  },
+  "disclosures": [
+    {
+      "affects_comparability": false,
+      "code": "random_init_cpu_format_fixture",
+      "detail": "Complete random tiny checkpoint, CPU lane other, FORMAT coverage only. No trained quality, serving optimizer, GPU kernel or registry claim.",
+      "severity": "info"
+    },
+    {
+      "affects_comparability": false,
+      "code": "text_only_model_view",
+      "detail": "Language GGUF captured through the native Qwen3_5ForCausalLM text-only view, using the artifact's complete own text tensors and head. Vision and MTP are absent, not synthesized or borrowed. Original config and weight bytes remain the checkpoint identity; derived in-memory config and decoder layout are sealed in the runtime receipt. No multimodal claim.",
+      "severity": "caveat"
+    },
+    {
+      "affects_comparability": false,
+      "code": "reduced_run_count",
+      "detail": "this dataset is ONE cold capture (run_count 1, the DET-D4 floor is 5). Cross-run determinism is not asserted by the dataset; it is established by a second cold capture plus `fidelity-dataset compare --self-compare`, whose exactly-0.0 result is the SC-1 reproduction confirmation.",
+      "severity": "caveat"
+    }
+  ],
+  "format_version": 1,
+  "generation_sanity_probe": {
+    "degenerate": false,
+    "enforced": false,
+    "entropy_nats": 5.588732566104209,
+    "expect": null,
+    "logit_spread": 1.0234375,
+    "note": "one extra window through the same schedule; its hidden state is discarded and never enters the dataset.",
+    "prompt": "The capital of France is",
+    "schema": "malaiwah.generation-sanity-probe.v1",
+    "status": "recorded",
+    "top1_id": 156,
+    "top1_probability": 0.00615321054815234,
+    "top1_text": "�",
+    "top_k": [
+      {
+        "id": 156,
+        "probability": 0.00615321054815234,
+        "text": "�"
+      },
+      {
+        "id": 227,
+        "probability": 0.006129221453652518,
+        "text": "�"
+      },
+      {
+        "id": 68,
+        "probability": 0.0058944146671359695,
+        "text": "a"
+      },
+      {
+        "id": 105,
+        "probability": 0.005377418148582263,
+        "text": "�"
+      },
+      {
+        "id": 169,
+        "probability": 0.005263119890300848,
+        "text": "�"
+      }
+    ],
+    "uniform_entropy_nats": 5.605802066295998,
+    "vocab_size": 272
+  },
+  "head": {
+    "applied_in_capture": false,
+    "bias": null,
+    "bits": 16,
+    "compat_tensor_key": "weight",
+    "dtype": "BF16",
+    "equality_receipt": null,
+    "file": "head/weight.safetensors",
+    "file_sha256": "1af9043054e3164b4687440b8399322c2e68201d39d33c52cd3e73a6889fa311",
+    "final_norm": {
+      "applied_at_replay": false,
+      "applied_in_capture": true,
+      "dtype": null,
+      "file": null,
+      "file_sha256": null,
+      "shape": null,
+      "tensor_content_sha256": null,
+      "tensor_key": null
+    },
+    "head_json": "head/head.json",
+    "present": true,
+    "quantized": false,
+    "raw_tensor_sha256": "69fb44008f407d1e9cd3091cecdf84f349ede87618235dd7f8fe5a611bc435fb",
+    "shape": [
+      272,
+      64
+    ],
+    "source": "native",
+    "tensor_content_sha256": "69fb44008f407d1e9cd3091cecdf84f349ede87618235dd7f8fe5a611bc435fb",
+    "tensor_key": "lm_head.weight"
+  },
+  "interop": {
+    "adapted_from": null,
+    "compatible_with": [
+      "kimi-k3-distribution-fidelity/1"
+    ],
+    "divergences": [
+      {
+        "field": "head",
+        "id": "D-1",
+        "reason": "every capture declares its OWN head identity by tensor content digest; the comparator refuses a hidden-form comparison across differing heads."
+      },
+      {
+        "field": "runtime.lane",
+        "id": "D-2",
+        "reason": "lane is required and gated at compare time so registry BIAS-006 is checked before a number exists, not at submission."
+      },
+      {
+        "field": "panel.scoring_window",
+        "id": "D-3",
+        "reason": "scoring_window is part of panel identity, not a comparator flag: a score_from=1024 number is a different panel, not a variant."
+      },
+      {
+        "field": "comparison_kind",
+        "id": "D-4",
+        "reason": "self-compare is a first-class mode asserting exactly 0.0."
+      },
+      {
+        "field": "estimator.accumulation_dtype",
+        "id": "D-5",
+        "reason": "required, fp64 default; an fp32 estimator lands in a different comparability class on the same data and that must be visible."
+      },
+      {
+        "field": "coverage",
+        "id": "D-6",
+        "reason": "declared vs present record counts with shard_of; fixes our own manifest that claimed 5,120 captures in a 512-file repository."
+      },
+      {
+        "field": "panel",
+        "id": "D-7",
+        "reason": "the panel is a separately referenceable object, which is what makes a candidate capture publishable standalone."
+      },
+      {
+        "field": "capture.lossy_codec",
+        "id": "D-8",
+        "reason": "lets a llama.cpp .kld be ingested without laundering a lossy capture as exact."
+      },
+      {
+        "field": "capture.records[].attention_mask_sha256",
+        "id": "D-9",
+        "reason": "our packed and streaming lanes vary mask construction; a single-request capture path makes it invariant and has no equivalent field."
+      },
+      {
+        "field": "capture.head_separable",
+        "id": "D-10",
+        "reason": "hidden form is the default; logit form must declare head_separable:false with a reason."
+      }
+    ],
+    "k3_compat_emitted": false,
+    "note": null
+  },
+  "panel": {
+    "contamination": {
+      "checked": false,
+      "hits": null,
+      "method": "not established",
+      "receipt": null
+    },
+    "context_length": 64,
+    "contexts": 4,
+    "panel_file": "panel/panel.json",
+    "panel_file_sha256": "f06c718385a7d180fd97bded3810f4a1ce807a24af048e39ef3c5a4b75e1d357",
+    "panel_id": "panel--panel-main",
+    "panel_receipt_file": "panel/panel-receipt.json",
+    "panel_receipt_sha256": "bece9e53f34c1e4c719f9c760cdbd6dfafcf7e354f122427758a1d582deeb309",
+    "panel_token_sha256_legacy": "3c9467c85be43d238926f6d18bf825c2e4748814c95b8b0e8b8f1420546c3089",
+    "remap_file": null,
+    "repository": null,
+    "revision": null,
+    "scored_positions_total": 252,
+    "scoring_window": {
+      "dropped_positions_total": 0,
+      "min_left_context_tokens": 1,
+      "policy": "every causal prediction position of every window is scored; nothing is dropped",
+      "score_from": 0,
+      "windowed": false
+    },
+    "suite_token_hash_sha256": "525cb6c625096ddb0ab19771a252e83223de98cc984733ef7da25a5eb076db36",
+    "tokenizer": {
+      "files": [
+        {
+          "bytes": 1827,
+          "name": "config.json",
+          "sha256": "af379f490737e9834a34adbf85c995fc8b834a675b9d90494c58fd17afa62ebd"
+        },
+        {
+          "bytes": 216,
+          "name": "generation_config.json",
+          "sha256": "1d59e0fb61ca550ea84bd37a6bdf553ab364bc2689b17ba69f6a1adbc9d61e34"
+        },
+        {
+          "bytes": 9335,
+          "name": "tokenizer.json",
+          "sha256": "c5f05830d9b8e3fc7042f20c32c18e056a5ee87c48313606849794bf1b485677"
+        },
+        {
+          "bytes": 516,
+          "name": "tokenizer_config.json",
+          "sha256": "9f24ab4c9150115747c129e162d2700bf8ef6fc9ba69703d13b99274463283e3"
+        }
+      ],
+      "files_verified": true,
+      "id": "malaiwah/qwen3-5-gguf-tiny-random-bf16",
+      "identity_sha256": "67f958e249bca7ebc29721d0aef5a632a944961903cccc699011df2e82bbb4c2",
+      "maximum_token_id_exclusive": 272,
+      "receipt": null,
+      "repository": "malaiwah/qwen3-5-gguf-tiny-random-bf16",
+      "revision": "490767e58441a55c5a9f6375ea0e31e2cdc9da76",
+      "vocab_size": 272
+    }
+  },
+  "runtime": {
+    "backend_identity_sha256": null,
+    "file": "runtime/capture-runtime.json",
+    "file_sha256": "a59fe44ec7313d38132dde75ee874cf12a07434e8769501fc9071db35a944189",
+    "lane": "other",
+    "lane_identity_sha256": "34f640ff350d24093734d97a81c1048ce0443d8b3c7bda0953f8283b8ea9269f",
+    "lane_inferred": false,
+    "runtime_reader_sha256": null,
+    "source": "native",
+    "stack_fingerprint_sha256": "a83c4de13e06b8727c3a05959e470708b1fa396b0fcbd78c2f9deac666fea6cd"
+  },
+  "schema": "malaiwah.fidelity-dataset.v1",
+  "scope": {
+    "assignments": [
+      {
+        "bits_per_weight": null,
+        "format": "mixed",
+        "layer_range": "all",
+        "note": "Measured types F32,Q4_0; payload bits/weight=4.976844792737846",
+        "tensor_class": "attn.other",
+        "treatment": "quantized"
+      },
+      {
+        "bits_per_weight": 4,
+        "format": "gguf-k-quant",
+        "layer_range": "all",
+        "note": "Measured types Q4_0; payload bits/weight=4.5",
+        "tensor_class": "embed_tokens",
+        "treatment": "quantized"
+      },
+      {
+        "bits_per_weight": 4,
+        "format": "gguf-k-quant",
+        "layer_range": "all",
+        "note": "Measured types Q4_0; payload bits/weight=4.5",
+        "tensor_class": "lm_head",
+        "treatment": "quantized"
+      },
+      {
+        "bits_per_weight": 4,
+        "format": "gguf-k-quant",
+        "layer_range": "all",
+        "note": "Measured types Q4_0; payload bits/weight=4.5",
+        "tensor_class": "mlp.down",
+        "treatment": "quantized"
+      },
+      {
+        "bits_per_weight": 4,
+        "format": "gguf-k-quant",
+        "layer_range": "all",
+        "note": "Measured types Q4_0; payload bits/weight=4.5",
+        "tensor_class": "mlp.gate",
+        "treatment": "quantized"
+      },
+      {
+        "bits_per_weight": 4,
+        "format": "gguf-k-quant",
+        "layer_range": "all",
+        "note": "Measured types Q4_0; payload bits/weight=4.5",
+        "tensor_class": "mlp.up",
+        "treatment": "quantized"
+      },
+      {
+        "bits_per_weight": 32,
+        "format": "fp32",
+        "layer_range": "all",
+        "note": "Measured types F32; payload bits/weight=32.0",
+        "tensor_class": "norm",
+        "treatment": "native"
+      }
+    ],
+    "head_policy": "quantized",
+    "kv_cache_dtype": "not_applicable",
+    "policy": "mixed",
+    "scope_digest": "attn.other=quantized:mixed|embed_tokens=quantized:gguf-k-quant@4|lm_head=quantized:gguf-k-quant@4|mlp.down=quantized:gguf-k-quant@4|mlp.gate=quantized:gguf-k-quant@4|mlp.up=quantized:gguf-k-quant@4|norm=native:fp32@32|head=quantized|kv=not_applicable"
+  },
+  "seal": {
+    "checksums_file": "checksums.txt",
+    "checksums_format": "sha256sum",
+    "checksums_sha256": "77d8f10e4e2b237f51a6a1df12db42165af4c86a8065f33a28c0a1fe33ab31db",
+    "covers": [
+      "every published file except checksums.txt and fidelity-dataset.json, via checksums.txt",
+      "fidelity-dataset.json itself, via the self-blanked seal",
+      "every capture tensor a second time by CONTENT, via capture.capture_content_digest"
+    ],
+    "excludes": [
+      "checksums.txt",
+      "fidelity-dataset.json"
+    ],
+    "external_anchor": null,
+    "method": "self_blanked_canonical_json_sha256",
+    "seal_field": "dataset_sha256"
+  },
+  "upstream_receipts": [],
+  "weights": {
+    "artifact_ref": null,
+    "checkpoint_identity_sha256": "d363f79292d50fe42460d428f6783fca24f3c56ecf3214af5aa002c025f77334",
+    "codec": "gguf-k-quant",
+    "config_sha256": "af379f490737e9834a34adbf85c995fc8b834a675b9d90494c58fd17afa62ebd",
+    "declared_bits": 4.0,
+    "declared_head_bits": 16,
+    "index_sha256": null,
+    "model_ref": null,
+    "model_revision": null,
+    "quantized": true,
+    "repository": "/tmp/qfs-quant-qwen-gguf-release/stage-final/q4_0",
+    "revision": null
+  }
+}
