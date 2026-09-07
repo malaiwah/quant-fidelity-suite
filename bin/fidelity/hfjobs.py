@@ -13,6 +13,7 @@ from types import SimpleNamespace
 from . import common, dsformat as F, dsmanifest, dsvalidate, jobcontract, resultsink
 
 
+INPUT_DATASET_ROOT = "/tmp/qfs-input-datasets"
 class HFQualificationError(ValueError):
     pass
 
@@ -436,7 +437,7 @@ def qualify_result(result_dir, plan, execution_receipt, *, suite_root):
         reference_verify = _read(reference_verify_path)
         _require(common.verify_seal(reference_verify)
                  and reference_verify.get('schema') == F.VALIDATION_SCHEMA
-                 and reference_verify.get('subject') == plan['inputs']['reference']['mount_path'],
+                 and reference_verify.get('subject') == INPUT_DATASET_ROOT + '/reference',
                  'reference verification seal/subject differs')
         canonical = fd._capture_identity(str(first), runtimes[0]['runtime_environment']['cold_run'],
                                          'canonical', candidate=candidate)

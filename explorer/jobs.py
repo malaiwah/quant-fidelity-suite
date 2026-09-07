@@ -853,6 +853,9 @@ def _verify_comparison(proof):
             raise JobsError("Comparison does not identify its actual immutable planned datasets.")
         receipt = _read_json(root / (side + ".verify.json"))
         verify_seal(receipt, "receipt_sha256")
+        from fidelity.hfjobs import INPUT_DATASET_ROOT
+        if receipt.get("subject") != INPUT_DATASET_ROOT + "/" + side:
+            raise JobsError("Verification does not identify the canonical mounted dataset view.")
         if receipt.get("structural_status") != "sealed" or receipt.get("error_count") != 0 or receipt.get("errors"):
             raise JobsError("Original mounted dataset verification did not pass.")
     return comparison

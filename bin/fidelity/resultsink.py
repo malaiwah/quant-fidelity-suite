@@ -1528,6 +1528,21 @@ def _validate_root_qualification_semantics(qualification):
         "job_contract", "captures", "comparison", "comparator",
         "verification", "reproduction_confirmation",
     }
+    canonical_label, repeat_label = "root-cold-1", "root-cold-2"
+    if (isinstance(qualification, dict)
+            and isinstance(qualification.get("job_contract"), dict)
+            and qualification["job_contract"].get("execution_kind") == "hf-jobs"):
+        required.add("hf_execution")
+        from .hfjobs import HFQualificationError, _plan_receipt
+        execution = qualification.get("hf_execution")
+        if not isinstance(execution, dict):
+            raise ArchiveError("HF Jobs qualification requires its original execution evidence")
+        try:
+            _plan_receipt(execution.get("plan"), execution.get("provider_receipt"))
+        except (HFQualificationError, KeyError, TypeError) as exc:
+            raise ArchiveError("HF Jobs qualification execution is invalid: %s" % exc) from exc
+        workflow_id = execution["plan"]["workflow_id"]
+        canonical_label, repeat_label = workflow_id + "-first", workflow_id + "-repeat"
     if (not isinstance(qualification, dict)
             or set(qualification) != required
             or qualification.get("schema") != ROOT_QUALIFICATION_SCHEMA
@@ -1543,8 +1558,8 @@ def _validate_root_qualification_semantics(qualification):
     canonical = captures["canonical"]
     repeat = captures["repeat"]
     if (not isinstance(canonical, dict) or not isinstance(repeat, dict)
-            or canonical.get("process_label") != "root-cold-1"
-            or repeat.get("process_label") != "root-cold-2"
+            or canonical.get("process_label") != canonical_label
+            or repeat.get("process_label") != repeat_label
             or canonical.get("dataset_id") != repeat.get("dataset_id")
             or canonical.get("dataset_repository")
                 != qualification.get("dataset_repository")
@@ -1645,6 +1660,24 @@ def _validate_publication_receipt(doc):
         "published_qualification_file_sha256")
     result_archive_sha = doc.get("result_archive_sha256")
     result_archive_bytes = doc.get("result_archive_bytes")
+    archive_valid = (
+        _valid_hex(result_archive_sha, 64)
+        and not isinstance(result_archive_bytes, bool)
+        and isinstance(result_archive_bytes, int) and result_archive_bytes > 0)
+    if doc.get("execution_kind") == "hf-jobs":
+        from .hfjobs import HFQualificationError, _plan_receipt
+        execution = doc.get("hf_execution")
+        if not isinstance(execution, dict):
+            raise ArchiveError("HF Jobs publication lacks provider/worker evidence")
+        try:
+            _plan_receipt(execution.get("plan"), execution.get("provider_receipt"))
+        except (HFQualificationError, KeyError, TypeError) as exc:
+            raise ArchiveError("HF Jobs publication provider identity is invalid") from exc
+        archive_valid = (
+            result_archive_sha is None and result_archive_bytes is None
+            and doc.get("publication_source") == "hf-jobs-bucket-result"
+            and _valid_hex(execution.get("worker_result_sha256"), 64)
+            and _valid_hex(execution.get("worker_manifest_sha256"), 64))
     if (not _valid_hex(revision, 40)
             or doc.get("revision_immutable") is not True
             or doc.get("private") is not False
@@ -1657,10 +1690,7 @@ def _validate_publication_receipt(doc):
             or published_dataset_sha != dataset_sha
             or not _valid_hex(qualification_sha, 64)
             or published_qualification_sha != qualification_sha
-            or not _valid_hex(result_archive_sha, 64)
-            or isinstance(result_archive_bytes, bool)
-            or not isinstance(result_archive_bytes, int)
-            or result_archive_bytes <= 0):
+            or not archive_valid):
         raise ArchiveError(
             "published root receipt lacks immutable revision, dataset refetch, "
             "or qualification refetch evidence")
@@ -2404,7 +2434,10 @@ def _validate_root_evidence(job, qualification, publication=None,
             "root qualification is not bound to job.json, dataset repository, "
             "and canonical dataset")
     execution_kind = (job.get("execution_attempt") or {}).get("kind")
-    if execution_kind == "runpod-ssh":
+    if execution_kind == "hf-jobs":
+        if qualification.get("hf_execution") != job.get("hf_execution"):
+            raise ArchiveError("HF Jobs qualification execution evidence differs from job")
+    if execution_kind in ("runpod-ssh", "hf-jobs"):
         image_reference = ((job.get("environment") or {}).get("image")
                            if isinstance(job.get("environment"), dict) else None)
         image_parts = (image_reference.rsplit("@", 1)
@@ -2440,6 +2473,8 @@ def _validate_root_evidence(job, qualification, publication=None,
                     "%s root capture container differs from job image" % label)
     if publication is None:
         return
+    if execution_kind == "hf-jobs" and publication.get("hf_execution") != job.get("hf_execution"):
+        raise ArchiveError("HF Jobs publication execution differs from qualified job")
     if publish_destination != dataset_repository:
         raise ArchiveError(
             "published root destination differs from dataset_repository")

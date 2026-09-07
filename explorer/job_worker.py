@@ -361,6 +361,27 @@ class Runner:
         self.bound()
 
 
+def dataset_view(descriptor, name):
+    """Materialize exactly the sealed dataset, not unrelated Hub sidecars."""
+    from fidelity import dsformat, hfjobs
+    source = Path(descriptor["mount_path"])
+    checksums = regular(source / dsformat.CHECKSUMS_NAME)
+    if checksums.stat().st_size > 16 * 1024 * 1024:
+        raise ValueError("dataset checksum inventory exceeds its bound")
+    members = set(dsformat.parse_checksums(checksums.read_text()))
+    members.update((dsformat.CHECKSUMS_NAME, dsformat.MANIFEST_NAME))
+    paths = {name: regular(source / str(relative(name))) for name in members}
+    if sum(p.stat().st_size for p in paths.values()) + 64 * 1024**2 > shutil.disk_usage("/tmp").free:
+        raise ValueError("canonical input dataset exceeds available worker scratch storage")
+    destination = Path(hfjobs.INPUT_DATASET_ROOT) / name
+    destination.mkdir(parents=True, exist_ok=False)
+    for member, path in paths.items():
+        target = destination / member
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(path, target)
+    return destination
+
+
 def workflow(plan, out, runner, outputs):
     sys.path.insert(0, str(ROOT / "bin"))
     from fidelity import dsformat, jobcontract
@@ -370,9 +391,11 @@ def workflow(plan, out, runner, outputs):
     tool = [sys.executable, ROOT / "bin/fidelity_dataset.py"]
     inputs = plan["inputs"]
     mode = plan["mode"]
+    datasets = {}
     for name in ("reference", "candidate"):
         if inputs.get(name):
-            path = Path(inputs[name]["mount_path"])
+            path = dataset_view(inputs[name], name)
+            datasets[name] = path
             observed = dsformat.load_manifest(str(path))
             if observed["dataset_sha256"] != inputs[name]["dataset_sha256"]:
                 raise ValueError(name + " dataset identity mismatch")
@@ -450,7 +473,7 @@ def workflow(plan, out, runner, outputs):
             raise ValueError("two cold captures did not pass forced exact numerical self-control")
         outputs["reproduction"] = "reproduction/comparison-receipt.json"
     if mode != "root":
-        runner.run("comparison", [*tool, "compare", "--reference", inputs["reference"]["mount_path"], "--candidate", out / "first" if mode == "candidate" else inputs["candidate"]["mount_path"], "--out", out / "comparison", "--device", "cpu", "--replay-device", "numpy", "--replay-dtype", "float32", "--vocab-chunk", "8192", "--verify-tensors", "--own-heads"], allowed=(0, 2))
+        runner.run("comparison", [*tool, "compare", "--reference", datasets["reference"], "--candidate", out / "first" if mode == "candidate" else datasets["candidate"], "--out", out / "comparison", "--device", "cpu", "--replay-device", "numpy", "--replay-dtype", "float32", "--vocab-chunk", "8192", "--verify-tensors", "--own-heads"], allowed=(0, 2))
         outputs["comparison"] = "comparison/comparison-receipt.json"
         comparison = load_json(out / outputs["comparison"])
         if not all(g.get("passed") is True and not g.get("overridden_by") for g in comparison["gates"].values()):
