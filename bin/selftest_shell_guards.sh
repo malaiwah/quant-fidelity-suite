@@ -404,6 +404,45 @@ PY
   else
     no "CC-08 an MLX release resolves to the mlx surface, and nvfp4 still resolves to nvfp4"
   fi
+  # NUM-16. A lane that maps `decode_cache` but not `decode_cache_dir`
+  # advertises a knob its own entrypoint refuses: stream_score's
+  # ExpertStreamer rejects `--decode-cache disk` with no directory. bf16-floor
+  # was that lane. The flag is confirmed by PROBING the entrypoint's --help,
+  # not by reading a doc, and bf16-floor shares stream_score.py with the
+  # streaming lane that already maps it.
+  if python3 - "$ROOT" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1] + "/bin/engines.json"))
+bad = [lane for lane, c in (d.get("lanes") or {}).items()
+       if "decode_cache" in (c.get("flag_map") or {})
+       and "decode_cache_dir" not in (c.get("flag_map") or {})]
+if bad:
+    sys.stderr.write("lanes advertising decode_cache with no dir: %s\n" % bad)
+    raise SystemExit(1)
+raise SystemExit(0)
+PY
+  then
+    ok "NUM-16 every lane mapping decode_cache also maps decode_cache_dir"
+  else
+    no "NUM-16 every lane mapping decode_cache also maps decode_cache_dir"
+  fi
+  # SH-22 (second half). `sha256sum ... > RECEIPT.sha256 || true` left an EMPTY
+  # digest file when the hash failed, and an empty digest file is worse than a
+  # missing one because it looks like evidence.
+  if grep -q 'sha256sum measurement-receipt.json > RECEIPT.sha256 ) || true' \
+       "$ROOT/bin/stage_measure.sh"
+  then
+    no "SH-22 the receipt digest is not swallowed by || true"
+  else
+    if grep -q 'refusing to seal with an empty RECEIPT.sha256' \
+         "$ROOT/bin/stage_measure.sh" &&
+       grep -q '\[ -s "\$RCPT/RECEIPT.sha256" \]' "$ROOT/bin/stage_measure.sh"
+    then
+      ok "SH-22 a failed or empty receipt digest REFUSES instead of sealing"
+    else
+      no "SH-22 a failed or empty receipt digest REFUSES instead of sealing"
+    fi
+  fi
 fi
 
 # ---------------------------------------------------------------- SEC-02

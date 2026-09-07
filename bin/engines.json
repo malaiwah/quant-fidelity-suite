@@ -667,6 +667,7 @@
         "ep_emulate": "--ep-emulate",
         "reduce_order": "--reduce-order",
         "decode_cache": "--decode-cache",
+        "decode_cache_dir": "--decode-cache-dir",
         "decode_threads": "--decode-threads",
         "work_dir": "--work-dir",
         "pipeline_root": "--pipeline-root",

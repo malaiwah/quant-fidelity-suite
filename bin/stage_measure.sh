@@ -1284,7 +1284,22 @@ seal)
   log "sealing submission receipt"
   "$PY" "$FS/bin/seal_receipt.py" --job "$CONF" --receipts "$RCPT" \
       --out "$RCPT/measurement-receipt.json" 2>&1 | tee -a "$LOGS/seal.log"
-  ( cd "$RCPT" && sha256sum measurement-receipt.json > RECEIPT.sha256 ) || true
+  # SH-22 (the second half; the resume-on-existence half is refuted in the
+  # entry itself and needs no change). This was `... > RECEIPT.sha256 || true`,
+  # so a failed `sha256sum` left an EMPTY RECEIPT.sha256 and the stage marked
+  # itself done. An empty digest file is worse than a missing one: it looks
+  # like evidence. The receipt's digest is the thing a third party rehashes,
+  # so a digest that could not be computed is a refusal, never a warning.
+  ( cd "$RCPT" && sha256sum measurement-receipt.json > RECEIPT.sha256 ) || {
+    echo "could not digest measurement-receipt.json; refusing to seal with an empty RECEIPT.sha256" >&2
+    rm -f "$RCPT/RECEIPT.sha256"
+    exit 2
+  }
+  [ -s "$RCPT/RECEIPT.sha256" ] || {
+    echo "RECEIPT.sha256 is empty after a successful sha256sum; refusing" >&2
+    rm -f "$RCPT/RECEIPT.sha256"
+    exit 2
+  }
   write_marker
   log "done"
   ;;

@@ -513,7 +513,7 @@ verified failing against the pre-fix script.
 
 ## CC-07 — the packed_root pre-flight trap is disarmed by any `.materialization/` file
 
-> **APPLIED 2026-08-30 (M4)** — the predicate only. `store_published` now names the five
+> **PARTLY RESOLVED (APPLIED 2026-08-30, M4)** — the predicate only. `store_published` now names the five
 > things `stream_score` actually dereferences. Decision 2 in this entry stands and was
 > NOT taken: the outer `if info.surface == "packed"` guard is unchanged, so this fixes
 > the predicate without the live blast radius, and the code says so. Regression:
@@ -726,6 +726,25 @@ gap.
 
 ---
 
+**PARTLY RESOLVED 2026-09-07** (additive note). The half that is a real
+contract defect is fixed: `bf16-floor` mapped `decode_cache` and NOT
+`decode_cache_dir`, so it advertised a knob its own entrypoint refuses —
+`stream_score`'s `ExpertStreamer` rejects `--decode-cache disk` with no
+directory. `decode_cache_dir` is now mapped, and the flag was confirmed by
+**probing** `engines/tools/stream_score.py --help` (it is there) rather than
+read from a doc; `bf16-floor` shares that entrypoint with the `streaming`
+lane, which already mapped it. Rung `NUM-16` asserts the coherence for EVERY
+lane, verified failing pre-fix.
+
+**Still open, and it is a design question rather than a defect:** the second
+half, that `invoke_engine` fills only source/bf16/pipeline_root plus artifact
+identity, so `ep_emulate`, `unpack_device`, `device` and `inventory` are
+mappable but never populated from a `job.json`. Whether a job document SHOULD
+carry them is a lane-contract decision — the alternative reading is that the
+authored profile is the authority and a job must not override it — and it
+wants the operator's call, not a unilateral widening of what a job can steer
+on a paid run.
+
 ## CLI-17 — the engine's output is buffered for hours, so a wedged capture looks healthy
 
 **File:** `bin/invoke_engine.py:185-188`
@@ -818,6 +837,24 @@ header that the receipt self-seals. Fixing the write without adding a reader lea
 write-only file that can only mislead — the same class as known defect 4.
 
 ---
+
+**RESOLVED 2026-09-07** (additive note), with the two halves treated
+differently because the entry's own analysis says they deserve it.
+
+**The resume-on-existence half is REFUTED and unchanged**, per the refutation
+already written above: `stream_score` writes `capture-receipt.json` exactly
+once as the last write after sealing, so a valid-JSON receipt implies the
+capture completed, and `kld_report.load_capture_receipt` raises on invalid
+JSON, which aborts the stage under `set -euo pipefail` before `seal` is ever
+reached. Changing it would add a check with no reachable failure.
+
+**The swallowed-digest half was real and is fixed.** `sha256sum
+measurement-receipt.json > RECEIPT.sha256 || true` left an **empty**
+`RECEIPT.sha256` when the hash failed, and the stage then marked itself done.
+An empty digest file is worse than a missing one because it looks like
+evidence, and this digest is precisely what a third party rehashes. Both a
+failed `sha256sum` and a zero-length result now remove the file and exit 2.
+Rung `SH-22` verified failing pre-fix.
 
 ## SEC-09 — the HF token file exists world-readable for ~20 microseconds
 
@@ -1840,6 +1877,21 @@ before teardown, not to leave it there.
 **Test:** the container/stage battery already builds a fake `$FS`; a rung that runs the
 teardown against one containing `dataset/` and asserts the tree arrives under `--out`
 fails today.
+
+**RESOLVED — verified 2026-09-07** (additive note).
+`bin/fidelity/resultsink.py` now brings the sealed trees home in the result
+archive: `_relevant(..., include_datasets=...)` extends the set with
+`dataset` and `dataset-repeat`, and the docstring records the contract —
+*"a dataset tree that a capture finished sealing, whatever happened after"*,
+with `include_datasets` REQUIRING both trees for a completed root. So the
+artifact the rental existed to produce no longer depends on `separable_storage`
+being true, and the GH200 sidecar that polled for
+`$FS/dataset/fidelity-dataset.json` is no longer the mechanism.
+
+Independently corroborated by `FailureGeneralization` during the 2026-09-06
+spend audit, which flagged this entry as an **anti-lead** precisely so nobody
+would go hunting for datasets stranded on destroyed pods on the strength of
+the text above.
 
 ## ROOT-2 — a root capture is fit-checked against GLM-5.3-Flash, whatever it is capturing
 
