@@ -284,6 +284,33 @@ def pinned_code_checks(work, capture_module):
                     del sys.modules[name]
             bundle._temporary.cleanup()
 
+        mapping_payload = json.dumps({"auto_map": raw["auto_map"], "vocab_size": 99999}).encode()
+        mapping_blob = hashlib.sha1(
+            b"blob " + str(len(mapping_payload)).encode() + b"\0" + mapping_payload).hexdigest()
+        entries.append(SimpleNamespace(path="config.json", size=len(mapping_payload),
+                                       blob_id=mapping_blob, lfs=None))
+        (cached / "config.json").write_bytes(mapping_payload.replace(b"99999", b"11111"))
+        marker.unlink()
+        check("A42 forged remote dispatch metadata refuses before execution",
+              refused(lambda: codepin.prepare({}, "a" * 40, "selftest/code")) and not marker.exists())
+        (cached / "config.json").write_bytes(mapping_payload)
+        original_config = Path(work) / "reference" / "config.json"
+        original_bytes = original_config.read_bytes()
+        actual_config, cls, bundle = capture_module._model_config(
+            str(original_config.parent), True, "a" * 40, "selftest/code")
+        try:
+            check("A43 pinned fork supplies dispatch only, never changes original model dimensions",
+                  actual_config.vocab_size == 64 and cls.value == 17
+                  and original_config.read_bytes() == original_bytes
+                  and bundle.evidence()["mapping_source"]["sha256"]
+                  == hashlib.sha256(mapping_payload).hexdigest())
+        finally:
+            sys.meta_path.remove(bundle.finder)
+            for name in list(sys.modules):
+                if name == bundle.namespace or name.startswith(bundle.namespace + "."):
+                    del sys.modules[name]
+            bundle._temporary.cleanup()
+
     # A native checkpoint with a poison auto_map MUST prefer installed classes.
     native_dir = Path(work) / "native-with-auto-map"
     tiny_model(str(native_dir))

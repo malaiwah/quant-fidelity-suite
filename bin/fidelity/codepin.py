@@ -5,8 +5,9 @@ The caller explicitly trusts the selected repository/commit. No local manifest
 can substitute for the Hub commit's authenticated tree and blob identities.
 The auto_map entry modules, package initializers and recursively discovered
 relative imports form the closure (including imports inside functions/branches).
-Dynamic imports outside that closure refuse. Non-Python repository payloads
-and unrelated reproduction scripts are never downloaded by this module.
+Dynamic imports outside that closure refuse. Only Python sources are downloaded,
+except authenticated config.json mapping metadata for an explicit runtime fork
+when the original model config has no auto_map. Fork dimensions are never used.
 """
 from __future__ import annotations
 
@@ -124,13 +125,17 @@ class _VerifiedFinder(importlib.abc.MetaPathFinder):
 
 
 class VerifiedCode:
-    def __init__(self, repository, revision, payloads, identities, references):
+    def __init__(self, repository, revision, payloads, identities, references,
+                 mapping_source=None):
         self.repository, self.revision = repository, revision
         self.references = references
         self.files = {name: hashlib.sha256(data).hexdigest() for name, data in payloads.items()}
         self.identities = identities
-        canonical = json.dumps({"repository": repository, "revision": revision,
-                                "files": self.files}, sort_keys=True, separators=(",", ":"))
+        self.mapping_source = mapping_source
+        identity = {"repository": repository, "revision": revision, "files": self.files}
+        if mapping_source is not None:
+            identity["mapping_source"] = mapping_source
+        canonical = json.dumps(identity, sort_keys=True, separators=(",", ":"))
         self.closure_sha256 = hashlib.sha256(canonical.encode()).hexdigest()
         self._temporary = tempfile.TemporaryDirectory(prefix="qfs-verified-code-")
         self.root = Path(self._temporary.name).resolve()
@@ -215,6 +220,7 @@ class VerifiedCode:
                           for name in sorted(self.files)],
                 "imported_files": self.verify_imports(),
                 "resolved_classes": dict(self.resolved_classes),
+                "mapping_source": self.mapping_source,
                 "verification": "Hub immutable tree plus Git blob/LFS SHA-256; private verified source loader",
                 "security_scope": "explicitly trusted code; provenance verification is not a sandbox"}
 
@@ -242,8 +248,8 @@ def prepare(raw: dict[str, Any], revision: str, repository: str | None = None) -
     repository = repository or (next(iter(foreign)) if foreign else None)
     if repository is None:
         raise CodePinError("REFUSED: local custom-code weights require --code-repository owner/repo")
-    if not any(key in references for key in ("AutoModelForCausalLM", "AutoModelForImageTextToText")):
-        raise CodePinError("REFUSED: pinned code requires auto_map AutoModelForCausalLM or AutoModelForImageTextToText")
+    # A runtime fork can supply only the missing dispatch metadata. Its config
+    # values never replace the original checkpoint's config values.
 
     # Dependency imported ONLY after opt-in and all flag/reference checks.
     from huggingface_hub import HfApi, hf_hub_download
@@ -255,7 +261,52 @@ def prepare(raw: dict[str, Any], revision: str, repository: str | None = None) -
         raise CodePinError("REFUSED: Hub did not resolve the exact requested code commit")
     entries = {entry.path: entry for entry in api.list_repo_tree(
         repository, revision=revision, recursive=True)
-        if hasattr(entry, "blob_id") and entry.path.endswith(".py")}
+        if hasattr(entry, "blob_id") and (entry.path.endswith(".py") or entry.path == "config.json")}
+
+    def fetch_verified(name):
+        entry = entries[name]
+        if not isinstance(entry.size, int) or entry.size < 0 or entry.size > MAX_FILE_BYTES:
+            raise CodePinError("REFUSED: code/metadata file exceeds 2 MiB limit: " + name)
+        cached = hf_hub_download(repository, name, revision=revision)
+        with open(cached, "rb") as source:
+            payload = source.read(MAX_FILE_BYTES + 1)
+        if len(payload) != entry.size:
+            raise CodePinError("REFUSED: Hub code size mismatch: " + name)
+        lfs = getattr(entry, "lfs", None)
+        if lfs:
+            expected = lfs.get("sha256") if isinstance(lfs, dict) else lfs.sha256
+            if not expected or hashlib.sha256(payload).hexdigest() != expected:
+                raise CodePinError("REFUSED: Hub LFS code digest mismatch: " + name)
+        else:
+            digest = hashlib.sha1(b"blob " + str(len(payload)).encode() + b"\0" + payload).hexdigest()
+            if digest != entry.blob_id:
+                raise CodePinError("REFUSED: Hub Git code blob mismatch: " + name)
+        return payload
+
+    mapping_source = None
+    if not auto_map:
+        if "config.json" not in entries:
+            raise CodePinError("REFUSED: explicit runtime repository has no pinned config.json auto_map")
+        payload = fetch_verified("config.json")
+        mapping_config = json.loads(payload)
+        auto_map = mapping_config.get("auto_map") if isinstance(mapping_config, dict) else None
+        if not isinstance(auto_map, dict):
+            raise CodePinError("REFUSED: pinned runtime config.json must supply an auto_map object")
+        # All references explicitly resolve inside THIS selected bundle, never
+        # execute a second foreign repository named by the fork's metadata.
+        for key, value in auto_map.items():
+            for entry in value if isinstance(value, (list, tuple)) else [value]:
+                if entry is not None:
+                    _, reference = _reference(entry)
+                    if isinstance(value, str):
+                        references[key] = reference
+        entry = entries["config.json"]
+        mapping_source = {"path": "config.json", "sha256": hashlib.sha256(payload).hexdigest(),
+                          "git_blob_sha1": entry.blob_id, "size": entry.size,
+                          "use": "auto_map only; original model configuration unchanged"}
+    if not any(key in references for key in ("AutoModelForCausalLM", "AutoModelForImageTextToText")):
+        raise CodePinError("REFUSED: pinned code requires auto_map AutoModelForCausalLM or AutoModelForImageTextToText")
+    entries.pop("config.json", None)
     payloads, identities, pending = {}, {}, set()
 
     def add_module(parts, required=True):
@@ -278,7 +329,7 @@ def prepare(raw: dict[str, Any], revision: str, repository: str | None = None) -
         if key in references:
             add_module(references[key].rsplit(".", 1)[0].split("."))
     local_roots = {name.split("/")[0].removesuffix(".py") for name in entries}
-    total = 0
+    total = mapping_source["size"] if mapping_source else 0
     while pending:
         name = min(pending)
         pending.remove(name)
@@ -289,22 +340,9 @@ def prepare(raw: dict[str, Any], revision: str, repository: str | None = None) -
         if not isinstance(entry.size, int) or entry.size < 0 or entry.size > MAX_FILE_BYTES:
             raise CodePinError("REFUSED: code file exceeds 2 MiB limit: " + name)
         total += entry.size
-        if len(payloads) >= MAX_FILES or total > MAX_TOTAL_BYTES:
+        if len(payloads) + int(mapping_source is not None) >= MAX_FILES or total > MAX_TOTAL_BYTES:
             raise CodePinError("REFUSED: code bundle exceeds 256 files / 16 MiB limits")
-        cached = hf_hub_download(repository, name, revision=revision)
-        with open(cached, "rb") as source:
-            payload = source.read(MAX_FILE_BYTES + 1)
-        if len(payload) != entry.size:
-            raise CodePinError("REFUSED: Hub code size mismatch: " + name)
-        lfs = getattr(entry, "lfs", None)
-        if lfs:
-            expected = lfs.get("sha256") if isinstance(lfs, dict) else lfs.sha256
-            if not expected or hashlib.sha256(payload).hexdigest() != expected:
-                raise CodePinError("REFUSED: Hub LFS code digest mismatch: " + name)
-        else:
-            digest = hashlib.sha1(b"blob " + str(len(payload)).encode() + b"\0" + payload).hexdigest()
-            if digest != entry.blob_id:
-                raise CodePinError("REFUSED: Hub Git code blob mismatch: " + name)
+        payload = fetch_verified(name)
         tree = ast.parse(payload, filename=name)  # no execution
         payloads[name] = payload
         identities[name] = {"git_blob_sha1": entry.blob_id, "size": entry.size}
@@ -329,4 +367,4 @@ def prepare(raw: dict[str, Any], revision: str, repository: str | None = None) -
                         add_module(target + [alias.name], required=required)
     if not payloads:
         raise CodePinError("REFUSED: code closure contains no Python sources")
-    return VerifiedCode(repository, revision, payloads, identities, references)
+    return VerifiedCode(repository, revision, payloads, identities, references, mapping_source)
