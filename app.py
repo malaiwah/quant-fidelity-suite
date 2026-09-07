@@ -204,7 +204,7 @@ def create_app():
                                  ("$0", "Explorer GPU spend")]))
         gr.Markdown("**No GPU required. No credentials requested. This app never rents hardware or submits on your behalf.**")
         with gr.Tabs() as tabs:
-            with gr.Tab("Find & explore", id="explore"):
+            with gr.Tab("Explore", id="explore"):
                 gr.Markdown("## Is your quant already measured?\nPaste a Hugging Face model link or `owner/model`. We check the revision—not just the name.")
                 with gr.Row():
                     target = gr.Textbox(label="Hugging Face model", placeholder="malaiwah/GLM-5.3-Flash-TR3-6bpw", scale=5)
@@ -249,7 +249,7 @@ def create_app():
                                  [model, group, group_status, table, detail_id, detail, context], api_name=False)
                 detail_id.change(lambda key: registry.detail(key) if key else {}, [detail_id], [detail], api_name="measurement")
                 detail.change(evidence_summary, [detail], [evidence], api_name=False)
-            with gr.Tab("Cost planner", id="costs"):
+            with gr.Tab("Costs", id="costs"):
                 gr.Markdown("## Find a sensible place to run\nCompare **hardware cost**, then check model fit and QFS compatibility. A cheaper GPU-hour is not necessarily a cheaper finished measurement.")
                 with gr.Row():
                     offer = gr.Dropdown(choices=offer_choices, value=first_offer, label="Hardware offer", scale=3)
@@ -269,7 +269,7 @@ def create_app():
                                  interactive=False, wrap=True, label="Dated prices—not live availability")
                 with gr.Accordion("Billing differences, QFS compatibility and pricing sources", open=False):
                     gr.Markdown(costs.guidance())
-            with gr.Tab("Contribute & own workspace", id="contribute"):
+            with gr.Tab("Contribute", id="contribute"):
                 gr.Markdown("## Your workspace, your budget\n**1. Make a private copy → 2. Measure with your own resources outside this app → 3. Bring back the receipt for review.**\n\n"
                             "CPU Basic copies have no hourly compute charge. Paid hardware/storage is billed to the copy's owner. Secrets are not copied. "
                             "**Duplicating or upgrading this Explorer does not turn it into a GPU runner.** HF Jobs execution is a future integration, not an enabled feature.")
