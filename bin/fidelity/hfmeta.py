@@ -45,6 +45,10 @@ SHA40 = re.compile(r"^[0-9a-f]{40}$")
 # Filenames that identify a checkpoint's packing surface.  Sniffing beats
 # asking the user, because the user usually does not know either.
 SURFACE_MARKERS = {
+    # CC-08: MLX has no marker FILE either -- it is identified by config.json's
+    # own top-level `quantization` block (group_size + bits), which is what
+    # mlx_surface.py derives its per-tensor rates against.
+    "mlx": ("config.json (inline quantization: group_size + bits)",),
     "tr3-published": ("materialization-receipt.json", "exl3-mcg-storage-abi.json"),
     # 0xSero publishes the manifest as EXL3_MANIFEST.json on newer repos; the
     # sniffer matches the name case-insensitively with _ and - equivalent.
@@ -1134,6 +1138,53 @@ def sniff_surface(meta: RepoMeta, path: Optional[str] = None) -> SurfaceInfo:
     # quant_method mislabel is recorded as evidence, never trusted. Payloads
     # are `M.rank{r}.{trellis,suh,svh,<codebook>}` -- TP shards the exl3hf
     # surface composes (layer_outer.TRELLIS_TP_COMPOSE_METHOD).
+    # Placed AFTER the quantization_config block on purpose: an MLX
+    # release also carries a `quantization_config`, so
+    # `_apply_quant_config` runs first and would reset codec_family to
+    # unknown if this branch ran before it. Measured, not guessed --
+    # the rung asserted mlx-affine and got unknown.
+    # CC-08: MLX. `engines/tools/mlx_surface.py` is bitwise-verified against
+    # mlx.core and `stream_score.py --source mlx` accepts it, but the sniffer
+    # had no branch, so an MLX repo resolved to `unknown` and the front door
+    # refused it as "no recognised surface marker" -- a verdict that sends the
+    # operator looking for a missing file when the real answer is "recognised,
+    # and no lane declares it yet". Those are different problems with
+    # different remedies, and the second one is true.
+    #
+    # The discriminator is MLX's OWN config shape, not a filename: a top-level
+    # (or text_config) `quantization` dict carrying `group_size` and `bits`.
+    # That is exactly what mlx_surface derives its per-tensor rates against,
+    # and it does not collide with any other surface in this tree -- every
+    # nvfp4 evidence config in engines/tools/nvfp4-evidence/ carries
+    # `quantization_config.quant_method` (modelopt / compressed-tensors) and
+    # NO top-level `quantization`, checked against all five.
+    if info.surface == "unknown" and isinstance(cfg, dict):
+        mlx_q = cfg.get("quantization")
+        if not isinstance(mlx_q, dict):
+            mlx_q = (cfg.get("text_config") or {}).get("quantization")
+        if (isinstance(mlx_q, dict)
+                and isinstance(mlx_q.get("group_size"), int)
+                and isinstance(mlx_q.get("bits"), int)
+                and not isinstance(mlx_q.get("group_size"), bool)
+                and not isinstance(mlx_q.get("bits"), bool)
+                and "quant_method" not in mlx_q):
+            info.surface = "mlx"
+            info.codec_family = "mlx-affine"
+            info.bits = float(mlx_q["bits"])
+            info.evidence["mlx_quantization"] = {
+                "bits": mlx_q["bits"], "group_size": mlx_q["group_size"],
+                # An MLX repo overrides the rate per tensor, so the top-level
+                # pair is the DEFAULT and not the whole story. Record how many
+                # overrides exist rather than implying uniformity: the
+                # authority is mlx_surface's per-tensor derivation from shapes.
+                "per_tensor_overrides": sum(
+                    1 for k, v in mlx_q.items() if isinstance(v, dict)),
+                "source": "config.json (inline mlx quantization)",
+            }
+            info.evidence["surface_note"] = (
+                "mlx_surface.py reads this bitwise-verified against mlx.core; "
+                "no lane in bin/engines.json declares the mlx surface yet, so "
+                "the refusal below is about LANE COVERAGE, not readability")
     tail = cfg.get("hybrid_tr3_tail") if isinstance(cfg, dict) else None
     if info.surface == "unknown" and isinstance(tail, dict) \
             and tail.get("format") == "exl3-trellis" \
@@ -1462,6 +1513,37 @@ def load_panel_descriptor(spec: Optional[str]) -> PanelDescriptor:
                 raise HFError(
                     "panel descriptor %s has %s=%r, which is not an integer"
                     % (path, key, raw[key]))
+        # CLI-16. `scored_positions` was read verbatim and never checked
+        # against the descriptor's own arithmetic: a panel claiming
+        # 25 x 2047 = 999999 printed "25 contexts x 2047 positions = 999999
+        # scored" and planned happily.
+        #
+        # The check is an UPPER BOUND, not an equality, and the distinction is
+        # the whole design: a shard or subset panel legitimately scores FEWER
+        # positions than its grid holds -- that is what
+        # `registry_validate`'s subset exemption exists for, and refusing it
+        # would break every quant author scoring a shard. But scoring MORE
+        # positions than the grid contains is arithmetically impossible, so it
+        # is a defect in the descriptor and can only be a refusal.
+        #
+        # Severity is low BY DESIGN, and that is recorded rather than
+        # overstated: `scored_positions` feeds no cost or memory term (every
+        # one uses `contexts` and `positions_per_context`), and
+        # `seal_receipt`'s registry check already refuses the resulting
+        # receipt with SCOPE-007. This is defence in depth at the point the
+        # value ENTERS the tree, which is where a wrong number is cheapest to
+        # stop.
+        grid = int(raw["contexts"]) * int(raw["positions_per_context"])
+        scored = int(raw["scored_positions"])
+        if scored > grid:
+            raise HFError(
+                "panel descriptor %s claims %d scored positions but its own "
+                "grid holds %d (%d contexts x %d positions per context). "
+                "Scoring more positions than the panel contains is "
+                "arithmetically impossible; a subset panel scoring FEWER is "
+                "fine and is not refused."
+                % (path, scored, grid, int(raw["contexts"]),
+                   int(raw["positions_per_context"])))
         # SEC-01 (companion).  These two strings travel verbatim into job.json
         # and from there into a shell command on a rented box that holds a live
         # HF token.  Validate them where they ENTER the tree, so a hostile value

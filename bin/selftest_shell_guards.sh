@@ -337,6 +337,73 @@ PY
   else
     no "DESC-01 load_panel_descriptor REFUSES a non-descriptor JSON file"
   fi
+  # CLI-16. `scored_positions` was read verbatim and never checked against the
+  # descriptor's own arithmetic, so 25 x 2047 = 999999 planned happily. The
+  # check is an UPPER BOUND, not an equality: a shard or subset panel
+  # legitimately scores FEWER positions, and refusing that would break every
+  # quant author scoring a shard.
+  if python3 - "$ROOT" <<'PY'
+import json, sys, tempfile, pathlib
+sys.path.insert(0, sys.argv[1] + "/bin")
+from fidelity.hfmeta import load_panel_descriptor, HFError
+d = tempfile.mkdtemp()
+base = {"repo_id": "a/b", "panel_ref": "p", "revision": "a" * 40,
+        "contexts": 25, "positions_per_context": 2047}
+def load(**kw):
+    q = pathlib.Path(d, "d%s.json" % kw["scored_positions"])
+    q.write_text(json.dumps(dict(base, **kw)))
+    return load_panel_descriptor(str(q))
+if load(scored_positions=51175).scored_positions != 51175:
+    raise SystemExit(1)                       # the exact grid must load
+if load(scored_positions=6).scored_positions != 6:
+    raise SystemExit(1)                       # a subset must NOT be refused
+try:
+    load(scored_positions=999999)             # more than the grid holds
+except HFError:
+    raise SystemExit(0)
+raise SystemExit(1)
+PY
+  then
+    ok "CLI-16 scored_positions above the descriptor's own grid is REFUSED, a subset is not"
+  else
+    no "CLI-16 scored_positions above the descriptor's own grid is REFUSED, a subset is not"
+  fi
+  # CC-08. MLX has a bitwise-verified reader (mlx_surface.py, against
+  # mlx.core) that the front door could not reach, because sniff_surface had
+  # no branch and the repo resolved to `unknown` -- refused as "no recognised
+  # surface marker", which sends the operator looking for a missing file when
+  # the real answer is "recognised, and no lane declares it yet".
+  if python3 - "$ROOT" <<'PY'
+import json, sys
+sys.path.insert(0, sys.argv[1] + "/bin")
+from fidelity import hfmeta as HM
+root = sys.argv[1]
+class M:
+    repo_id = "t/x"
+    revision = "a" * 40
+    files = [("config.json", 1), ("model.safetensors.index.json", 1)]
+    def has(self, n): return any(p == n for p, _ in self.files)
+def sniff(path):
+    cfg = json.load(open(path))
+    HM.fetch_json = lambda repo, name, revision=None: cfg
+    return HM.sniff_surface(M())
+mlx = sniff(root + "/engines/tools/mlx-evidence/orcarouter-config.json")
+if mlx.surface != "mlx" or mlx.codec_family != "mlx-affine":
+    raise SystemExit(1)
+if not mlx.evidence.get("mlx_quantization"):
+    raise SystemExit(1)
+# and it must not have stolen the nvfp4 modelopt releases
+for name in ("incoai", "libertai", "radixark", "inferact"):
+    got = sniff("%s/engines/tools/nvfp4-evidence/%s-config.json" % (root, name))
+    if got.surface != "nvfp4":
+        raise SystemExit(1)
+raise SystemExit(0)
+PY
+  then
+    ok "CC-08 an MLX release resolves to the mlx surface, and nvfp4 still resolves to nvfp4"
+  else
+    no "CC-08 an MLX release resolves to the mlx surface, and nvfp4 still resolves to nvfp4"
+  fi
 fi
 
 # ---------------------------------------------------------------- SEC-02

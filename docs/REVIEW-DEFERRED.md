@@ -33,9 +33,9 @@ file: an entry is CLOSED when its body carries a `RESOLVED` / `CLOSED` /
   above it, because the finding is the evidence and the note is only the
   disposition.
 
-Closed (19): CC-01, CLI-02, CLI-17, CLI-21, CLI-25, DECODE-PARITY-01, DEP-01, DEP-03, DEP-04, DESC-01, MKL-01, REAP-1, REAP-2, REAP-3, REAP-4, ROOT-2, SEC-09, SH-10, STAT-01
+Closed (22): CC-01, CC-08, CLI-02, CLI-16, CLI-17, CLI-21, CLI-25, DECODE-PARITY-01, DEP-01, DEP-03, DEP-04, DESC-01, MKL-01, REAP-1, REAP-2, REAP-3, REAP-4, ROOT-2, SEC-09, SH-05, SH-10, STAT-01
 
-Open (14): CC-07, CC-08, CLI-01, CLI-11, CLI-16, CLI-22, CLI-28, DEP-02, DEP-05, NUM-16, ROOT-1, SEC-01, SH-05, SH-22
+Open (11): CC-07, CLI-01, CLI-11, CLI-22, CLI-28, DEP-02, DEP-05, NUM-16, ROOT-1, SEC-01, SH-22
 
 **The reliable prediction about this list, learned the hard way on
 2026-09-06/07: an entry is more often already fixed in code and missing a
@@ -434,6 +434,15 @@ burns the whole `--max-runtime`. That one does cost real money.
 
 ---
 
+**RESOLVED — already fixed, verified 2026-09-07** (additive note). The arming
+is `nohup setsid bash {fs}/bin/watchdog.sh …` — so it survives the local
+session dying, which is the 65-minute H200 lesson from 945255b that this entry
+correctly said had been applied to the STAGE launch and not to the watchdog —
+and it is followed by `python3 {fs}/bin/fidelity/runpodsafety.py
+verify-watchdog`. `watchdog_armed = True` is set only AFTER that verification
+returns, and the teardown path reads that flag, so the controller no longer
+prints "arming" unconditionally.
+
 ## SH-10 — `panel.include: []` fetches the entire 1.3 TB dataset
 
 **File:** `bin/stage_measure.sh:192-201` (`fetch_panel`), `bin/fidelity/hfmeta.py:647`
@@ -627,6 +636,41 @@ that are fully wired and published — while its own refusal text says the strea
 them. That is fixed in the CLI commit.
 
 ---
+
+**PARTLY RESOLVED 2026-09-07** (additive note), and the remainder is
+re-scoped from measurement rather than left vague.
+
+**GGUF and NVFP4 already resolve** — `SURFACE_MARKERS` and `sniff_surface`
+grew branches for both, and `streaming` declares `gguf` in `bin/engines.json`.
+**MLX did not**, so an MLX release still resolved to `unknown` and was refused
+as "no recognised surface marker" — a verdict that sends the operator looking
+for a missing file when the true answer is "recognised, and no lane declares
+it yet". Those are different problems with different remedies.
+
+MLX now resolves, keyed on MLX's OWN config shape rather than a filename: a
+top-level (or `text_config`) `quantization` dict carrying `group_size` and
+`bits`, which is exactly what `mlx_surface.py` derives its per-tensor rates
+against. Verified against all five committed nvfp4 evidence configs — none
+carries a top-level `quantization`, so there is no collision. `codec_family`
+is `mlx-affine`, and the block sits AFTER the `quantization_config` block
+because an MLX release carries one too and `_apply_quant_config` would
+otherwise reset the codec to unknown (measured: the rung asserted `mlx-affine`
+and got `unknown`).
+
+**The NVFP4/RedHat line in the repro above is imprecise and should not be
+"fixed".** That config declares `format: mixed-precision` with a 4-bit
+`tensor_group` weight group AND an 8-bit `block` group. Resolving it to
+`nvfp4` would claim a uniform rate for a mixed checkpoint, which is exactly
+what AGENTS.md forbids — scope and rate come from metadata, never inferred.
+`unknown` is the correct verdict for it today.
+
+**STILL OPEN, and it is the half that unlocks the capability:** no lane in
+`bin/engines.json` declares `mlx` or `nvfp4`, so the front door now refuses
+them accurately ("publishes surface 'X'; no lane can read it") instead of
+misleadingly. Declaring a surface on a lane asserts that the lane's authored
+entrypoint really accepts it, which per AGENTS.md needs
+`bin/measure-local --probe-engines` evidence — a flag confirmation, not a
+guess. That is the operator's call and the next concrete step.
 
 ## NUM-16 — engines.json advertises knobs no runner fills
 
@@ -860,6 +904,21 @@ The unlocked half — a duplicate guard at `measure_local.py`'s call site so `me
 stops printing a false identity — is applied in the CLI commit.
 
 ---
+
+**RESOLVED 2026-09-07** (additive note). Two halves, both closed. The
+`KeyError` half went with DESC-01 (every missing or unparseable field now
+raises a named `HFError`). The arithmetic half is added here as an **upper
+bound, not an equality** — and that distinction is the design: a shard or
+subset panel legitimately scores FEWER positions than its grid holds, and
+refusing that would break every quant author scoring a shard, but scoring MORE
+than the grid contains is arithmetically impossible and can only be a defect.
+
+The entry's own severity assessment is honoured rather than inflated:
+`scored_positions` feeds no cost or memory term, and `seal_receipt` already
+refuses the resulting receipt with SCOPE-007. This is defence in depth at the
+point the value ENTERS the tree, which is where a wrong number is cheapest to
+stop. Rung `CLI-16` covers all three cases including the subset exemption,
+verified failing pre-fix.
 
 ## CLI-25 — a ranged fetch that the server ignores is read as a header
 
