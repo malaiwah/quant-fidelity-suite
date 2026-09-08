@@ -603,7 +603,7 @@ def _rewrite_deadline_proof(proof_path, mutate):
     RD._atomic_json(proof_path, RD._seal(proof, "proof_sha256"))
 
 
-def _deadline_mutation_refused(proof_path, plan, mutate):
+def _deadline_mutation_refused(proof_path, plan, mutate, *, now):
     proof_path = Path(proof_path)
     proof = json.loads(proof_path.read_text())
     paths = [
@@ -618,13 +618,13 @@ def _deadline_mutation_refused(proof_path, plan, mutate):
         return refuses(lambda: validate_safety_proof(
             proof_path, plan.bundle_contract_sha256,
             plan.control_manifest_sha256, plan.provider_account_id,
-            plan.campaign_ledger), SafetyProofError)
+            plan.campaign_ledger, now=now), SafetyProofError)
     finally:
         for path, body in zip(paths, originals):
             path.write_bytes(body)
 
 
-def _destroy_health_mutation_refused(proof_path, plan, mutate):
+def _destroy_health_mutation_refused(proof_path, plan, mutate, *, now):
     proof_path = Path(proof_path)
     proof = json.loads(proof_path.read_text())
     root = proof_path.parent
@@ -655,7 +655,7 @@ def _destroy_health_mutation_refused(proof_path, plan, mutate):
         return refuses(lambda: validate_safety_proof(
             proof_path, plan.bundle_contract_sha256,
             plan.control_manifest_sha256, plan.provider_account_id,
-            plan.campaign_ledger), SafetyProofError)
+            plan.campaign_ledger, now=now), SafetyProofError)
     finally:
         for target, body in zip(paths, originals):
             target.write_bytes(body)
@@ -1034,11 +1034,12 @@ def main():
         args.dry_run = False; args.yes = True
         proof_path = RD.execute_drill(plan, args, provider, seams=seams)
         proof = json.loads(proof_path.read_text())
+        fixture_now = datetime.fromtimestamp(seams.clock.time(), tz=timezone.utc)
         accepted = validate_safety_proof(
           proof_path, plan.bundle_contract_sha256,
           plan.control_manifest_sha256, plan.provider_account_id,
           plan.campaign_ledger,
-          now=datetime.fromtimestamp(seams.clock.time(), tz=timezone.utc))
+          now=fixture_now)
         lease = accepted["lease"]
         history = lease["history"]
         check("one POST", provider.create_calls == 1)
@@ -1109,7 +1110,7 @@ def main():
             action["provider_id"] = "foreign-pod"
         check("standalone validator rejects forged autonomous destroy target",
               _destroy_health_mutation_refused(
-                  proof_path, plan, forge_destroy_target))
+                  proof_path, plan, forge_destroy_target, now=fixture_now))
         check("poll duration beyond explicit maximum refuses", refuses(
             lambda: RD._persist_deadline_observation(
                 Path(td) / "overlong-observation.json", plan, "pod-1",
@@ -1147,14 +1148,15 @@ def main():
         check("unsafe artifact refused", refuses(lambda: validate_safety_proof(
           unsafe_path, plan.bundle_contract_sha256,
           plan.control_manifest_sha256, plan.provider_account_id,
-          plan.campaign_ledger), SafetyProofError))
+          plan.campaign_ledger, now=fixture_now), SafetyProofError))
         check("secure exact request", lease["create"]["request"]["secure_cloud"] is True
           and lease["create"]["request"]["offer"] == "on-demand"
           and lease["create"]["request"]["network_volume_id"] is None)
         def break_sequence(document):
             document["observations"][1]["sequence"] += 1
         check("standalone validator rejects nonsequential observation chain",
-              _deadline_mutation_refused(proof_path, plan, break_sequence))
+              _deadline_mutation_refused(
+                  proof_path, plan, break_sequence, now=fixture_now))
         def forge_early_absence(document):
             row = document["observations"][0]
             row["resources"] = []
@@ -1162,7 +1164,8 @@ def main():
             row["listing_sha256"] = RD._sha256([])
             row["exact_present"] = False
         check("standalone validator rejects forged predeadline absence",
-              _deadline_mutation_refused(proof_path, plan, forge_early_absence))
+              _deadline_mutation_refused(
+                  proof_path, plan, forge_early_absence, now=fixture_now))
         def forge_overlong_absence(document):
             rows = document["observations"]
             absent_rows = [row for row in rows if row["exact_present"] is False]
@@ -1177,7 +1180,7 @@ def main():
                 row["deadline_relation"] = "AFTER"
         check("standalone validator rejects absence beyond authored lag",
               _deadline_mutation_refused(
-                  proof_path, plan, forge_overlong_absence))
+                  proof_path, plan, forge_overlong_absence, now=fixture_now))
         live_ledger_path = Path(plan.campaign_ledger)
         live_ledger_raw = live_ledger_path.read_bytes()
         try:
@@ -1186,7 +1189,7 @@ def main():
                   validate_safety_proof(
                       proof_path, plan.bundle_contract_sha256,
                       plan.control_manifest_sha256, plan.provider_account_id,
-                      plan.campaign_ledger)["proof"]["proof_sha256"]
+                      plan.campaign_ledger, now=fixture_now)["proof"]["proof_sha256"]
                   == proof["proof_sha256"])
         finally:
             live_ledger_path.write_bytes(live_ledger_raw)
@@ -1229,7 +1232,7 @@ def main():
                   validate_safety_proof(
                       proof_path, plan.bundle_contract_sha256,
                       plan.control_manifest_sha256, plan.provider_account_id,
-                      plan.campaign_ledger)["proof"]["proof_sha256"]
+                      plan.campaign_ledger, now=fixture_now)["proof"]["proof_sha256"]
                   == proof["proof_sha256"])
         finally:
             live_ledger_path.write_bytes(live_ledger_raw)
@@ -1237,7 +1240,34 @@ def main():
               refuses(lambda: validate_safety_proof(
                   proof_path, plan.bundle_contract_sha256,
                   plan.control_manifest_sha256, plan.provider_account_id,
-                  copied_ledger), SafetyProofError))
+                  copied_ledger, now=fixture_now), SafetyProofError))
+        for name, epoch in (
+            ("future-issued proof refused",
+             RD._utc_epoch(proof["issued_at"], "issued_at") - 1),
+            ("expired proof refused",
+             RD._utc_epoch(proof["expires_at"], "expires_at") + 1),
+        ):
+            check(name, refuses(lambda: validate_safety_proof(
+                proof_path, plan.bundle_contract_sha256,
+                plan.control_manifest_sha256, plan.provider_account_id,
+                plan.campaign_ledger,
+                now=datetime.fromtimestamp(epoch, tz=timezone.utc)),
+                SafetyProofError))
+        original_proof = proof_path.read_bytes()
+        try:
+            overlong = dict(proof)
+            overlong["expires_at"] = RD._utc(
+                RD._utc_epoch(proof["issued_at"], "issued_at")
+                + 7 * 86400 + 1)
+            RD._atomic_json(proof_path, RD._seal(overlong, "proof_sha256"))
+            check("overlong proof validity refused", refuses(
+                lambda: validate_safety_proof(
+                    proof_path, plan.bundle_contract_sha256,
+                    plan.control_manifest_sha256, plan.provider_account_id,
+                    plan.campaign_ledger, now=fixture_now),
+                SafetyProofError))
+        finally:
+            proof_path.write_bytes(original_proof)
     with tempfile.TemporaryDirectory() as td:
         # The production clock has a sub-second component; this fixture's did
         # not, which is the only reason the battery ever accepted a proof. The

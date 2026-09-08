@@ -3,9 +3,10 @@
 # NOTHING IS PUBLISHED UNTIL A MAINTAINER SAYS SO. The registry push is gated
 # on the repository variable PUBLISH_CONTAINER; with it unset this workflow
 # builds both architectures, prints the plan and the digests, and pushes
-# nothing. Landing this file is not a decision to publish -- enabling it is one
-# switch (Settings -> Secrets and variables -> Actions -> Variables ->
-# PUBLISH_CONTAINER=true), which is the point.
+# nothing. Releases require that variable to be explicitly enabled (Settings ->
+# Secrets and variables -> Actions -> Variables -> PUBLISH_CONTAINER=true).
+# Manual dispatch also requires its default-false publish input to be enabled.
+# Pull requests never publish, even with both switches on.
 #
 # The rules that decide what gets built and tagged live in bin/release_plan.py,
 # not in `${{ }}` expressions. A workflow expression is untestable anywhere
@@ -33,6 +34,7 @@ on:
       - '.github/workflows/container-image.yml'
       - 'bin/BUNDLE.txt'
       - 'bin/bootstrap_measure.sh'
+      - 'bin/requirements-cu130-py312*.lock'
       - 'bin/container_*.py'
       - 'bin/release_plan.py'
 
@@ -67,6 +69,7 @@ jobs:
             --sha "${{ github.sha }}" \
             --image "ghcr.io/${{ github.repository_owner }}/quant-fidelity-measure" \
             --publish "${{ vars.PUBLISH_CONTAINER }}" \
+            --manual-publish "${{ inputs.publish }}" \
             --github-output \
             | tee "$GITHUB_STEP_SUMMARY"
           # release_plan writes $GITHUB_OUTPUT itself (P1-17: a `2>` on tee
@@ -99,13 +102,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # QEMU is the starting point, not the destination. Cross-building the
-      # CUDA wheel set for aarch64 is emulated I/O and unpacking rather than
-      # emulated compilation (every pinned wheel publishes an aarch64 build --
-      # see container/Dockerfile's MULTI-ARCH note), so it is slow but not
-      # pathological. If it becomes the bottleneck, the upgrade is a native
-      # arm64 runner (`runs-on: ubuntu-24.04-arm`), which needs no change here
-      # beyond the label.
+      # ARM uses its own exact-URL/SHA-256 closure at the same Python/CUDA and
+      # distribution versions, never the x86 wheel URLs. QEMU checks image
+      # installation/imports only, not numerical qualification on a CUDA GPU.
+      # See docs/CONTAINER.md for the optional x86-only exllamav3 boundary.
       - uses: docker/setup-qemu-action@v3
         if: matrix.arch != 'amd64'
       - uses: docker/setup-buildx-action@v3

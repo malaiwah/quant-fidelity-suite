@@ -34,29 +34,22 @@ ARG SUITE_REVISION=""
 ARG IMAGE_REFERENCE=""
 ARG DEBIAN_FRONTEND=noninteractive
 
-# MULTI-ARCH.  linux/amd64 and linux/arm64 are both real targets, because the
-# cheapest measurement hardware measured anywhere is a Grace-Hopper GH200 --
-# aarch64 -- at 0.098 ms/matrix against an A100 PCIe's 0.891, since this lane
-# is host-bandwidth-bound and NVLink-C2C is not PCIe (docs/CLOUD-COMPARISON.md).
-# An arm64 image is what makes that turnkey instead of a hand-built ARM stack.
+# PLATFORM CONTRACT. The base measurement closure supports linux/amd64 and
+# linux/arm64 with separate exact-URL/SHA-256 locks selected by the bootstrap.
+# The versions, Python 3.12 and CUDA 13.0 are identical; native wheel bytes are
+# not. See docs/CONTAINER.md for the full-closure audit and qualification limits.
+# The optional exllamav3/flash-attn bootstrap is x86_64-only and explicitly
+# refuses ARM if the pipeline import probe requires it.
 #
-# The pins hold on both: torch 2.11.0+cu130 publishes
-# manylinux_2_28_aarch64 as well as _x86_64, and kbnf / hf_transfer /
-# tokenizers / safetensors all ship aarch64 wheels; pydantic and formatron are
-# pure python.  Nothing in the wheel set falls back to a source build.  The one
-# x86-only artefact in the recipe is the flash-attn wheel URL, which
-# bootstrap_measure.sh fetches ONLY in the exllamav3 branch -- and that branch
-# is not taken, because the measurement path imports the pipeline without it.
-# An arm64 run that ever needs exllamav3 will have to build it; the image says
-# so rather than pretending, and container_manifest records `arch` as a PIN so
-# the two images of one tag carry different content digests.
-#
-# Both have been built (suite b76fb79, one Lambda A10 box): amd64 natively in
-# ~1.5 min, arm64 under QEMU in ~19 min -- the bootstrap layer alone is 73 s
-# against 933 s, 12.8x, which is the whole case for a native arm64 runner once
-# it is worth the switch. Same torch, same transformers, same pipeline commit;
-# different `pins.arch` and therefore a different image_content_sha256, which
-# is correct.
+# Fail before apt or pip, including for raw Docker/Podman builds outside CI.
+# TARGETARCH is automatic under BuildKit; dpkg covers builders without it and
+# prevents a caller-supplied build argument from misidentifying the base image.
+ARG TARGETARCH
+RUN arch="$(dpkg --print-architecture)" \
+ && case "${TARGETARCH:-$arch}/$arch" in \
+      amd64/amd64|arm64/arm64) ;; \
+      *) echo "Unsupported CUDA measurement target ${TARGETARCH:-unset}/$arch: use linux/amd64 or linux/arm64 with the matching pinned closure; see docs/CONTAINER.md. No CPU or alternate-CUDA fallback." >&2; exit 2 ;; \
+    esac
 
 # Where the image bakes itself.  IMAGE_ROOT is FIDELITY_ENGINE_ROOT: the bootstrap
 # builds its venv at $ROOT/venv and clones the pipeline at $ROOT/pipeline, so

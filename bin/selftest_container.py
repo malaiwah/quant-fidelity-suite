@@ -1030,34 +1030,86 @@ def rung_dockerfile():
           "--require-all" in body)
 
     boot = (SUITE / "bin" / "bootstrap_measure.sh").read_text(encoding="utf-8")
-    lock_text = (
-        SUITE / "bin" / "requirements-cu130-py312.lock"
-    ).read_text(encoding="utf-8")
-    lock_lines = lock_text.splitlines()
-    locked = {}
-    malformed_lock_lines = []
-    consumed = set()
-    for index, line in enumerate(lock_lines):
-        if not line or line.startswith("#"):
-            consumed.add(index)
-            continue
-        if " @ " in line and line.endswith(" \\") and index + 1 < len(lock_lines):
-            name, url = line[:-2].split(" @ ", 1)
-            hash_line = lock_lines[index + 1]
-            match = re.fullmatch(r"    --hash=sha256:([0-9a-f]{64})", hash_line)
-            if (re.fullmatch(r"[A-Za-z0-9_.-]+", name)
-                    and url.startswith("https://") and match
-                    and name.lower().replace("_", "-") not in locked):
-                locked[name.lower().replace("_", "-")] = (
-                    url, match.group(1))
-                consumed.update((index, index + 1))
+    with tempfile.TemporaryDirectory() as td:
+        refused_root = Path(td) / "engine"
+        refused_suite = Path(td) / "suite"
+        unsupported_env = dict(
+            os.environ, FIDELITY_ENGINE_ROOT=str(refused_root),
+            FIDELITY_FS_ROOT=str(refused_suite), FIDELITY_BOOTSTRAP_INSTALL_ONLY="1")
+        unsupported_env["BASH_FUNC_uname%%"] = (
+            '() { case "$1" in -s) printf "Linux\\n" ;; '
+            '-m) printf "riscv64\\n" ;; *) return 2 ;; esac; }')
+        refused = subprocess.run(
+            ["bash", str(SUITE / "bin" / "bootstrap_measure.sh")],
+            env=unsupported_env, capture_output=True, text=True, timeout=10)
+        check("C9platform unsupported bootstrap hosts fail before creating setup state",
+              refused.returncode == 2
+              and not refused_root.exists() and not refused_suite.exists(),
+              refused.stderr[-300:])
+
+    def read_wheel_lock(filename):
+        lock_lines = (SUITE / "bin" / filename).read_text(encoding="utf-8").splitlines()
+        locked = {}
+        malformed = []
+        index = 0
+        while index < len(lock_lines):
+            line = lock_lines[index]
+            if not line or line.startswith("#"):
+                index += 1
                 continue
-        if index not in consumed:
-            malformed_lock_lines.append((index + 1, line))
-    malformed_lock_lines.extend(
-        (index + 1, line) for index, line in enumerate(lock_lines)
-        if index not in consumed
-        and not any(row[0] == index + 1 for row in malformed_lock_lines))
+            if " @ " in line and line.endswith(" \\") and index + 1 < len(lock_lines):
+                name, url = line[:-2].split(" @ ", 1)
+                name = name.lower().replace("_", "-")
+                match = re.fullmatch(
+                    r"    --hash=sha256:([0-9a-f]{64})", lock_lines[index + 1])
+                if (re.fullmatch(r"[a-z0-9.-]+", name)
+                        and url.startswith("https://") and match and name not in locked):
+                    locked[name] = (url, match.group(1))
+                    index += 2
+                    continue
+            malformed.append((index + 1, line))
+            index += 1
+        return locked, malformed
+
+    import release_plan as RP
+    closures = {}
+    for platform, filename in RP.WHEEL_LOCKS.items():
+        closure, malformed = read_wheel_lock(filename)
+        closures[platform] = closure
+        machine = {"linux/amd64": "x86_64", "linux/arm64": "aarch64"}[platform]
+        incompatible = []
+        for name, (url, _digest) in closure.items():
+            wheel = urllib.parse.unquote(urllib.parse.urlparse(url).path.rsplit("/", 1)[-1])
+            parts = wheel.removesuffix(".whl").rsplit("-", 3)
+            if len(parts) != 4 or not wheel.endswith(".whl"):
+                incompatible.append(name)
+                continue
+            _dist_version, python_tag, abi_tag, platform_tag = parts
+            tags = platform_tag.split(".")
+            compatible_platform = all(
+                tag == "any" or (tag.startswith("manylinux") and tag.endswith("_" + machine))
+                for tag in tags)
+            compatible_python = (
+                (python_tag in ("py3", "py2.py3") and abi_tag == "none")
+                or (python_tag == "cp312" and abi_tag == "cp312")
+                or (abi_tag == "abi3" and python_tag.startswith("cp")
+                    and python_tag[2:].isdigit() and 32 <= int(python_tag[2:]) <= 312))
+            if not compatible_platform or not compatible_python:
+                incompatible.append(name)
+        check("C9l3 %s has a complete hashed Python 3.12 wheel closure" % platform,
+              len(closure) == 72 and not malformed and not incompatible,
+              (len(closure), malformed, incompatible))
+    locked = closures["linux/amd64"]
+    arm_locked = closures["linux/arm64"]
+    def wheel_version(url):
+        return urllib.parse.unquote(url).rsplit("/", 1)[-1].split("-")[1]
+    check("C9l3b ARM retains every exact distribution version, including CUDA",
+          set(arm_locked) == set(locked)
+          and all(wheel_version(arm_locked[name][0]) == wheel_version(url)
+                  for name, (url, _digest) in locked.items()))
+    check("C9l3c both architecture locks are included in the uploaded bundle",
+          all("bin/" + filename in CE.bundle_entries(SUITE)
+              for filename in RP.WHEEL_LOCKS.values()))
     # The GUARD these two rungs mean is the install-only EARLY EXIT, not any
     # mention of the variable. `find()` was a fine proxy while there was only
     # one occurrence; 7a0a637 added a legitimate second one much earlier (the
@@ -1112,10 +1164,9 @@ def rung_dockerfile():
                   locked[name.lower().replace("_", "-")][0])
               for name, version in expected.items()),
           locked)
-    check("C9l3 the wheel closure is closed, HTTPS-only, and fully hashed",
-          len(locked) == 72 and not malformed_lock_lines
-          and all(len(digest) == 64 for _url, digest in locked.values()),
-          (len(locked), malformed_lock_lines))
+    check("C9l3d architecture-independent wheels retain their exact bytes",
+          all(arm_locked[name] == pin for name, pin in locked.items()
+              if pin[0].endswith("-any.whl")))
     check("C9l4 bootstrap permits no resolver-selected or unhashed wheel",
           "--no-deps --require-hashes --only-binary=:all:" in boot
           and '-r "$WHEEL_LOCK"' in boot
@@ -1507,7 +1558,7 @@ def rung_release():
 
     def plan(**kw):
         base = dict(event="workflow_dispatch", ref="refs/heads/main", sha=sha,
-                    image="ghcr.io/x/y", publish="false")
+                    image="ghcr.io/x/y", publish="false", manual_publish="false")
         base.update(kw)
         return RP.plan(argparse.Namespace(**base))
 
@@ -1530,12 +1581,18 @@ def rung_release():
     off = plan(event="release", ref="refs/tags/v1.2.3")
     check("C11e publishing is DEFAULT-OFF: landing the workflow publishes "
           "nothing", off["push"] is False)
-    check("C11f ... and the plan says which switch turns it on",
-          any("PUBLISH_CONTAINER" in r for r in off["push_blocked_because"]))
-    pr = plan(event="pull_request", ref="refs/pull/7/merge", publish="true")
-    check("C11g a pull request never pushes, even with the gate on",
-          pr["push"] is False
-          and any("pull request" in r for r in pr["push_blocked_because"]))
+    check("C11f releases push when the repository gate is explicitly enabled",
+          rel["push"] is True)
+    for repository_gate, manual_gate, expected_push in (
+            ("false", "false", False), ("false", "true", False),
+            ("true", "false", False), ("true", "true", True)):
+        manual = plan(publish=repository_gate, manual_publish=manual_gate)
+        check("C11manual repository=%s manual=%s" % (repository_gate, manual_gate),
+              manual["push"] is expected_push)
+    pr = plan(event="pull_request", ref="refs/pull/7/merge",
+              publish="true", manual_publish="true")
+    check("C11g a pull request never pushes, even with both gates on",
+          pr["push"] is False)
     check("C11h both architectures are in every plan",
           rel["platforms"] == ["linux/amd64", "linux/arm64"])
 
@@ -1553,8 +1610,6 @@ def rung_release():
           "bin/release_plan.py" in text)
     check("C11l the push is gated on the repository variable",
           "vars.PUBLISH_CONTAINER" in text)
-    check("C11m it builds both platforms",
-          "linux/amd64" in text and "linux/arm64" in text)
     check("C11n it passes the build args the image records",
           "SUITE_REVISION=" in text and "IMAGE_REFERENCE=" in text)
     check("C11o it runs this battery before building",
@@ -1617,8 +1672,8 @@ def rung_release():
             check("C11o3 ... with the five jobs",
                   doc["jobs"] == ["build", "changelog", "manifest", "plan", "ssh"],
                   "%s" % doc["jobs"])
-            check("C11o4 ... and one matrix job per architecture",
-                  doc["platforms"] == ["linux/amd64", "linux/arm64"],
+            check("C11o4 the workflow builds exactly the release plan's platforms",
+                  doc["platforms"] == rel["platforms"],
                   "%s" % doc["platforms"])
 
     print("[C11p] the changelog groups by the topic convention, not by any token")
@@ -1697,25 +1752,22 @@ def rung_github_output():
     """
     import tempfile
 
-    print("[C11s] the plan step owns its outputs")
-    fh = tempfile.NamedTemporaryFile("r", delete=False)
-    gh_out = fh.name
-    fh.close()
-    env = dict(os.environ, GITHUB_OUTPUT=gh_out)
-    p = subprocess.run(
-        [sys.executable, str(SUITE / "bin" / "release_plan.py"),
-         "--event", "workflow_dispatch", "--ref", "refs/heads/main",
-         "--sha", "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
-         "--publish", "true", "--github-output"],
-        capture_output=True, text=True, env=env)
-    body = open(gh_out, encoding="utf-8").read()
-    os.unlink(gh_out)
-    check("C11s release_plan exits 0", p.returncode == 0)
-    check("C11s GITHUB_OUTPUT is non-empty", bool(body.strip()))
-    check("C11s ...and carries push=", "push=" in body)
-    check("C11s ...and the tags", "tags=ghcr.io/" in body)
-    check("C11s nothing to stderr for a caller's redirect to lose",
-          "push=" not in (p.stderr or ""))
+    print("[C11s] GitHub receives the manual publication decision")
+    with tempfile.TemporaryDirectory() as td:
+        for manual_gate, expected_push in (("false", "false"), ("true", "true")):
+            gh_out = Path(td) / manual_gate
+            env = dict(os.environ, GITHUB_OUTPUT=str(gh_out))
+            p = subprocess.run(
+                [sys.executable, str(SUITE / "bin" / "release_plan.py"),
+                 "--event", "workflow_dispatch", "--ref", "refs/heads/main",
+                 "--sha", "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+                 "--publish", "true", "--manual-publish", manual_gate, "--github-output"],
+                capture_output=True, text=True, env=env)
+            outputs = dict(line.split("=", 1) for line in gh_out.read_text(
+                encoding="utf-8").splitlines()) if gh_out.exists() else {}
+            check("C11s manual=%s reaches GitHub as push=%s" % (manual_gate, expected_push),
+                  p.returncode == 0 and outputs.get("push") == expected_push,
+                  p.stderr[-300:])
 
     print("[C11t] a digest never becomes a filename with a colon in it")
     # upload-artifact@v4 refuses ':' in filenames; buildx digests are

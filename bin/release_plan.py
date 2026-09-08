@@ -22,6 +22,8 @@ is a maintainer's decision, not a side effect of landing a workflow file.
 files can be reviewed and merged with the registry step inert, and enabling it
 later is one switch rather than one commit. Every plan says, in words, whether
 it would push and why not.
+Manual dispatch additionally requires --manual-publish=true, supplied by the
+workflow's default-false publish input. Releases need only the repository gate.
 
 Stdlib only, python3.9-clean.
 """
@@ -33,11 +35,12 @@ import os
 import re
 import sys
 
-# The two architectures this image targets, and why aarch64 is not decoration:
-# the cheapest measurement hardware measured anywhere is a Grace-Hopper GH200,
-# which is aarch64.  See container/Dockerfile's MULTI-ARCH note for the wheel
-# audit that says the pins hold on both.
-PLATFORMS = ("linux/amd64", "linux/arm64")
+# Every advertised platform has its own immutable CUDA wheel closure. Version
+# equality is not wheel portability; the bootstrap selects the matching lock.
+WHEEL_LOCKS = {
+    "linux/amd64": "requirements-cu130-py312.lock",
+    "linux/arm64": "requirements-cu130-py312-aarch64.lock",
+}
 
 SEMVER = re.compile(r"^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$")
 
@@ -95,6 +98,12 @@ def plan(args) -> dict:
             "publish gate is off: set the repository variable "
             "PUBLISH_CONTAINER=true to enable pushing to the registry. "
             "Landing this workflow does not start publishing anything.")
+    if (args.event == "workflow_dispatch"
+            and str(args.manual_publish).strip().lower() not in ("1", "true", "yes", "on")):
+        publish = False
+        reasons.append(
+            "manual publish input is off: explicitly enable publish for this "
+            "workflow dispatch as well as PUBLISH_CONTAINER=true")
     if args.event == "pull_request":
         publish = False
         reasons.append("a pull request never pushes an image")
@@ -106,7 +115,8 @@ def plan(args) -> dict:
         "ref_name": name,
         "sha": args.sha,
         "image": args.image,
-        "platforms": list(PLATFORMS),
+        "platforms": list(WHEEL_LOCKS),
+        "wheel_locks": dict(WHEEL_LOCKS),
         "tags": tags_for(args.image, event=args.event, ref=args.ref, sha=args.sha),
         "push": publish,
         "push_blocked_because": reasons,
@@ -128,6 +138,8 @@ def main(argv=None) -> int:
     ap.add_argument("--image", default="ghcr.io/malaiwah/quant-fidelity-measure")
     ap.add_argument("--publish", default="false",
                     help="the repository variable PUBLISH_CONTAINER")
+    ap.add_argument("--manual-publish", default="false",
+                    help="the workflow_dispatch publish input; ignored for releases")
     ap.add_argument("--github-output", action="store_true",
                     help="also print name=value lines for $GITHUB_OUTPUT")
     args = ap.parse_args(argv)

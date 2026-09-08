@@ -468,65 +468,60 @@ The current authenticated Hub path is not bypassed with an unverified mirror.
 
 ---
 
-## Two architectures, and why arm64 is not decoration
+## Architecture-specific CUDA closures
 
-The image targets `linux/amd64` **and** `linux/arm64`. The reason is a
-measurement, not a preference: benchmarking eleven cards across four providers
-found Lambda's `gpu_1x_gh200` — Grace, so **aarch64** — the cheapest per
-measurement of anything measured anywhere, 0.098 ms/matrix against an A100
-PCIe's 0.891, because this lane is host-bandwidth-bound and NVLink-C2C is not
-PCIe ([`CLOUD-COMPARISON.md`](CLOUD-COMPARISON.md)). An arm64 image is what
-makes that turnkey instead of a hand-built ARM stack.
+The base measurement image targets `linux/amd64` and `linux/arm64`, but a wheel
+version is **not** a portable wheel. `bootstrap_measure.sh` selects:
 
-**The pins hold on both.** Checked against the real indexes rather than
-assumed:
-
-| | aarch64 |
+| Host | Exact-URL/SHA-256 lock |
 |---|---|
-| `torch==2.11.0+cu130` | `manylinux_2_28_aarch64` published alongside `_x86_64` — the *same version string* |
-| `kbnf`, `hf_transfer`, `tokenizers`, `safetensors` | aarch64 wheels published |
-| `pydantic==2.5.3`, `formatron==0.5.0` | pure python |
+| Linux `x86_64` / `linux/amd64` | [`requirements-cu130-py312.lock`](../bin/requirements-cu130-py312.lock) |
+| Linux `aarch64` / `linux/arm64` | [`requirements-cu130-py312-aarch64.lock`](../bin/requirements-cu130-py312-aarch64.lock) |
 
-Nothing in the wheel set falls back to a source build, so the arm64 image pins
-what the amd64 one pins. **The one x86-only artefact in the recipe** is the
-flash-attn wheel URL, and `bootstrap_measure.sh` fetches it only inside the
-exllamav3 branch — which is not taken, because the measurement path imports the
-pipeline without it. An arm64 run that ever *does* need exllamav3 will have to
-build it. That is stated here rather than papered over.
+Both locks contain the same 72 distribution versions, including Python 3.12's
+`torch==2.11.0+cu130`, `triton==3.6.0`, `numpy==2.5.2` and
+`transformers==5.16.1`. The ARM lock replaces **all 33 native wheels**, not just
+the first failure (`cuda-bindings==13.3.1`); pure-Python wheel URLs and hashes
+are shared. Every install still uses `--no-deps --require-hashes
+--only-binary=:all:` and then checks the installed dependencies and CUDA version.
+No CPU wheel, alternate CUDA version, precision change or source-wheel fallback
+is substituted.
 
-**Both images have been built.** On one Lambda A10 box, from suite revision
-`b76fb79`:
+The 2026-09-08 compatibility audit found same-version aarch64 wheels and
+published SHA-256 hashes for every native package in the closure:
 
-| | amd64 (native) | arm64 (QEMU on the same x86 box) |
-|---|---|---|
-| bootstrap layer | 73 s | **933 s** (12.8x) |
-| whole build | ~1.5 min | ~19 min |
-| image size | 6.45 GB | 6.12 GB |
-| `torch` | `2.11.0+cu130` | `2.11.0+cu130` — same string |
-| `transformers` | `5.16.1` | `5.16.1` |
-| pipeline commit | `ce1bf970` | `ce1bf970` |
-| `pins.arch` | `x86_64` | `aarch64` |
-| `image_content_sha256` | `8045406b…` | `ec55d704…` |
+* [PyTorch CUDA 13.0 index](https://download.pytorch.org/whl/cu130/torch/) and
+  [Triton index](https://download.pytorch.org/whl/triton/): CPython 3.12 ARM
+  wheels at the exact required versions.
+* [ARM torch metadata](https://download-r2.pytorch.org/whl/cu130/torch-2.11.0%2Bcu130-cp312-cp312-manylinux_2_28_aarch64.whl.metadata):
+  the same CUDA toolkit 13.0.2, cuDNN 9.19.0.56, cuSPARSELt 0.8.0,
+  NCCL 2.28.9, NVSHMEM 3.4.5 and Triton 3.6.0 requirements.
+* [NVIDIA package index](https://pypi.nvidia.com/): matching aarch64 wheels for
+  all 15 locked NVIDIA distributions.
+* [PyPI](https://pypi.org/): compatible CPython 3.12/abi3 wheels for the other
+  16 native distributions, including
+  [CUDA bindings](https://pypi.org/pypi/cuda-bindings/13.3.1/json) and
+  `pydantic-core` (the compiled dependency of `pydantic`).
 
-`docker run --platform linux/arm64 <image> doctor` under emulation reports
-`torch 2.11.0+cu130 cuda 13.0 | transformers 5.16.1` and
-`cuda_available False` — correct, since QEMU has no GPU. What that run proves
-is that the arm64 stack **installs and imports**; whether a GH200 produces
-usable numbers with it is a question for a GH200, and the qualification of that
-card is a separate piece of work.
+**Qualification is separate from availability.** This audit establishes an
+immutable ARM wheel closure, not a successful build or a GPU measurement.
+Earlier `b76fb79` ARM/QEMU build timings predate this lock and do not validate
+it. A successful QEMU build can establish installation/importability only.
+Numerical qualification must run on the actual ARM CUDA GPU before any
+measurement claim; CPU or emulated imports do not establish CUDA parity.
 
-12.8x on the bootstrap layer is the whole case for native arm64 runners
-(`runs-on: ubuntu-24.04-arm`) once they are worth the switch. It is not a
-blocker: nineteen minutes is a CI build, and the two architectures are separate
-matrix jobs so the amd64 leg does not wait for it.
+**The optional exllamav3 path is x86_64-only.** Its pinned flash-attn wheel and
+CUDA-toolkit bootstrap are x86-only. If the pipeline import probe requires
+exllamav3 on ARM, bootstrap refuses before downloading either rather than
+building an unpinned substitute. Use an x86_64 CUDA host for that path. The
+separate RunPod SSH release target remains `linux/amd64`.
 
-**The architecture is a pin, not a label.** `container_manifest.py` records
-`arch` and `platform` among the pins, so the two images behind one multi-arch
-tag carry **different** `image_content_sha256` values. That is correct: they
-are different stacks that happen to share a tag. This repository has already
-measured that the GPU *model* alone moves a number by 13× the gap it publishes
-between two 4-bit quantizers; a receipt that cannot say which architecture
-produced it is missing a fact of the same class.
+Unsupported hosts are refused by bootstrap before filesystem changes, TLS
+traffic or installs; unsupported or misidentified Docker targets are refused
+before apt/pip. Use one of the two declared Linux targets and its matching
+lock. `container_manifest.py` continues to bind `arch` and `platform` into the
+image content digest: architecture-specific bytes are different stacks even
+when they share distribution versions and a multi-architecture tag.
 
 ---
 
@@ -538,9 +533,11 @@ builds both architectures and, once enabled, publishes to GHCR.
 **Nothing is published until a maintainer says so.** The registry push is gated
 on the repository variable `PUBLISH_CONTAINER`; unset, the workflow builds both
 architectures, prints the plan and the digests into the run summary, and pushes
-nothing. Landing the file is not a decision to publish — enabling it is one
-switch (Settings → Secrets and variables → Actions → Variables →
-`PUBLISH_CONTAINER=true`).
+nothing. Landing the file is not a decision to publish. Published releases
+require `PUBLISH_CONTAINER=true` (Settings → Secrets and variables → Actions →
+Variables). Manual workflow runs additionally require the default-false
+**publish** input to be explicitly enabled for that run: neither switch can
+override the other. Pull requests never publish, even with both switches on.
 
 **The rules live in a script, not in `${{ }}`.** `bin/release_plan.py` decides
 the tags, the platforms and the publish gate; the workflow calls it and builds
@@ -565,12 +562,12 @@ The `sha-<12>` tag is always first and is what the image records as its own
 `IMAGE_REFERENCE`, because a receipt needs a reference that still means these
 bytes tomorrow and `latest` never does.
 
-**QEMU now, native runners later.** The arm64 leg cross-builds under QEMU. That
-is emulated I/O and unpacking rather than emulated compilation — every pinned
-wheel publishes an aarch64 build — so it is slow but not pathological, and each
-architecture is a separate matrix job so the fast one does not wait for the slow
-one. If it becomes the bottleneck the upgrade is `runs-on: ubuntu-24.04-arm`,
-which needs no other change.
+**The ARM build is an installation check.** Its separate QEMU matrix job uses
+the ARM lock, so no ARM leg attempts an x86 wheel. A native ARM runner can avoid
+emulation overhead, but neither kind of CI builder establishes numerical CUDA
+qualification without exercising the actual GPU. The matrix is checked against
+the release plan and each declared platform's wheel closure by the contract
+selftest.
 
 **The digest is the point.** `produced_by.container_digest` has been `null` on
 every row this repository has published. The `manifest` job prints the digest of
