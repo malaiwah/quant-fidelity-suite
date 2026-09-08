@@ -22,7 +22,7 @@ ALLOW_PATTERNS = [
     "bin/fidelity_dataset.py", "bin/BUNDLE.txt", "engines/tools/*.py",
     "bin/jointstd/*.py",
     "engines/tools/*.json", "engines/tools/**/*.json", "engines/scopes/*.json", "engines/scopes/**/*.json",
-    "engines/panels/panel--fruit.malaiwah.heldout-v1/**",
+    "engines/panels/**",
     "engines/tools/layer-outer-evidence/fruit*unexpected-keys.json*",
     "registry/tools/*.py", "registry/data/*.jsonl", "registry/index.json",
     "registry/receipts/**", "registry/protocol/**", "registry/README.head.md",
