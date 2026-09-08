@@ -241,6 +241,25 @@
     "IQ4_XS",
     "IQ3_XXS",
     "IQ3_S"
+   ],
+   "until": "2026-09-07"
+  },
+  {
+   "note": "Q4_0 added for the Qwen35 GGUF tiny-format fixture lane (block32 signed-scale/nibble kernel, not the block256 Q4_K kernel). Evidence is the pinned tiny-format fixture receipts only (engines/coverage.json qwen-gguf--q4_0; dataset malaiwah/qfs-qwen-gguf-tiny-cpu-format-v1); NO gguf-py real-block golden exists for Q4_0 (manifest.json dequant_fixtures has none), so bitwise ecosystem parity is owed before any production Q4_0 decode ships.",
+   "since": "2026-09-07",
+   "types": [
+    "F32",
+    "F16",
+    "BF16",
+    "Q8_0",
+    "Q4_0",
+    "Q4_K",
+    "Q5_K",
+    "Q6_K",
+    "Q3_K",
+    "IQ4_XS",
+    "IQ3_XXS",
+    "IQ3_S"
    ]
   }
  ],
@@ -249,6 +268,7 @@
   "F16",
   "BF16",
   "Q8_0",
+  "Q4_0",
   "Q4_K",
   "Q5_K",
   "Q6_K",

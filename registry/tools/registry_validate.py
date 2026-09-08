@@ -1460,6 +1460,55 @@ def check_prose_keys(root, groups, rep):
                                         "The worked example must cite real keys." % (fname, key))
 
 
+def check_publication_audit(root, C, rep):
+    """AUDIT-001: publication-audit.json is a human-maintained disposition record, so
+    nothing here regenerates it -- but its MECHANICAL fields (the file hashes, the
+    record counts, and the record ids its dispositions cite) must still describe the
+    live snapshot. Review acceptance regenerates data/ and index/ without touching
+    the audit, and README.head.md promises every validator warning carries a
+    recorded disposition; drift must be loud, never silent.
+    """
+    path = os.path.join(root, "publication-audit.json")
+    if not os.path.exists(path):
+        rep.warn("AUDIT-001", "publication-audit.json is not present, so the snapshot's "
+                              "validator warnings carry no recorded dispositions")
+        return
+    try:
+        with open(path, encoding="utf-8") as fh:
+            audit = json.load(fh)
+    except ValueError as exc:
+        rep.err("AUDIT-001", "publication-audit.json is not valid JSON: %s" % exc)
+        return
+    if audit.get("schema") != "qfs.registry-snapshot-disposition.v1":
+        rep.err("AUDIT-001", "publication-audit.json carries unsupported schema %r"
+                % (audit.get("schema"),))
+        return
+    for rel, want in sorted((audit.get("data_sha256") or {}).items()):
+        target = os.path.join(root, rel)
+        if not os.path.isfile(target):
+            rep.err("AUDIT-001", "the audit cites %s, which this snapshot does not contain" % rel)
+        elif L.sha256_file(target) != want:
+            rep.err("AUDIT-001", "audit hash for %s does not match the live file: the snapshot "
+                                "moved on and the recorded dispositions no longer describe it. "
+                                "Re-record the audit beside the publication it disposes."
+                    % rel, None,
+                    "re-record publication-audit.json's data_sha256/record_counts for the new "
+                    "snapshot and disposition its new validator warnings")
+    for name, want in sorted((audit.get("record_counts") or {}).items()):
+        if name in C and want != len(C[name]):
+            rep.err("AUDIT-001", "the audit records %d %s, the live snapshot has %d"
+                    % (want, name, len(C[name])))
+    live_ids = set()
+    for records in C.values():
+        live_ids.update(records)
+    for i, disposition in enumerate(audit.get("dispositions") or []):
+        rid = disposition.get("id")
+        if rid and rid not in live_ids:
+            rep.err("AUDIT-001", "disposition #%d (%s) cites %s, which no live record has; a "
+                                "disposition must resolve to a real record"
+                    % (i, disposition.get("check"), rid))
+
+
 def check_submission(root, path):
     """Validate one sealed submission receipt end to end, then print the row it would
     generate. This is what a contributor runs before submitting, and what CI runs first."""
@@ -1791,6 +1840,7 @@ def main():
         check_index(args.root, C, groups, rep)
         check_index_predicate(args.root, C, groups, rep)
         check_prose_keys(args.root, groups, rep)
+        check_publication_audit(args.root, C, rep)
         if args.assert_only_touched:
             check_only_touched(args.root, C, args.assert_only_touched, rep)
         if args.summarize:

@@ -178,6 +178,18 @@ def evidence(plan, stats, dtype_name):
     for group in (quant.get("config_groups") or {}).values():
         activation_declared = activation_declared or any(
             group.get(role) is not None for role in ("input_activations", "output_activations"))
+    # A flat ModelOpt block declares static FP4 activations with a bare
+    # `with_input_scale: true` (nvfp4_surface.modelopt_weight_declaration
+    # reads it as a W4A4 declaration), and the reader's plan names the stored
+    # activation-scale components it consumed. Either one means the artifact
+    # is activation-declared, so the activation-not-captured disclosure must
+    # survive here instead of being silently erased.
+    import microscale_surface
+    activation_plan = plan.get("activation_quantization")
+    stored = activation_plan.get("stored_components", ()) if isinstance(activation_plan, dict) else ()
+    activation_declared = activation_declared or quant.get("with_input_scale") is True
+    activation_declared = activation_declared or any(
+        key.rsplit(".", 1)[-1] in microscale_surface.ACTIVATION_ROLES for key in stored)
     return {"method": METHODS[plan["_reader"]], "reference": plan["reference"],
             "output_dtype": dtype_name, "quantization_config": plan["quantization_config"],
             "modules_decoded": stats["decoded_modules"], "modules_planned": len(plan["modules"]),

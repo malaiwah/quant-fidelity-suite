@@ -8,6 +8,15 @@ directory, git worktree, the Hugging Face Hub and `registry/`.
 Lane reports: `local://SpendLedger-report.md`, `local://ReceiptInventory-report.md`,
 `local://HubPublished-report.md`, `local://RegistryGap-report.md`.
 
+**Amendment 2026-09-08, hygiene.** The four `local://` pointers above name
+session-scoped lane reports that were never persisted into this repository;
+no reader of the tree can resolve them, and the files no longer exist on the
+workstation either. They are kept unchanged as historical pointers (this file
+does not edit its own history). The durable findings of all four lanes are the
+body of this document — every figure below still names the file it was read
+from, and those source files (leases, receipts, manifests, registry data) are
+the reproducible evidence, not the lane summaries.
+
 Every figure below names the file it was read from. Cost figures distinguish
 **settled** (provider billing evidence) from **quoted** and from **estimated**
 (rate × wall clock). A quote is never presented as a settlement.

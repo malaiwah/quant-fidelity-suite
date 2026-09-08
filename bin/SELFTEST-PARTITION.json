@@ -89,6 +89,12 @@
       "tier": "torch",
       "reason": "rc=2, self-reported 'torch is not installed. This selftest needs it'. Its bitwise cpu==cuda rung is also the open DecoderParity/T4Verdict question, which needs a GPU to answer; the cpu half needs only torch."
     },
+    "bin/selftest_explorer_jobs.py": {
+      "tier": "hermetic",
+      "job": "fast",
+      "seconds_xeon_x5570": 0.28,
+      "assertions_measured": 50
+    },
     "bin/selftest_fetch_truncated.py": {
       "tier": "hermetic",
       "job": "fast",
@@ -439,6 +445,11 @@
     "bin/selftest_zero_floor.py": {
       "tier": "torch",
       "reason": "T4: 9 assertions with torch/safetensors, MEASURED 0 without -- and its verdict line prints the word SKIP while returning 0 ('PASS if PASS else SKIP'). The clearest instance in the tree of a rung reporting PASS having asserted nothing.",
+      "missing_module_measured": "torch"
+    },
+    "engines/tools/selftest_affine_stream_offline.py": {
+      "tier": "torch",
+      "reason": "needs torch: rungs 1 and 3 drive affine_surface.decode_module and gguf_qwen35.materialize_layer on real tensors (refuse-after-cast contracts); without torch the whole file SKIPs loudly (rc 0) naming the dependency, so it is nightly coverage, never a push verdict.",
       "missing_module_measured": "torch"
     },
     "engines/tools/selftest_dione_offline.py": {

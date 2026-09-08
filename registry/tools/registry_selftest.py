@@ -1642,6 +1642,275 @@ def main():
 
     print()
     print("=" * 78)
+    print("CF. fixture variants: the declared artifact pin is bound to the captured weights")
+    print("=" * 78)
+    # _apply_variants once admitted a variant whose declared model_repository/
+    # model_revision reconciled with nothing in its captured receipts: cloned into
+    # a scratch root with the pin rewritten to unrelated/falsely-attributed and a
+    # 40 x 'f' revision, the real apply minted
+    # artifact--unrelated.falsely-attributed.ffffffffffff with zero refusals, and
+    # an EMPTY gate map passed because all() over {} is True. Admission now
+    # requires the pin to serve exactly the captured checkpoint shards and to stay
+    # with the base root's publisher, and a gate map must be nonempty.
+    fxroot = os.path.join(tmp, "fixture-variants")
+
+    def _forge_variants(kind):
+        shutil.rmtree(fxroot, ignore_errors=True)
+        shutil.copytree(os.path.join(args.root, "protocol"), os.path.join(fxroot, "protocol"))
+        vpath = os.path.join(fxroot, "protocol", "community-fixtures", "variants.json")
+        with open(vpath, encoding="utf-8") as fh:
+            doc = json.load(fh)
+        item = doc["variants"][0]
+        if kind == "pin":
+            item["model_repository"] = "unrelated/falsely-attributed"
+            item["model_revision"] = "f" * 40
+        elif kind == "gates":
+            cpath = os.path.join(fxroot, "protocol", "community-fixtures",
+                                 item["files"]["comparison"]["path"])
+            with open(cpath, encoding="utf-8") as fh:
+                receipt = json.load(fh)
+            receipt["gates"] = {}
+            receipt["receipt_sha256"] = ""
+            receipt["receipt_sha256"] = L.sha256_hex(L.canonical_json(receipt))
+            with open(cpath, "w", encoding="utf-8") as fh:
+                json.dump(receipt, fh, indent=1)
+            item["files"]["comparison"]["sha256"] = L.sha256_file(cpath)
+        elif kind == "shards":
+            item["weight_files"][0]["sha256"] = "a" * 64
+        with open(vpath, "w", encoding="utf-8") as fh:
+            json.dump(doc, fh, indent=1)
+
+    def _variant_apply():
+        import seed_registry as SeedS
+        import community_fixtures as CFix
+        names = ("models", "artifacts", "panels", "references", "pipelines", "measurements")
+        try:
+            return dict(CFix.apply([(n, []) for n in names], SeedS, registry_root=fxroot)), None
+        except Exception as exc:
+            return None, "%s: %s" % (type(exc).__name__, exc)
+
+    _forge_variants(None)
+    out, err = _variant_apply()
+    ok = out is not None
+    detail = err or ""
+    if ok:
+        committed = L.load_registry(os.path.join(args.root, "data"))["artifacts"]
+        produced = {a["id"]: a for a in out["artifacts"]}
+        variants = [i for i, a in produced.items()
+                    if any(d["code"] == "weights_reconstructed" for d in a.get("disclosures", []))]
+        mismatched = [i for i in produced if committed.get(i) != produced[i]]
+        ok = len(variants) == 20 and not mismatched
+        detail = "variants=%d mismatched=%s" % (len(variants), mismatched[:3])
+    print("  %-58s %s" % ("the committed variant set imports through the real apply",
+                          "PASS" if ok else "FAIL"))
+    if not ok:
+        print("      %s" % detail[:220])
+    passed += ok
+    failed += not ok
+
+    for label, kind, marker in (
+            ("a falsely-attributed variant repository is REFUSED", "pin", "publisher"),
+            ("an empty gate map is REFUSED, not all()-True", "gates", "no gates"),
+            ("declared shards that are not the captured checkpoint are REFUSED",
+             "shards", "reconcile")):
+        _forge_variants(kind)
+        out, err = _variant_apply()
+        ok = out is None and marker in (err or "")
+        print("  %-58s %s" % (label, "PASS" if ok else "FAIL"))
+        if not ok:
+            print("      %s" % (err or "the forged variant was ACCEPTED")[:220])
+        passed += ok
+        failed += not ok
+
+    print()
+    print("=" * 78)
+    print("V. the index schema: a v1 predicate validates under v1; v2 stays complete")
+    print("=" * 78)
+    # index.schema.json enum-accepted comparability-predicate/v1 but unconditionally
+    # required the v2 secondary fields, so the real pre-pull v1 index (git 29e445c)
+    # could not validate under the version string it declares -- 100 missing-field
+    # errors. The required set is now conditioned on predicate_version (minischema
+    # supports if/then/else, so the conditional lives in the published schema).
+    import _minischema as MS
+    sreg = MS.Registry(os.path.join(args.root, "schema"))
+    v1_entry = {
+        "key": "cmp--05e16411a5932713",
+        "panel_id": "panel--qwen38.malaiwah.suite-v5-shard0-1m",
+        "reference_id": "reference--malaiwah.qwen38-bf16-hf.suite-v5-shard0-1m",
+        "metric_name": "mean_tokenwise_kld",
+        "member_count": 3,
+        "comparability": {
+            "predicate_version": "comparability-predicate/v1",
+            "comparable": "true",
+            "reasons": [],
+            "secondary": {
+                "lane": {"status": "pass", "values": ["sealed-ep8"]},
+                "pipeline": {"status": "pass",
+                             "values": ["pipeline--malaiwah.fidelity-dataset-hf.rtxpro6000"]},
+                "scope": {"status": "pass",
+                          "values": ["attn.o+attn.qkv+mlp.down+mlp.gate+mlp.up|head=native|kv=bf16"]},
+                "hardware": {"status": "pass",
+                             "values": ["1x NVIDIA RTX PRO 6000 Blackwell Server Edition"]}
+            },
+            "live_member_count": 3}}
+    v1_minimal = {
+        "schema_version": "quant-fidelity-registry/v1",
+        "registry_id": "malaiwah/quant-fidelity-registry",
+        "generated_at": "2026-09-06T06:37:53+00:00",
+        "resolver_rule": "Every *_ref is the id field of a record in the collection named by "
+                         "the ref's id prefix: model--, artifact--, panel--, reference--, "
+                         "pipeline--, measurement--.",
+        "comparability_rule": "The seven-field comparability.key is a NECESSARY partition key, "
+                              "not a sufficient certificate: two measurement values with "
+                              "different keys are NEVER comparable.",
+        "collections": {name: {"file": "data/%s.jsonl" % name,
+                               "schema": "schema/%s.schema.json" % name[:-1],
+                               "record_count": 1}
+                        for name in ("models", "artifacts", "panels", "references",
+                                     "pipelines", "measurements")},
+        "counts": {name: 1 for name in ("models", "artifacts", "panels", "references",
+                                         "pipelines", "measurements")},
+        "comparability_keys": [v1_entry]}
+    errs = sreg.validate(v1_minimal, "index.schema.json")
+    ok = not errs
+    print("  %-58s %s" % ("a minimal v1-shaped index (from the real pre-pull entry) "
+                          "validates clean", "PASS" if ok else "FAIL"))
+    if not ok:
+        print("      %s" % errs[:2])
+    passed += ok
+    failed += not ok
+
+    real = subprocess.run(["git", "-C", args.root, "show", "29e445c:registry/index.json"],
+                          capture_output=True, text=True)
+    if real.returncode == 0:
+        errs = sreg.validate(json.loads(real.stdout), "index.schema.json")
+        ok = not errs
+        print("  %-58s %s" % ("the REAL pre-pull v1 index (git 29e445c) validates clean",
+                              "PASS" if ok else "FAIL (%d errors)" % len(errs)))
+        if not ok:
+            print("      %s" % errs[:2])
+        passed += ok
+        failed += not ok
+    else:
+        print("  (git show 29e445c unavailable here; the embedded v1 fixture stands in)")
+
+    with open(os.path.join(args.root, "index.json"), encoding="utf-8") as fh:
+        idx = json.load(fh)
+    errs = sreg.validate(idx, "index.schema.json")
+    ok = not errs
+    print("  %-58s %s" % ("the committed v2 index still validates clean",
+                          "PASS" if ok else "FAIL"))
+    passed += ok
+    failed += not ok
+
+    stripped = copy.deepcopy(idx)
+    stripped["comparability_keys"][0]["comparability"]["secondary"].pop("harness")
+    errs = sreg.validate(stripped, "index.schema.json")
+    ok = bool(errs) and any("harness" in str(e) for e in errs)
+    print("  %-58s %s" % ("a v2 entry missing a secondary field is still REFUSED "
+                          "(moved, not weakened)", "PASS" if ok else "FAIL"))
+    passed += ok
+    failed += not ok
+
+    v1_stripped = copy.deepcopy(v1_minimal)
+    v1_stripped["comparability_keys"][0]["comparability"]["secondary"].pop("lane")
+    errs = sreg.validate(v1_stripped, "index.schema.json")
+    ok = bool(errs) and any("lane" in str(e) for e in errs)
+    print("  %-58s %s" % ("a v1 entry missing an OLD-set field is REFUSED too",
+                          "PASS" if ok else "FAIL"))
+    passed += ok
+    failed += not ok
+
+    print()
+    print("=" * 78)
+    print("A2. publication-audit.json must still describe the live snapshot (AUDIT-001)")
+    print("=" * 78)
+    # The audit's dispositions are human-maintained, so no tool regenerates the
+    # file -- but its MECHANICAL fields (file hashes, record counts, cited record
+    # ids) are checked against the live snapshot on every validate. Review
+    # acceptance rewrites data/ and index/ without touching the audit; that
+    # staleness is now an error instead of a silent false README claim.
+    audit_C = L.load_registry(os.path.join(args.root, "data"))
+    audit_rep = RV.Report()
+    RV.check_publication_audit(args.root, audit_C, audit_rep)
+    ok = not audit_rep.errors
+    print("  %-58s %s" % ("the committed snapshot's audit matches the live files",
+                          "PASS" if ok else "FAIL"))
+    if not ok:
+        print("      %s" % audit_rep.errors[:2])
+    passed += ok
+    failed += not ok
+
+    drift = os.path.join(tmp, "audit-drift")
+    os.makedirs(drift)
+    for sub in ("schema", "data"):
+        shutil.copytree(os.path.join(args.root, sub), os.path.join(drift, sub))
+    for fn in ("index.json", "publication-audit.json"):
+        shutil.copy2(os.path.join(args.root, fn), os.path.join(drift, fn))
+    with open(os.path.join(drift, "publication-audit.json"), encoding="utf-8") as fh:
+        audit = json.load(fh)
+    tampered = sorted(audit["data_sha256"])[0]
+    audit["data_sha256"][tampered] = "0" * 64
+    with open(os.path.join(drift, "publication-audit.json"), "w", encoding="utf-8") as fh:
+        json.dump(audit, fh, indent=1)
+    rep, code = run_validator(drift)
+    errs = [f for f in rep.get("findings", []) if f["severity"] == "error"]
+    ok = code == 1 and any(f["check"] == "AUDIT-001" and tampered in f["message"] for f in errs)
+    print("  %-58s %s" % ("a tampered audit hash is REFUSED and the file is named",
+                          "PASS" if ok else "FAIL"))
+    if not ok:
+        print("      exit=%d errors seen: %s" % (code, sorted({f["check"] for f in errs})))
+    passed += ok
+    failed += not ok
+
+    print()
+    print("=" * 78)
+    print("P4. PANEL-004: same tokens under different tokenizers are not one identity")
+    print("=" * 78)
+    # The invariant groups panels by (token digest, tokenizer.id). Equal numeric
+    # token IDs under different tokenizers do not establish token identity, so a
+    # shared-digest pair across tokenizers is exempt; the same digest under ONE
+    # tokenizer, outside one reformat/scoring_window_change family, is refused.
+    # The live data holds the real exemption: the shared-token fixture panels
+    # captured under three different tokenizers.
+    panel_C = L.load_registry(os.path.join(args.root, "data"))
+    by_digest = {}
+    for p in panel_C["panels"].values():
+        by_digest.setdefault((p.get("identity") or {}).get("panel_token_sha256"), []).append(p)
+    shared = [ps for ps in by_digest.values()
+              if ps and None not in ps and len(ps) > 1
+              and len({(p.get("tokenizer") or {}).get("id") for p in ps}) > 1]
+    if shared:
+        pair = sorted(shared, key=len)[-1]
+    else:
+        pair = [{"id": "panel--p4.a", "identity": {"panel_token_sha256": "a" * 64},
+                 "tokenizer": {"id": "fixture-tokenizer-a"}},
+                {"id": "panel--p4.b", "identity": {"panel_token_sha256": "a" * 64},
+                 "tokenizer": {"id": "fixture-tokenizer-b"}}]
+    rep = RV.Report()
+    RV.check_panels({"panels": {p["id"]: p for p in pair}, "measurements": {}}, rep)
+    ok = not [f for f in rep.errors if f["check"] == "PANEL-004"]
+    print("  %-58s %s" % ("the real different-tokenizer shared-digest panels raise nothing",
+                          "PASS" if ok else "FAIL"))
+    passed += ok
+    failed += not ok
+
+    left, right = copy.deepcopy(pair[0]), copy.deepcopy(pair[1])
+    right["id"] = right["id"] + ".same-tokenizer"
+    right["tokenizer"]["id"] = left["tokenizer"]["id"]
+    rep = RV.Report()
+    RV.check_panels({"panels": {left["id"]: left, right["id"]: right}, "measurements": {}}, rep)
+    hits = [f for f in rep.errors if f["check"] == "PANEL-004"]
+    ok = len(hits) == 1 and left["id"] in hits[0]["message"] and right["id"] in hits[0]["message"]
+    print("  %-58s %s" % ("the same pair forced onto ONE tokenizer is REFUSED",
+                          "PASS" if ok else "FAIL"))
+    if not ok:
+        print("      PANEL-004 hits: %s" % hits[:1])
+    passed += ok
+    failed += not ok
+
+    print()
+    print("=" * 78)
     print("E. the tools import no networking library")
     print("=" * 78)
     for tool in ("registry_validate.py", "registry_add.py"):

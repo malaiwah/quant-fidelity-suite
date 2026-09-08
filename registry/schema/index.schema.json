@@ -93,7 +93,7 @@
               "reasons": { "type": "array", "items": { "type": "string" } },
               "secondary": {
                 "type": "object",
-                "required": ["key", "lane", "pipeline", "scope", "hardware", "harness", "stack", "replay_backend", "replay_env"],
+                "description": "The secondary dimensions the predicate checked. The REQUIRED set is versioned, conditioned on predicate_version below: v1 recorded lane/pipeline/scope/hardware only; v2 added key/harness/stack/replay_backend/replay_env. Without the conditional, an actual v1 index (the shape at git 29e445c) cannot validate under the version string it declares.",
                 "additionalProperties": {
                   "type": "object",
                   "required": ["status", "values"],
@@ -105,6 +105,20 @@
                 }
               },
               "live_member_count": { "type": "integer", "minimum": 0 }
+            },
+            "if": {
+              "required": ["predicate_version"],
+              "properties": { "predicate_version": { "const": "comparability-predicate/v2" } }
+            },
+            "then": {
+              "properties": {
+                "secondary": { "required": ["key", "lane", "pipeline", "scope", "hardware", "harness", "stack", "replay_backend", "replay_env"] }
+              }
+            },
+            "else": {
+              "properties": {
+                "secondary": { "required": ["lane", "pipeline", "scope", "hardware"] }
+              }
             },
             "additionalProperties": false
           }

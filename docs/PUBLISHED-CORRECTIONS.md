@@ -1041,3 +1041,46 @@ rather than retain a second path that regenerated causal attribution and
 unqualified residual ratios. Its documentation now uses the guarded stats
 commands; no production caller or bundled dependency referenced the old tool,
 and its historical `BF16-FLOOR.json` is unchanged.
+
+
+## 13. PR #4's regeneration rewrote two BCa endpoints by one ULP (2026-09-08)
+
+**What happened.** The QFS fixture merge (`d02fef5`, 2026-09-07) regenerated
+`registry/data/measurements.jsonl` on a machine whose floating-point path
+differs from the seed tool's reproduction on the workstation that authored the
+intervals. Two rows' `uncertainty` endpoints moved in the 16th digit and
+nothing else in the file changed:
+
+| row | endpoint | at `3471955` | after `d02fef5` | seed tool reproduces |
+|---|---|---:|---:|---:|
+| `measurement--glm-5.3.exl3-tr3-3.0bpw-davidsyoung.corpus5x5-v1` | `ci95_low` | 0.06845870445047**12** | 0.06845870445047**11** | …**12** |
+| `measurement--glm53.k8-8bpw-stream.brandonmusic-final25.clean17` | `ci95_high` | 0.01383775237335**41** | 0.01383775237335**42** | …**41** |
+
+The tool was not changed by that merge (`git diff --name-only 3471955 d02fef5`
+matches no statistics file) and the fixture hook is not the cause (neutralizing
+`community_fixtures.apply` still drifts); the committed **bytes** moved. Both
+values are one float64 ULP apart, i.e. the same number to every digit the
+interval's own precision claims.
+
+**Why it surfaced.** `seed_registry.py --check` (the `make reseed-check` gate)
+refuses byte drift, and went red in `make check` on the authoring-class
+workstation (python 3.14.4 / numpy 2.5.2, the pinned
+`HARNESS_TOOL_VERSIONS`) from 2026-09-07 onward. The pre-merge tree reseeds
+clean on the same box, which isolates the rewrite to the merge.
+
+**Disposition.** The drifted values are restored to the ones the seed tool
+reproduces, by regeneration (`seed_registry.py --out`), not by hand-editing a
+published number. This is the same platform-dependent-last-digit class as
+[§9](#9-one-platform-dependent-clustered-se-last-digit-stat-20), and the same
+honest statement applies: a BCa endpoint computed in floating point is
+platform-dependent at its last ULP, so the reseed contract is exact only on the
+float path that authored the committed bytes. The registry mirror on the Hub
+still carries the `d02fef5` bytes for these two endpoints until its next
+permitted regeneration; the delta is disclosed here rather than silently
+re-published. The KLD means, medians, percentiles and all other fields of both
+rows are byte-identical throughout.
+
+**The gate did its job.** The failure mode that made this visible was a red
+`make check` being absent from every review of PR #4 — the fix for that is
+running the registry gates on the merge, not loosening the byte-exact reseed
+contract.

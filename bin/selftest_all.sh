@@ -336,6 +336,16 @@ t "safe RunPod guards: artifact paths + dry mutation boundary" \
                                            0 python3 bin/selftest_runpod_safe.py
 t "RunPod controller-loss drill contracts" \
                                            0 python3 bin/selftest_runpod_drill.py
+# EXP-01..06. The Explorer's HF-Jobs safety contracts, against a stubbed Hub:
+# anonymous-first pinned reads (only 401/403 escalates), required-public review
+# evidence read tokenlessly with 401/403 as refusal, the worker consuming the
+# verified canonical dataset views instead of the raw Hub volume (the truncated
+# JSON provider fault), inferred attribution labeled at the explorer layer,
+# publish_explorer requiring an explicit 0600 --token-file, and stale-CREATING
+# reservations reconciling only on positive provider-side absence proof.
+# Offline, stock python3, no token, no network.
+t "explorer HF-Jobs safety: anonymous-first, canonical views, attribution labels (EXP-01..06)" \
+                                           0 python3 bin/selftest_explorer_jobs.py
 # T25. Root qualification needs two fresh captures and exact self-comparison.
 # Remote publication and container-native RunPod execution both refuse; optional
 # publication is controller-local only after verified retrieval, confirmed pod
@@ -541,6 +551,18 @@ if [ -n "$TPY" ]; then
                                            0 "$TPY" engines/tools/selftest_tr3_offline.py
 else
   s "tr3 surface offline" "no torch in $VPY or $PY"
+fi
+
+# affine + quant_stream refusal contracts: a finite scale/code pair that
+# overflows the capture dtype is refused AFTER the cast (never clamped), a CT
+# transform/sparsity declaration is refused at admission instead of silently
+# dropped, the qwen35 capture cast re-checks its result, and a flat ModelOpt
+# `with_input_scale: true` keeps its activation-not-captured disclosure.
+if [ -n "$TPY" ]; then
+  t "affine + stream surfaces offline (nonfinite refusal, CT admission, activation disclosure)" \
+                                           0 "$TPY" engines/tools/selftest_affine_stream_offline.py
+else
+  s "affine + stream surfaces offline" "no torch in $VPY or $PY"
 fi
 
 echo "== paid cloud safety planner (NETWORK; no account access) =="

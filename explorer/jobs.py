@@ -127,22 +127,49 @@ def _api_error(exc, operation):
     return JobsError(operation + " did not complete (" + type(exc).__name__ + "). Check the recorded workflow state; no alternate account or job was substituted.")
 
 
-def _json_download(actor, repo, revision, name, *, repo_type="model", limit=MAX_JSON, save_to=None, parse_json=True):
+def _hf_status(exc):
+    return getattr(getattr(exc, "response", None), "status_code", None)
+
+
+def _anonymous_client():
+    """token=False: no Authorization header and no ambient env/cache credential.
+    An anonymous read of a pinned artifact is the evidence it is public."""
+    from huggingface_hub import HfApi
+    return HfApi(endpoint="https://huggingface.co", token=False)
+
+
+def _json_download(actor, repo, revision, name, *, repo_type="model", limit=MAX_JSON, save_to=None, parse_json=True, anonymous=True):
+    """Anonymous-first read (CLI-22/SEC-03): only a 401/403 escalates to the
+    caller's token, so a 404 or a network fault never sends a credential anywhere."""
     from huggingface_hub import hf_hub_download
     _identity(repo, revision); _relative(name)
-    infos = actor.client().get_paths_info(repo, [name], repo_type=repo_type, revision=revision)
-    if len(infos) != 1 or type(getattr(infos[0], "size", None)) is not int or not 0 <= infos[0].size <= limit:
-        raise JobsError("Metadata is missing or exceeds this workspace's safe read limit.")
-    with tempfile.TemporaryDirectory(prefix="qfs-metadata-") as td:
-        path = Path(hf_hub_download(repo, name, repo_type=repo_type, revision=revision,
-                                   token=actor.client().token, cache_dir=td)).resolve()
-        if path.stat().st_size != infos[0].size:
-            raise JobsError("Metadata bytes differ from the pinned Hub tree.")
-        raw = path.read_bytes()
-        value = _read_json(path, limit=limit) if parse_json else raw
-        if save_to is not None:
-            Path(save_to).write_bytes(raw)
-    return value, hashlib.sha256(raw).hexdigest(), len(raw)
+
+    def attempt(api, token):
+        infos = api.get_paths_info(repo, [name], repo_type=repo_type, revision=revision)
+        if len(infos) != 1 or type(getattr(infos[0], "size", None)) is not int or not 0 <= infos[0].size <= limit:
+            raise JobsError("Metadata is missing or exceeds this workspace's safe read limit.")
+        with tempfile.TemporaryDirectory(prefix="qfs-metadata-") as td:
+            path = Path(hf_hub_download(repo, name, repo_type=repo_type, revision=revision,
+                                       token=token, cache_dir=td)).resolve()
+            if path.stat().st_size != infos[0].size:
+                raise JobsError("Metadata bytes differ from the pinned Hub tree.")
+            raw = path.read_bytes()
+            value = _read_json(path, limit=limit) if parse_json else raw
+            if save_to is not None:
+                Path(save_to).write_bytes(raw)
+        return value, hashlib.sha256(raw).hexdigest(), len(raw)
+
+    api = actor.client()
+    if not anonymous:
+        return attempt(api, api.token)
+    try:
+        return attempt(_anonymous_client(), False)
+    except JobsError:
+        raise
+    except Exception as exc:
+        if _hf_status(exc) in (401, 403):
+            return attempt(api, api.token)
+        raise _api_error(exc, "Metadata read") from None
 
 
 def _source_identity():
@@ -237,9 +264,15 @@ def _model_metadata(actor, repo, revision, *, mode):
     from huggingface_hub import hf_hub_download
     _identity(repo, revision)
     try:
-        info = actor.client().model_info(repo, revision=revision, files_metadata=True)
+        info = _anonymous_client().model_info(repo, revision=revision, files_metadata=True)
     except Exception as exc:
-        raise _api_error(exc, "Model metadata lookup") from None
+        if _hf_status(exc) in (401, 403):
+            try:
+                info = actor.client().model_info(repo, revision=revision, files_metadata=True)
+            except Exception as exc2:
+                raise _api_error(exc2, "Model metadata lookup") from None
+        else:
+            raise _api_error(exc, "Model metadata lookup") from None
     if info.sha != revision:
         raise JobsError("The model did not resolve to the requested immutable revision.")
     config, config_sha, config_bytes = _json_download(actor, repo, revision, "config.json")
@@ -299,9 +332,15 @@ def _model_metadata(actor, repo, revision, *, mode):
 def _dataset_metadata(actor, repo, revision, mount_path):
     _identity(repo, revision)
     try:
-        info = actor.client().dataset_info(repo, revision=revision)
+        info = _anonymous_client().dataset_info(repo, revision=revision)
     except Exception as exc:
-        raise _api_error(exc, "Dataset lookup") from None
+        if _hf_status(exc) in (401, 403):
+            try:
+                info = actor.client().dataset_info(repo, revision=revision)
+            except Exception as exc2:
+                raise _api_error(exc2, "Dataset lookup") from None
+        else:
+            raise _api_error(exc, "Dataset lookup") from None
     if info.sha != revision:
         raise JobsError("Dataset revision does not match.")
     descriptor, sha, size = _json_download(actor, repo, revision, "fidelity-dataset.json", repo_type="dataset")
@@ -574,7 +613,7 @@ def _ledger(actor, *, create=False):
     info = api.repo_info(repo, repo_type="dataset")
     if not info.private:
         raise JobsError("Your qfs-explorer-runs ledger is public. Make it private before storing workflow metadata.")
-    doc, _, _ = _json_download(actor, repo, info.sha, "ledger.json", repo_type="dataset", limit=4 * 1024**2)
+    doc, _, _ = _json_download(actor, repo, info.sha, "ledger.json", repo_type="dataset", limit=4 * 1024**2, anonymous=False)
     if doc.get("schema") != _LEDGER_SCHEMA or doc.get("owner") != actor.username or not isinstance(doc.get("runs"), dict):
         raise JobsError("The existing private ledger does not belong to this protocol; it was not overwritten.")
     return repo, info.sha, doc
@@ -612,6 +651,30 @@ os.execvp('python',['python','/tmp/qfs-job-bootstrap.py','--plan','/inputs/plan/
 '''
 
 
+def _absent_job_proof(api, namespace, workflow_id):
+    """True absent, False present, None unknown -- the _confirm_gone discipline:
+    only a successful empty provider listing proves the paid create never
+    happened; an error is doubt and never clears anything."""
+    try:
+        matches = list(api.list_jobs(namespace=namespace, labels={"qfs_workflow_id": workflow_id}))
+    except Exception:
+        return None
+    return not matches
+
+
+def _stale_reservations(actor):
+    """Never-confirmed creations as distinct status rows; read-only, never creates the ledger."""
+    repo = actor.username + "/qfs-explorer-runs"
+    if not actor.client().repo_exists(repo, repo_type="dataset"):
+        return []
+    _, _, ledger = _ledger(actor)
+    return [{"job_id": None, "url": None, "status": "UNRESOLVED_CREATING",
+             "message": "Creation was never confirmed and blocks new launches; it clears only on provider-side proof that no Job exists for this workflow.",
+             "flavor": None, "created_at": r.get("reserved_at"), "started_at": None, "finished_at": None,
+             "durations": None, "workflow_id": w, "reserved_at": r.get("reserved_at")}
+            for w, r in sorted(ledger["runs"].items()) if r.get("state") == "CREATING" and not r.get("job_id")]
+
+
 def launch(actor, prepared, *, confirm_compute=False):
     if confirm_compute is not True or not isinstance(prepared, dict):
         raise JobsError("Review the named billing account, deadline and cost, then explicitly confirm launch.")
@@ -641,9 +704,26 @@ def launch(actor, prepared, *, confirm_compute=False):
                 return _job_public(matches[0])
             raise JobsError("This launch already has a durable reservation but no unambiguous Job ID. It was NOT submitted again; inspect your HF Jobs page.")
         active = list(api.list_jobs(namespace=actor.username, labels={"qfs_app": "explorer"}, status=["SCHEDULING", "RUNNING"]))
-        unresolved = [r for r in ledger["runs"].values() if r.get("state") == "CREATING" and not r.get("job_id")]
+        stale = {w: r for w, r in ledger["runs"].items() if r.get("state") == "CREATING" and not r.get("job_id")}
+        unresolved = dict(stale)
+        for stale_wid, record in stale.items():
+            # A CREATING reservation with no Job ID otherwise blocks every future
+            # launch forever. Clear it ONLY on positive provider-side absence
+            # proof; presence or any doubt keeps refusing (never infer from error).
+            if _absent_job_proof(api, actor.username, stale_wid) is True:
+                record["state"] = "RECONCILED_ABSENT"
+                record["reconciled_at"] = datetime.now(timezone.utc).isoformat()
+                del unresolved[stale_wid]
+                head = _save_ledger(actor, repo, head, ledger)
         if active or unresolved:
-            raise JobsError("One QFS job is already active or has an unresolved creation. Refresh/cancel it before another launch.")
+            parts = []
+            if active:
+                parts.append("One QFS job is already active; refresh/cancel it before another launch.")
+            if unresolved:
+                parts.append("An earlier creation is still unresolved (workflow %s): its reservation clears only "
+                             "when HF positively confirms no Job exists for that workflow. Cancel any Job it produced "
+                             "in your HF Jobs page, or retry this launch later." % ", ".join(sorted(unresolved)))
+            raise JobsError(" ".join(parts))
         if len(ledger["runs"]) >= 1000:
             raise JobsError("This workspace ledger reached its safety limit; archive old records before launching more jobs.")
         ledger["runs"][wid] = {"state": "CREATING", "plan": plan, "reserved_at": datetime.now(timezone.utc).isoformat()}
@@ -705,7 +785,11 @@ def launch(actor, prepared, *, confirm_compute=False):
 
 def list_runs(actor):
     try:
-        return [_job_public(j) for j in actor.client().list_jobs(namespace=actor.username, labels={"qfs_app": "explorer"})]
+        runs = [_job_public(j) for j in actor.client().list_jobs(namespace=actor.username, labels={"qfs_app": "explorer"})]
+        runs.extend(_stale_reservations(actor))
+        return runs
+    except JobsError:
+        raise
     except Exception as exc:
         raise _api_error(exc, "Job listing") from None
 
@@ -736,6 +820,7 @@ def inspect(actor, job_id):
         out["publications"] = {visibility: {"repository": value["repository"], "revision": value["revision"]}
                                for visibility, value in (saved.get("publications") or {}).items()}
         out["verification_note"] = "Status is not a fresh integrity check. Fetch results to revalidate the recorded digest."
+        out["unresolved_reservations"] = [r["workflow_id"] for r in _stale_reservations(actor)]
     except JobsError as exc:
         out["recovery_note"] = str(exc)
     return out
@@ -863,11 +948,23 @@ def _read_json(path, *, limit=MAX_JSON):
 
 def _metadata_digest(actor, repo, revision, row):
     from huggingface_hub import hf_hub_download
-    with tempfile.TemporaryDirectory(prefix="qfs-model-metadata-") as td:
-        path = Path(hf_hub_download(repo, row["path"], revision=revision, token=actor.client().token, cache_dir=td))
-        if path.stat().st_size != row["bytes"]:
-            raise JobsError("Downloaded metadata differs from its pinned file census.")
-        return _file_sha(path)
+
+    def attempt(token):
+        with tempfile.TemporaryDirectory(prefix="qfs-model-metadata-") as td:
+            path = Path(hf_hub_download(repo, row["path"], revision=revision, token=token, cache_dir=td))
+            if path.stat().st_size != row["bytes"]:
+                raise JobsError("Downloaded metadata differs from its pinned file census.")
+            return _file_sha(path)
+
+    try:
+        return attempt(False)
+    except JobsError:
+        raise
+    except Exception as exc:
+        if _hf_status(exc) in (401, 403):
+            return attempt(actor.client().token)
+        raise _api_error(exc, "Model metadata read") from None
+
 
 def _verify_provider(actor, job, plan):
     verify_seal(plan, "plan_sha256")
@@ -1010,33 +1107,60 @@ def _review_files(proof, actor):
     return paths
 
 
+def _attribution_disclosure(inferred, *explicit):
+    """Explicit author-supplied fields are authoritative and stay unlabeled."""
+    override = set()
+    for source in explicit:
+        override |= set(source or {})
+    return {field: entry for field, entry in (inferred or {}).items() if field not in override}
+
+
 def _root_metadata(proof):
+    """Registry-matched attribution plus an inference disclosure.
+
+    Panel selection by token hash is legitimate content identity; the author and
+    lineage values taken from the matching records are INFERENCE, not an author's
+    attestation. The flat metadata keeps its frozen published shape (the review
+    pipeline and the card's attribution block accept exactly that shape); the
+    disclosure travels beside it at the explorer layer, so a published artifact
+    never asserts an author fact as if proven. Explicit review_metadata overrides
+    are authoritative and unlabeled."""
     root, plan = Path(proof["directory"]), proof["plan"]
     d = _read_json(root / "first/fidelity-dataset.json")
     data = ExplorerRegistry().registry_data()
     attribution = lambda row: {k: row[k] for k in ("name", "handle", "url") if row.get(k) is not None}
     meta = {}
+    inferred = {}
+
+    def infer(field, basis):
+        inferred[field] = {"inferred": True, "basis": basis}
+
     models = [m for m in data["models"].values() if m["huggingface"]["repository"] == d["weights"]["repository"]
               and m["huggingface"]["revision"] == d["weights"]["revision"]]
     if len(models) == 1:
         model = models[0]
         meta.update(name=model["name"], family=model["family"], publisher=attribution(model["publisher"]), model_license=model["license"])
+        infer("publisher", "registry model record matched by exact weights repository and revision; content identity, not an author's attestation")
     panels = [p for p in data["panels"].values() if p["identity"]["panel_token_sha256"] == d["panel"]["suite_token_hash_sha256"]]
     if len(panels) > 1 and len(models) == 1:
         known_panels = {m["panel_ref"] for m in data["measurements"].values() if m["model_ref"] == models[0]["id"]}
         panels = [p for p in panels if p["id"] in known_panels]
     if len(panels) == 1:
         meta.update(panel_author=attribution(panels[0]["author"]), corpus_lineage=panels[0]["corpus"]["lineage"])
+        infer("panel_author", "registry panel record selected by panel_token_sha256 equality and measurement existence for this model; an equal token proves token identity, not authorship")
+        infer("corpus_lineage", "registry panel record selected by panel_token_sha256 equality and measurement existence for this model")
     authors = [attribution(p["author"]) for p in data["pipelines"].values()
                if p["implementation"].get("repository") == SOURCE]
     if authors and all(a == authors[0] for a in authors):
         meta["toolchain_author"] = authors[0]
+        infer("toolchain_author", "registry pipeline records whose implementation repository equals the QFS source")
     supplied = plan.get("review_metadata") or {}
     allowed = {"name", "family", "publisher", "panel_author", "toolchain_author", "corpus_lineage", "model_license"}
     if set(supplied) - allowed:
         raise JobsError("Review metadata has unknown fields; canonical repository/revision are controller-owned.")
     meta.update(supplied)
-    return meta
+    inferred = _attribution_disclosure(inferred, supplied)
+    return meta, inferred
 
 
 def _verify_uploaded(actor, repository, revision, records, *, private):
@@ -1129,7 +1253,7 @@ def publish_result(actor, job_id, *, visibility="private", confirm_publish=False
         prior = (saved.get("publications") or {}).get(visibility)
         if prior:
             _check_saved_publication(actor, prior, proof, public=public)
-            return prior
+            return {**prior, "attribution_inferred": saved.get("attribution_inferred") or {}}
         roles = _review_files(proof, actor)
         files = {row["path"]: root / row["path"] for row in result["files"]}
         files.update({"result.json": root / "result.json", "hf-execution.json": root / "hf-execution.json"})
@@ -1146,8 +1270,10 @@ def publish_result(actor, job_id, *, visibility="private", confirm_publish=False
             publication_source(q["dataset_path"], q["qualification_path"], q["job_path"])
             files.update({"job.json": Path(q["job_path"]), "qualification.json": Path(q["qualification_path"])})
         files.update({p: root / p for p in roles.values()})
-        metadata = _root_metadata(proof) if plan["mode"] == "root" else {}
+        metadata, inferred = _root_metadata(proof) if plan["mode"] == "root" else ({}, {})
         metadata.update(saved.get("publication_metadata") or {})
+        disclosure = _attribution_disclosure(inferred, plan.get("review_metadata"), saved.get("publication_metadata"))
+        saved["attribution_inferred"] = disclosure
         pointers = {role: {"path": p, "sha256": _file_sha(root / p)} for role, p in roles.items()}
         if public:
             for pointer in pointers.values():
@@ -1173,7 +1299,7 @@ def publish_result(actor, job_id, *, visibility="private", confirm_publish=False
         repository = actor.username + "/qfs-evidence-" + plan["workflow_id"] + "-" + visibility
         if "README.md" not in files:
             card = root / "README.md"
-            card.write_bytes(_publication_card(proof, metadata, visibility))
+            card.write_bytes(_publication_card(proof, metadata, visibility, inferred=disclosure))
             files["README.md"] = card
         revision = _upload_tree(actor, repository, files, private=not public,
                                 state=attempt.setdefault("evidence", {}), persist=persist)
@@ -1187,7 +1313,7 @@ def publish_result(actor, job_id, *, visibility="private", confirm_publish=False
             publication = review.attest_publication(actor, publication)
             saved["publications"][visibility] = publication
             persist()
-        return publication
+        return {**publication, "attribution_inferred": disclosure}
 
 
 def _check_saved_publication(actor, publication, proof, *, public):
@@ -1292,7 +1418,7 @@ def _validate_review_metadata(value, *, complete=False):
     return missing
 
 
-def _publication_card(proof, metadata, visibility):
+def _publication_card(proof, metadata, visibility, *, inferred=None):
     plan = proof["plan"]
     text = "# QFS workflow evidence\n\n"
     text += "Recovered and receipt-checked **%s** workflow. Provider verification and registry acceptance are not independent model reproduction.\n\n" % plan["mode"]
@@ -1313,6 +1439,9 @@ def _publication_card(proof, metadata, visibility):
         text += "\n[Standalone candidate capture](https://huggingface.co/datasets/%s/tree/%s).\n" % (metadata["capture_repository"], metadata["capture_revision"])
     text += "\nPublication visibility: **%s**. Captured bytes and their original scientific receipts are unchanged by this explanatory card.\n\n" % visibility
     text += "## Publication attribution\n\n```json\n" + json.dumps(metadata, indent=2, ensure_ascii=False).replace("`", "\\u0060") + "\n```\n"
+    if inferred:
+        text += "\nAttribution disclosure: %s %s matched by this Explorer from registry content identity rather than asserted by the original author. Each value carries its matching basis in the workflow ledger.\n" % (
+            ", ".join(sorted(inferred)), "was" if len(inferred) == 1 else "were")
     return text.encode("utf-8")
 
 
@@ -1328,11 +1457,14 @@ def update_publication_metadata(actor, job_id, metadata, *, confirm_metadata=Fal
             raise JobsError("This attribution editor is for native roots, not post-hoc changes to candidate measurement scope.")
         repo, head, ledger = _ledger(actor)
         saved = ledger["runs"][proof["plan"]["workflow_id"]]
-        resolved = _root_metadata(proof)
+        resolved, inferred = _root_metadata(proof)
+        explicit = {**(saved.get("publication_metadata") or {}), **metadata}
         resolved.update(saved.get("publication_metadata") or {})
         resolved.update(metadata)
+        disclosure = _attribution_disclosure(inferred, explicit)
         missing = _validate_review_metadata(resolved)
         saved["publication_metadata"] = resolved
+        saved["attribution_inferred"] = disclosure
         head = _save_ledger(actor, repo, head, ledger)
         for visibility, publication in (saved.get("publications") or {}).items():
             _check_saved_publication(actor, publication, proof, public=visibility == "public")
@@ -1340,7 +1472,7 @@ def update_publication_metadata(actor, job_id, metadata, *, confirm_metadata=Fal
             if not any(r["path"] == "README.md" for r in proof["result"]["files"]):
                 commit = actor.client().create_commit(
                     publication["repository"], repo_type="dataset", parent_commit=publication["revision"],
-                    operations=[CommitOperationAdd(path_in_repo="README.md", path_or_fileobj=_publication_card(proof, publication["metadata"], visibility))],
+                    operations=[CommitOperationAdd(path_in_repo="README.md", path_or_fileobj=_publication_card(proof, publication["metadata"], visibility, inferred=saved.get("attribution_inferred") or {}))],
                     commit_message="Complete original publication attribution; captured evidence unchanged")
                 publication["revision"] = commit.oid
             publication.pop("attestation", None)
@@ -1352,6 +1484,7 @@ def update_publication_metadata(actor, job_id, metadata, *, confirm_metadata=Fal
                 comment="Publication attribution/card was explicitly updated by its author. Captured evidence is unchanged; request fresh review of the updated immutable publication.")
             head = _save_ledger(actor, repo, head, ledger)
         return {"job_id": job_id, "metadata": resolved, "missing_for_review": missing,
+                "attribution_inferred": disclosure,
                 "publications": saved.get("publications", {}), "model_rerun": False}
 
 

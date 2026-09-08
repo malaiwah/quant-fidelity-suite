@@ -128,6 +128,11 @@ def plan_modules(config_dict, tensor_metadata):
         return None
     if method == "compressed-tensors" and quant.get("format") != "pack-quantized":
         raise _fail(f"unsupported compressed-tensors format {quant.get('format')}")
+    if method == "compressed-tensors" and (quant.get("transform_config") or quant.get("sparsity_config")):
+        # This reader decodes codes/zero-points/scales only; an online transform
+        # or sparsity mask would be silently dropped (microscale_surface refuses
+        # the same declarations).
+        raise _fail("transforms/sparsity must not be silently dropped")
     if method in {"gptq", "awq"}:
         if quant.get("bits") != 4:
             raise _fail(f"{method} supports only 4 bits")
@@ -257,6 +262,19 @@ def _unpack_last(value, count, *, bits=4, awq=False):
     return unpacked.flatten(-2)[..., :count]
 
 
+def _refuse_nonfinite(output, key, dtype):
+    """A finite FP32 scale times a nonzero code can overflow the capture dtype
+    (3e38 * 7 overflows FP32, 1e4 * 15 overflows FP16), so the post-cast
+    result is refused, never clamped into plausibility -- microscale_surface
+    checks the same around its single cast."""
+    import torch
+    if not torch.isfinite(output).all():
+        raise _fail(f"{key}: decoded weight is not finite in {dtype} -- the stored "
+                    "scale/code range overflows the capture dtype; recapture with a "
+                    "wider dtype (e.g. float32) instead of clamping")
+    return output
+
+
 def decode_module(payload, spec, *, dtype, device):
     """Decode actual storage in FP32, then cast exactly once to requested dtype.
 
@@ -292,7 +310,7 @@ def decode_module(payload, spec, *, dtype, device):
             end = min(weight_rows.shape[0], start + 256)
             decoded = dequant_affine(weight_rows[start:end], scale_rows[start:end], bias_rows[start:end], bits=spec["bits"], group_size=gs)
             output_rows[start:end] = decoded.to(dtype=dtype)
-        return output
+        return _refuse_nonfinite(output, spec["components"]["weight"], dtype)
     if fmt.startswith(("gptq-", "awq-")):
         awq = fmt.startswith("awq-")
         zeros = ((_unpack_last(data["zeros"], n, awq=awq) + spec["zero_offset"]) & 15).float()
@@ -310,7 +328,7 @@ def decode_module(payload, spec, *, dtype, device):
             idx = g_idx[start:end].long() if g_idx is not None else torch.arange(start, end, device=device) // gs
             decoded = (codes.float() - zeros.index_select(0, idx)) * scale.index_select(0, idx)
             output[..., start:end] = decoded.T.to(dtype=dtype)
-        return output
+        return _refuse_nonfinite(output, spec["components"]["weight"], dtype)
     if fmt not in {"ct-pack-quantized-int4", "ct-pack-quantized-int8"}:
         raise _fail(f"unsupported decode format {fmt}")
     if data["weight_shape"].tolist() != shape:
@@ -338,4 +356,4 @@ def decode_module(payload, spec, *, dtype, device):
         s = scale if spec["strategy"] == "tensor" else scale[..., group:group + 1]
         z = 0 if zeros is None else zeros if spec["strategy"] == "tensor" else zeros[..., group:group + 1]
         output[..., start:end] = ((codes.float() - z) * s).to(dtype=dtype)
-    return output
+    return _refuse_nonfinite(output, spec["components"]["weight"], dtype)

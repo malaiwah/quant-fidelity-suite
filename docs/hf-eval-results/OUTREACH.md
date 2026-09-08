@@ -100,6 +100,12 @@ token IDs and the reference identity; model repos would carry scores in
 > Repo: https://github.com/malaiwah/quant-fidelity-suite (MIT)
 > Registry: https://huggingface.co/datasets/malaiwah/quant-fidelity-registry
 > Method: https://github.com/malaiwah/quant-fidelity-suite/blob/main/WHAT-WE-MEASURE.md
+>
+> [Written 2026-09-06; dated, not edited in place.] The "does not run in HF
+> Jobs" half of the sentence above described the suite when this message was
+> drafted. Since 2026-09-07 the QFS Explorer runs caller-funded
+> capture/measurement HF Jobs (README.md "HF Jobs"); the inspect-ai
+> incompatibility is the half that still stands.
 
 ---
 

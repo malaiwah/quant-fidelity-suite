@@ -85,8 +85,23 @@ def _publication(value):
     _require(len({f["path"] for f in files.values()}) == len(files), "Evidence roles must use distinct files.")
     return value
 
-def _public(api, repository, revision):
-    info = api.repo_info(repository, repo_type="dataset", revision=revision)
+def _anonymous():
+    """token=False: no Authorization header, no ambient env/cache credential.
+    Required-public evidence and the registry are read anonymously ONLY -- the
+    anonymous read is the proof the bytes are public; a 401/403 is itself the
+    disclosure that they are not, so it is a refusal, never an escalation."""
+    from huggingface_hub import HfApi
+    return HfApi(endpoint="https://huggingface.co", token=False)
+
+
+def _public(repository, revision):
+    try:
+        info = _anonymous().repo_info(repository, repo_type="dataset", revision=revision)
+    except Exception as exc:
+        status = getattr(getattr(exc, "response", None), "status_code", None)
+        if status in (401, 403):
+            _require(False, "Evidence and registry must be ungated public datasets; %s refused an anonymous read, so it is not public. Publish with explicit consent first." % repository)
+        raise
     _require(info.private is False and not getattr(info, "gated", False), "Evidence and registry must be ungated public datasets; publish with explicit consent first.")
     _require(info.sha == revision, "The requested immutable public commit did not resolve exactly.")
 
@@ -152,16 +167,19 @@ def attest_publication(actor, publication):
 
 def _evidence(api, publication, directory, *, require_public=True):
     repo, revision = publication["repository"], publication["revision"]
+    # Required-public evidence is fetched anonymously only; the caller's api is
+    # used solely for the caller's own private publication re-checks.
+    reader = api if not require_public else _anonymous()
     if require_public:
-        _public(api, repo, revision)
+        _public(repo, revision)
     files = publication["files"]
-    infos = {f.path: f for f in api.get_paths_info(repo, [f["path"] for f in files.values()], repo_type="dataset", revision=revision)}
+    infos = {f.path: f for f in reader.get_paths_info(repo, [f["path"] for f in files.values()], repo_type="dataset", revision=revision)}
     raw = {}
     for name, f in files.items():
         info = infos.get(f["path"])
         limit = MAX_FILE if require_public else 16 * 1024 * 1024
         _require(info is not None and isinstance(getattr(info, "size", None), int) and info.size <= limit, "Evidence missing or exceeds the bounded JSON review limit: " + f["path"])
-        b = _download(api, repo, revision, f["path"], info.size, directory)
+        b = _download(reader, repo, revision, f["path"], info.size, directory)
         _require(_sha(b) == f["sha256"], "Published evidence hash mismatch: " + name)
         _parse(b.decode("utf-8")) if require_public else json.loads(b)
         raw[name] = b
@@ -171,11 +189,11 @@ def _evidence(api, publication, directory, *, require_public=True):
         _require(isinstance(root_repo, str) and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9][A-Za-z0-9_.-]*", root_repo)
                  and isinstance(root_revision, str) and re.fullmatch(r"[0-9a-f]{40}", root_revision),
                  "Root metadata must pin the canonical public capture repository and immutable revision.")
-        _public(api, root_repo, root_revision)
-        descriptor = api.get_paths_info(root_repo, ["fidelity-dataset.json"], repo_type="dataset", revision=root_revision)
+        _public(root_repo, root_revision)
+        descriptor = reader.get_paths_info(root_repo, ["fidelity-dataset.json"], repo_type="dataset", revision=root_revision)
         _require(len(descriptor) == 1 and getattr(descriptor[0], "size", MAX_FILE + 1) <= MAX_FILE,
                  "Canonical public root descriptor is missing or exceeds the review limit.")
-        canonical_raw = _download(api, root_repo, root_revision, "fidelity-dataset.json", descriptor[0].size, directory)
+        canonical_raw = _download(reader, root_repo, root_revision, "fidelity-dataset.json", descriptor[0].size, directory)
         _require(canonical_raw == raw["dataset"], "Evidence bundle descriptor differs from the actual immutable public root descriptor.")
     return raw
 
@@ -225,8 +243,8 @@ def request_review(actor, publication, *, confirm_public):
     envelope = {"schema": SCHEMA, "requested_by": actor.username, "publication": pub}
     body = _PREFIX + _canonical(envelope).decode() + _SUFFIX
     _require(len(body.encode()) <= 65536, "The public request envelope exceeds 64 KiB.")
-    head = api.repo_info(REGISTRY_REPOSITORY, repo_type="dataset").sha
-    _public(api, REGISTRY_REPOSITORY, head)
+    head = _anonymous().repo_info(REGISTRY_REPOSITORY, repo_type="dataset").sha
+    _public(REGISTRY_REPOSITORY, head)
     unsigned = {k: v for k, v in pub.items() if k != "attestation"}
     incoming_verified = _attestation_verified(pub, actor.username)
     superseded = []
@@ -256,17 +274,19 @@ def _expire():
             del _TICKETS[key]
 
 
-def _snapshot(api, head, destination, directory):
+def _snapshot(head, destination, directory):
+    """The public registry snapshot is read anonymously: tokenless bytes are the proof."""
+    reader = _anonymous()
     count = total = 0
     original = {}
-    for f in api.list_repo_tree(REGISTRY_REPOSITORY, repo_type="dataset", revision=head, recursive=True):
+    for f in reader.list_repo_tree(REGISTRY_REPOSITORY, repo_type="dataset", revision=head, recursive=True):
         if not hasattr(f, "size"):
             continue
         path = _path(f.path)
         count += 1
         total += f.size
         _require(count <= MAX_FILES and total <= MAX_SNAPSHOT, "Registry snapshot exceeds review limits; use maintainer offline intake.")
-        raw = _download(api, REGISTRY_REPOSITORY, head, path, f.size, directory)
+        raw = _download(reader, REGISTRY_REPOSITORY, head, path, f.size, directory)
         target = destination / path
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(raw)
@@ -281,11 +301,11 @@ def inspect_request(actor, discussion_id):
     directory = Path(tempfile.mkdtemp(prefix="qfs-review-"))
     keep = False
     try:
-        head = api.repo_info(REGISTRY_REPOSITORY, repo_type="dataset").sha
-        _public(api, REGISTRY_REPOSITORY, head)
+        head = _anonymous().repo_info(REGISTRY_REPOSITORY, repo_type="dataset").sha
+        _public(REGISTRY_REPOSITORY, head)
         stage = directory / "registry"
         stage.mkdir()
-        original = _snapshot(api, head, stage, directory)
+        original = _snapshot(head, stage, directory)
         evidence = _evidence(api, envelope["publication"], directory)
         inputs = directory / "inputs"
         inputs.mkdir()

@@ -224,10 +224,12 @@ python3.12 -m venv .venv-explorer
 .venv-explorer/bin/python app.py
 ```
 
-Publish from a suite checkout using your local HF authentication:
+Publish from a suite checkout with an explicit owner-only credential file (never
+ambient `$HF_TOKEN` or the HF login cache):
 
 ```bash
-.venv-explorer/bin/python bin/publish_explorer.py --repo <owner>/qfs-explorer
+install -m 600 /dev/stdin ~/.config/qfs/hf-token   # paste the HF token, then Ctrl-D
+.venv-explorer/bin/python bin/publish_explorer.py --repo <owner>/qfs-explorer --token-file ~/.config/qfs/hf-token
 ```
 
 Add `--private` when creating a private deployment. The publisher creates only

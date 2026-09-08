@@ -396,8 +396,34 @@ def _apply_variants(root, collections, S, roots):
         require(comparison["reference"]["weights"]["checkpoint_identity_sha256"]
                 == parent_docs["dataset"]["weights"]["checkpoint_identity_sha256"],
                 "variant was not compared against this native source")
-        require(all(g.get("passed") is True and not g.get("overridden_by")
-                    for g in comparison["gates"].values()), "variant comparison overrides a gate")
+        # The declared publication pin must reconcile with the weights the receipts
+        # actually captured, the way native-root admission compares the captured
+        # weights repository/revision to the manifest. A variant capture stages its
+        # weights locally (runtime.weights.repository is a staging path, not a pin),
+        # so the pin cannot be read out of the receipt; what must reconcile is the
+        # bytes the pin claims -- every declared shard IS a captured checkpoint
+        # file -- and the attribution: only the base root's publisher can publish
+        # this reconstruction of its own captured weights, so a repository under
+        # anybody else falsely attributes them.
+        captured = {f["name"]: (f["sha256"], f["size"])
+                    for f in runtime["weights"]["checkpoint_files"]}
+        require(item["weight_files"]
+                and {f["name"]: (f["sha256"], f["size"]) for f in item["weight_files"]}
+                == {name: file for name, file in captured.items()
+                    if name.endswith((".safetensors", ".gguf"))},
+                "variant %s declares weight files that do not reconcile with the "
+                "captured checkpoint; the artifact pin must serve exactly the "
+                "shards the receipts captured" % item["model_repository"])
+        require(item["model_repository"].split("/", 1)[0]
+                == parent["model_repository"].split("/", 1)[0],
+                "variant artifact repository %s is not published by the base root's "
+                "publisher %s; captured weights cannot be attributed to a repository "
+                "their own receipts never name"
+                % (item["model_repository"], parent["model_repository"].split("/", 1)[0]))
+        require(comparison["gates"]
+                and all(g.get("passed") is True and not g.get("overridden_by")
+                        for g in comparison["gates"].values()),
+                "variant comparison records no gates, or overrides/fails one")
         require(comparison["comparability"]["class"] == "advisory",
                 "reconstructed fixture must remain advisory")
         control = item["classification"] in ("exact-control", "near-control")

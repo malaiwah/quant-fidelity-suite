@@ -443,6 +443,7 @@ def workflow(plan, out, runner, outputs):
         registry_root, _ = runner.measure("prepare-registry", staged_metadata, inputs["registry"], "registry")
     mode = plan["mode"]
     datasets = {}
+    manifests = {}
     for name in ("reference", "candidate"):
         if inputs.get(name):
             path = runner.measure("prepare-" + name, dataset_view, inputs[name], name)
@@ -450,6 +451,10 @@ def workflow(plan, out, runner, outputs):
             observed = dsformat.load_manifest(str(path))
             if observed["dataset_sha256"] != inputs[name]["dataset_sha256"]:
                 raise ValueError(name + " dataset identity mismatch")
+            # The canonical view's manifest is already loaded and identity-verified
+            # here; later stages must reuse it instead of re-reading the raw Hub
+            # volume, whose files have shown truncated JSON prefixes in production.
+            manifests[name] = observed
             runner.run("verify-" + name, [*tool, "verify", path, "--verify-tensors", "--json", out / (name + ".verify.json")])
             save(out / (name + ".input.json"), inputs[name])
     if mode != "compare":
@@ -497,7 +502,7 @@ def workflow(plan, out, runner, outputs):
         if mode == "candidate":
             save(out / "scope.json", plan["scope"])
             common.extend(["--scope-file", out / "scope.json", "--codec", plan["codec"]])
-            reference_manifest = dsformat.load_manifest(inputs["reference"]["mount_path"])
+            reference_manifest = manifests["reference"]
             base_capture = {"dataset_sha256": reference_manifest["dataset_sha256"],
                             "capture_content_digest": reference_manifest["capture"]["capture_content_digest"],
                             "repository": inputs["reference"]["repository"], "revision": inputs["reference"]["revision"],
@@ -537,7 +542,7 @@ def workflow(plan, out, runner, outputs):
                     raise ValueError("incomplete registered submission provenance: " + field)
             if not HEX40.fullmatch(registered["registry_revision"]):
                 raise ValueError("registered provenance lacks immutable revision")
-            candidate_manifest = dsformat.load_manifest(str(out / "first") if mode == "candidate" else inputs["candidate"]["mount_path"])
+            candidate_manifest = dsformat.load_manifest(str(out / "first")) if mode == "candidate" else manifests["candidate"]
             artifact = registered["artifact"]
             if any(artifact.get(key) != candidate_manifest["weights"].get(key) for key in ("repository", "revision")):
                 raise ValueError("submission artifact differs from the actually measured weights")

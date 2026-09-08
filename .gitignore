@@ -25,3 +25,11 @@ reports/arch-determinism/results*/**/probe-tensors.npz
 
 # Generated deployment identity; points at a committed public worker revision.
 explorer/deployment.json
+
+# Session residue, never tree content. runtime/ is what stage_measure.sh's
+# EXIT trap writes when the script is invoked from the repo itself (its $FS
+# derives from its own location -- line 47); local/ holds the dated session
+# reports that docs cite via local:// URIs, which are session artifacts, not
+# repo content.
+runtime/
+local/

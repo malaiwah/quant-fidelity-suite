@@ -255,7 +255,14 @@ def materialize_layer(surface, layer, *, torch_dtype=None, device=None, stats=No
             x = x - 1.0
         if tuple(x.shape) != spec.shape or not bool(torch.isfinite(x).all()):
             raise ValueError(f"qwen35: invalid reconstructed {name}")
-        out[name] = x.to(dtype=torch_dtype or torch.float32).contiguous()
+        cast = x.to(dtype=torch_dtype or torch.float32)
+        # A finite fp32 decode can still overflow the requested capture dtype
+        # (1e5 does not fit fp16); the cast result is refused, never clamped.
+        if not bool(torch.isfinite(cast).all()):
+            raise ValueError(f"qwen35: {name} is not finite in {cast.dtype} after the "
+                             "capture cast -- the decoded values overflow the requested "
+                             "dtype; recapture with a wider dtype")
+        out[name] = cast.contiguous()
         if stats is not None:
             row = surface.container.tensors[spec.stored]
             stats["tensors_decoded"] = stats.get("tensors_decoded", 0) + 1
