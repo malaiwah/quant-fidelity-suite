@@ -105,6 +105,18 @@ The trained SmolLM2-135M native reference then completed the owner acceptance pa
 Its two-capture control measured zero divergence; acceptance retained warnings and
 `independently_verified=false`.
 
+The completed trained-model campaign is published as an
+[immutable report with captures, quantizer receipts, plots, paired article analysis and costs](https://huggingface.co/datasets/malaiwah/qfs-smollm2-135m-wikitext2-campaign-v1/tree/999cab83d7c41c2c3db9d6d03ecaef8eff88098e).
+RTN INT4 g64 measured 0.258016 nats; calibrated GPTQ g64 and g32 measured
+0.178289 and 0.150845 nats on the same 4,080 positions. Each two-capture control
+measured zero. All three claims were accepted in
+[this registry snapshot](https://huggingface.co/datasets/malaiwah/quant-fidelity-registry/tree/d9c5350c0161b5a974df3b05b904c0e7d1ba7b38),
+with advisory status retained: stored-weight reconstruction is not native quantized
+GEMM, and repeatability does not establish independent reproduction or remove
+unknown cross-stack bias. Nine Jobs including failed diagnostics imply $0.0115
+from recorded running time and original minute pricing, not an invoice; their
+combined reserved maximum compute estimate was $0.099.
+
 The implementation contracts are in [`explorer/auth.py`](../explorer/auth.py),
 [`explorer/job_ui.py`](../explorer/job_ui.py),
 [`explorer/jobs.py`](../explorer/jobs.py) and

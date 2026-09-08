@@ -2420,12 +2420,11 @@ def submission_to_records(sub, path, fsha, registry, strict_new=False,
         cd = art_in.get("codec") or {}
         artifact_url = art_in.get("url") or ("https://huggingface.co/" + art_in["repository"])
         precision_label = art_in.get("precision_label") or cd.get("family") or "unknown"
-        from seed_registry import derived_scope_policy
         artifact_scope = dict(art_in["scope"])
         if not any(a["treatment"] == "unknown" for a in artifact_scope["assignments"]):
             # Authoring tools also use "mixed" for native-plus-quantized tensors.
             # Registry policy describes quantized rates; assignments and digest do not change.
-            artifact_scope["policy"] = derived_scope_policy(artifact_scope["assignments"])
+            artifact_scope["policy"] = L.derived_scope_policy(artifact_scope["assignments"])
         new.append({
             "schema_version": L.SCHEMA_VERSION, "id": art_id, "model_ref": model_ref,
             "name": art_in.get("precision_label") or art_in.get("repository"),

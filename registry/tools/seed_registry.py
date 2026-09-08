@@ -195,26 +195,6 @@ def scope(policy, assignments, head_policy, kv="bf16", act=None, mtp=None):
             "kv_cache_dtype": kv, "activation_quantization": act, "mtp_included": mtp}
 
 
-def derived_scope_policy(assignments):
-    """`policy` as invariant SCOPE-003 defines it -- a pure function of the assignments.
-
-    none: nothing is quantized. uniform: every quantized class shares one
-    (format, bits_per_weight). mixed: more than one such pair.
-
-    It is DERIVED rather than trusted because the authoring tools use the word
-    differently: engines/tools/nvfp4_scope.py writes `mixed` for a
-    routed-experts-only conversion, meaning "not every tensor is quantized",
-    while SCOPE-003 reads `mixed` as "more than one quantized rate" -- and a
-    routed-experts-only NVFP4 release has exactly one (nvfp4 @ 4). The
-    assignments, which are the evidence, are copied verbatim either way, and
-    scope_digest does not include the policy, so nothing downstream of a
-    comparability key moves.
-    """
-    rates = {(a["format"], a.get("bits_per_weight"))
-             for a in assignments if a["treatment"] == "quantized"}
-    if not rates:
-        return "none"
-    return "uniform" if len(rates) == 1 else "mixed"
 
 
 def scope_from_evidence(rel_path, kv="not_applicable", mtp=None):
@@ -243,7 +223,7 @@ def scope_from_evidence(rel_path, kv="not_applicable", mtp=None):
                        a.get("bits_per_weight"), a.get("layer_range") or "all",
                        a.get("note"))
                    for a in doc["assignments"]]
-    return scope(derived_scope_policy(assignments),
+    return scope(L.derived_scope_policy(assignments),
                  assignments,
                  doc["head_policy"],
                  kv=doc.get("kv_cache_dtype", kv),

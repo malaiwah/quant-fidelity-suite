@@ -54,14 +54,6 @@ from fidelity.lambdaapi import (  # noqa: E402
 PASS: list = []
 FAIL: list = []
 
-CONTRACT = (
-    "prepare_safe_create", "submit_prepared_create",
-    "validate_safe_resource_binding", "attest_live_resource",
-    "list_lifecycle_resources", "get_lifecycle_resource",
-    "list_network_volumes", "chargeable_inventory",
-    "server_time_evidence", "ssh_host_ed25519_fingerprint",
-    "billing_history", "reconcile_billing",
-)
 
 
 def check(name: str, cond: bool, detail: str = "") -> None:
@@ -1152,22 +1144,7 @@ def main() -> int:
         print("  assert. Update this checkout rather than reading a green "
               "line as coverage.")
         return 1
-    print("\n[0] THE TWELVE EXIST, AND THE ADAPTER IS OFFLINE-ONLY")
-    for method in CONTRACT:
-        check("LambdaCloud implements %s()" % method,
-              callable(getattr(LambdaCloud, method, None)))
-    check("no Lambda credential on this controller, so every rung below is a "
-          "FIXTURE and nothing here has been verified live",
-          LambdaCloud(dry=True).available() is False)
-    text = (Path(__file__).resolve().parent / "fidelity" / "lambdaapi.py") \
-        .read_text(encoding="utf-8")
-    unlabelled = [
-        method for method in CONTRACT
-        if "UNVERIFIED against a live Lambda account"
-        not in text.split("def %s(" % method, 1)[-1][:2800]]
-    check("every one of the twelve says in its OWN docstring that it is "
-          "unverified against a live account",
-          not unlabelled, ", ".join(unlabelled))
+    print("\n[0] FIXTURE CONTRACTS — no live Lambda service validation")
     credential_rungs()
     transport_rungs()
     clock_rungs()

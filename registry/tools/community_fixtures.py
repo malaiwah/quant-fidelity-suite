@@ -431,7 +431,7 @@ def _apply_variants(root, collections, S, roots):
             if original_format in numeric_formats:
                 assignment["format"] = numeric_formats[original_format]
                 assignment["note"] = (assignment.get("note") or "") + " Stored reader dialect: " + original_format + "."
-        projected_scope["policy"] = S.derived_scope_policy(projected_scope["assignments"])
+        projected_scope["policy"] = L.derived_scope_policy(projected_scope["assignments"])
         record = S.artifact(
             aid, model_id, item["name"], "base" if control else "quant",
             S.hf(item["model_repository"], item["model_revision"], "reported_by_author"),

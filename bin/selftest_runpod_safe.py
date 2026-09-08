@@ -216,8 +216,10 @@ def _rungs(key_file):
         # A session opened before the pod printed its fingerprint delivers
         # only heartbeats afterwards; the reader must re-request rather than
         # follow that one stream for the whole wait.
+        heartbeat_clock = [0.0]
         class HeartbeatOnly(LogResponse):
             def readline(self, size=-1):
+                heartbeat_clock[0] += 0.02
                 return b": heartbeat\n"
 
         heartbeat_requests = []
@@ -231,6 +233,8 @@ def _rungs(key_file):
         original_session = getattr(
             runpodapi_module, "RUNPOD_HOST_KEY_LOG_SESSION_SECONDS", None)
         original_retry = runpodapi_module.RUNPOD_HOST_KEY_LOG_RETRY_SECONDS
+        original_heartbeat_monotonic = runpodapi_module.time.monotonic
+        runpodapi_module.time.monotonic = lambda: heartbeat_clock[0]
         runpodapi_module.RUNPOD_HOST_KEY_LOG_SESSION_SECONDS = 0.05
         runpodapi_module.RUNPOD_HOST_KEY_LOG_RETRY_SECONDS = 0.01
         runpodapi_module.safe_urlopen = heartbeat_then_line
@@ -241,6 +245,7 @@ def _rungs(key_file):
         except runpodapi_module.RunPodError:
             pass
         finally:
+            runpodapi_module.time.monotonic = original_heartbeat_monotonic
             runpodapi_module.RUNPOD_HOST_KEY_LOG_SESSION_SECONDS = original_session
             runpodapi_module.RUNPOD_HOST_KEY_LOG_RETRY_SECONDS = original_retry
             runpodapi_module.safe_urlopen = log_urlopen
