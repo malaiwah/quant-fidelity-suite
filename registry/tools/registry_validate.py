@@ -1493,14 +1493,16 @@ def check_submission(root, path):
         if exc.remedy:
             print("  -> %s" % exc.remedy, file=sys.stderr)
         return 1
+    for rec in new + [row]:
+        schema_name = rec["id"].split("--", 1)[0] + ".schema.json"
+        row_errs = reg.validate(rec, schema_name)
+        if row_errs:
+            print("REJECTED: generated record %s is not schema-valid:" % rec["id"], file=sys.stderr)
+            for e in row_errs[:20]:
+                print("  %s" % e, file=sys.stderr)
+            return 1
     for rec in new:
         registry[L.collection_of_id(rec["id"])][rec["id"]] = rec
-    row_errs = reg.validate(row, "measurement.schema.json")
-    if row_errs:
-        print("REJECTED: the row this receipt generates is not schema-valid:", file=sys.stderr)
-        for e in row_errs[:20]:
-            print("  %s" % e, file=sys.stderr)
-        return 1
     print("ACCEPTED  %s" % os.path.basename(path))
     print("  seal verified            %s" % sub["receipt_sha256"])
     print("  scope_digest recomputed  %s" % row["scope_digest"])

@@ -23,9 +23,10 @@ Proves, on this machine, in seconds:
   4. REAL-METADATA CENSUS - the REAL 1,412-tensor table closes (1,259 direct +
      129 fused expert + 24 MLA halves) and its 1,271 official names EXACTLY
      biject the real official BF16 index (38,770 tensors, a6c167b6) minus the
-     37,152 routed and the 347 vision tensors.  The REAL ddh0 table refuses by
-     type (IQ3_S/IQ4_XS) while every one of its names still maps - proving the
-     second convert vintage's alias spellings are covered, not silently dropped.
+     37,152 routed and the 347 vision tensors. The REAL ddh0 table now loads
+     with the IQ3_S/IQ4_XS kernels, and every name maps through the second
+     convert vintage's aliases. Frozen build-support labels are checked
+     against their recorded type set, separately from current decoder support.
   5. MLA RECONSTRUCTION - ``audit_mla_placement`` re-runs on REAL committed
      bytes (a leading head window of blk.3.attn_k_b/attn_v_b) against the REAL
      official BF16 kv_b_proj rows, and the shipped arrangement must win by the
@@ -412,27 +413,49 @@ def main() -> int:
     assert scope["vision_in_artifact"] is False
     assert sorted(scope["routed_expert_types"]) == ["Q4_K", "Q5_K", "Q6_K"]
 
-    # which of the repo's twelve builds v1 can actually score, from each
-    # build's OWN type census (not from its directory name -- unsloth's
-    # "Dynamic" recipe mixes IQ types into UD-Q2_K_XL and UD-Q3_K_XL, so a
-    # name-based answer would be wrong in both directions)
+    # The measured tensor tables and their support labels are frozen evidence,
+    # not the current decoder registry. Q4_0 landed after this census and occurs
+    # in none of these builds. Validate the historical labels against their OWN
+    # recorded support set, then classify the tables against today's kernels.
+    # Directory names alone cannot decide support: unsloth's Dynamic recipes
+    # mix IQ types into UD-Q2_K_XL and UD-Q3_K_XL.
     build_census = json.loads(
         (EVIDENCE / "unsloth-build-census.json").read_text(encoding="utf-8"))
-    assert sorted(build_census["v1_supported_types"]) == sorted(gs.SUPPORTED_TYPES), (
-        "the committed build census was taken against a different supported-type set")
+    historical_types = set(build_census["v1_supported_types"])
+    current_types = set(gs.SUPPORTED_TYPES)
     supported_builds, refused_builds = [], []
     for name, row in sorted(build_census["builds"].items()):
         assert row["census_complete"], "%s census did not close at 1412 tensors" % name
-        recomputed = not [t for t in row["types"] if t not in gs.SUPPORTED_TYPES]
-        assert recomputed == row["v1_supported"], (
-            "%s: the census says v1_supported=%r but recomputing from its own type list "
-            "gives %r" % (name, row["v1_supported"], recomputed))
+        assert sum(row["types"].values()) == row["tensors_seen"] == 1412, name
+        historical_unsupported = sorted(set(row["types"]) - historical_types)
+        assert historical_unsupported == sorted(row["unsupported_types"]), name
+        assert row["v1_supported"] == (not historical_unsupported), (
+            "%s: frozen support label disagrees with its recorded type set" % name)
+        recomputed = set(row["types"]) <= current_types
         (supported_builds if recomputed else refused_builds).append(name)
     assert supported_builds == ["BF16", "Q8_0", "UD-IQ4_XS", "UD-Q3_K_XL", "UD-Q4_K_XL",
                                 "UD-Q5_K_XL", "UD-Q6_K_XL"], supported_builds
     assert "UD-Q2_K_XL" in refused_builds and "UD-IQ3_XXS" in refused_builds, (
         "UD-Q2_K_XL (IQ2_XS/Q2_K) and UD-IQ3_XXS (IQ2_S/Q2_K) carry types without a kernel "
         "and must refuse; UD-Q3_K_XL is admitted only because IQ3_XXS/IQ4_XS/Q3_K landed")
+
+    # A header-only census must reject every currently undecodable type found
+    # in these measured builds, and the decoder must reject valid-sized blocks
+    # too. This checks real refusal behavior, not just membership arithmetic.
+    unsupported_types = sorted({
+        qtype for row in build_census["builds"].values() for qtype in row["types"]
+    } - current_types)
+    for qtype in unsupported_types:
+        def _unsupported_rows(local_rows):
+            for row in local_rows:
+                if row["name"] == "blk.7.ffn_gate_exps.weight":
+                    row["type"] = qtype
+
+        bad = _one("unsupported-%s.gguf" % qtype, mutate_rows=_unsupported_rows)
+        _refuses(lambda: gs.load_gguf_surface([str(bad)], require_file_hashes=False),
+                 qtype, "blk.7.ffn_gate_exps.weight")
+        elements, block_bytes = gs.BLOCK_TRAITS[qtype]
+        _refuses(lambda: gs.dequant_bytes(qtype, bytes(block_bytes), elements), qtype)
 
     ddh0_rows = _real_rows("ddh0-tensors.json")
     ddh0_names = {name: gs.classify_tensor(name)[0] for name in ddh0_rows}
@@ -463,8 +486,10 @@ def main() -> int:
         "4 real-metadata census: 1,412 GGUF tensors close (1,259 direct + 129 fused + 24 MLA) "
         "and their 1,271 official names biject the real BF16 index (38,770 - 37,152 routed - "
         "347 vision); ddh0's second convert vintage maps 1,412/1,412 names (arch spelled "
-        "glm5-next) and now loads on the IQ3_S/IQ4_XS kernels; of unsloth's 12 builds the "
-        "adapter scores %s and refuses %s (types without a kernel)"
+        "glm5-next) and now loads on the IQ3_S/IQ4_XS kernels; frozen support labels "
+        "agree with their recorded type set; current type coverage of unsloth's 12 "
+        "measured build tables admits %s and refuses %s, with every unsupported type "
+        "rejected by both the census and decoder (no new weight measurement)"
         % (", ".join(supported_builds), ", ".join(refused_builds)))
 
     # ---- 5. MLA placement audit on real bytes -------------------------------
@@ -940,7 +965,7 @@ def _glmdsa_rungs(scratch: Path, torch) -> "list":
                                    revision="346b3591c7f28d1a23716f97a065ecf12ec14771",
                                    require_file_hashes=False, indexer_full_layers=full)
     census = surface.census
-    assert surface.arch is arch and surface.container.architecture == "glm-dsa"
+    assert surface.container.architecture == "glm-dsa"
     assert len(surface.container.tensors) == 1809
     assert len(census.routed) == 76 * 3 and len(census.mla) == 79 * 2, (len(census.routed), len(census.mla))
     assert len(census.shared_indexer_copies) == (79 - 22) * 5 - 0, len(census.shared_indexer_copies)
@@ -972,11 +997,14 @@ def _glmdsa_rungs(scratch: Path, torch) -> "list":
     _refuses(lambda: gs.indexer_full_layers_from_config(dict(config, indexer_types=bad_types[:-1]), arch),
              "77 entries", "78 decoder layers")
     bad_kv = dict(kv)
+    # GLM-DSA geometry is header-derived, not fixed to the flagship template.
+    # A different positive MLA width is valid metadata, but must refuse when
+    # the stored k_b tensors still carry the original width.
     bad_kv["glm-dsa.attention.key_length_mla"] = 192
     bad = write_gguf(flag_dir / "geom.gguf", bad_kv, _rows_for_writer(rows))
     _refuses(lambda: gs.load_gguf_surface([str(bad)], require_file_hashes=False,
                                           indexer_full_layers=full),
-             "geometry gate", "attention.key_length_mla")
+             ".attn_k_b.weight")
     passed.append(
         "8 glm-dsa census: the real 1,809-tensor UD-Q4_K_XL table closes (1,138 direct + 228 "
         "fused + 158 MLA halves + 285 shared-indexer copies never loaded) and bijects the real "
