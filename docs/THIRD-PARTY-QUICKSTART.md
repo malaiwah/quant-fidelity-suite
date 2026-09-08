@@ -35,6 +35,9 @@ credentials and an expired local authority object are not substitutes for revoca
    existing sealed fidelity datasets at immutable revisions. Use an admitted
    preset or supported native/reviewed runtime; a format name alone is not
    admission, and a capture's internal panel view is not the raw input panel.
+   The raw panel identifier must start with `panel--`. Candidate scope is checked
+   against the registry artifact schema before spending: use a numeric format
+   such as `int4`, not the `gptq_v2` storage tag; describe the optimizer separately.
 3. **Keep calibration separate from evaluation.** These workflows measure
    already-produced weights; they do not train or calibrate a quantizer.
    Calibration examples fit the quantizer, while a held-out evaluation panel
@@ -89,6 +92,18 @@ credentials and an expired local authority object are not substitutes for revoca
    commit and its acceptance-receipt URL. Cite `/resolve/<commit>/<path>` or
    `/blob/<commit>/<path>`, not mutable `main`. A later card correction is a new
    citation, not permission to rewrite the earlier scientific receipt.
+
+The exercised private-copy publication requested review in
+[discussion #8](https://huggingface.co/datasets/malaiwah/quant-fidelity-registry/discussions/8)
+without inheriting the canonical Space's signing secret. Canonical provider/evidence
+revalidation superseded it with
+[discussion #9](https://huggingface.co/datasets/malaiwah/quant-fidelity-registry/discussions/9).
+That demonstrates the recovery/revalidation path, not a second-account trial.
+The trained SmolLM2-135M native reference then completed the owner acceptance path:
+[request #10](https://huggingface.co/datasets/malaiwah/quant-fidelity-registry/discussions/10),
+[immutable registry acceptance](https://huggingface.co/datasets/malaiwah/quant-fidelity-registry/commit/06b256b47ea166faf9d3c0a5fa7499bbe4c0fde9).
+Its two-capture control measured zero divergence; acceptance retained warnings and
+`independently_verified=false`.
 
 The implementation contracts are in [`explorer/auth.py`](../explorer/auth.py),
 [`explorer/job_ui.py`](../explorer/job_ui.py),

@@ -155,10 +155,17 @@ def validate_plan(plan, out):
         raise ValueError("only the declared BF16 layer-outer runtime is admitted")
     mode = plan.get("mode")
     required = {"root": {"model", "panel"}, "candidate": {"model", "panel", "reference"}, "compare": {"reference", "candidate"}}.get(mode)
-    if required is None or set(plan["inputs"]) != {"model", "panel", "reference", "candidate", "tokenizer"}:
+    if required is None or set(plan["inputs"]) != {"model", "panel", "reference", "candidate", "tokenizer", "registry"}:
         raise ValueError("invalid action/input contract")
     if mode == "candidate":
         required = required | {"tokenizer"}
+    registered = plan.get("registered")
+    if registered:
+        expected_registry = {"repository": registered.get("registry_repository"),
+                             "revision": registered.get("registry_revision"), "mount_path": "/inputs/registry"}
+        if mode == "root" or plan["inputs"]["registry"] != expected_registry:
+            raise ValueError("registry input differs from the exact registered provenance")
+        required = required | {"registry"}
     for name, value in plan["inputs"].items():
         if name not in required:
             if value is not None:
@@ -535,7 +542,8 @@ def workflow(plan, out, runner, outputs):
             submission_path = out / "receipts" / plan["owner"] / "submission-receipt.json"
             submission_path.parent.mkdir(parents=True, exist_ok=True)
             dscompare.emit_submission(comparison, str(submission_path), measurer=measurer, artifact=registered["artifact"], panel=registered["panel"], reference=registered["reference"])
-            runner.run("submission-validation", [sys.executable, ROOT / "registry/tools/registry_validate.py", "--submission", submission_path])
+            runner.run("submission-validation", [sys.executable, ROOT / "registry/tools/registry_validate.py",
+                       "--root", inputs["registry"]["mount_path"], "--submission", submission_path])
             outputs["submission"] = submission_path.relative_to(out).as_posix()
     runner.bound()
 

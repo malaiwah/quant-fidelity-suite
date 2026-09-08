@@ -498,9 +498,15 @@ def _prepare(actor, spec, registry=None):
         weights = d["weights"]
         observed = _model_metadata(actor, weights["repository"], weights["revision"], mode="candidate")
         registered = _registered(registry, reference, observed, d["scope"], weights["codec"], weights["declared_bits"], actor)
+    registry_input = None
+    if registered:
+        _identity(registered["registry_repository"], registered["registry_revision"])
+        registry_input = {"repository": registered["registry_repository"], "revision": registered["registry_revision"],
+                          "mount_path": "/inputs/registry"}
     plan = {"schema": "qfs.hf-workflow-plan.v1", "workflow_id": workflow_id, "owner": actor.username, "mode": mode,
             "created_at": datetime.now(timezone.utc).isoformat(), "source": source, "image": image,
-            "inputs": {"model": model, "panel": panel, "reference": reference, "candidate": candidate, "tokenizer": tokenizer},
+            "inputs": {"model": model, "panel": panel, "reference": reference, "candidate": candidate,
+                       "tokenizer": tokenizer, "registry": registry_input},
             "output": {"dataset_repository": output_repo, "bucket": actor.username + "/qfs-explorer-results",
                        "prefix": "runs/" + workflow_id, "mount_path": "/outputs"},
             "hardware": {"flavor": flavor, "device": hw["device"], "hourly_usd": hw["hourly_usd"],
@@ -647,7 +653,7 @@ def launch(actor, prepared, *, confirm_compute=False):
                        Volume(type="bucket", source=bucket, path=prefix + "/outputs", mount_path="/outputs", read_only=False)]
             if panel and panel.get("kind") == "bundled":
                 volumes.append(Volume(type="bucket", source=bucket, path=prefix + "/inputs", mount_path="/inputs/panel", read_only=True))
-            for key in ("model", "panel", "reference", "candidate", "tokenizer"):
+            for key in ("model", "panel", "reference", "candidate", "tokenizer", "registry"):
                 value = plan["inputs"].get(key)
                 if not value or value.get("kind") == "bundled":continue
                 volumes.append(Volume(type="model" if key in ("model", "tokenizer") else "dataset", source=value["repository"],
@@ -873,7 +879,7 @@ def _verify_provider(actor, job, plan):
     panel = plan["inputs"].get("panel")
     if panel and panel.get("kind") == "bundled":
         expected.append(dict(expected[0], mount_path="/inputs/panel"))
-    for key in ("model", "panel", "reference", "candidate", "tokenizer"):
+    for key in ("model", "panel", "reference", "candidate", "tokenizer", "registry"):
         value = plan["inputs"].get(key)
         if value and value.get("kind") != "bundled":
             _identity(value["repository"], value["revision"])
