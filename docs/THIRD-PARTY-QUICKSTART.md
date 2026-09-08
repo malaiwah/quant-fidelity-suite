@@ -11,13 +11,14 @@ ground truth for every flag.
 
 ## Contributor walkthrough — HF Jobs to an immutable registry citation
 
-This describes the implemented contributor/owner workflow, not a completed
-independent-user usability trial. **A genuine two-account browser trial has not
-been performed:** the available credential inventory contained only the stored
-`oauth-malaiwah` token, and the browser relay was unavailable. Single-account
-execution/publication evidence is not proof of a second contributor's OAuth
-journey, account isolation, authentication failure or revocation scenarios.
-Those authentication/revocation scenarios were **not exercised** in that trial.
+The single-account API trial exercised a real private duplicate: caller-funded
+launch, recovery after a git-triggered rebuild, measured phase timing retrieval,
+publication without canonical signing secrets, explicit cancellation, invalid-token
+refusal, and inventory-bound staging deletion. The working account was `malaiwah`.
+**A genuine two-account browser trial has not been performed:** only its stored
+OAuth token was available and the user-browser relay did not connect. Browser OAuth,
+independent-account isolation and live grant revocation remain unverified; invalid
+credentials and an expired local authority object are not substitutes for revocation.
 
 1. **Use your actual account.** Open **HF Jobs**, sign in through Hugging Face,
    and choose **Check my account & hardware**. Confirm the displayed personal

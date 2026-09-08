@@ -420,6 +420,8 @@ def _prepare(actor, spec, registry=None):
             doc, _, _ = _json_download(actor, panel["repository"], panel["revision"], panel["path"] + "/panel.json", repo_type="dataset")
             if doc.get("schema") != "quant-pipeline.glm53-token-panel.v1":
                 raise JobsError("Select the original token-panel tree, not a sealed capture's internal panel directory.")
+            if not re.fullmatch(r"panel--[A-Za-z0-9_.-]+", str(doc.get("panel_id", ""))):
+                raise JobsError("Raw panel_id must start with panel-- and use a portable identifier; fix it before spending.")
             panel["mount_path"] = "/inputs/panel"
     tokenizer = None
     if mode == "candidate":

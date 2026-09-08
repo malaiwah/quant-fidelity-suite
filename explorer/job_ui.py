@@ -8,6 +8,24 @@ from . import jobs, review, retention
 from .auth import actor_from_request
 
 
+class CallerLoginButton(gr.LoginButton):
+    """Keep Gradio OAuth routes without constructing new components on login refresh."""
+
+    def get_block_name(self):
+        return "button"
+
+    def get_block_class(self):
+        return "button"
+
+    def _check_login_status(self, request: gr.Request):
+        from gradio import oauth
+        wrapped = getattr(request, "request", request)
+        session = getattr(request, "session", None) or getattr(wrapped, "session", None)
+        info = oauth._get_valid_oauth_info_from_session(session) if session else None
+        value = self.logout_value.format(info["userinfo"]["preferred_username"]) if info else self.value
+        return gr.update(value=value, interactive=True, icon=None)
+
+
 def _error(exc):
     if isinstance(exc, (ValueError, TypeError, KeyError)):
         return str(exc)
@@ -15,10 +33,6 @@ def _error(exc):
 
 
 def build_jobs_ui():
-    prepared_state = gr.State(None)
-    publication_state = gr.State(None)
-    approval_state = gr.State(None)
-    retention_state = gr.State(None)
     options = jobs.presets()
     choices = [(p["label"], p["id"]) for p in options]
     default = next((p["id"] for p in options if p["id"] == "root:glm_moe_dsa"), choices[0][1] if choices else None)
@@ -176,9 +190,15 @@ def build_jobs_ui():
         except Exception as exc:return None, "**Not accepted:** " + _error(exc), {}, False
 
     with gr.Tab("HF Jobs", id="jobs"):
+        # Keep invisible state inside a Tab: Gradio's mounted tab order includes
+        # direct children, while its initial navigation filters to TabItems.
+        prepared_state = gr.State(None)
+        publication_state = gr.State(None)
+        approval_state = gr.State(None)
+        retention_state = gr.State(None)
         gr.Markdown("## Capture and measure in your own HF account\n**Sign in → choose a workflow → set a deadline/cost ceiling → run.** Read-only plots need no login. Jobs use your namespace, never the Space owner's credentials. Results are private by default and persist in a tokenless bucket volume.")
         with gr.Row():
-            gr.LoginButton()
+            CallerLoginButton(icon=None)
             load_account = gr.Button("Check my account & hardware")
             gr.DuplicateButton(value="Make a private workspace")
         account_status = gr.Markdown("Not signed in. Browsing and plotting remain public; Jobs and publication require your account.")
