@@ -103,6 +103,14 @@ def main():
         default_inputs = dict(inputs)
         default_inputs.pop("max_output_bytes")
         refuses(lambda: jobs.prepare(actor, default_inputs, registry=object()), "below")
+        first_run = dict(inputs, timeout_seconds=14220, max_compute_usd="10")
+        roomy = jobs.prepare(actor, first_run, registry=object())["plan"]
+        assert roomy["hardware"]["estimated_max_compute_usd"] == "9.958413"
+        assert roomy["hardware"]["timeout_seconds"] == 14220
+        refuses(lambda: jobs.prepare(actor, dict(first_run, timeout_seconds=14280), registry=object()),
+                "above your")
+        refuses(lambda: jobs.prepare(actor, dict(first_run, timeout_seconds=86401), registry=object()),
+                "deadline")
         api.return_value.create_job.assert_not_called()
     print("PASS larger explicit cap prepares sealed no-spend plan; omitted cap refuses large payload")
 

@@ -599,8 +599,8 @@ def _prepare(actor, spec, registry=None):
         raise JobsError("Choose root capture, candidate measurement, or existing-dataset comparison.")
     source, image = _source_identity()
     timeout = request.get("timeout_seconds", request.get("recommended_timeout_seconds", 600))
-    if type(timeout) is not int or not 60 <= timeout <= 7200:
-        raise JobsError("Job deadline must be 60–7200 seconds.")
+    if type(timeout) is not int or not 60 <= timeout <= 86400:
+        raise JobsError("Job deadline must be 60–86400 seconds; the quoted compute ceiling still applies.")
     maximum_output = job_resources.output_limit(request.get("max_output_bytes", MAX_OUTPUT))
     try:
         ceiling = Decimal(str(request.get("max_compute_usd", "0.25")))

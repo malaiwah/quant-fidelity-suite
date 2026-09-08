@@ -211,7 +211,7 @@ def build_jobs_ui():
             preset = gr.Dropdown(choices=choices + [("Custom pinned model / existing datasets", "custom")], value=default, label="Workflow preset", scale=5)
             flavor = gr.Dropdown(choices=[("CPU Basic · live price checked before launch", "cpu-basic"), ("CPU Upgrade · 32 GB RAM", "cpu-upgrade"), ("CPU Performance · tested with Fruit", "cpu-performance"), ("A100 Large · unqualified Qwen runtime proposal", "a100-large")], value="cpu-basic", label="HF hardware", scale=3)
         with gr.Row():
-            seconds = gr.Number(value=600, precision=0, minimum=60, maximum=7200, label="Provider deadline (seconds)")
+            seconds = gr.Number(value=600, precision=0, minimum=60, maximum=86400, label="Provider deadline (seconds)")
             maximum = gr.Textbox(value="0.25", label="Maximum compute estimate (USD)")
             output_gib = gr.Number(value=4, precision=0, minimum=1, maximum=64, label="Approved output cap (GiB, includes both cold captures)")
             output_repo = gr.Textbox(label="Optional NEW capture dataset repository", placeholder="Leave blank for a unique repo in your account")

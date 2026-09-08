@@ -95,6 +95,9 @@ two startup minutes, but is not an account-wide hard-dollar cap. Storage and
 other HF services are separate. HF CPU Basic **Jobs are paid**; CPU Basic Space
 hosting is a different service. Cancellation and provider deadlines bound runs.
 Only one active/unresolved QFS Job per caller is admitted.
+Explicit deadlines may range from 60 seconds to 24 hours, matching the worker
+and bootstrap bound. Every deadline still has to fit the caller's current
+quoted compute ceiling; increasing the ceiling alone does not extend a Job.
 
 **Large captures:** output allowance is explicit per plan (4 GiB by default,
 up to 64 GiB); recovery honors the sealed allowance rather than an unrelated
