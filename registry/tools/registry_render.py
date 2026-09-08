@@ -61,9 +61,8 @@ def fmt_size(b):
     return "%.1f GB" % (b / 1e9)
 
 
-def badge(m):
+def badge(m, art_owner):
     by = g(m, "provenance", "measured_by")
-    art_owner = m.get("_artifact_owner")
     if by == "self-measured":
         return "measured by us (their artifact)" if art_owner and art_owner != L.MAINTAINER \
             else "measured by us"
@@ -280,7 +279,7 @@ def row_line(C, mid, ref_art, show_attributable=False):
     """One table row. Returns (is_floor, line)."""
     m = C["measurements"][mid]
     a = C["artifacts"][m["artifact_ref"]]
-    m["_artifact_owner"] = (g(a, "huggingface", "repository") or "/").split("/")[0]
+    art_owner = (g(a, "huggingface", "repository") or "/").split("/")[0]
     unc = m.get("uncertainty") or {}
     ci = ("[%s, %s]" % (fmt(unc.get("ci95_low")), fmt(unc.get("ci95_high")))
           if unc.get("ci95_low") is not None else "--")
@@ -313,7 +312,7 @@ def row_line(C, mid, ref_art, show_attributable=False):
             + "| %s " % ci
             + "| %s " % fmt_pct(g(m, "auxiliary_metrics", "top1_agreement"))
             + "| %s " % det_badge(m)
-            + "| %s " % badge(m)
+            + "| %s " % badge(m, art_owner)
             + "| %s |" % link)
     return is_floor, line
 

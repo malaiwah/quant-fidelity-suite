@@ -59,20 +59,22 @@ def guidance(space_id: str = "malaiwah/qfs-explorer") -> str:
         raise ValueError("Use a Space id in owner/name form, not a URL.")
     return f"""## Your workspace, your budget
 
-This public Explorer **only browses, plans costs, and checks pasted receipts**. It never rents
-hardware, runs your model or shell code, accepts credentials, or submits a measurement.
-Do not paste secrets or confidential artifacts into a public app.
+Public evidence browsing, plots, cost scenarios and pasted-receipt inspection require no login
+or rented GPU. **HF Jobs** adds explicit caller-funded captures and measurements; publication
+and registry review are separate actions. Sign in through HF OAuth for those workflows.
+Do not paste secrets or confidential artifacts into the public receipt/card forms.
 
 ### Make a private copy
 
 1. Open [this Space](https://huggingface.co/spaces/{space_id}) and use its menu → **Duplicate this Space**.
 2. Choose your own account or organization as owner and **Private** visibility. Review the hardware
-   choice before confirming; keep **CPU Basic** for this read-only Explorer.
-3. The **new owner is billed for any paid hardware/storage they select**, not this public Space's owner.
-   Secrets are **not copied**. This Explorer needs no tokens; do not add cloud credentials to it.
-4. A private CPU copy is a private Explorer, **not a GPU measurement runner**. Switching Space
-   hardware does not implement a runner either. Save downloaded results yourself; do not assume
-   the Space's temporary filesystem is durable storage.
+   choice before confirming; keep **CPU Basic** for the Explorer interface.
+3. The **new owner is billed for any paid Space hardware/storage they select**, not this public Space's owner.
+   Secrets are **not copied**. Public browsing needs no tokens; authenticated actions use the current
+   caller's HF OAuth identity, never ambient Space-owner credentials.
+4. A private CPU copy is a private Explorer interface. **HF Jobs is separate compute**, billed to
+   the signed-in caller. Upgrading Space hardware does not itself start a measurement.
+   Preserve result-bucket/repository links; the Space's temporary filesystem is not durable storage.
 
 See [HF duplication](https://huggingface.co/docs/hub/spaces-overview#duplicating-a-space),
 [Space secrets](https://huggingface.co/docs/hub/spaces-overview#managing-secrets-and-environment-variables)
@@ -97,10 +99,12 @@ third-party quant recipe described in the current contribution guide.
   reaper, budget caps, two cold runs and paid confirmation are real requirements, not options
   this Explorer bypasses. Read the [cloud contract]({_SUITE}/docs/CLOUD-RECIPES.md).
 
-**Future integration, not implemented:** launching QFS measurements through Hugging Face Jobs
-from this Explorer. HF Jobs is a separate compute service; duplicating this Space does not wire
-QFS into it, grant GPU execution, transfer cloud credits, or create an HF verification token.
-There is no launch/submit action in this app masquerading as a working integration.
+**HF Jobs in this app:** choose a supported workflow, inspect the pinned source and inputs,
+set your deadline/cost ceiling, and explicitly authorize launch. You can refresh saved state,
+cancel a run and recover persisted captures before deciding whether to publish. Jobs use your
+account and compute quota; duplicating this Space transfers no credits or credentials.
+Publication is a separate confirmation with visibility and rights checks. Public review requests
+do not automatically write registry rows; only the authenticated registry owner can accept them.
 
 ### Bring back evidence, not a hand-written registry row
 

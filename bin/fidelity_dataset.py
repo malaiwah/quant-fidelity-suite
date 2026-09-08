@@ -1047,10 +1047,10 @@ def _check_capture_job_contract(job, identity, label):
         if (not isinstance(expected_license, dict)
                 or set(expected_license) != {
                     "source_path", "dataset_path", "bytes", "sha256"}
-                or expected_license.get("source_path") != "LICENSE"
+                or expected_license.get("source_path") not in jobcontract.SOURCE_LICENSE_FILENAMES
                 or expected_license.get("dataset_path") != "LICENSE"
                 or not isinstance(observed_license, dict)
-                or observed_license.get("source_file") != "LICENSE"
+                or observed_license.get("source_file") != expected_license.get("source_path")
                 or observed_license.get("dataset_path") != "LICENSE"
                 or observed_license.get("bytes") != expected_license.get("bytes")
                 or observed_license.get("sha256") != expected_license.get("sha256")
@@ -1115,7 +1115,8 @@ def _load_qualification(
     # execution_kind local (checked below, once the contract is loaded); a
     # pod-qualified receipt keeps the closed v1 key set byte for byte.
     expected_keys = _QUALIFICATION_KEYS | (
-        {"local_execution"} if "local_execution" in doc else set())
+        {"local_execution"} if "local_execution" in doc else set()) | (
+        {"hf_execution"} if "hf_execution" in doc else set())
     if set(doc) != expected_keys:
         raise RootQualificationError(
             "root qualification receipt keys differ from the v1 contract (missing=%s, "
@@ -1184,6 +1185,10 @@ def _load_qualification(
         raise RootQualificationError(
             "root qualification local_execution block must be present exactly for "
             "an execution_kind=local job contract")
+    if (execution_kind == "hf-jobs") != ("hf_execution" in doc):
+        raise RootQualificationError("HF Jobs qualification requires its explicit execution evidence")
+    if execution_kind == "hf-jobs" and doc["hf_execution"] != job.get("hf_execution"):
+        raise RootQualificationError("HF Jobs qualification execution evidence differs from job")
     if execution_kind == "local":
         if (image_reference is not None or image_digest is not None
                 or local_execution != job.get("local_execution")
@@ -1196,7 +1201,7 @@ def _load_qualification(
             raise RootQualificationError(
                 "root qualification local execution evidence is incomplete or "
                 "differs from the job")
-    if execution_kind == "runpod-ssh":
+    if execution_kind in ("runpod-ssh", "hf-jobs"):
         if (not isinstance(image_reference, str)
                 or re.fullmatch(
                     r".+@sha256:[0-9a-f]{64}", image_reference) is None
@@ -1733,7 +1738,7 @@ def cmd_qualify_root(args):
         execution_kind = (job.get("execution_attempt") or {}).get("kind")
         environment = job.get("environment") or {}
         image_reference = environment.get("image")
-        if execution_kind == "runpod-ssh":
+        if execution_kind in ("runpod-ssh", "hf-jobs"):
             if (not isinstance(image_reference, str)
                     or re.fullmatch(
                         r".+@sha256:[0-9a-f]{64}", image_reference) is None):
@@ -1761,7 +1766,7 @@ def cmd_qualify_root(args):
                     % (label, weights_repo, weights_revision))
             _check_capture_job_contract(job, identity, label)
             runtime_container = identity["runtime_container"]
-            if (execution_kind == "runpod-ssh"
+            if (execution_kind in ("runpod-ssh", "hf-jobs")
                     and (runtime_container.get("image_digest") != image_digest
                          or runtime_container.get("image_reference")
                          != image_reference)):
@@ -1872,6 +1877,8 @@ def cmd_qualify_root(args):
             # The receipt says, in itself, what stands behind a local root: the
             # device and stack that captured it, and that no pod attested to it.
             receipt["local_execution"] = job["local_execution"]
+        if contract.get("execution_kind") == "hf-jobs":
+            receipt["hf_execution"] = job["hf_execution"]
         receipt = common.seal(receipt)
         common.write_json(args.out, receipt)
         _load_qualification(args.out, job_path=args.job)
@@ -2077,12 +2084,13 @@ def cmd_publish(args):
     archive_triple = (getattr(args, "result_archive", None),
                       getattr(args, "expected_archive_sha256", None),
                       getattr(args, "expected_archive_bytes", None))
-    if kind == "local":
+    if kind in ("local", "hf-jobs"):
         if any(value is not None for value in archive_triple):
             return refuse(
-                "local_publication_has_no_archive",
-                "a locally qualified root has no result.tar.gz: drop --result-archive, "
-                "--expected-archive-sha256 and --expected-archive-bytes")
+                "publication_has_no_archive",
+                "%s qualification uses its verified source tree, not result.tar.gz: "
+                "drop --result-archive, --expected-archive-sha256 and "
+                "--expected-archive-bytes" % kind)
         for path, label in ((args.dataset, "dataset"), (qualification_path, "qualification"),
                             (args.job, "job.json")):
             if os.path.islink(path) or not os.path.exists(path):
@@ -2090,13 +2098,13 @@ def cmd_publish(args):
                               "%s %s must be a non-symlink path that exists" % (label, path))
         return _cmd_publish_private_extraction(
             args, os.path.realpath(args.dataset), os.path.realpath(qualification_path),
-            os.path.realpath(args.job), local=True)
+            os.path.realpath(args.job), local=(kind == "local"), hf_jobs=(kind == "hf-jobs"))
     if any(value is None for value in archive_triple):
         return refuse(
             "result_archive_required",
             "a pod-qualified root publishes from its retrieved result.tar.gz: pass "
             "--result-archive, --expected-archive-sha256 and --expected-archive-bytes "
-            "(only an execution_kind=local qualification publishes without them)")
+            "(only local and hf-jobs qualifications publish without them)")
     try:
         dataset_path, qualification_path, job_path = _private_publish_inputs(
             args.dataset, qualification_path, args.job)
@@ -2107,7 +2115,7 @@ def cmd_publish(args):
 
 
 def _cmd_publish_private_extraction(
-        args, dataset_path, qualification_path, job_path, local=False):
+        args, dataset_path, qualification_path, job_path, local=False, hf_jobs=False):
     from fidelity import dshub
 
     try:
@@ -2117,7 +2125,7 @@ def _cmd_publish_private_extraction(
     except (RootQualificationError, F.FormatError) as exc:
         return refuse("qualification_invalid", str(exc))
     execution_kind = (qualification.get("job_contract") or {}).get("execution_kind")
-    if local != (execution_kind == "local"):
+    if local != (execution_kind == "local") or hf_jobs != (execution_kind == "hf-jobs"):
         return refuse("qualification_invalid",
                       "publication path does not match the qualification's execution_kind")
 
@@ -2126,6 +2134,9 @@ def _cmd_publish_private_extraction(
     try:
         if local:
             source_archive = _local_publish_source(dataset_path, qualification_path)
+        elif hf_jobs:
+            from fidelity.hfjobs import publication_source
+            source_archive = publication_source(dataset_path, qualification_path, job_path)
         else:
             source_archive = _verify_publish_source_archive(
                 args.result_archive, args.expected_archive_sha256,
@@ -2227,6 +2238,7 @@ def _cmd_publish_private_extraction(
             "publication_source": source_archive.get("source", "result-archive"),
             "execution_kind": execution_kind,
             "local_execution": qualification.get("local_execution"),
+            "hf_execution": qualification.get("hf_execution"),
         })
         common.write_json(args.receipt, doc)
         emit("publish receipt written to %s (immutable revision %s)"

@@ -25,6 +25,7 @@ _HEX64 = re.compile(r"^[0-9a-f]{64}$")
 _HEX40 = re.compile(r"^[0-9a-f]{40}$")
 _EXCLUDED_TOP_LEVEL = frozenset(("job_id", "job_id_full", "execution_attempt"))
 DISPLAY_HEX = 16
+SOURCE_LICENSE_FILENAMES = ("LICENSE", "LICENSE.txt", "LICENSE.md", "LICENSE-MODEL", "LICENSE-MODEL.txt")
 
 
 class JobContractError(ValueError):
@@ -227,15 +228,19 @@ def validate_job(document: dict) -> None:
     single_file_local = (
         document.get("role") == "root"
         and isinstance(document.get("execution_attempt"), dict)
-        and document["execution_attempt"].get("kind") == "local"
-        and isinstance(document.get("capture"), dict)
-        and document["capture"].get("device") == "cpu"
-        and target.get("surface") == "native-bf16"
-        and target.get("index_source") == "single-safetensors")
-    if target.get("index_source") == "single-safetensors" and not single_file_local:
-        raise JobContractError("an unindexed native checkpoint is supported only for a local CPU root")
+        and ((document["execution_attempt"].get("kind") == "local"
+              and (document.get("capture") or {}).get("device") == "cpu"
+              and target.get("surface") == "native-bf16")
+             or document["execution_attempt"].get("kind") == "hf-jobs")
+        and target.get("index_source") in ("single-safetensors", "gguf-files"))
+    if target.get("index_source") == "gguf-files" and (
+            (document.get("execution_attempt") or {}).get("kind") != "hf-jobs"
+            or target.get("surface") != "gguf"):
+        raise JobContractError("flat GGUF file-census identity requires an HF Jobs GGUF capture")
+    if target.get("index_source") in ("single-safetensors", "gguf-files") and not single_file_local:
+        raise JobContractError("an unindexed checkpoint requires a local CPU root or HF Jobs")
     if single_file_local and (target.get("index_sha256") is not None or target.get("index_bytes") is not None):
-        raise JobContractError("an unindexed local CPU root must not claim an index digest or size")
+        raise JobContractError("an unindexed checkpoint must not claim an index digest or size")
     for name in ("config_sha256", "index_sha256",
                  "shard_manifest_sha256"):
         if name == "index_sha256" and single_file_local:
@@ -345,6 +350,7 @@ def validate_job(document: dict) -> None:
     attempt_kind = (
         attempt_value.get("kind") if isinstance(attempt_value, dict) else None)
     local_root = document["role"] == "root" and attempt_kind == "local"
+    hf_root = document["role"] == "root" and attempt_kind == "hf-jobs"
     if profile.get("lane") not in (document["lane"], "root"):
         raise JobContractError("job profile lane differs from job lane")
     if document.get("recipe") != "runpod-controller-loss-drill":
@@ -368,7 +374,7 @@ def validate_job(document: dict) -> None:
         }
         if not isinstance(resources, dict) or set(resources) != required_resource_keys:
             raise JobContractError("job resource requirements are noncanonical")
-        if local_root:
+        if local_root or hf_root:
             # Post-hoc local qualification has no admission minima. Unknown
             # hardware capacity must not be represented as a fictitious GPU.
             expected = dict.fromkeys(required_resource_keys)
@@ -434,7 +440,7 @@ def validate_job(document: dict) -> None:
                 or capture.get("engine") != "hf-transformers"
                 or capture.get("dtype") != "bfloat16"
                 or capture.get("device") not in (
-                    ("cpu", "cuda") if local_root else ("cuda",))
+                    ("cpu", "cuda") if local_root or hf_root else ("cuda",))
                 or capture.get("schedule") != "layer-outer"
                 or capture.get("replay_device") != "numpy"
                 or capture.get("replay_dtype") != "float32"
@@ -449,7 +455,7 @@ def validate_job(document: dict) -> None:
                 or not valid_candidate(capture.get("candidate"))):
             raise JobContractError("root capture contract is incomplete")
         candidate = capture.get("candidate")
-        if local_root:
+        if local_root or hf_root:
             device = capture["device"]
             environment = document["environment"]
             if (document["runtime"].get("device") != device
@@ -458,7 +464,7 @@ def validate_job(document: dict) -> None:
                     or (device == "cpu" and (
                         environment.get("gpu") is not None
                         or environment.get("tensor_parallel") is not None))
-                    or candidate is not None):
+                    or (local_root and candidate is not None)):
                 raise JobContractError(
                     "local root must bind native capture device and honest GPU resources")
         if candidate is not None:
@@ -503,7 +509,7 @@ def validate_job(document: dict) -> None:
             if (not isinstance(weights_license, dict)
                     or set(weights_license) != {
                         "source_path", "dataset_path", "bytes", "sha256"}
-                    or weights_license.get("source_path") != "LICENSE"
+                    or weights_license.get("source_path") not in SOURCE_LICENSE_FILENAMES
                     or weights_license.get("dataset_path") != "LICENSE"
                     or isinstance(weights_license.get("bytes"), bool)
                     or not isinstance(weights_license.get("bytes"), int)
@@ -534,7 +540,7 @@ def validate_job(document: dict) -> None:
                 or dependencies.get("lane") != document.get("lane")):
             raise JobContractError(
                 "root RunPod producing-code provider/lane dependencies differ")
-        if (attempt_kind in ("local-container", "local")
+        if (attempt_kind in ("local-container", "local", "hf-jobs")
                 and "provider" in dependencies
                 and dependencies.get("provider") != attempt_kind):
             raise JobContractError(
@@ -634,6 +640,13 @@ def validate_job(document: dict) -> None:
     attempt = document.get("execution_attempt")
     if not isinstance(attempt, dict):
         raise JobContractError("execution_attempt must be an object")
+    if attempt.get("kind") == "hf-jobs":
+        from .hfjobs import validate_execution
+        try:
+            validate_execution(document)
+        except ValueError as exc:
+            raise JobContractError(str(exc)) from exc
+        return
     if attempt.get("kind") in ("local-container", "local", "vast-container"):
         kind = attempt["kind"]
         if set(attempt) != {"number", "kind", "attempt_id"}:
@@ -1082,7 +1095,7 @@ def valid_candidate(value: Any) -> bool:
         and isinstance(value.get("codec"), str) and bool(value["codec"])
         and isinstance(value.get("declared_bits"), (int, float))
         and not isinstance(value.get("declared_bits"), bool)
-        and 0 < float(value["declared_bits"]) <= 16
+        and 0 < float(value["declared_bits"]) <= 64
         and isinstance(decode, dict) and set(decode) == CANDIDATE_DECODE_KEYS
         and isinstance(decode.get("method"), str) and bool(decode["method"])
         and isinstance(decode.get("quantization_config"), dict)
@@ -1113,11 +1126,12 @@ def validate_root_qualification_contract(contract: dict) -> None:
             "root qualification job_contract candidate block is invalid")
     device = contract.get("device")
     if (device not in ("cpu", "cuda")
-            or (device == "cpu" and (
-                contract.get("execution_kind") != "local"
-                or contract.get("candidate") is not None))):
+            or (device == "cpu"
+                and contract.get("execution_kind") != "hf-jobs"
+                and (contract.get("execution_kind") != "local"
+                     or contract.get("candidate") is not None))):
         raise JobContractError(
-            "CPU root qualification requires native execution_kind=local")
+            "CPU qualification requires HF Jobs or native local execution")
     dataset_license = contract.get("dataset_license")
     weights_license = contract.get("weights_license")
     if dataset_license == "mit":
@@ -1128,7 +1142,7 @@ def validate_root_qualification_contract(contract: dict) -> None:
         if (not isinstance(weights_license, dict)
                 or set(weights_license) != {
                     "source_path", "dataset_path", "bytes", "sha256"}
-                or weights_license.get("source_path") != "LICENSE"
+                or weights_license.get("source_path") not in SOURCE_LICENSE_FILENAMES
                 or weights_license.get("dataset_path") != "LICENSE"
                 or isinstance(weights_license.get("bytes"), bool)
                 or not isinstance(weights_license.get("bytes"), int)
@@ -1180,6 +1194,8 @@ def validate_root_qualification_contract(contract: dict) -> None:
             "exl3-trellis-tp-compose-to-bf16": ("exl3hf", "tr3-published"),
             "nvfp4-modelopt-dequant-to-bf16": ("nvfp4",),
             "gguf-dequant-to-bf16": ("gguf",),
+            "affine-weight-reconstruction": ("affine-reconstructed",),
+            "microfloat-weight-reconstruction": ("microfloat-reconstructed",),
         }
         admissible = surfaces.get(str(decode.get("method")))
         if admissible is None:
@@ -1188,9 +1204,9 @@ def validate_root_qualification_contract(contract: dict) -> None:
                 "maps to no known target surface (known: %s)"
                 % (decode.get("method"), ", ".join(sorted(surfaces))))
         expected_target = (admissible, candidate["codec"], candidate["declared_bits"])
-    # A GGUF repo is a shelf of builds; the target names the ONE build directory
-    # in `path` (the same string the decode contract's `build` carries). Every
-    # other surface is a whole repository and `path` must be null.
+    # Legacy GGUF jobs select one nested build. HF Jobs admits a whole pinned
+    # flat checkpoint repository, whose complete GGUF file census is verified.
+    # Non-GGUF surfaces likewise identify the whole repository.
     gguf_build = (expected_target[0] == ("gguf",))
     path_ok = (
         (isinstance(target.get("path"), str) and target["path"]
@@ -1198,6 +1214,9 @@ def validate_root_qualification_contract(contract: dict) -> None:
          and target["path"] == (((candidate or {}).get("weights_decode") or {})
                                 .get("quantization_config") or {}).get("build"))
         if gguf_build else target.get("path") is None) if isinstance(target, dict) else False
+    if (gguf_build and contract.get("execution_kind") == "hf-jobs"
+            and isinstance(target, dict) and target.get("path") is None):
+        path_ok = True
     if (not isinstance(target, dict)
             or set(target) != {
                 "repo_id", "revision", "surface", "codec", "bits", "path"}
@@ -1293,8 +1312,8 @@ def _root_execution_identity(document: dict):
     provider = (
         dependencies.get("provider")
         if isinstance(dependencies, dict) else None)
-    if provider == "runpod":
-        execution_kind = "runpod-ssh"
+    if provider in ("runpod", "hf-jobs"):
+        execution_kind = "runpod-ssh" if provider == "runpod" else "hf-jobs"
         image_reference = environment.get("image")
         image_digest = (
             image_reference.rsplit("@", 1)[1]

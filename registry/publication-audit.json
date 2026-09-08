@@ -3,7 +3,7 @@
   "purpose": "Data snapshot publication with all remaining limitations explicit; not a warning-free software release",
   "validator": {
     "errors": 0,
-    "warnings": 287,
+    "warnings": 298,
     "strict_warning_free_release_gate_passed": false,
     "strict_gate_policy": "Unchanged: make check-release fails when warnings remain."
   },
@@ -11,18 +11,18 @@
     "models": 17,
     "artifacts": 90,
     "panels": 18,
-    "references": 28,
-    "pipelines": 28,
-    "measurements": 107
+    "references": 29,
+    "pipelines": 30,
+    "measurements": 109
   },
   "data_sha256": {
     "data/models.jsonl": "7082eefadd239f22617363d92876828899eaccd96c537ac8b24e2ff50452c847",
-    "data/artifacts.jsonl": "511a20e2fd4d9181ffa58fcec882a92451031af938e4da4a2837de4c9bb66521",
+    "data/artifacts.jsonl": "aaa0555b49bea4f12e917dfc1951243211c3a0cf32f597c1e5b017b44dba180a",
     "data/panels.jsonl": "296a6105bf1252a076010ad96fef133e2d31f89ce3d063cf641906b3470697d0",
-    "data/references.jsonl": "8f607dff9ad1b0dda35993318a32b52b26c0eca19ac8fee28e51f86b41f9d40c",
-    "data/pipelines.jsonl": "9f9131de1588227fcd04c945f868c0d6bad06b7c09a296c183b2fd8abe2b1320",
-    "data/measurements.jsonl": "750e46279da86ae776ee7d69309de37c4cdb7f9e646a35211f8f68e688ff537f",
-    "index.json": "352096186cc1bd99976c3e8bdf034bd64e8ba536d5b9b13cc4b567f6a5687d58",
+    "data/references.jsonl": "ed42851ffe6a581b791277c73268f5d2390a68d4f3b8e1fc7f71b77862b6b33c",
+    "data/pipelines.jsonl": "4e9585cb3f8cd8ed7b839647d5745d8ef717f6d1ec9044848fcee0157aee7f40",
+    "data/measurements.jsonl": "7104d759399af52da86301c62930ebc1bceb0b24191d5d382c1ab27842a53db8",
+    "index.json": "1aa96423d416e9bc8deb6d940696f0fdbd55268a6ef5a47dd600e59ce768f33b",
     "schema/invariants.json": "59a0432690968bcced4ddf2b4fa4b3be7c89bdcc3fe9efd0212bea7d5b7dca0f"
   },
   "fixture_evidence": {
@@ -186,6 +186,15 @@
     {
       "check": "CMP-005",
       "severity": "warn",
+      "id": "measurement--native.floor.827fb81ed36b5dd9ff6e12ae",
+      "message": "comparability key cmp--298751ef53a01889 has a single member (measurement--native.floor.827fb81ed36b5dd9ff6e12ae): a number with nothing to compare against. Present it as a stated fact, not a ranking.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "rationale": "Singleton groups are descriptive fixture floors or observations, not a ranking."
+    },
+    {
+      "check": "CMP-005",
+      "severity": "warn",
       "id": "measurement--fixture.kimi-k25.floor.96968fae6bcf3237",
       "message": "comparability key cmp--2cd2acab7abc566a has a single member (measurement--fixture.kimi-k25.floor.96968fae6bcf3237): a number with nothing to compare against. Present it as a stated fact, not a ranking.",
       "remedy": null,
@@ -233,6 +242,15 @@
       "severity": "warn",
       "id": "measurement--fixture.minimax-m3.floor.45b1ac062143d1d7",
       "message": "comparability key cmp--7e10ab9bcc7628b7 has a single member (measurement--fixture.minimax-m3.floor.45b1ac062143d1d7): a number with nothing to compare against. Present it as a stated fact, not a ranking.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "rationale": "Singleton groups are descriptive fixture floors or observations, not a ranking."
+    },
+    {
+      "check": "CMP-005",
+      "severity": "warn",
+      "id": "measurement--malaiwah.qwen3-5-tiny-random-gptq-v1-g32-rtn-format.fixture.a53145fb225cc15b73887d0f",
+      "message": "comparability key cmp--823cfa3f5010c0fc has a single member (measurement--malaiwah.qwen3-5-tiny-random-gptq-v1-g32-rtn-format.fixture.a53145fb225cc15b73887d0f): a number with nothing to compare against. Present it as a stated fact, not a ranking.",
       "remedy": null,
       "status": "retained-and-disclosed",
       "rationale": "Singleton groups are descriptive fixture floors or observations, not a ranking."
@@ -341,6 +359,15 @@
       "severity": "warn",
       "id": "measurement--fruit.bf16-selfcompare-floor.heldout-v1",
       "message": "measurement--fruit.bf16-selfcompare-floor.heldout-v1 is a self-measured published row with 2 run(s) and discloses neither reduced_run_count nor single_run",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "rationale": "The existing Fruit record describes two observed runs; no five-run claim is added and original evidence is retained."
+    },
+    {
+      "check": "DET-006",
+      "severity": "warn",
+      "id": "measurement--malaiwah.qwen3-5-tiny-random-gptq-v1-g32-rtn-format.fixture.a53145fb225cc15b73887d0f",
+      "message": "measurement--malaiwah.qwen3-5-tiny-random-gptq-v1-g32-rtn-format.fixture.a53145fb225cc15b73887d0f is a self-measured published row with 1 run(s) and discloses neither reduced_run_count nor single_run",
       "remedy": null,
       "status": "retained-and-disclosed",
       "rationale": "The existing Fruit record describes two observed runs; no five-run claim is added and original evidence is retained."
@@ -2501,6 +2528,78 @@
       "severity": "warn",
       "id": "measurement--glm53.turbo-2.05bpw-stream.brandonmusic-final25",
       "message": "measurement--glm53.turbo-2.05bpw-stream.brandonmusic-final25 was produced by a version of bin/seal_receipt.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "rationale": "Retain measurement-time code hashes and harness IDs; restamping historical measurements would fabricate provenance. New fixture numeric source is retained in the immutable root evidence bundle."
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--malaiwah.qwen3-5-tiny-random-gptq-v1-g32-rtn-format.fixture.a53145fb225cc15b73887d0f",
+      "message": "measurement--malaiwah.qwen3-5-tiny-random-gptq-v1-g32-rtn-format.fixture.a53145fb225cc15b73887d0f was produced by a version of registry/tools/registry_add.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "rationale": "Retain measurement-time code hashes and harness IDs; restamping historical measurements would fabricate provenance. New fixture numeric source is retained in the immutable root evidence bundle."
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.827fb81ed36b5dd9ff6e12ae",
+      "message": "measurement--native.floor.827fb81ed36b5dd9ff6e12ae was produced by a version of bin/BUNDLE.txt that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "rationale": "Retain measurement-time code hashes and harness IDs; restamping historical measurements would fabricate provenance. New fixture numeric source is retained in the immutable root evidence bundle."
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.827fb81ed36b5dd9ff6e12ae",
+      "message": "measurement--native.floor.827fb81ed36b5dd9ff6e12ae was produced by a version of bin/selftest_fidelity_dataset.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "rationale": "Retain measurement-time code hashes and harness IDs; restamping historical measurements would fabricate provenance. New fixture numeric source is retained in the immutable root evidence bundle."
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.827fb81ed36b5dd9ff6e12ae",
+      "message": "measurement--native.floor.827fb81ed36b5dd9ff6e12ae was produced by a version of explorer/review.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "rationale": "Retain measurement-time code hashes and harness IDs; restamping historical measurements would fabricate provenance. New fixture numeric source is retained in the immutable root evidence bundle."
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.827fb81ed36b5dd9ff6e12ae",
+      "message": "measurement--native.floor.827fb81ed36b5dd9ff6e12ae was produced by a version of registry/tools/registry_add.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "rationale": "Retain measurement-time code hashes and harness IDs; restamping historical measurements would fabricate provenance. New fixture numeric source is retained in the immutable root evidence bundle."
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.827fb81ed36b5dd9ff6e12ae",
+      "message": "measurement--native.floor.827fb81ed36b5dd9ff6e12ae was produced by a version of registry/tools/registry_render.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "rationale": "Retain measurement-time code hashes and harness IDs; restamping historical measurements would fabricate provenance. New fixture numeric source is retained in the immutable root evidence bundle."
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.827fb81ed36b5dd9ff6e12ae",
+      "message": "measurement--native.floor.827fb81ed36b5dd9ff6e12ae was produced by a version of registry/tools/registry_selftest.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "rationale": "Retain measurement-time code hashes and harness IDs; restamping historical measurements would fabricate provenance. New fixture numeric source is retained in the immutable root evidence bundle."
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.827fb81ed36b5dd9ff6e12ae",
+      "message": "measurement--native.floor.827fb81ed36b5dd9ff6e12ae was produced by a version of registry/tools/review_requests.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
       "remedy": null,
       "status": "retained-and-disclosed",
       "rationale": "Retain measurement-time code hashes and harness IDs; restamping historical measurements would fabricate provenance. New fixture numeric source is retained in the immutable root evidence bundle."

@@ -4,13 +4,13 @@
       "file": "data/artifacts.jsonl",
       "record_count": 90,
       "schema": "schema/artifact.schema.json",
-      "sha256": "511a20e2fd4d9181ffa58fcec882a92451031af938e4da4a2837de4c9bb66521"
+      "sha256": "aaa0555b49bea4f12e917dfc1951243211c3a0cf32f597c1e5b017b44dba180a"
     },
     "measurements": {
       "file": "data/measurements.jsonl",
-      "record_count": 107,
+      "record_count": 109,
       "schema": "schema/measurement.schema.json",
-      "sha256": "750e46279da86ae776ee7d69309de37c4cdb7f9e646a35211f8f68e688ff537f"
+      "sha256": "7104d759399af52da86301c62930ebc1bceb0b24191d5d382c1ab27842a53db8"
     },
     "models": {
       "file": "data/models.jsonl",
@@ -26,15 +26,15 @@
     },
     "pipelines": {
       "file": "data/pipelines.jsonl",
-      "record_count": 28,
+      "record_count": 30,
       "schema": "schema/pipeline.schema.json",
-      "sha256": "9f9131de1588227fcd04c945f868c0d6bad06b7c09a296c183b2fd8abe2b1320"
+      "sha256": "4e9585cb3f8cd8ed7b839647d5745d8ef717f6d1ec9044848fcee0157aee7f40"
     },
     "references": {
       "file": "data/references.jsonl",
-      "record_count": 28,
+      "record_count": 29,
       "schema": "schema/reference.schema.json",
-      "sha256": "8f607dff9ad1b0dda35993318a32b52b26c0eca19ac8fee28e51f86b41f9d40c"
+      "sha256": "ed42851ffe6a581b791277c73268f5d2390a68d4f3b8e1fc7f71b77862b6b33c"
     }
   },
   "comparability_keys": [
@@ -609,6 +609,85 @@
       "metric_name": "mean_tokenwise_kld",
       "panel_id": "panel--fixture.a53145fb225cc15b73887d0f",
       "reference_id": "reference--fixture.qwen3-5.1847b664a523e921",
+      "stack_relation": "same_stack"
+    },
+    {
+      "accumulation_dtype": "float64",
+      "comparability": {
+        "comparable": "unknown",
+        "live_member_count": 1,
+        "predicate_version": "comparability-predicate/v2",
+        "reasons": [
+          "stack: unrecorded for 1 member; homogeneity cannot be certified",
+          "replay_backend: unrecorded for 1 member; homogeneity cannot be certified",
+          "replay_env: unrecorded for 1 member; homogeneity cannot be certified",
+          "hardware: unrecorded for 1 member; homogeneity cannot be certified"
+        ],
+        "secondary": {
+          "hardware": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "harness": {
+            "status": "pass",
+            "values": [
+              "harness--0120ab447b077c41"
+            ]
+          },
+          "key": {
+            "status": "pass",
+            "values": [
+              "cmp--298751ef53a01889"
+            ]
+          },
+          "lane": {
+            "status": "pass",
+            "values": [
+              "other"
+            ]
+          },
+          "pipeline": {
+            "status": "pass",
+            "values": [
+              "pipeline--hf-jobs.0120ab447b077c41"
+            ]
+          },
+          "replay_backend": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "replay_env": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "scope": {
+            "status": "pass",
+            "values": [
+              "unquantized"
+            ]
+          },
+          "stack": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          }
+        }
+      },
+      "direction": "reference_to_candidate",
+      "head_policy": "native_head",
+      "key": "cmp--298751ef53a01889",
+      "label": "mean_tokenwise_kld on panel--fixture.9d187d1dab31575b41ab4b00 (same_stack, native_head)",
+      "member_count": 1,
+      "metric_name": "mean_tokenwise_kld",
+      "panel_id": "panel--fixture.9d187d1dab31575b41ab4b00",
+      "reference_id": "reference--native.26e9fe0e0ea53ae8a7e1e630",
       "stack_relation": "same_stack"
     },
     {
@@ -1748,6 +1827,83 @@
         "live_member_count": 1,
         "predicate_version": "comparability-predicate/v2",
         "reasons": [
+          "stack: unrecorded for 1 member; homogeneity cannot be certified",
+          "hardware: unrecorded for 1 member; homogeneity cannot be certified"
+        ],
+        "secondary": {
+          "hardware": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "harness": {
+            "status": "pass",
+            "values": [
+              "harness--3a8ed71bf4b4db87"
+            ]
+          },
+          "key": {
+            "status": "pass",
+            "values": [
+              "cmp--823cfa3f5010c0fc"
+            ]
+          },
+          "lane": {
+            "status": "pass",
+            "values": [
+              "other"
+            ]
+          },
+          "pipeline": {
+            "status": "pass",
+            "values": [
+              "pipeline--malaiwah.quant-fidelity-suite-bin"
+            ]
+          },
+          "replay_backend": {
+            "status": "pass",
+            "values": [
+              "numpy:cpu:float32"
+            ]
+          },
+          "replay_env": {
+            "status": "pass",
+            "values": [
+              "{\"blas_configuration\":\"OpenBLAS 0.3.34.106.0  USE64BITINT DYNAMIC_ARCH NO_AFFINITY Haswell MAX_THREADS=64\",\"blas_name\":\"scipy-openblas\",\"blas_threads\":2,\"blas_version\":\"0.3.34.106.0\",\"cpu_model\":\"Intel(R) Xeon(R) Platinum 8375C CPU @ 2.90GHz\",\"library\":\"numpy\",\"numpy_version\":\"2.5.3\",\"replay_dtype\":\"float32\"}"
+            ]
+          },
+          "scope": {
+            "status": "pass",
+            "values": [
+              "mlp.down+mlp.gate+mlp.up|head=native|kv=bf16"
+            ]
+          },
+          "stack": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          }
+        }
+      },
+      "direction": "reference_to_candidate",
+      "head_policy": "native_head",
+      "key": "cmp--823cfa3f5010c0fc",
+      "label": "mean_tokenwise_kld on panel--fixture.a53145fb225cc15b73887d0f (cross_stack, native_head)",
+      "member_count": 1,
+      "metric_name": "mean_tokenwise_kld",
+      "panel_id": "panel--fixture.a53145fb225cc15b73887d0f",
+      "reference_id": "reference--fixture.qwen3-5.1847b664a523e921",
+      "stack_relation": "cross_stack"
+    },
+    {
+      "accumulation_dtype": "float64",
+      "comparability": {
+        "comparable": "unknown",
+        "live_member_count": 1,
+        "predicate_version": "comparability-predicate/v2",
+        "reasons": [
           "harness: unrecorded for 1 member; homogeneity cannot be certified",
           "stack: unrecorded for 1 member; homogeneity cannot be certified",
           "replay_backend: unrecorded for 1 member; homogeneity cannot be certified",
@@ -2635,17 +2791,17 @@
   "comparability_rule": "The seven-field comparability.key is a NECESSARY partition key, not a sufficient certificate: two measurement values with different keys are NEVER comparable, and a table that mixes keys is malformed. Equal keys make two rows candidates for comparison ONLY -- the key deliberately omits measurement lane, candidate pipeline, hardware and artifact scope, all of which this project has MEASURED moving results by more than the gaps it publishes between quantizers. Before ranking rows as like-for-like, a consumer must also check each group's comparability_keys[].comparability predicate: comparable=true/false/unknown with machine-readable reasons.",
   "counts": {
     "artifacts": 90,
-    "measurements": 107,
-    "measurements_advisory": 99,
+    "measurements": 109,
+    "measurements_advisory": 101,
     "measurements_author_reported": 15,
     "measurements_independently_verified": 0,
-    "measurements_self_measured": 92,
+    "measurements_self_measured": 94,
     "measurements_strict": 8,
     "measurements_third_party_reported": 0,
     "models": 17,
     "panels": 18,
-    "pipelines": 28,
-    "references": 28
+    "pipelines": 30,
+    "references": 29
   },
   "cross_refs": {
     "local_ai_registry": {
@@ -2655,13 +2811,13 @@
       "url": "https://huggingface.co/datasets/0xSero/local-ai-registry"
     }
   },
-  "generated_at": "2026-09-07T19:18:56+00:00",
+  "generated_at": "2026-09-08T00:04:39+00:00",
   "registry_id": "malaiwah/quant-fidelity-registry",
   "resolver_rule": "Every *_ref is the id field of a record in the collection named by the ref's id prefix: model--, artifact--, panel--, reference--, pipeline--, measurement--.",
   "schema_version": "quant-fidelity-registry/v1",
   "validator": {
     "invariants_file": "schema/invariants.json",
-    "last_run_at": "2026-09-07T19:18:56+00:00",
+    "last_run_at": "2026-09-08T00:04:39+00:00",
     "passed": true,
     "tool": "tools/registry_validate.py"
   }

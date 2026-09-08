@@ -1,0 +1,12 @@
+# Torch is installed separately from the explicit CPU or CUDA 13.0 wheel index.
+transformers==5.16.1
+numpy==2.5.3
+safetensors==0.8.0
+tokenizers==0.23.2
+huggingface_hub==1.30.0
+accelerate==1.14.0
+jsonschema==4.26.0
+PyYAML==6.0.3
+sentencepiece==0.2.1
+protobuf==6.33.5
+Pillow==12.3.0

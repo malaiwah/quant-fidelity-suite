@@ -12,8 +12,10 @@ ground truth for every flag.
 
 ## Local capture without renting hardware
 
-This route runs on **your measurement machine**, not inside the read-only Explorer
-Space. Listing/preparing is stdlib-only; execution needs the selected fixture's
+This CLI route runs on **your measurement machine**, not inside the Explorer's
+web process. The [HF Jobs tab](../README.md#qfs-explorer--evidence-plots-and-caller-funded-hf-jobs)
+offers separately authorized, caller-funded remote execution. Listing/preparing
+this CLI route is stdlib-only; execution needs the selected fixture's
 published, pinned CPU environment (the new fixtures use Python 3.12,
 Transformers 5.16.1 and Torch 2.11.0+cpu). For production GPU runs, establish the
 appropriate device-specific reference and floor; CPU fixture success is not a

@@ -22,3 +22,6 @@ fidelity-local/
 # arch-determinism probe tensor dumps: ~84 MB per card, and the digests in
 # each rental.json already cover them. Re-run the probe to regenerate.
 reports/arch-determinism/results*/**/probe-tensors.npz
+
+# Generated deployment identity; points at a committed public worker revision.
+explorer/deployment.json

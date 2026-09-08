@@ -9,9 +9,12 @@
 > the repository. Historical plans, model-card prose, self-seals and green tests
 > are not substitutes for the actual measurement and its disclosed limits.
 >
-> [QFS Explorer](https://huggingface.co/spaces/malaiwah/qfs-explorer) is the optional
-> read-only web interface. Its cost calculator is not a runtime prediction or a
-> spending cap; it neither rents compute nor accepts measurement credentials.
+> [QFS Explorer](https://huggingface.co/spaces/malaiwah/qfs-explorer) offers public
+> evidence plots, immutable/live embeds and metadata downloads without login.
+> Optional HF Jobs require the current caller's authentication and explicit billing
+> consent; never an owner token for visitors. Private recovery, public publication,
+> registry requests and owner acceptance are distinct gates. Its cost estimates
+> are neither runtime predictions nor account-wide hard spending caps.
 
 ## Rules for reading a number
 
