@@ -255,8 +255,9 @@ def validate_plan(plan, out):
         value = float(hardware[key])
         if not math.isfinite(value) or value <= 0:
             raise ValueError("finite positive price and consent ceiling required")
-    if type(plan["limits"].get("max_output_bytes")) is not int or plan["limits"]["max_output_bytes"] <= 0:
-        raise ValueError("positive output bound required")
+    sys.path.insert(0, str(ROOT))
+    from explorer import job_resources
+    job_resources.output_limit(plan["limits"].get("max_output_bytes"))
     runtime = plan["runtime"]
     if runtime.get("dtype") != "bfloat16" or runtime.get("schedule") != "layer-outer":
         raise ValueError("only the declared BF16 layer-outer runtime is admitted")
@@ -593,6 +594,8 @@ def workflow(plan, out, runner, outputs):
         binding = load_json(out / "panel-binding.json")
         if not binding["tokenizer"]["files_verified"]:
             raise ValueError("tokenizer files were not exactly verified")
+        if descriptor.get("binding") is not None and binding != descriptor["binding"]:
+            raise ValueError("worker panel/tokenizer binding differs from the no-spend reviewed binding")
         license_name = inputs["model"].get("license_file")
         if license_name not in ("LICENSE", "LICENSE.txt", "LICENSE.md", "LICENSE-MODEL", "LICENSE-MODEL.txt"):
             raise ValueError("source checkpoint has no admitted original license identity")
@@ -631,6 +634,10 @@ def workflow(plan, out, runner, outputs):
         if allowlist:
             common.extend(["--unexpected-tensors-allowlist", ROOT / allowlist["path"], "--unexpected-tensors-allowlist-sha256", allowlist["artifact_sha256"], "--unexpected-tensors-name-sha256", allowlist["canonical_sorted_names_sha256"]])
         for name in ("first", "repeat"):
+            if plan.get("resources") is not None:
+                from explorer import job_resources
+                observed_resources = job_resources.check_worker_resources(plan, out, OUT_PATH)
+                save(out / (name + ".resource-admission.json"), observed_resources)
             label = plan["workflow_id"] + "-" + name
             runner.run("capture-" + name, [*common, "--out", out / name, "--run-name", label, "--cold-run", label, "--memory-report", out / (name + ".memory.json")])
             runner.run("verify-" + name, [*tool, "verify", out / name, "--verify-tensors", "--json", out / (name + ".verify.json")])
@@ -723,6 +730,9 @@ def main(argv=None):
                 shutil.copyfile(path, scratch / name)
         publication = _Publication(scratch, out, plan["limits"]["max_output_bytes"], final_deadline - 1)
         runner = Runner(plan, scratch, final_deadline - min(30.0, remaining / 10))
+        if plan.get("resources") is not None:
+            from explorer import job_resources
+            save(scratch / "resource-admission.json", job_resources.check_worker_resources(plan, scratch, out))
         runner.checkpoint = publication.checkpoint
         publication.checkpoint()
         workflow(plan, scratch, runner, outputs)

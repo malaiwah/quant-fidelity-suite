@@ -348,6 +348,14 @@ t "RunPod controller-loss drill contracts" \
 # Offline, stock python3, no token, no network.
 t "explorer HF-Jobs safety: anonymous-first, canonical views, attribution labels (EXP-01..06)" \
                                            0 python3 bin/selftest_explorer_jobs.py
+t "HF Jobs large-capture resource admission and recovery limits" \
+                                           0 python3 bin/selftest_jobs_resources.py
+if have_module "$VPY" numpy; then
+  t "v5 panel transport: pinned histories, tokenizer and artifact seals" \
+                                           0 "$VPY" engines/tools/selftest_v5_panel_transport.py
+else
+  s "v5 panel transport" "NumPy unavailable in the selected interpreter -- export FIDELITY_PYTHON"
+fi
 # T25. Root qualification needs two fresh captures and exact self-comparison.
 # Remote publication and container-native RunPod execution both refuse; optional
 # publication is controller-local only after verified retrieval, confirmed pod

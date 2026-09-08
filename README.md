@@ -69,8 +69,9 @@ on Hugging Face CPU Basic. Public browsing and plots require no account or token
   links travel together. Merge into an existing README without changing its body
   or unrelated metadata; ambiguous mixed-metric results are refused rather than
   silently discarded. No model card is uploaded automatically.
-- **HF Jobs:** sign in as yourself, choose a tiny fixture, Fruit, a supported
-  candidate, or immutable capture datasets; preview the exact plan or explicitly
+- **HF Jobs:** sign in as yourself, choose a tiny fixture, Fruit, the pinned
+  Qwen3.8-27B BF16 root, a supported candidate, or immutable capture datasets;
+  preview the exact plan or explicitly
   run it. Jobs are billed to your personal namespace, including in private
   duplicates. Native roots and candidates use two fresh captures and numerical
   reproduction controls. Candidate measurement uses each artifact's own head.
@@ -94,6 +95,26 @@ two startup minutes, but is not an account-wide hard-dollar cap. Storage and
 other HF services are separate. HF CPU Basic **Jobs are paid**; CPU Basic Space
 hosting is a different service. Cancellation and provider deadlines bound runs.
 Only one active/unresolved QFS Job per caller is admitted.
+
+**Large captures:** output allowance is explicit per plan (4 GiB by default,
+up to 64 GiB); recovery honors the sealed allowance rather than an unrelated
+process default. Admission checks verified panel/tokenizer geometry, two cold
+captures with their own heads, scratch/durable copies, host RAM and individual
+GPU memory. The worker rechecks actual available resources before capture.
+These are accounted planning requirements, not measured peak-memory or runtime
+guarantees; multi-GPU VRAM is not pooled by this single-device worker.
+A 32-GiB output plan needs at least 68 GiB of free disk on the recovery machine
+(two approved copies plus 4 GiB headroom). Large results can be recovered by
+Job ID from a sufficiently provisioned controller; do not assume the default
+CPU Basic Space can hold or qualify them.
+
+The `root:qwen38-27b` preset transports the full historical v5 shard-0 panel
+without retokenizing: 512 contexts, 1,048,064 scored positions. Its suggested
+A100/7200-second/32-GiB settings do not change the caller's dollar ceiling or
+authorize launch. The exact 15 unused MTP draft tensor names are disclosed;
+text capture does not establish vision/MTP or native-serving fidelity.
+An existing `local-cuda-budget` reference is not relabeled as this worker's
+lane: this preset prepares a new root, not an automatic cross-lane comparison.
 
 Worker code and container images are immutable pins. Model code receives
 read-only input mounts and a private output volume, never caller credentials.

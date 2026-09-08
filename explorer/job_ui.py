@@ -40,15 +40,16 @@ def build_jobs_ui():
         p = next((p for p in options if p["id"] == selected), None)
         if p is None:
             return "Custom inputs need an explicit hardware/deadline quote; no runtime is assumed."
-        return "Suggested: **%s**, **%s seconds**. %s Your spending ceiling is never raised automatically." % (
+        return "Suggested: **%s**, **%s seconds**, **%s GiB output cap**. %s Your spending ceiling is never raised automatically." % (
             p["recommended_flavor"], p.get("recommended_timeout_seconds", 600),
+            p.get("recommended_max_output_bytes", jobs.MAX_OUTPUT) // 1024**3,
             p.get("recommendation_basis", "Tiny fixture guidance, not a production-model runtime guarantee."))
 
     def apply_recommendation(selected):
         p = next((p for p in options if p["id"] == selected), None)
         if p is None:
-            return gr.skip(), gr.skip(), None, False, recommend(selected), {}
-        return p["recommended_flavor"], p.get("recommended_timeout_seconds", 600), None, False, recommend(selected), {}
+            return gr.skip(), gr.skip(), gr.skip(), None, False, recommend(selected), {}
+        return p["recommended_flavor"], p.get("recommended_timeout_seconds", 600), p.get("recommended_max_output_bytes", jobs.MAX_OUTPUT) // 1024**3, None, False, recommend(selected), {}
 
 
     def account(request: gr.Request, oauth_profile: gr.OAuthProfile | None, oauth_token: gr.OAuthToken | None):
@@ -61,10 +62,13 @@ def build_jobs_ui():
         except Exception as exc:
             return "Sign in to use Jobs. " + _error(exc), gr.skip(), {}
 
-    def inputs(preset, flavor, seconds, maximum, mode, model_repo, model_rev, ref_repo, ref_rev, cand_repo, cand_rev, panel_repo, panel_rev, panel_path, scope, codec, bits, output_repo, review_metadata):
+    def inputs(preset, flavor, seconds, maximum, output_gib, mode, model_repo, model_rev, ref_repo, ref_rev, cand_repo, cand_rev, panel_repo, panel_rev, panel_path, scope, codec, bits, output_repo, review_metadata):
         if isinstance(seconds, bool) or not isinstance(seconds, (int, float)) or (isinstance(seconds, float) and not seconds.is_integer()):
             raise ValueError("The provider deadline must be a whole number of seconds.")
         spec = {"preset": preset, "flavor": flavor, "timeout_seconds": int(seconds), "max_compute_usd": str(maximum)}
+        if isinstance(output_gib, bool) or not isinstance(output_gib, (int, float)) or not 1 <= output_gib <= 64 or int(output_gib) != output_gib:
+            raise ValueError("Output cap must be a whole number of GiB in 1..64.")
+        spec["max_output_bytes"] = int(output_gib) * 1024**3
         if review_metadata and review_metadata.strip():
             metadata = json.loads(review_metadata)
             if not isinstance(metadata, dict):
@@ -80,11 +84,11 @@ def build_jobs_ui():
         if output_repo:spec["output_repository"] = output_repo
         return {k: v for k, v in spec.items() if v not in (None, "")}
 
-    def prepare(preset, flavor, seconds, maximum, mode, model_repo, model_rev, ref_repo, ref_rev, cand_repo, cand_rev, panel_repo, panel_rev, panel_path, scope, codec, bits, output_repo, review_metadata,
+    def prepare(preset, flavor, seconds, maximum, output_gib, mode, model_repo, model_rev, ref_repo, ref_rev, cand_repo, cand_rev, panel_repo, panel_rev, panel_path, scope, codec, bits, output_repo, review_metadata,
                 request: gr.Request, oauth_profile: gr.OAuthProfile | None, oauth_token: gr.OAuthToken | None):
         try:
             actor = actor_from_request(request, oauth_profile, oauth_token)
-            prepared = jobs.prepare(actor, inputs(preset, flavor, seconds, maximum, mode, model_repo, model_rev, ref_repo, ref_rev, cand_repo, cand_rev, panel_repo, panel_rev, panel_path, scope, codec, bits, output_repo, review_metadata))
+            prepared = jobs.prepare(actor, inputs(preset, flavor, seconds, maximum, output_gib, mode, model_repo, model_rev, ref_repo, ref_rev, cand_repo, cand_rev, panel_repo, panel_rev, panel_path, scope, codec, bits, output_repo, review_metadata))
             plan = prepared["plan"]
             text = ("**Ready to run as %s** · %s · deadline %s seconds · conservative compute estimate **$%s**.\n\n"
                     "No Job was created by this preview. Output: `%s` (private staging); no worker token."
@@ -93,12 +97,12 @@ def build_jobs_ui():
         except Exception as exc:
             return None, "**Cannot prepare:** " + _error(exc), {}, False
 
-    def one_click(preset, flavor, seconds, maximum, mode, model_repo, model_rev, ref_repo, ref_rev, cand_repo, cand_rev, panel_repo, panel_rev, panel_path, scope, codec, bits, output_repo, review_metadata, consent,
+    def one_click(preset, flavor, seconds, maximum, output_gib, mode, model_repo, model_rev, ref_repo, ref_rev, cand_repo, cand_rev, panel_repo, panel_rev, panel_path, scope, codec, bits, output_repo, review_metadata, consent,
                   request: gr.Request, oauth_profile: gr.OAuthProfile | None, oauth_token: gr.OAuthToken | None):
         try:
             if consent is not True:raise ValueError("Confirm billing to your account before running.")
             actor = actor_from_request(request, oauth_profile, oauth_token)
-            prepared = jobs.prepare(actor, inputs(preset, flavor, seconds, maximum, mode, model_repo, model_rev, ref_repo, ref_rev, cand_repo, cand_rev, panel_repo, panel_rev, panel_path, scope, codec, bits, output_repo, review_metadata))
+            prepared = jobs.prepare(actor, inputs(preset, flavor, seconds, maximum, output_gib, mode, model_repo, model_rev, ref_repo, ref_rev, cand_repo, cand_rev, panel_repo, panel_rev, panel_path, scope, codec, bits, output_repo, review_metadata))
             result = jobs.launch(actor, prepared, confirm_compute=True)
             return prepared, result["job_id"], "**Job submitted.** " + result["url"], result
         except Exception as exc:
@@ -205,13 +209,14 @@ def build_jobs_ui():
         account_json = gr.JSON(visible=False)
         with gr.Row():
             preset = gr.Dropdown(choices=choices + [("Custom pinned model / existing datasets", "custom")], value=default, label="Workflow preset", scale=5)
-            flavor = gr.Dropdown(choices=[("CPU Basic · live price checked before launch", "cpu-basic"), ("CPU Upgrade · 32 GB RAM", "cpu-upgrade"), ("CPU Performance · tested with Fruit", "cpu-performance")], value="cpu-basic", label="HF hardware", scale=3)
+            flavor = gr.Dropdown(choices=[("CPU Basic · live price checked before launch", "cpu-basic"), ("CPU Upgrade · 32 GB RAM", "cpu-upgrade"), ("CPU Performance · tested with Fruit", "cpu-performance"), ("A100 Large · unqualified Qwen runtime proposal", "a100-large")], value="cpu-basic", label="HF hardware", scale=3)
         with gr.Row():
             seconds = gr.Number(value=600, precision=0, minimum=60, maximum=7200, label="Provider deadline (seconds)")
             maximum = gr.Textbox(value="0.25", label="Maximum compute estimate (USD)")
+            output_gib = gr.Number(value=4, precision=0, minimum=1, maximum=64, label="Approved output cap (GiB, includes both cold captures)")
             output_repo = gr.Textbox(label="Optional NEW capture dataset repository", placeholder="Leave blank for a unique repo in your account")
         recommendation = gr.Markdown(recommend(default))
-        apply_recommendation_button = gr.Button("Apply suggested hardware and deadline — keep my cost ceiling")
+        apply_recommendation_button = gr.Button("Apply suggested hardware, deadline and output cap — keep my cost ceiling")
         gr.Markdown("**Cost boundary:** HF bills starting/running time by the minute. The preview includes the deadline plus two startup minutes; it is not an account-wide hard-dollar cap. Storage and other HF services are separate. CPU Basic Jobs are paid, unlike CPU Basic Space hosting. **Observed example, not a runtime guarantee:** Fruit (~10 GB weights) completed two captures and reproduction in 693 seconds on CPU Performance with a 1200-second deadline and $0.75 estimate ceiling. Tiny fixtures use CPU Basic.")
         with gr.Accordion("Custom immutable inputs and actual intervention scope", open=False, visible=False) as custom_inputs:
             mode = gr.Radio([("Native root: two captures + control", "root"), ("Candidate: two captures + reference measurement", "candidate"), ("Compare existing fidelity datasets", "compare")], value="root", label="Custom workflow")
@@ -228,7 +233,7 @@ def build_jobs_ui():
             gr.Markdown("Unknown custom code is not granted execution authority. Use native Transformers classes or the listed reviewed immutable runtime pins. A raw GGUF file without its required config/layout contract is not an admitted model.")
         review_metadata = gr.Code(language="json", label="Optional root publication attribution (can also be completed after capture)", value="{}")
         gr.Markdown("New root review needs `name`, `family`, `model_license`, `corpus_lineage`, and `publisher`, `panel_author`, `toolchain_author` objects with `name`, `handle`, `url`. Exact existing registry identities may supply these; missing facts are never guessed. Supply the original raw `panel.json`, its sealed build receipt and referenced token/mask arrays, with the exact matching tokenizer—not a sealed capture's internal panel view.")
-        controls=[preset,flavor,seconds,maximum,mode,model_repo,model_rev,ref_repo,ref_rev,cand_repo,cand_rev,panel_repo,panel_rev,panel_path,scope,codec,bits,output_repo,review_metadata]
+        controls=[preset,flavor,seconds,maximum,output_gib,mode,model_repo,model_rev,ref_repo,ref_rev,cand_repo,cand_rev,panel_repo,panel_rev,panel_path,scope,codec,bits,output_repo,review_metadata]
         consent=gr.Checkbox(value=False,label="I authorize this Job in MY HF account, with the selected deadline and compute estimate ceiling.")
         with gr.Row():
             prepare_button=gr.Button("Preview inputs and cost")
@@ -277,7 +282,7 @@ def build_jobs_ui():
             control.input(lambda: (None, False, "Inputs changed. Preview again; Run uses the current inputs and ceiling.", {}), outputs=[prepared_state,consent,status,plan_json], api_name=False, queue=False)
         preset.change(lambda selected: gr.Accordion(visible=selected=="custom"), [preset], [custom_inputs], api_name=False, queue=False)
         preset.change(recommend,[preset],[recommendation],api_name=False,queue=False)
-        apply_recommendation_button.click(apply_recommendation,[preset],[flavor,seconds,prepared_state,consent,status,plan_json],api_name=False,queue=False)
+        apply_recommendation_button.click(apply_recommendation,[preset],[flavor,seconds,output_gib,prepared_state,consent,status,plan_json],api_name=False,queue=False)
         run_button.click(one_click,controls+[consent],[prepared_state,job_id,status,plan_json],api_name=False,concurrency_limit=1)
         refresh_button.click(refresh,[job_id],[job_id,job_json,job_log],api_name=False)
         cancel_button.click(stop,[job_id,cancel_consent],[job_json],api_name=False)

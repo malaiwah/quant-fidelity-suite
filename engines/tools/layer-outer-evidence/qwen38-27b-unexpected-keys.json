@@ -1,0 +1,30 @@
+{
+  "schema": "qfs.exact-unexpected-tensors.v1",
+  "repository": "Qwen/Qwen3.8-27B",
+  "revision": "1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0",
+  "names": [
+    "mtp.fc.weight",
+    "mtp.layers.0.input_layernorm.weight",
+    "mtp.layers.0.mlp.down_proj.weight",
+    "mtp.layers.0.mlp.gate_proj.weight",
+    "mtp.layers.0.mlp.up_proj.weight",
+    "mtp.layers.0.post_attention_layernorm.weight",
+    "mtp.layers.0.self_attn.k_norm.weight",
+    "mtp.layers.0.self_attn.k_proj.weight",
+    "mtp.layers.0.self_attn.o_proj.weight",
+    "mtp.layers.0.self_attn.q_norm.weight",
+    "mtp.layers.0.self_attn.q_proj.weight",
+    "mtp.layers.0.self_attn.v_proj.weight",
+    "mtp.norm.weight",
+    "mtp.pre_fc_norm_embedding.weight",
+    "mtp.pre_fc_norm_hidden.weight"
+  ],
+  "rationale": "Exact optional MTP draft tensors absent from the native Transformers5.16.1 Qwen3_5ForConditionalGeneration meta model. No primary-model parameter is missing. Text-only next-token capture does not execute MTP; exclusion must remain disclosed. This is index-name/meta-construction evidence, not tensor-value or GPU-forward parity.",
+  "evidence": {
+    "model_parameter_keys": 1184,
+    "checkpoint_tensor_keys": 1199,
+    "config_sha256": "191e0af232104ed8b65258cf3fb2b842e288008baca7633c11b82a1ac7203aab",
+    "index_sha256": "77042094076611b69791a610065f28b7013b8c621795fa86ddccc8bac7d1b9df",
+    "transformers": "5.16.1"
+  }
+}

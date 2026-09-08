@@ -26,6 +26,7 @@ from datetime import datetime, timezone
 
 from .auth import Actor, AuthError
 from .data import ExplorerRegistry
+from . import job_resources
 
 ROOT = Path(__file__).resolve().parents[1]
 REGISTRY = os.environ.get("QFS_REGISTRY_REPOSITORY", "malaiwah/quant-fidelity-registry")
@@ -38,7 +39,7 @@ UUID = re.compile(r"[0-9a-f]{32}\Z")
 JOB_ID = re.compile(r"[A-Za-z0-9_-]{8,100}\Z")
 MAX_JSON = 16 * 1024 * 1024
 MAX_FILES = 20000
-MAX_OUTPUT = int(os.environ.get("QFS_MAX_OUTPUT_BYTES", str(4 * 1024**3)))
+MAX_OUTPUT = job_resources.DEFAULT_OUTPUT_BYTES
 CACHE = Path(os.environ.get("QFS_JOB_CACHE", tempfile.mkdtemp(prefix="qfs-jobs-")))
 CACHE.mkdir(parents=True, exist_ok=True, mode=0o700)
 _LOCAL_SIGNING = secrets.token_bytes(32)
@@ -239,6 +240,14 @@ def presets():
                     "recommended_flavor": "cpu-performance", "recommended_timeout_seconds": 1200,
                     "recommendation_basis": "Observed two-capture/reproduction Job completed in 693 seconds on CPU Performance; not a runtime guarantee. Requote current prices and choose your own ceiling.",
                     "scope_note": "Heavier trained Fruit proxy; declared indexer/MTP omissions retained. Not an assistant or upstream-model quality claim."})
+    entries.append({"id": "root:qwen38-27b", "label": "Qwen3.8-27B BF16 · full suite-v5 shard 0", "mode": "root",
+                    "model_repository": "Qwen/Qwen3.8-27B", "model_revision": "1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0",
+                    "panel": {"kind": "bundled", "path": "engines/panels/panel--qwen38.malaiwah.suite-v5-shard0-1m", "role": "final"},
+                    "unexpected_allowlist": "engines/tools/layer-outer-evidence/qwen38-27b-unexpected-keys.json",
+                    "recommended_flavor": "a100-large", "recommended_timeout_seconds": 7200,
+                    "recommended_max_output_bytes": 32 * 1024**3,
+                    "recommendation_basis": "Unqualified runtime proposal, not measured fit or throughput. No existing same-lane root: first create a new BF16 root with two cold captures and reproduction.",
+                    "scope_note": "Full 512 original 2048-token contexts, score_from=0; no subset. Text-only forward; vision behavior not measured, exact 15 MTP draft tensors explicitly omitted."})
     return entries
 
 
@@ -365,9 +374,25 @@ def _dataset_metadata(actor, repo, revision, mount_path):
         if total > 64 * 1024**2 or len(metadata) >= MAX_FILES:
             raise JobsError("Dataset metadata exceeds the bounded private staging allowance.")
         metadata.append({"path": name, "sha256": file_sha, "bytes": file_bytes})
+    artifact_bytes = 0
+    names = sorted(set(inventory) | {F.CHECKSUMS_NAME, F.MANIFEST_NAME})
+    for start in range(0, len(names), 100):
+        batch = names[start:start + 100]
+        try:
+            rows = _anonymous_client().get_paths_info(repo, batch, repo_type="dataset", revision=revision)
+        except Exception as exc:
+            if _hf_status(exc) not in (401, 403):
+                raise _api_error(exc, "Dataset size lookup") from None
+            rows = actor.client().get_paths_info(repo, batch, repo_type="dataset", revision=revision)
+        if {row.path for row in rows} != set(batch):
+            raise JobsError("Canonical dataset inventory is missing on the pinned Hub tree.")
+        for row in rows:
+            if type(getattr(row, "size", None)) is not int or row.size < 0:
+                raise JobsError("Canonical dataset file has no recorded byte size.")
+            artifact_bytes += row.size
     return {"repository": repo, "revision": revision, "mount_path": mount_path,
             "dataset_sha256": descriptor["dataset_sha256"], "manifest_sha256": sha,
-            "manifest_bytes": size, "descriptor": descriptor, "metadata_files": metadata}
+            "manifest_bytes": size, "descriptor": descriptor, "metadata_files": metadata, "artifact_bytes": artifact_bytes}
 
 
 def _registry_metadata(actor, repo, revision):
@@ -440,13 +465,128 @@ def _registered(registry, reference, model, scope, codec, bits, actor):
                     "url": "https://huggingface.co/" + model["publisher"]}}}
 
 
+def _planning_geometry(actor, model):
+    """Inspect bounded header bytes, not weights or repository-name parameter counts."""
+    import struct
+    import urllib.error
+    import urllib.request
+    from fidelity.hfmeta import safe_urlopen
+    from huggingface_hub import hf_hub_url
+    tensors = {}
+    weight_map = {}
+    evidence = []
+    for row in model["files"]:
+        if not row["path"].endswith(".safetensors"):
+            continue
+        url = hf_hub_url(model["repository"], row["path"], revision=model["revision"])
+        def fetch(start, length, token=None):
+            headers = {"Range": "bytes=%d-%d" % (start, start + length - 1)}
+            if token:
+                headers["Authorization"] = "Bearer " + token
+            with safe_urlopen(urllib.request.Request(url, headers=headers), timeout=60) as response:
+                if response.status != 206:
+                    raise JobsError("Tensor header server did not honor a bounded range; no full weight download is admitted.")
+                raw = response.read(length + 1)
+                if len(raw) != length:
+                    raise JobsError("Tensor header range has the wrong byte length.")
+                return raw
+        def anonymous_first(start, length):
+            try:
+                return fetch(start, length)
+            except urllib.error.HTTPError as exc:
+                if exc.code not in (401, 403):
+                    raise JobsError("Pinned tensor header lookup failed (HTTP %d)." % exc.code) from None
+                return fetch(start, length, actor.client().token)
+        prefix = anonymous_first(0, 8)
+        length = struct.unpack("<Q", prefix)[0]
+        if not 0 < length <= MAX_JSON or length + 8 > row["bytes"]:
+            raise JobsError("Invalid or oversized safetensors header.")
+        raw = anonymous_first(8, length)
+        header = json.loads(raw)
+        for name, tensor in header.items():
+            if name == "__metadata__":
+                continue
+            if name in tensors or not isinstance(tensor, dict) or not isinstance(tensor.get("shape"), list):
+                raise JobsError("Duplicate or malformed checkpoint tensor metadata.")
+            offsets = tensor.get("data_offsets")
+            if (not isinstance(offsets, list) or len(offsets) != 2 or any(type(n) is not int for n in offsets)
+                    or not 0 <= offsets[0] <= offsets[1] <= row["bytes"] - 8 - length):
+                raise JobsError("Checkpoint tensor offsets exceed its actual shard size.")
+            tensors[name] = tensor
+            weight_map[name] = row["path"]
+        evidence.append({"path": row["path"], "header_bytes": length, "header_sha256": hashlib.sha256(raw).hexdigest()})
+    if model.get("index_sha256"):
+        index, index_sha, _ = _json_download(actor, model["repository"], model["revision"], "model.safetensors.index.json")
+        if index_sha != model["index_sha256"] or index.get("weight_map") != weight_map:
+            raise JobsError("Pinned safetensors index differs from the actual shard header tensor census.")
+    geometry = job_resources.model_geometry(model["config"], tensors)
+    geometry["headers"] = evidence
+    return geometry
+
+
+def _resolve_planning_panel(actor, panel, tokenizer_model):
+    """Materialize bounded immutable token/identity bytes, then use the worker resolver."""
+    from fidelity import panel as panel_api
+    with tempfile.TemporaryDirectory(prefix="qfs-panel-admission-") as td:
+        staging = Path(td)
+        if panel.get("kind") == "bundled":
+            raw_panel = ROOT / panel["path"]
+        else:
+            raw_panel = staging / "panel"
+            try:
+                rows = list(_anonymous_client().list_repo_tree(panel["repository"], path_in_repo=panel["path"],
+                    repo_type="dataset", revision=panel["revision"], recursive=True))
+            except Exception as exc:
+                if _hf_status(exc) not in (401, 403):
+                    raise _api_error(exc, "Panel tree lookup") from None
+                rows = list(actor.client().list_repo_tree(panel["repository"], path_in_repo=panel["path"],
+                    repo_type="dataset", revision=panel["revision"], recursive=True))
+            total = 0
+            for row in rows:
+                if not hasattr(row, "size"):
+                    continue
+                if not row.path.startswith(panel["path"] + "/"):
+                    raise JobsError("Panel tree returned an out-of-prefix path.")
+                name = _relative(row.path[len(panel["path"]) + 1:])
+                if type(row.size) is not int or row.size < 0:
+                    raise JobsError("Panel artifact has no bounded size.")
+                total += row.size
+                if total > 128 * 1024**2 or len(rows) > MAX_FILES:
+                    raise JobsError("Raw panel exceeds the bounded no-spend metadata allowance.")
+                target = raw_panel / name
+                target.parent.mkdir(parents=True, exist_ok=True)
+                _json_download(actor, panel["repository"], panel["revision"], row.path, repo_type="dataset",
+                               limit=128 * 1024**2, save_to=target, parse_json=False)
+        unresolved = panel_api.resolve_panel(raw_panel, role="final").to_dict()
+        tokenizer_root = staging / "tokenizer"
+        tokenizer_root.mkdir()
+        files = {row["path"]: row for row in tokenizer_model["files"]}
+        total = 0
+        for row in unresolved["tokenizer"]["files"]:
+            name = _relative(row["name"])
+            source = files.get(name)
+            if source is None:
+                raise JobsError("Checkpoint does not carry the panel's exact tokenizer artifact: " + name)
+            total += source["bytes"]
+            if total > 128 * 1024**2:
+                raise JobsError("Tokenizer identity exceeds the bounded planning allowance.")
+            target = tokenizer_root / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            _json_download(actor, tokenizer_model["repository"], tokenizer_model["revision"], name,
+                           limit=128 * 1024**2, save_to=target, parse_json=False)
+        binding = panel_api.resolve_panel(raw_panel, role="final", tokenizer_root=tokenizer_root).to_dict()
+        if not binding["tokenizer"]["files_verified"]:
+            raise JobsError("Panel tokenizer could not be verified before spending.")
+        return binding
+
+
 def _prepare(actor, spec, registry=None):
     if not isinstance(actor, Actor) or not isinstance(spec, dict):
         raise JobsError("An authenticated caller and workflow inputs are required.")
     allowed = {"preset", "mode", "model_repository", "model_revision", "reference_repository", "reference_revision",
                "candidate_repository", "candidate_revision", "panel_repository", "panel_revision", "panel_path",
                "scope_json", "codec", "declared_bits", "flavor", "timeout_seconds", "max_compute_usd", "output_repository",
-               "review_metadata"}
+               "review_metadata", "max_output_bytes"}
     if set(spec) - allowed:
         raise JobsError("Unknown workflow input field.")
     _validate_review_metadata(spec.get("review_metadata", {}))
@@ -461,6 +601,7 @@ def _prepare(actor, spec, registry=None):
     timeout = request.get("timeout_seconds", request.get("recommended_timeout_seconds", 600))
     if type(timeout) is not int or not 60 <= timeout <= 7200:
         raise JobsError("Job deadline must be 60–7200 seconds.")
+    maximum_output = job_resources.output_limit(request.get("max_output_bytes", MAX_OUTPUT))
     try:
         ceiling = Decimal(str(request.get("max_compute_usd", "0.25")))
     except InvalidOperation:
@@ -544,11 +685,10 @@ def _prepare(actor, spec, registry=None):
         allowlist = {"path": path, "artifact_sha256": hashlib.sha256(raw).hexdigest(),
                      "canonical_sorted_names_sha256": hashlib.sha256(canonical(sorted(names))).hexdigest()}
     if model:
-        disk = int(re.search(r"\d+", hw["ephemeral_storage"])[0]) * 10**9
-        if model["weight_bytes"] * 2 + MAX_OUTPUT + 4 * 1024**3 > disk:
-            raise JobsError("Model, bounded outputs and installation margin exceed this hardware's ephemeral disk.")
-        if model["weight_bytes"] > 8 * 1024**3 and flavor == "cpu-basic":
-            raise JobsError("Use CPU Upgrade or larger for this heavier checkpoint; CPU Basic has insufficient observed margin.")
+        panel["binding"] = _resolve_planning_panel(actor, panel, tokenizer or model)
+        model["resource_geometry"] = _planning_geometry(actor, model)
+    resources = job_resources.plan_resources(mode, model, panel["binding"] if panel else None,
+        reference, candidate, tokenizer, hw, maximum_output)
     workflow_id = secrets.token_hex(16)
     output_repo = request.get("output_repository") or actor.username + "/qfs-capture-" + workflow_id[:12]
     _identity(output_repo, "0" * 40)
@@ -579,11 +719,14 @@ def _prepare(actor, spec, registry=None):
             "runtime": {"dtype": "bfloat16", "schedule": "layer-outer", "trusted_code": trusted_code,
                         "unexpected_allowlist": allowlist}, "scope": scope, "codec": codec, "declared_bits": bits,
             "registered": registered, "review_metadata": spec.get("review_metadata", {}),
-            "limits": {"max_output_bytes": MAX_OUTPUT},
+            "limits": {"max_output_bytes": maximum_output}, "resources": resources,
             "notes": ["This estimate is not an account-level hard spending cap. HF enforces the requested timeout; startup, rounding and storage have separate semantics.",
                       "Jobs are billed to " + actor.username + ", not the Space owner. CPU Basic Jobs are not free CPU Basic Space hosting.",
                       "Results persist in your private bucket. No bearer token is passed to model code.",
                       "Capture/reconstruction proves its declared scope, not native serving kernels or model quality."]}
+    for field in ("scope_note", "recommendation_basis"):
+        if (preset or {}).get(field):
+            plan["notes"].append(preset[field])
     plan = seal(plan, "plan_sha256")
     return {"plan": plan, "ticket": _ticket(plan)}
 
@@ -882,7 +1025,7 @@ def _fetch_result(actor, job_id, directory):
     if _stage(job) not in _TERMINAL:
         raise JobsError("The Job is still active. Refresh logs or cancel; results are not final.")
     _download_bucket_manifest(actor, plan["output"]["bucket"], plan["output"]["prefix"] + "/outputs/result", directory,
-                              max_bytes=min(MAX_OUTPUT, plan["limits"]["max_output_bytes"]))
+                              max_bytes=job_resources.retrieval_limit(plan, directory))
     result = _read_json(directory / "result.json")
     verify_seal(result, "result_sha256")
     if (result.get("schema") != "qfs.hf-workflow-result.v1" or result.get("mode") != plan["mode"]

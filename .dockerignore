@@ -36,6 +36,7 @@ engines/tools/glm53-stagea-evidence
 engines/tools/layer-outer-evidence/*
 !engines/tools/layer-outer-evidence/exl3-decoder-parity-vs-exllamav3.json
 !engines/tools/layer-outer-evidence/fruit-unexpected-keys.json
+!engines/tools/layer-outer-evidence/qwen38-27b-unexpected-keys.json
 !engines/tools/layer-outer-evidence/glm53-layer78-unexpected-keys.json
 !engines/tools/layer-outer-evidence/fruit-fp8-unexpected-keys.json
 !engines/tools/layer-outer-evidence/glm53-fp8-layer78-unexpected-keys.json

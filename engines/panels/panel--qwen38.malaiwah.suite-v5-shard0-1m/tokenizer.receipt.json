@@ -1,0 +1,84 @@
+{
+  "add_special_tokens": false,
+  "artifacts": [
+    {
+      "bytes": 3353259,
+      "path": "merges.txt",
+      "sha256": "a9d356d7bdf1ef4949e3e748e95b8e10ad9d4e2e838eddc38a0a7b6b94d1db8d"
+    },
+    {
+      "bytes": 12809320,
+      "path": "tokenizer.json",
+      "sha256": "0997f410c57a1f4e53b09e4be8f4a172d90edd9564368fb0847030937229b9f3"
+    },
+    {
+      "bytes": 17928,
+      "path": "tokenizer_config.json",
+      "sha256": "b11349aafa7cdc6a320767cf7ceb29ed82f7eda5d65e8e0819e76f0ce947bf27"
+    },
+    {
+      "bytes": 6722759,
+      "path": "vocab.json",
+      "sha256": "ce99b4cb2983d118806ce0a8b777a35b093e2000a503ebde25853284c9dfa003"
+    }
+  ],
+  "chat_template_applied": false,
+  "evidence_files": {
+    "chat_template.jinja": {
+      "bytes": 8952,
+      "sha256": "c3cf9e34abf4f9e36c2d72165aa9c132d3e2a725b6c2586aaa3a8af9d7a81041"
+    },
+    "config.json": {
+      "bytes": 4312,
+      "sha256": "191e0af232104ed8b65258cf3fb2b842e288008baca7633c11b82a1ac7203aab"
+    },
+    "generation_config.json": {
+      "bytes": 202,
+      "sha256": "e70c136c1b78ddc1fb0905bac8e733a4dc448d4f852a5dd75143fffc70be550e"
+    }
+  },
+  "format_version": 1,
+  "maximum_token_id_exclusive": 248320,
+  "minimum_token_id": 0,
+  "model_type": "qwen3_5",
+  "note": "no tokenizer was loaded and no text was tokenized: the token ids are transported from the sealed suite. These files are identity evidence, verified byte-for-byte against the target's own directory before any spend.",
+  "observed_token_id_maximum": 248014,
+  "receipt_sha256": "410273e9158950c5b8078e2de851a165d9a9048801feaa3e77711901c9d5a869",
+  "schema": "quant-pipeline.glm53-tokenizer-receipt.v1",
+  "sealed_by_suite": {
+    "model_identity_config_sha256": "191e0af232104ed8b65258cf3fb2b842e288008baca7633c11b82a1ac7203aab",
+    "model_identity_tokenizer_sha256": "0997f410c57a1f4e53b09e4be8f4a172d90edd9564368fb0847030937229b9f3",
+    "rule": "the suite manifest's model_identity digests equal the sha256 of tokenizer.json and config.json at the pinned model revision, so this tokenizer is the one that produced these token ids",
+    "suite_manifest_sha256": "44000bbd4ec24fea4a19696eb7b5e1055b66c4dc65a3bf14f243de58e38cd3f3"
+  },
+  "tokenizer_identity": {
+    "class": "Qwen2Tokenizer",
+    "files": [
+      {
+        "bytes": 3353259,
+        "path": "merges.txt",
+        "sha256": "a9d356d7bdf1ef4949e3e748e95b8e10ad9d4e2e838eddc38a0a7b6b94d1db8d"
+      },
+      {
+        "bytes": 12809320,
+        "path": "tokenizer.json",
+        "sha256": "0997f410c57a1f4e53b09e4be8f4a172d90edd9564368fb0847030937229b9f3"
+      },
+      {
+        "bytes": 17928,
+        "path": "tokenizer_config.json",
+        "sha256": "b11349aafa7cdc6a320767cf7ceb29ed82f7eda5d65e8e0819e76f0ce947bf27"
+      },
+      {
+        "bytes": 6722759,
+        "path": "vocab.json",
+        "sha256": "ce99b4cb2983d118806ce0a8b777a35b093e2000a503ebde25853284c9dfa003"
+      }
+    ],
+    "model_id": "Qwen/Qwen3.8-27B",
+    "model_revision": "1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0"
+  },
+  "tokenizer_identity_sha256": "b0aa393c3eafce6117bf6050307385a2735bae9dd8bd0a486f902f4b8bc03ec5",
+  "trust_remote_code": false,
+  "vocab_size": 248320
+}
