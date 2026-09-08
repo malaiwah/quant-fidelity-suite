@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Guarded, dry-run-default publication of the canonical public registry.
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+exec "${FIDELITY_PYTHON:-python3}" "$ROOT/bin/registry_publish.py" "$@"

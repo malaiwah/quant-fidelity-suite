@@ -1,0 +1,16 @@
+{
+  "schema": "qfs.hf-jobs-execution.v1",
+  "job_id": "6a9f8e38259f8e97255ede25",
+  "namespace": "malaiwah",
+  "flavor": "cpu-upgrade",
+  "docker_image": "python@sha256:581429e3df12d76e6af4be5ab7d0e7fc2013eb57dc23d2de691411c8efdbb970",
+  "plan_sha256": "b7c7aab818e5a927465a4c1785f41f472ce1ea05bdb86fbcaa31f94a6b39a0f0",
+  "source_revision": "13ad8cc8bf93e401c487a9a2e04f3013262eeae5",
+  "status": "COMPLETED",
+  "requested_timeout_seconds": 1200,
+  "created_at": "2026-09-08T04:25:28.063000+00:00",
+  "started_at": "2026-09-08T04:25:36.256000+00:00",
+  "finished_at": "2026-09-08T04:27:50.755000+00:00",
+  "running_seconds": 134,
+  "provider_identity_note": "Controller read authenticated HF Jobs API. Worker hardware is worker-reported, not independent reproduction."
+}

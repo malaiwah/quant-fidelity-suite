@@ -1,0 +1,154 @@
+{
+  "repository": "malaiwah/quant-fidelity-registry",
+  "parent_commit": "16e38c663dde9725beb200385b33c8d0503e550b",
+  "committed_revision": "51fd391b3d116ea3ee8c58a018681e50f2bd1668",
+  "status": "published_verified",
+  "verified_file_count": 456,
+  "collection_sha256": {
+    "artifacts": "5d426f3240ce1721b3cc3e27128f2a5ef1d3d1c250862f723acfc9664ee3fb58",
+    "measurements": "78b159baae45502d5429a13583a5ab6e6fcbc782f624d40f0ba7cf9a581c8647",
+    "models": "72fb8b08822d4852ed13b7c0ead301cfe61fd6c60741f67e23f3049bf9b187f2",
+    "panels": "bb82e6d996e419aafd675da074b858d57df55e2d5bdab5570f06b785ec74c28d",
+    "pipelines": "21634867ea6ac1fdcc21f48cf2dbf01fff5877ecd1a74e03791ae6faa14516f4",
+    "references": "a22aa0a2c4b273fd940b1683f3860253d91d7733337f66f15dc76a3ca191b6f0"
+  },
+  "collections": {
+    "artifacts": {
+      "added_ids": [],
+      "local_count": 94,
+      "remote_count": 94,
+      "removed_ids": []
+    },
+    "measurements": {
+      "added_ids": [],
+      "local_count": 113,
+      "remote_count": 113,
+      "removed_ids": []
+    },
+    "models": {
+      "added_ids": [],
+      "local_count": 18,
+      "remote_count": 18,
+      "removed_ids": []
+    },
+    "panels": {
+      "added_ids": [],
+      "local_count": 19,
+      "remote_count": 19,
+      "removed_ids": []
+    },
+    "pipelines": {
+      "added_ids": [],
+      "local_count": 31,
+      "remote_count": 31,
+      "removed_ids": []
+    },
+    "references": {
+      "added_ids": [],
+      "local_count": 30,
+      "remote_count": 30,
+      "removed_ids": []
+    }
+  },
+  "field_changes": [
+    {
+      "collection": "measurements",
+      "id": "measurement--glm-5.3.exl3-tr3-3.0bpw-davidsyoung.corpus5x5-v1",
+      "new": {
+        "present": true,
+        "value": 0.0684587044504712
+      },
+      "old": {
+        "present": true,
+        "value": 0.0684587044504711
+      },
+      "path": "/uncertainty/ci95_low"
+    },
+    {
+      "collection": "measurements",
+      "id": "measurement--glm53.k8-8bpw-stream.brandonmusic-final25.clean17",
+      "new": {
+        "present": true,
+        "value": 0.0138377523733541
+      },
+      "old": {
+        "present": true,
+        "value": 0.0138377523733542
+      },
+      "path": "/uncertainty/ci95_high"
+    }
+  ],
+  "approval_sha256": "ce754de66157db786ea0626a99d6619927beb20a48985b9fc0b4301f11974a29",
+  "warning_disposition": {
+    "audit_sha256": "d32eafe17b29778a5292bdad190d5a96436c64b05c9814c11d3ec742333a76d7",
+    "warning_count": 397
+  },
+  "warnings_dispositioned": true,
+  "publication_kind": "reviewed_snapshot_not_release_certification",
+  "strict_warning_free_release_gate_passed": false,
+  "retained_remote_metadata": [
+    {
+      "path": ".gitattributes",
+      "sha256": "9e75dd981de037ec3769f24f790e126bc5a160b6871f510214e68dc70649aeeb"
+    }
+  ],
+  "changed_files": [
+    {
+      "action": "update",
+      "bytes": 4955,
+      "path": "Makefile",
+      "remote_sha256": "b9b315eb37d727c974b7fc0715d2a89c6166f10254fdd264b9f19ec8605bfefa",
+      "sha256": "1e79e491c501b9e73c371b692dbabb83337f4769dbb2f2b9f75a7752c87355ea"
+    },
+    {
+      "action": "update",
+      "bytes": 1212780,
+      "path": "data/measurements.jsonl",
+      "remote_sha256": "675ecf9def73c8eded224372ef1e0804a43b1953d2ee2c5fcdf78076d8ece8f2",
+      "sha256": "78b159baae45502d5429a13583a5ab6e6fcbc782f624d40f0ba7cf9a581c8647"
+    },
+    {
+      "action": "update",
+      "bytes": 99066,
+      "path": "index.json",
+      "remote_sha256": "873bfb2b1b0036c95232522b1d6487b2861720b27512a511329777dbb07d87b2",
+      "sha256": "feaa6ce6c64ff175eb32450480b9d20561eba8e8038e556c223d05e25e9e522a"
+    },
+    {
+      "action": "update",
+      "bytes": 10993,
+      "path": "llms.txt",
+      "remote_sha256": "80c7bca59aa2dafd92555d35791abee3c334273c7ebe6d319b53208defb33911",
+      "sha256": "d1a79e8ecf78bceb3d0d17f498b89f97674ac0ca05cdfbc31e3ffa8e89020530"
+    },
+    {
+      "action": "update",
+      "bytes": 649783,
+      "path": "publication-audit.json",
+      "remote_sha256": "496c79729198cc17052adf678ecfe2d105270d1daf833f25bdc8ad60ea199f38",
+      "sha256": "d32eafe17b29778a5292bdad190d5a96436c64b05c9814c11d3ec742333a76d7"
+    },
+    {
+      "action": "update",
+      "bytes": 7055,
+      "path": "schema/index.schema.json",
+      "remote_sha256": "0bca888ad2d51ae82ae9425c89042a642e6102b5128057e9ea668a69ac319b79",
+      "sha256": "0aeb3d8c17ac65ea58ff4f0879dc2004fb7a8a575d63a4134fe1eb3d38348e14"
+    },
+    {
+      "action": "update",
+      "bytes": 39239,
+      "path": "tools/community_fixtures.py",
+      "remote_sha256": "1aafe17fd3c20947f70e32c80b9b4cd8cceee26ae047afb8d0dfc68395eb4547",
+      "sha256": "b7b0b570565fe5f767d55cc204f8c977bf8576b2e77ea6aafac4b2513817f5d6"
+    },
+    {
+      "action": "update",
+      "bytes": 104332,
+      "path": "tools/registry_selftest.py",
+      "remote_sha256": "38dc1f6ae5fbc4d962a3042b075fb4c91ff372ab35bfc2a46bf25540b6a5cd62",
+      "sha256": "f45fb335495ac0aa050f16260b478910af7bf329e5ee131dffb4161afec78b67"
+    }
+  ],
+  "independent_data_index_byte_comparison": true
+}

@@ -1,0 +1,230 @@
+{
+  "artifact": {
+    "codec": {
+      "bits_per_weight_nominal": 4,
+      "family": "int4"
+    },
+    "container": "safetensors",
+    "producer": {
+      "handle": "malaiwah",
+      "name": "malaiwah",
+      "url": "https://huggingface.co/malaiwah"
+    },
+    "repository": "malaiwah/SmolLM2-135M-QFS-rtn-int4-g64",
+    "revision": "2082dbf88c86551a07712dd236e054cfb94b217a",
+    "scope": {
+      "assignments": [
+        {
+          "bits_per_weight": 16,
+          "format": "bf16",
+          "layer_range": null,
+          "note": "Untouched native BF16 tensors.",
+          "tensor_class": "embed_tokens",
+          "treatment": "native"
+        },
+        {
+          "bits_per_weight": 16,
+          "format": "bf16",
+          "layer_range": null,
+          "note": "Untouched native BF16 tensors.",
+          "tensor_class": "lm_head",
+          "treatment": "native"
+        },
+        {
+          "bits_per_weight": 16,
+          "format": "bf16",
+          "layer_range": null,
+          "note": "Untouched native BF16 tensors.",
+          "tensor_class": "norm",
+          "treatment": "native"
+        },
+        {
+          "bits_per_weight": 4,
+          "format": "int4",
+          "layer_range": null,
+          "note": "rtn INT4 g64; GPTQ-v2 denotes storage; calibrated=False.",
+          "tensor_class": "attn.qkv",
+          "treatment": "quantized"
+        },
+        {
+          "bits_per_weight": 4,
+          "format": "int4",
+          "layer_range": null,
+          "note": "rtn INT4 g64; GPTQ-v2 denotes storage; calibrated=False.",
+          "tensor_class": "attn.o",
+          "treatment": "quantized"
+        },
+        {
+          "bits_per_weight": 4,
+          "format": "int4",
+          "layer_range": null,
+          "note": "rtn INT4 g64; GPTQ-v2 denotes storage; calibrated=False.",
+          "tensor_class": "mlp.gate",
+          "treatment": "quantized"
+        },
+        {
+          "bits_per_weight": 4,
+          "format": "int4",
+          "layer_range": null,
+          "note": "rtn INT4 g64; GPTQ-v2 denotes storage; calibrated=False.",
+          "tensor_class": "mlp.up",
+          "treatment": "quantized"
+        },
+        {
+          "bits_per_weight": 4,
+          "format": "int4",
+          "layer_range": null,
+          "note": "rtn INT4 g64; GPTQ-v2 denotes storage; calibrated=False.",
+          "tensor_class": "mlp.down",
+          "treatment": "quantized"
+        }
+      ],
+      "head_policy": "native",
+      "kv_cache_dtype": "bf16",
+      "policy": "mixed"
+    },
+    "scope_digest": "attn.o=quantized:int4@4|attn.qkv=quantized:int4@4|embed_tokens=native:bf16@16|lm_head=native:bf16@16|mlp.down=quantized:int4@4|mlp.gate=quantized:int4@4|mlp.up=quantized:int4@4|norm=native:bf16@16|head=native|kv=bf16",
+    "size_bytes": 114620808
+  },
+  "auxiliary_metrics": {
+    "context_macro_mean_kld": null,
+    "max_kld": 4.547834110559025,
+    "median_kld": 0.18469561250434763,
+    "p95_kld": 0.6744654570480427,
+    "p999_kld": 3.544759498685797,
+    "p99_kld": 1.687222388215776,
+    "top1_agreement": 0.7323529411764705
+  },
+  "comparability": {
+    "bias": {
+      "detail": "the capture stacks differ or their code identity is unproven. The sign and magnitude of the cross-stack effect are unknown; a control measured on another artifact, panel or stack is not a transferable correction. usable_as_floor is false.",
+      "direction": "unknown",
+      "estimated_magnitude": null,
+      "floor_measurement_ref": null,
+      "kind": "cross_stack_capture_replay"
+    },
+    "usable_as_floor": false
+  },
+  "cost": {
+    "basis": null,
+    "usd": null
+  },
+  "determinism": {
+    "cold_start_per_run": null,
+    "distinct_evidence_hash_count": 2,
+    "evidence_hashes": [
+      "101badc0758fd40d8c39d4342b5cbde718e22f819284a37c9cb2628271a910ed",
+      "6b1d887dc4692c8eb304e4e9970c941b690c4240e99305cc23aac7a3335281f3"
+    ],
+    "evidence_kind": "hidden_state_tensor_sha256",
+    "identical_across_runs": null,
+    "note": "one comparison of two sealed captures. identical_across_runs is null, not true: that claim needs two independently produced captures of the SAME weights (SC-2), which is a different receipt.",
+    "run_count": 1,
+    "run_means": [
+      0.2580161602502685
+    ]
+  },
+  "disclosures": [
+    {
+      "affects_comparability": false,
+      "code": "native_head_replay",
+      "detail": "HEAD-1d: each side replayed through its own sealed head (reference d4d9c148303f, candidate d4d9c148303f); head-weight differences are included, but replay arithmetic need not equal live/native head execution. The heads are content-identical.",
+      "severity": "info"
+    },
+    {
+      "affects_comparability": true,
+      "code": "cross_stack_capture",
+      "detail": "capture stack equality is not established (lane_identity equal on both sides, or unrecorded, stack_fingerprint equal on both sides, or unrecorded, source_files differ or unrecorded). The cross-stack effect has unknown sign and magnitude.",
+      "severity": "caveat"
+    },
+    {
+      "affects_comparability": true,
+      "code": "weights_reconstructed",
+      "detail": "candidate was captured from a WEIGHTS-ONLY RECONSTRUCTION (affine-weight-reconstruction, output bfloat16). The stored weights were decoded before the model forward; native quantized GEMM and serving activation arithmetic are not measured. Decoder provenance is in the sealed runtime receipt. The comparison is advisory.",
+      "severity": "caveat"
+    }
+  ],
+  "environment": {},
+  "estimator": {
+    "accumulation_dtype": "float64",
+    "head_policy": "native_head",
+    "logits_dtype": "fp32",
+    "replay_applicable": true,
+    "replay_backend": "numpy:cpu:float32",
+    "replay_env": {
+      "blas_configuration": "OpenBLAS 0.3.34.106.0  USE64BITINT DYNAMIC_ARCH NO_AFFINITY Haswell MAX_THREADS=64",
+      "blas_name": "scipy-openblas",
+      "blas_threads": 8,
+      "blas_threads_source": "ctypes:scipy_openblas_get_num_threads64_",
+      "blas_version": "0.3.34.106.0",
+      "cpu_model": "AMD EPYC 7R13 Processor",
+      "library": "numpy",
+      "numpy_version": "2.5.3",
+      "replay_dtype": "float32"
+    },
+    "softmax_note": "full-vocabulary log-softmax in float64; estimator_backend names the implementation. No truncation, top-k or clamp. A non-finite intermediate is a hard refusal.",
+    "stack_relation": "cross_stack",
+    "two_pass": true,
+    "vocab_chunk": 8192,
+    "zero_handling": null
+  },
+  "evidence": [
+    {
+      "kind": "hf_file",
+      "note": "reference fidelity dataset fidelity--d3dc69602aeb981f06bd9f4c726937f9 (malaiwah.fidelity-dataset.v1, form hidden, lane other)",
+      "sha256": "37fc85ce320a80533db7cb94cbe8f8a216b521197f678503b68f2528912ebcc2",
+      "uri": "https://huggingface.co/datasets/malaiwah/qfs-smollm2-135m-wikitext2-native-v1/blob/main/fidelity-dataset.json"
+    },
+    {
+      "kind": "hf_file",
+      "note": "candidate fidelity dataset fidelity--ee13c03b2f256042a17c9817e17a2f20 (malaiwah.fidelity-dataset.v1, form hidden, lane other)",
+      "sha256": "e2279b7e3155623a345c46d656a0a414fb6bdbbc7a6b445bc96742e1e7624eff",
+      "uri": "https://huggingface.co/datasets/malaiwah/qfs-smollm2-135m-wikitext2-rtn-g64-v1/blob/main/fidelity-dataset.json"
+    }
+  ],
+  "lane": "other",
+  "measured_at": "2026-09-08T04:23:28Z",
+  "measurement_scope": {
+    "contexts": 16,
+    "covers_full_panel": true,
+    "position_filter": "all",
+    "positions_per_context": 255,
+    "scored_positions": 4080,
+    "subset_detail": null
+  },
+  "measurer": {
+    "handle": "malaiwah",
+    "is_artifact_author": true,
+    "name": "malaiwah",
+    "url": "https://huggingface.co/malaiwah"
+  },
+  "metric": {
+    "direction": "reference_to_candidate",
+    "name": "mean_tokenwise_kld",
+    "units": "nats",
+    "value": 0.2580161602502685
+  },
+  "panel": {
+    "panel_ref": "panel--native.6a74033484e89365fcd6330f",
+    "panel_token_sha256": "551bf02836eacae2532bca51b6b044e9aab27bf20e8ec16c43093aaa879b1f9f"
+  },
+  "produced_by": {
+    "container_digest": null,
+    "container_image": null,
+    "dependencies": {
+      "comparison_kind": "measurement"
+    },
+    "entrypoint": "bin/fidelity_dataset.py",
+    "entrypoint_sha256": "78c8f8c6fa0b932642374d881ffe248d3d73f9f93d60ec5df2e125911229d66c",
+    "repository": "malaiwah/quant-fidelity-suite",
+    "revision": "13ad8cc8bf93e401c487a9a2e04f3013262eeae5",
+    "runtime_reader_sha256": null,
+    "tool": "quant-fidelity-suite/bin"
+  },
+  "receipt_sha256": "453390cc1ab97b5a5d77713e3f4c5690da3cba5decb75c86856c4458dde42fd8",
+  "reference": {
+    "reference_ref": "reference--native.37fc85ce320a80533db7cb94",
+    "teacher_receipt_sha256": "37fc85ce320a80533db7cb94cbe8f8a216b521197f678503b68f2528912ebcc2"
+  },
+  "submission_schema": "quant-fidelity-registry/submission-receipt.v1"
+}

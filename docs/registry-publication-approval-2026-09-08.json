@@ -1,0 +1,49 @@
+{
+  "schema": "qfs/registry-publication-approval/v1",
+  "repository": "malaiwah/quant-fidelity-registry",
+  "parent_commit": "16e38c663dde9725beb200385b33c8d0503e550b",
+  "collection_sha256": {
+    "models": "72fb8b08822d4852ed13b7c0ead301cfe61fd6c60741f67e23f3049bf9b187f2",
+    "artifacts": "5d426f3240ce1721b3cc3e27128f2a5ef1d3d1c250862f723acfc9664ee3fb58",
+    "panels": "bb82e6d996e419aafd675da074b858d57df55e2d5bdab5570f06b785ec74c28d",
+    "references": "a22aa0a2c4b273fd940b1683f3860253d91d7733337f66f15dc76a3ca191b6f0",
+    "pipelines": "21634867ea6ac1fdcc21f48cf2dbf01fff5877ecd1a74e03791ae6faa14516f4",
+    "measurements": "78b159baae45502d5429a13583a5ab6e6fcbc782f624d40f0ba7cf9a581c8647"
+  },
+  "field_changes": [
+    {
+      "collection": "measurements",
+      "id": "measurement--glm-5.3.exl3-tr3-3.0bpw-davidsyoung.corpus5x5-v1",
+      "path": "/uncertainty/ci95_low",
+      "old": {
+        "present": true,
+        "value": 0.0684587044504711
+      },
+      "new": {
+        "present": true,
+        "value": 0.0684587044504712
+      }
+    },
+    {
+      "collection": "measurements",
+      "id": "measurement--glm53.k8-8bpw-stream.brandonmusic-final25.clean17",
+      "path": "/uncertainty/ci95_high",
+      "old": {
+        "present": true,
+        "value": 0.0138377523733542
+      },
+      "new": {
+        "present": true,
+        "value": 0.0138377523733541
+      }
+    }
+  ],
+  "review": {
+    "reviewer": "QFS maintainer-authorized registry convergence review",
+    "reason": "User authorized exact registry convergence. Canonical seeded interval endpoints replace prior public decimal endpoints; signed deltas +1e-16 and -1e-16 in decimal (+7 and -58 binary64 ULPs). See docs/PUBLISHED-CORRECTIONS.md section15. All other scientific fields and all historical evidence bytes remain unchanged."
+  },
+  "warning_disposition": {
+    "audit_sha256": "d32eafe17b29778a5292bdad190d5a96436c64b05c9814c11d3ec742333a76d7",
+    "warning_count": 397
+  }
+}

@@ -311,6 +311,13 @@
       "seconds_xeon_x5570": 0.09,
       "assertions_measured": 29
     },
+    "bin/selftest_registry_publish.py": {
+      "tier": "hermetic",
+      "job": "fast",
+      "seconds_xeon_x5570": 0.38,
+      "assertions_measured": 37,
+      "note": "Offline byte-backed publication/CAS fixtures; strict warning disposition, exact numeric approvals, source preservation, protected credentials and dry-run nonmutation. No SDK dependency, token or network."
+    },
     "bin/selftest_registry_view.py": {
       "tier": "hermetic",
       "job": "fast",

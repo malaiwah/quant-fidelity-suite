@@ -1,0 +1,265 @@
+{
+  "corpus": {
+    "documents_considered": 16,
+    "documents_selected": 16,
+    "path_prefix": "",
+    "repository": null,
+    "revision": null
+  },
+  "created_utc": "2026-09-08T03:10:41Z",
+  "documents": [
+    {
+      "bytes": 5634,
+      "document": "000000.txt",
+      "document_sha256": "ae237715d27419310bb03de2c9be2439e92bac7f1d0c1da9c7f3933b0ea14a9d",
+      "selected": true,
+      "stratum": "test",
+      "token_slice": [
+        0,
+        256
+      ],
+      "tokens_total": 1438,
+      "window_id": "final-0000"
+    },
+    {
+      "bytes": 24487,
+      "document": "000001.txt",
+      "document_sha256": "642d91acd1132d23f6d58f3be8682359b455d09fc0f845b9cb4673ee7abe5a01",
+      "selected": true,
+      "stratum": "test",
+      "token_slice": [
+        0,
+        256
+      ],
+      "tokens_total": 5468,
+      "window_id": "final-0001"
+    },
+    {
+      "bytes": 12255,
+      "document": "000002.txt",
+      "document_sha256": "63a3e54c20dc6afc1f6afcb909db277ea2f45e7efa52215a4611a586632d10be",
+      "selected": true,
+      "stratum": "test",
+      "token_slice": [
+        0,
+        256
+      ],
+      "tokens_total": 3093,
+      "window_id": "final-0002"
+    },
+    {
+      "bytes": 35914,
+      "document": "000003.txt",
+      "document_sha256": "a36ddb72fec430c0ab9b29052675fb0c48386a68e6c60af80135320621ee48e3",
+      "selected": true,
+      "stratum": "test",
+      "token_slice": [
+        0,
+        256
+      ],
+      "tokens_total": 9623,
+      "window_id": "final-0003"
+    },
+    {
+      "bytes": 10616,
+      "document": "000004.txt",
+      "document_sha256": "65541c419587de7cc3cca306bcd82b1fd509ed9be3f30a7d18e38eb9f86f1595",
+      "selected": true,
+      "stratum": "test",
+      "token_slice": [
+        0,
+        256
+      ],
+      "tokens_total": 2639,
+      "window_id": "final-0004"
+    },
+    {
+      "bytes": 12586,
+      "document": "000005.txt",
+      "document_sha256": "7c15c8c44cd4a8063a5f0cf2d309a4846ce8f41c96640636328c580e6f9648d5",
+      "selected": true,
+      "stratum": "test",
+      "token_slice": [
+        0,
+        256
+      ],
+      "tokens_total": 2988,
+      "window_id": "final-0005"
+    },
+    {
+      "bytes": 54510,
+      "document": "000006.txt",
+      "document_sha256": "7f56e8807a3fea56bf14666b4aa56704ce419ce5484f5087efe9ac9dc1a8fb69",
+      "selected": true,
+      "stratum": "test",
+      "token_slice": [
+        0,
+        256
+      ],
+      "tokens_total": 12505,
+      "window_id": "final-0006"
+    },
+    {
+      "bytes": 11031,
+      "document": "000007.txt",
+      "document_sha256": "06d4a41946a4e405d6b0b1ea0418c6bbc9497fba7ae6a20873e9528f81d55c0e",
+      "selected": true,
+      "stratum": "test",
+      "token_slice": [
+        0,
+        256
+      ],
+      "tokens_total": 3043,
+      "window_id": "final-0007"
+    },
+    {
+      "bytes": 58522,
+      "document": "000008.txt",
+      "document_sha256": "93e572d2f1d09aee81e93d8ad3851ab6d2df58935d646580d5f62431a7f4f435",
+      "selected": true,
+      "stratum": "test",
+      "token_slice": [
+        0,
+        256
+      ],
+      "tokens_total": 13388,
+      "window_id": "final-0008"
+    },
+    {
+      "bytes": 9286,
+      "document": "000009.txt",
+      "document_sha256": "647f1ac57fef1bd4c3757ecbe7d8512dcd44f69633fa63969847d0fcaebfab3e",
+      "selected": true,
+      "stratum": "test",
+      "token_slice": [
+        0,
+        256
+      ],
+      "tokens_total": 1971,
+      "window_id": "final-0009"
+    },
+    {
+      "bytes": 15612,
+      "document": "000010.txt",
+      "document_sha256": "9b59e08808fea29a3d01300ce71c09fc50170662d78af64560afeb3c5bd6af60",
+      "selected": true,
+      "stratum": "test",
+      "token_slice": [
+        0,
+        256
+      ],
+      "tokens_total": 3458,
+      "window_id": "final-0010"
+    },
+    {
+      "bytes": 45837,
+      "document": "000011.txt",
+      "document_sha256": "2a673e64049a4052ef5b2d87cb78a6b5371a677fa6a8576bd1f52d97ca7ece8d",
+      "selected": true,
+      "stratum": "test",
+      "token_slice": [
+        0,
+        256
+      ],
+      "tokens_total": 10605,
+      "window_id": "final-0011"
+    },
+    {
+      "bytes": 4997,
+      "document": "000012.txt",
+      "document_sha256": "5cd2fd8cf13daac09020399755f94c3ec84b49c572bebdc5dcb724ef7a05e9fc",
+      "selected": true,
+      "stratum": "test",
+      "token_slice": [
+        0,
+        256
+      ],
+      "tokens_total": 1208,
+      "window_id": "final-0012"
+    },
+    {
+      "bytes": 12445,
+      "document": "000013.txt",
+      "document_sha256": "cdc897d9dab71b1fd4ee92b8f5084c3dcb6d70c6e342e2bea48f7046b1ab5f85",
+      "selected": true,
+      "stratum": "test",
+      "token_slice": [
+        0,
+        256
+      ],
+      "tokens_total": 2701,
+      "window_id": "final-0013"
+    },
+    {
+      "bytes": 2372,
+      "document": "000014.txt",
+      "document_sha256": "698096be8f6f1f8ad7406a2a1e9e578e1e065de9dc740461c4bcd906123f4a36",
+      "selected": true,
+      "stratum": "test",
+      "token_slice": [
+        0,
+        256
+      ],
+      "tokens_total": 641,
+      "window_id": "final-0014"
+    },
+    {
+      "bytes": 8588,
+      "document": "000015.txt",
+      "document_sha256": "5193ec1cf9b091f640677c899cbd932937fdc2ea471f896d367be91c8ad06ca3",
+      "selected": true,
+      "stratum": "test",
+      "token_slice": [
+        0,
+        256
+      ],
+      "tokens_total": 2277,
+      "window_id": "final-0015"
+    }
+  ],
+  "format_version": 1,
+  "panel_id": "panel--smollm2-135m.wikitext2-test16-c256-v1",
+  "panel_name": "SmolLM2-135M WikiText2 test16 c256",
+  "parameters": {
+    "context_length": 256,
+    "prediction_positions_per_window": 255,
+    "scored_positions_total": 4080,
+    "skip_tokens": 0,
+    "strata": [
+      "test"
+    ],
+    "windows_per_stratum": 16,
+    "windows_total": 16
+  },
+  "receipt_sha256": "670846dc7b1273bf51a69e5efd5cbe363dc7e242bd8ba5f65e3919eaeaa65a99",
+  "schema": "malaiwah.token-panel-build-receipt.v1",
+  "selection_rule": "strata sorted ascending; within each stratum documents sorted by file name ascending; each document tokenized whole with add_special_tokens=False; a document is eligible only if it yields at least skip_tokens+context_length tokens; its window is tokens[skip_tokens : skip_tokens+context_length]; the first windows_per_stratum eligible documents are taken; windows are numbered from zero in (stratum, document) order. No RNG is used anywhere.",
+  "separation": {
+    "checked": false,
+    "method": "declaration only; this tool runs no lexical or n-gram scan",
+    "note": "See campaign selection.receipt.json: disjoint titles/content/full-article exact 13-token ngrams; pretraining overlap unknown."
+  },
+  "suite_token_hash_sha256": "551bf02836eacae2532bca51b6b044e9aab27bf20e8ec16c43093aaa879b1f9f",
+  "tokenizer": {
+    "add_special_tokens": false,
+    "chat_template_applied": false,
+    "files_sha256": {
+      ".gitattributes": "11ad7efa24975ee4b0c3c3a38ed18737f0658a5f75a0a96787b576a78a023361",
+      "README.md": "d1ba68cae64a89b6b434b11526e6e2271ee5ffd2c914ec35ed515f9d84c6085c",
+      "config.json": "1d556eab73b69c7f11f64c557a2f9c6f440bd4c6b89bb2584a6b498c92603843",
+      "generation_config.json": "2056c988e990b0d13670f63f2f3b87b3b6d07edaf7a3416998ba27dab2d8a059",
+      "merges.txt": "0b54e8aa4e53d5383e2e4bc635a56b43f9647f7b13832d5d9ecd8f82dac4f510",
+      "model.safetensors": "80521b40281d6ce74e35c9282c22539e75aa0ac8578892b2a59955ef78d55da1",
+      "special_tokens_map.json": "e786b595b9a23148bf1630df78d9037a048ea671e48bfd3549a1e3c233742bb3",
+      "tokenizer.json": "9ca9acddb6525a194ec8ac7a87f24fbba7232a9a15ffa1af0c1224fcd888e47c",
+      "tokenizer_config.json": "4bb9af56a342753d39374f4016a16574cab299fe088e896f425ce3c433f61424",
+      "vocab.json": "82b84012e3add4d01d12ba14442026e49b8cbbaead1f79ecf3d919784f82dc79"
+    },
+    "id": "HuggingFaceTB/SmolLM2-135M",
+    "repository": "HuggingFaceTB/SmolLM2-135M",
+    "revision": "93efa2f097d58c2a74874c7e644dbc9b0cee75a2",
+    "vocab_size": 49152
+  },
+  "tool": "engines/tools/build_token_panel.py",
+  "tool_sha256": "30eb4d4d7e465aaa8d9ef2d947a0ac7fd42ec45388f20c8b6db242c88dc2d851"
+}

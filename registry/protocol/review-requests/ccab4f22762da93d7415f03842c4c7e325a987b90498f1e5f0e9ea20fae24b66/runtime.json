@@ -1,0 +1,341 @@
+{
+  "capture_tool": {
+    "expert_fill": {
+      "bytes_filled": 0,
+      "declined": {},
+      "decoded_slices": 0,
+      "identity": "a byte copy into the fused parameter's slice; bin/selftest_layer_outer.py L4/L6 assert equality with from_pretrained and with the converter path",
+      "layers_filled": 0,
+      "mode": "direct",
+      "reference": "transformers.core_model_loading.MergeModulelist(dim=0) + Concatenate(dim=1)",
+      "slices_filled": 0,
+      "staged_slices": 0,
+      "staging": "pageable",
+      "targets_filled": 0
+    },
+    "file": "engines/tools/hf_capture.py",
+    "head_module_path": "lm_head",
+    "head_resolution": "lm_head",
+    "layer_residency": "stream",
+    "mechanism": "transformers forward pass, layer-outer/window-inner schedule: for each decoder layer the model's own forward is run once per window with the layers below replaying their memoised output and the layers above suspending, so each layer's weights are materialised once for the whole panel. Windows are pushed through sequentially, never batched. Forward pre-hook on model.get_output_embeddings(), fired by the model's own epilogue after the last layer",
+    "model_view": null,
+    "parallel_plan_dropped": false,
+    "resolved_classes": {
+      "config": "transformers.models.llama.configuration_llama.LlamaConfig",
+      "model": "transformers.models.llama.modeling_llama.LlamaForCausalLM"
+    },
+    "resolved_panel_binding": {
+      "binding": {
+        "content": {
+          "archive": {
+            "algorithm": "sha256(ustar: sorted regular files; mode=0644; uid=gid=mtime=0)",
+            "bytes": 61440,
+            "compression": "none",
+            "format": "ustar",
+            "sha256": "12e5f57113dcc31fa4272dc7cd7e82bc92bdcf2b87eb458bd7838af0d589ef82"
+          },
+          "manifest": [
+            {
+              "bytes": 384,
+              "path": "arrays/causal-mask-256.npy",
+              "sha256": "cc93f566c4704fb92bbf903e187f66274cff2ea05332591e8678a0cd809c13e8"
+            },
+            {
+              "bytes": 1152,
+              "path": "arrays/final-0000.tokens.npy",
+              "sha256": "9f37fc5e6d9cf6ad32b057e92257d2996e4b60b5c527f8e3094e316f0655cffb"
+            },
+            {
+              "bytes": 1152,
+              "path": "arrays/final-0001.tokens.npy",
+              "sha256": "2c4896d2077b5f9d41eb9685aec4ba04573dd6ae7e245a8d24c2a6f6e99fd8d1"
+            },
+            {
+              "bytes": 1152,
+              "path": "arrays/final-0002.tokens.npy",
+              "sha256": "f0f164c2505462fc2d77154efb8caaf80bc672a39d385664d862a36a4d2d65a5"
+            },
+            {
+              "bytes": 1152,
+              "path": "arrays/final-0003.tokens.npy",
+              "sha256": "38977f53b56e628c0210201400fb86c6894944a2afa6763957b033ebdc62aa0a"
+            },
+            {
+              "bytes": 1152,
+              "path": "arrays/final-0004.tokens.npy",
+              "sha256": "7f34c92cb618eea67e22c33e8f732abbf85cb6cfc898bb17e4dd61e8f378ca03"
+            },
+            {
+              "bytes": 1152,
+              "path": "arrays/final-0005.tokens.npy",
+              "sha256": "392448e39a4f80321681fb7665dc896a611a606c4e5f776fa9dbfa1590279e6f"
+            },
+            {
+              "bytes": 1152,
+              "path": "arrays/final-0006.tokens.npy",
+              "sha256": "a5770c969b857b0a9ede2f13c7a31461c00c2617bd7364df8b67b7885ddc23a4"
+            },
+            {
+              "bytes": 1152,
+              "path": "arrays/final-0007.tokens.npy",
+              "sha256": "15d5a94f961aeef04374c8f2f2bcd517b35cfdcd04e0bbd1e47df6fd53080ea6"
+            },
+            {
+              "bytes": 1152,
+              "path": "arrays/final-0008.tokens.npy",
+              "sha256": "27587f12356ad5f77cbed754ea516c01e3b954b49e43b4247d85bec321728ad9"
+            },
+            {
+              "bytes": 1152,
+              "path": "arrays/final-0009.tokens.npy",
+              "sha256": "efee7a0865709086faf09926325402c248c0363eb441523c5a2307ffe8a8af3e"
+            },
+            {
+              "bytes": 1152,
+              "path": "arrays/final-0010.tokens.npy",
+              "sha256": "cb3fd1774605cfbdeafa103d9c5fa6fdfa1ed0f45767b47a6fa4d9d9275f52e6"
+            },
+            {
+              "bytes": 1152,
+              "path": "arrays/final-0011.tokens.npy",
+              "sha256": "5575b51603d256181ab837f2bc8f5b1beae67c105efb631c35dd57deb7ebaa6c"
+            },
+            {
+              "bytes": 1152,
+              "path": "arrays/final-0012.tokens.npy",
+              "sha256": "5e082428b0d0818996b168306f5d0978ed862f31051675ee0d0489dbd93843d7"
+            },
+            {
+              "bytes": 1152,
+              "path": "arrays/final-0013.tokens.npy",
+              "sha256": "2ef1dc3068fdf6682f711f01927aa85738db69efcb2aec1c8b533354ad6cad70"
+            },
+            {
+              "bytes": 1152,
+              "path": "arrays/final-0014.tokens.npy",
+              "sha256": "b502439c5f21dd27cfe2a9a8ee924b805978859b5e419285835e205108710228"
+            },
+            {
+              "bytes": 1152,
+              "path": "arrays/final-0015.tokens.npy",
+              "sha256": "2cffb545dea70282b6fcbeefdc2a0435855354ac75dc11a012a987fdf6c11ff8"
+            },
+            {
+              "bytes": 16164,
+              "path": "panel.json",
+              "sha256": "b868d040815de075bff1c4e33ea5e08ee30c1a9545fd51221ea21017f562ed6c"
+            },
+            {
+              "bytes": 8096,
+              "path": "panel.receipt.json",
+              "sha256": "cd7fff9ef1c99cd3c01a3441fbb5930ab203b85cc5dab7f5a518d468b9e07535"
+            }
+          ],
+          "manifest_sha256": "9ef5734284dd7ef36a8debbfbab87e40402d4d76f37e3e72d45687d528849342"
+        },
+        "panel": {
+          "bytes": 16164,
+          "context_length": 256,
+          "contexts": 16,
+          "file": "panel.json",
+          "id": "panel--smollm2-135m.wikitext2-test16-c256-v1",
+          "name": "SmolLM2-135M WikiText2 test16 c256",
+          "positions_per_context": 255,
+          "role": "final",
+          "scored_positions_total": 4080,
+          "sha256": "b868d040815de075bff1c4e33ea5e08ee30c1a9545fd51221ea21017f562ed6c",
+          "suite_token_hash_sha256": "551bf02836eacae2532bca51b6b044e9aab27bf20e8ec16c43093aaa879b1f9f"
+        },
+        "receipt": {
+          "bytes": 8096,
+          "declared_receipt_sha256": "670846dc7b1273bf51a69e5efd5cbe363dc7e242bd8ba5f65e3919eaeaa65a99",
+          "file": "panel.receipt.json",
+          "receipt_file_sha256": "cd7fff9ef1c99cd3c01a3441fbb5930ab203b85cc5dab7f5a518d468b9e07535",
+          "receipt_seal_mode": "self-blank"
+        },
+        "schema": "malaiwah.resolved-panel.v1",
+        "tokenizer": {
+          "files": [
+            {
+              "bytes": 1519,
+              "name": ".gitattributes",
+              "sha256": "11ad7efa24975ee4b0c3c3a38ed18737f0658a5f75a0a96787b576a78a023361"
+            },
+            {
+              "bytes": 6340,
+              "name": "README.md",
+              "sha256": "d1ba68cae64a89b6b434b11526e6e2271ee5ffd2c914ec35ed515f9d84c6085c"
+            },
+            {
+              "bytes": 704,
+              "name": "config.json",
+              "sha256": "1d556eab73b69c7f11f64c557a2f9c6f440bd4c6b89bb2584a6b498c92603843"
+            },
+            {
+              "bytes": 111,
+              "name": "generation_config.json",
+              "sha256": "2056c988e990b0d13670f63f2f3b87b3b6d07edaf7a3416998ba27dab2d8a059"
+            },
+            {
+              "bytes": 466391,
+              "name": "merges.txt",
+              "sha256": "0b54e8aa4e53d5383e2e4bc635a56b43f9647f7b13832d5d9ecd8f82dac4f510"
+            },
+            {
+              "bytes": 269060552,
+              "name": "model.safetensors",
+              "sha256": "80521b40281d6ce74e35c9282c22539e75aa0ac8578892b2a59955ef78d55da1"
+            },
+            {
+              "bytes": 831,
+              "name": "special_tokens_map.json",
+              "sha256": "e786b595b9a23148bf1630df78d9037a048ea671e48bfd3549a1e3c233742bb3"
+            },
+            {
+              "bytes": 2104556,
+              "name": "tokenizer.json",
+              "sha256": "9ca9acddb6525a194ec8ac7a87f24fbba7232a9a15ffa1af0c1224fcd888e47c"
+            },
+            {
+              "bytes": 3658,
+              "name": "tokenizer_config.json",
+              "sha256": "4bb9af56a342753d39374f4016a16574cab299fe088e896f425ce3c433f61424"
+            },
+            {
+              "bytes": 800662,
+              "name": "vocab.json",
+              "sha256": "82b84012e3add4d01d12ba14442026e49b8cbbaead1f79ecf3d919784f82dc79"
+            }
+          ],
+          "files_verified": true,
+          "id": "HuggingFaceTB/SmolLM2-135M",
+          "identity_sha256": "1382c8e14b87c8600928d01e17c5a8b4c7e7eddf286969909930ab40fea47eef",
+          "maximum_token_id_exclusive": 49152,
+          "receipt": null,
+          "repository": "HuggingFaceTB/SmolLM2-135M",
+          "revision": "93efa2f097d58c2a74874c7e644dbc9b0cee75a2",
+          "vocab_size": 49152
+        }
+      },
+      "binding_file": "panel-binding.json",
+      "binding_file_sha256": "9015ec31f5ce3079a85e033a63fdaafe67e8bc8df757c91efe8a9bb14d9128f1",
+      "tokenizer_equivalences": []
+    },
+    "schedule": "layer-outer",
+    "sha256": "78032f531d2618bec4d8decf52282760be94ad08055b71fe189904d83730b5a6",
+    "unexpected_tensor_allowlist": null,
+    "verified_code": null,
+    "version": "hf_capture/1",
+    "weights_decode": null,
+    "weights_license": {
+      "bytes": 11358,
+      "dataset_path": "LICENSE",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "source_file": "LICENSE"
+    },
+    "wraps": []
+  },
+  "container": {
+    "image_digest": "sha256:581429e3df12d76e6af4be5ab7d0e7fc2013eb57dc23d2de691411c8efdbb970",
+    "image_reference": "python@sha256:581429e3df12d76e6af4be5ab7d0e7fc2013eb57dc23d2de691411c8efdbb970",
+    "image_repository_digest": null,
+    "source": "env:STACKPRINT_IMAGE_PIN"
+  },
+  "format_version": 1,
+  "lane": "other",
+  "lane_identity_inputs": [
+    "torch_version",
+    "cuda_runtime_version",
+    "device_name",
+    "grouped_mm_kernel",
+    "numeric_policy",
+    "attention_backend",
+    "experts_implementation",
+    "parallelism",
+    "ep_emulate",
+    "reduce_order"
+  ],
+  "lane_identity_sha256": "34f640ff350d24093734d97a81c1048ce0443d8b3c7bda0953f8283b8ea9269f",
+  "lane_inferred": false,
+  "receipt_sha256": "a7bbe960e8e40710bc12bdfc0191d3ac31bb0747e0043d00b199bca94bf1f512",
+  "resources": {
+    "bytes": {
+      "checkpoint_read": 269030016,
+      "hidden_d2h": 4822656,
+      "weights_h2d": null
+    },
+    "checkpoint_bytes": 269061256,
+    "checkpoint_files": 2,
+    "device_name": null,
+    "forward_timing": "wall-clock",
+    "note": "provenance, not identity: peaks and stage seconds this run measured; forward_sum is device time under cuda-events, wall time otherwise; seal covers head serialisation up to this block's assembly",
+    "peak_cuda_allocated_bytes": null,
+    "peak_cuda_reserved_bytes": null,
+    "peak_resident_weight_bytes": 63704704,
+    "peak_rss_bytes": 718651392,
+    "rss_units_source": "Linux ru_maxrss",
+    "seconds": {
+      "decode_sum": null,
+      "elapsed": 23.33,
+      "fill_sum": null,
+      "forward_sum": 14.478,
+      "identity": 0.191,
+      "layer_load_max": 0.012,
+      "layer_load_sum": 0.273,
+      "layer_loads": 30,
+      "resident_load": 2.781,
+      "seal": 0.115
+    }
+  },
+  "runtime_environment": {
+    "cold_run": "d3dc69602aeb981f06bd9f4c726937f9-first",
+    "numeric_policy_observed": {
+      "NVIDIA_TF32_OVERRIDE": null,
+      "allow_tf32_cudnn": true,
+      "allow_tf32_matmul": false,
+      "deviates_from_default": false,
+      "float32_matmul_precision": "highest",
+      "observed_at": "seal time, after the forward"
+    },
+    "python": "3.12.14"
+  },
+  "schema": "malaiwah.fidelity-capture-runtime.v1",
+  "source_files": {
+    "bin/fidelity/codepin.py": "ce2a2c04d64adf7a268978a7ffe163c7d4cb5b675d5dc8e156f8a26a3b7bb5fd",
+    "bin/fidelity/panel.py": "0bf78fca76289920e0dc10d58082f42f24f4f2db6e0ecde61daefa4c22de286d",
+    "engines/tools/hf_capture.py": "78032f531d2618bec4d8decf52282760be94ad08055b71fe189904d83730b5a6",
+    "engines/tools/layer_outer.py": "e3ea5715112663b1b60cf596eeffc2140e49b399809ece89a174bce41a969274"
+  },
+  "stack_fingerprint": {
+    "attention_backend": "model default",
+    "cuda_runtime_version": null,
+    "device": "cpu",
+    "device_name": null,
+    "engine": "transformers-eager",
+    "numeric_policy": "default torch matmul precision; no TF32 override applied",
+    "schema": "malaiwah.stack-fingerprint.v1",
+    "torch_version": "2.11.0+cpu",
+    "transformers_version": "5.16.1"
+  },
+  "stack_fingerprint_sha256": "a83c4de13e06b8727c3a05959e470708b1fa396b0fcbd78c2f9deac666fea6cd",
+  "upstream_receipts": [],
+  "weights": {
+    "checkpoint_files": [
+      {
+        "name": "config.json",
+        "sha256": "1d556eab73b69c7f11f64c557a2f9c6f440bd4c6b89bb2584a6b498c92603843",
+        "size": 704
+      },
+      {
+        "name": "model.safetensors",
+        "sha256": "80521b40281d6ce74e35c9282c22539e75aa0ac8578892b2a59955ef78d55da1",
+        "size": 269060552
+      }
+    ],
+    "checkpoint_identity_algorithm": "sha256 over the canonical JSON {\"algorithm\": <this string>, \"files\": [{\"name\", \"size\", \"sha256\"}, ...]} of every *.safetensors shard plus config.json in the checkpoint directory, sorted by name; for a llama.cpp GGUF tree the shards are every *.gguf of the one build directory (name = <build>/<file>) and config.json is the official release's copy beside it",
+    "checkpoint_identity_sha256": "6bbfd928ba52bb7028cacfcaada559cf6426eac67aa13d0e165bd6a768405b9a",
+    "model_revision": "5dc8abe390e2db0102e6afd1509f68fbb5d54e6c",
+    "repository": "malaiwah/SmolLM2-135M-QFS-native-bf16",
+    "revision": "5dc8abe390e2db0102e6afd1509f68fbb5d54e6c"
+  }
+}

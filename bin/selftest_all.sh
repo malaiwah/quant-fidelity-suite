@@ -117,6 +117,8 @@ else
   s "fidelity reducer: fp64 known answers" "no torch in $VPY or $PY -- export FIDELITY_PYTHON"
 fi
 t "registry client/viewer/matcher (T1)"    0 python3 bin/selftest_registry_view.py
+t "guarded registry publication: exact deltas, parent CAS, credentials, dry-run" \
+                                           0 "$PY" bin/selftest_registry_publish.py
 # P1-07. identical_across_runs=true needs one valid digest PER claimed run, all
 # equal. The old ingest collapsed digests to a set first, so one digest plus
 # four missing digests manufactured "five runs, bitwise identical".

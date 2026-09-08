@@ -75,6 +75,87 @@ UNPINNED / STALE / PINNED-UNVERIFIED and quotes the `revision_unpinned`
 disclosure verbatim. Data sources: `--registry auto|hf|local[:PATH]` — `check`
 prefers the published mirror, `rows`/`lineage` prefer the offline clone.
 
+## Guarded registry publication (`bin/registry-publish`)
+
+`registry-submit` validates a receipt locally; it never publishes. The owner-only
+publisher targets **only** the public HF dataset
+`malaiwah/quant-fidelity-registry`. It never rents, creates a repository, merges,
+deletes remote files, regenerates scientific values or rewrites the audit.
+
+```bash
+# Anonymous read-only preflight; select an existing interpreter with NumPy.
+bin/registry-publish --python "$FIDELITY_PYTHON" --plan /tmp/registry-plan.json
+# Only after reviewing that complete plan and approving this HF destination:
+bin/registry-publish --python "$FIDELITY_PYTHON" --expected-parent <40-hex-sha> \
+    --approval <reviewed.json> --approval-sha256 <reviewed-file-sha256> \
+    --execute --token-file <owned-0600-file> --plan /tmp/registry-published.json
+```
+
+Without `--execute`, even a supplied token file is **not read**. Reads use stock
+Python and anonymous pinned public URLs; only execution lazily imports
+`huggingface_hub`. Ambient tokens, login caches and alternate HF endpoints are not
+publication credentials. The explicit file must be owned by the current user,
+regular, nonsymlinked and exactly mode 0600. Tokens never enter command arguments,
+plans or upload payloads.
+
+The authored inventory is Git's tracked/staged `registry/` tree mapped to dataset
+root, not a directory mirror. Stage newly recovered public evidence first;
+untracked sources and missing authored files refuse. Caches, credentials and
+symlinks refuse rather than disappearing silently. All public-only rows and
+source/evidence files must be recovered; the only explicitly retained remote-only
+member is Hub transport metadata `.gitattributes`. Existing `protocol/` and
+`receipts/` bytes cannot be rewritten, even by an approval.
+
+Preflight runs the canonical strict validator (`--json --jsonschema-lib mini`),
+`render-check`, `joint` and `reseed-check`, using `--python` (default
+`FIDELITY_PYTHON`, otherwise the running interpreter). All checks remain offline;
+the publisher owns networking. Validation errors or stale rendered/reseeded data
+block publication. This is snapshot publication, **not warning-free software
+release certification**: `make -C registry check-release` remains unchanged and
+fails on warnings. Warning-only rc=2 requires an explicit approval bound to the
+exact audit bytes/count and an exact match of all current warning findings,
+dispositions, collection counts and audited file hashes.
+
+The complete JSON plan goes to stdout (diagnostics to stderr). `--plan` also
+atomically writes it **outside this checkout**, distinct from the credential and
+approval files. It enumerates every publication path/hash/action, collection
+additions/deletions, exact existing-row field deltas and every scan finding/refusal.
+Equal numeric spellings are a no-op; no epsilon or ULP tolerance authorizes a
+scientific change. Every existing-row field change, including identity or
+disclosures, requires a reviewed approval with this contract:
+
+- `schema`: `qfs/registry-publication-approval/v1`; `repository`: the canonical
+  dataset; `parent_commit`: the freshly resolved immutable parent.
+- `collection_sha256`: all six local collection names mapped to exact JSONL byte
+  digests; `field_changes`: the exact ordered plan entries
+  `{collection, id, path, old, new}`. `path` is a JSON pointer; old/new are
+  `{present: true, value: ...}` or `{present: false}` for an absent field.
+- `review`: nonempty `reviewer` and `reason`. `--approval-sha256` binds the exact
+  reviewed file bytes, so changing even review text requires another review.
+- Optional `warning_disposition`: `{audit_sha256, warning_count}`. The audit
+  must retain each warning verbatim (`check`, `severity`, `id`, `message`,
+  `remedy`) with a rationale/status; a matching count alone is insufficient.
+- Optional `scan_exceptions`: exact `{path, sha256, finding_sha256, reason}`
+  entries copied from inspected false-positive findings. No blanket bypass:
+  changed file bytes, additional findings or unused exceptions refuse.
+
+New/modified artifacts are scanned for credential shapes, exact execution-token
+bytes and private host paths. Already public path occurrences remain recorded
+and byte-preserved; only new occurrences require review. Findings expose line
+numbers and hashes, not secret text. Exact execution-token matches cannot be
+excepted. Historical receipt preservation is not permission to publish new
+private paths.
+
+Execution rechecks HEAD and uses one `parent_commit` compare-and-swap commit.
+Concurrent remote changes require a fresh plan/review, never a forced retry.
+The returned immutable commit's entire file inventory and blob/LFS digests must
+match the planned bytes, and every changed file is anonymously downloaded and
+compared byte-for-byte. A post-commit verification failure records
+`committed_unverified` and the revision to inspect before retrying.
+An interrupted/ambiguous commit response records `commit_outcome_unknown` and
+`mutation_performed: null`, not an invented claim that nothing was published.
+An exact already-converged snapshot creates no commit.
+
 ## Preview scoring (`bin/kld-preview`)
 
 Scores capture trees locally. CENSUS mode scores every stored panel position;

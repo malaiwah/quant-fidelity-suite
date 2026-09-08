@@ -1167,3 +1167,47 @@ is rejected there too. All five uploaded files were re-fetched at the
 publication commit and byte-verified. No warning gate was weakened:
 strict validation still exits 2 and warning-free release certification
 remains unpassed.
+
+## 15. Canonical registry convergence and exact interval deltas (2026-09-08)
+
+The public registry at `16e38c663dde9725beb200385b33c8d0503e550b` contained
+four accepted SmolLM2 measurements absent from the canonical source checkout.
+All 48 acceptance/input/evidence/record files were recovered byte-for-byte
+from that revision. The existing seed producer verifies their sealed chains
+and regenerates all 113 measurements; no public generated row became an
+unverified seed input. No model forward or new measurement was performed.
+
+The regenerated six collection ID sets equal that public snapshot. Only the
+following two scientific fields differ; these are the canonical producer's
+reproducible endpoints, not hand-edited replacements:
+
+| measurement | field | previous public | canonical | signed decimal delta |
+|---|---|---:|---:|---:|
+| `measurement--glm-5.3.exl3-tr3-3.0bpw-davidsyoung.corpus5x5-v1` | `uncertainty.ci95_low` | 0.0684587044504711 | 0.0684587044504712 | +0.0000000000000001 |
+| `measurement--glm53.k8-8bpw-stream.brandonmusic-final25.clean17` | `uncertainty.ci95_high` | 0.0138377523733542 | 0.0138377523733541 | -0.0000000000000001 |
+
+**Correction to section 13's “one ULP” description:** the actual stored
+float64 distances are **+7 ULPs** and **-58 ULPs**, respectively. The exact
+float64 differences are `+9.71445146547012e-17` and
+`-1.0061396160665481e-16`. One final printed decimal digit is not necessarily
+one binary ULP. Neither KL means nor any other scientific field changes.
+Historical receipts and accepted records retain their original bytes.
+
+Publication requires an explicit approval bound to the exact remote parent,
+all six local collection digests, and these exact old/new fields; no generic
+floating-point tolerance authorizes a scientific change. The publication
+record appended below identifies the resulting immutable destination commit.
+
+**Published:** `51fd391b3d116ea3ee8c58a018681e50f2bd1668`, using
+`bin/registry-publish` with a parent-commit guard against the revision above.
+The publisher verified all 456 destination file identities, retained Hub-owned
+`.gitattributes`, and re-downloaded changed files. An independent fetch then
+confirmed byte equality for all six canonical collections and `index.json`.
+The approval and result are recorded in
+`registry-publication-approval-2026-09-08.json` and
+`registry-publication-2026-09-08.json` beside this document.
+
+Both inventories now contain 113 measurements and share the same source-audited
+397-warning disposition snapshot. No warning-free release certification is
+claimed. Obsolete public `llms.txt` guidance was replaced with the corrected
+canonical guidance rather than preserving stale row counts and invalid CLI flags.

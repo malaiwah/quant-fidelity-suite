@@ -2,39 +2,39 @@
   "collections": {
     "artifacts": {
       "file": "data/artifacts.jsonl",
-      "record_count": 90,
+      "record_count": 94,
       "schema": "schema/artifact.schema.json",
-      "sha256": "aaa0555b49bea4f12e917dfc1951243211c3a0cf32f597c1e5b017b44dba180a"
+      "sha256": "5d426f3240ce1721b3cc3e27128f2a5ef1d3d1c250862f723acfc9664ee3fb58"
     },
     "measurements": {
       "file": "data/measurements.jsonl",
-      "record_count": 109,
+      "record_count": 113,
       "schema": "schema/measurement.schema.json",
-      "sha256": "5df72bc822c9012524b6faefaa295bda63bf2ffaf0af92c964b582697eb301ea"
+      "sha256": "78b159baae45502d5429a13583a5ab6e6fcbc782f624d40f0ba7cf9a581c8647"
     },
     "models": {
       "file": "data/models.jsonl",
-      "record_count": 17,
+      "record_count": 18,
       "schema": "schema/model.schema.json",
-      "sha256": "7082eefadd239f22617363d92876828899eaccd96c537ac8b24e2ff50452c847"
+      "sha256": "72fb8b08822d4852ed13b7c0ead301cfe61fd6c60741f67e23f3049bf9b187f2"
     },
     "panels": {
       "file": "data/panels.jsonl",
-      "record_count": 18,
+      "record_count": 19,
       "schema": "schema/panel.schema.json",
-      "sha256": "296a6105bf1252a076010ad96fef133e2d31f89ce3d063cf641906b3470697d0"
+      "sha256": "bb82e6d996e419aafd675da074b858d57df55e2d5bdab5570f06b785ec74c28d"
     },
     "pipelines": {
       "file": "data/pipelines.jsonl",
-      "record_count": 30,
+      "record_count": 31,
       "schema": "schema/pipeline.schema.json",
-      "sha256": "4e9585cb3f8cd8ed7b839647d5745d8ef717f6d1ec9044848fcee0157aee7f40"
+      "sha256": "21634867ea6ac1fdcc21f48cf2dbf01fff5877ecd1a74e03791ae6faa14516f4"
     },
     "references": {
       "file": "data/references.jsonl",
-      "record_count": 29,
+      "record_count": 30,
       "schema": "schema/reference.schema.json",
-      "sha256": "ed42851ffe6a581b791277c73268f5d2390a68d4f3b8e1fc7f71b77862b6b33c"
+      "sha256": "a22aa0a2c4b273fd940b1683f3860253d91d7733337f66f15dc76a3ca191b6f0"
     }
   },
   "comparability_keys": [
@@ -1181,6 +1181,83 @@
       "accumulation_dtype": "float64",
       "comparability": {
         "comparable": "unknown",
+        "live_member_count": 3,
+        "predicate_version": "comparability-predicate/v2",
+        "reasons": [
+          "stack: unrecorded for 3 members; homogeneity cannot be certified",
+          "hardware: unrecorded for 3 members; homogeneity cannot be certified"
+        ],
+        "secondary": {
+          "hardware": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "harness": {
+            "status": "pass",
+            "values": [
+              "harness--afd29c2b59567505"
+            ]
+          },
+          "key": {
+            "status": "pass",
+            "values": [
+              "cmp--4a450f9150f1ec9d"
+            ]
+          },
+          "lane": {
+            "status": "pass",
+            "values": [
+              "other"
+            ]
+          },
+          "pipeline": {
+            "status": "pass",
+            "values": [
+              "pipeline--malaiwah.quant-fidelity-suite-bin"
+            ]
+          },
+          "replay_backend": {
+            "status": "pass",
+            "values": [
+              "numpy:cpu:float32"
+            ]
+          },
+          "replay_env": {
+            "status": "pass",
+            "values": [
+              "{\"blas_configuration\":\"OpenBLAS 0.3.34.106.0  USE64BITINT DYNAMIC_ARCH NO_AFFINITY Haswell MAX_THREADS=64\",\"blas_name\":\"scipy-openblas\",\"blas_threads\":8,\"blas_version\":\"0.3.34.106.0\",\"cpu_model\":\"AMD EPYC 7R13 Processor\",\"library\":\"numpy\",\"numpy_version\":\"2.5.3\",\"replay_dtype\":\"float32\"}"
+            ]
+          },
+          "scope": {
+            "status": "pass",
+            "values": [
+              "attn.o+attn.qkv+mlp.down+mlp.gate+mlp.up|head=native|kv=bf16"
+            ]
+          },
+          "stack": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          }
+        }
+      },
+      "direction": "reference_to_candidate",
+      "head_policy": "native_head",
+      "key": "cmp--4a450f9150f1ec9d",
+      "label": "mean_tokenwise_kld on panel--native.6a74033484e89365fcd6330f (cross_stack, native_head)",
+      "member_count": 3,
+      "metric_name": "mean_tokenwise_kld",
+      "panel_id": "panel--native.6a74033484e89365fcd6330f",
+      "reference_id": "reference--native.37fc85ce320a80533db7cb94",
+      "stack_relation": "cross_stack"
+    },
+    {
+      "accumulation_dtype": "float64",
+      "comparability": {
+        "comparable": "unknown",
         "live_member_count": 1,
         "predicate_version": "comparability-predicate/v2",
         "reasons": [
@@ -1896,6 +1973,85 @@
       "panel_id": "panel--fixture.a53145fb225cc15b73887d0f",
       "reference_id": "reference--fixture.qwen3-5.1847b664a523e921",
       "stack_relation": "cross_stack"
+    },
+    {
+      "accumulation_dtype": "float64",
+      "comparability": {
+        "comparable": "unknown",
+        "live_member_count": 1,
+        "predicate_version": "comparability-predicate/v2",
+        "reasons": [
+          "stack: unrecorded for 1 member; homogeneity cannot be certified",
+          "replay_backend: unrecorded for 1 member; homogeneity cannot be certified",
+          "replay_env: unrecorded for 1 member; homogeneity cannot be certified",
+          "hardware: unrecorded for 1 member; homogeneity cannot be certified"
+        ],
+        "secondary": {
+          "hardware": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "harness": {
+            "status": "pass",
+            "values": [
+              "harness--03a35fcf2797fc88"
+            ]
+          },
+          "key": {
+            "status": "pass",
+            "values": [
+              "cmp--8797e169cd3f4164"
+            ]
+          },
+          "lane": {
+            "status": "pass",
+            "values": [
+              "other"
+            ]
+          },
+          "pipeline": {
+            "status": "pass",
+            "values": [
+              "pipeline--hf-jobs.03a35fcf2797fc88"
+            ]
+          },
+          "replay_backend": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "replay_env": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "scope": {
+            "status": "pass",
+            "values": [
+              "unquantized"
+            ]
+          },
+          "stack": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          }
+        }
+      },
+      "direction": "reference_to_candidate",
+      "head_policy": "native_head",
+      "key": "cmp--8797e169cd3f4164",
+      "label": "mean_tokenwise_kld on panel--native.6a74033484e89365fcd6330f (same_stack, native_head)",
+      "member_count": 1,
+      "metric_name": "mean_tokenwise_kld",
+      "panel_id": "panel--native.6a74033484e89365fcd6330f",
+      "reference_id": "reference--native.37fc85ce320a80533db7cb94",
+      "stack_relation": "same_stack"
     },
     {
       "accumulation_dtype": "float64",
@@ -2790,18 +2946,18 @@
   "comparability_predicate_rule": "Per group: comparable='true' means lane, pipeline, scope coverage and hardware are recorded and homogeneous across live members; 'false' means a recorded dimension differs (ranking across it attributes a lane/pipeline/hardware/scope effect to quantization quality); 'unknown' means no recorded difference but at least one dimension is unrecorded. Recomputed by the validator (CMP-007); a hand-edited predicate is rejected.",
   "comparability_rule": "The seven-field comparability.key is a NECESSARY partition key, not a sufficient certificate: two measurement values with different keys are NEVER comparable, and a table that mixes keys is malformed. Equal keys make two rows candidates for comparison ONLY -- the key deliberately omits measurement lane, candidate pipeline, hardware and artifact scope, all of which this project has MEASURED moving results by more than the gaps it publishes between quantizers. Before ranking rows as like-for-like, a consumer must also check each group's comparability_keys[].comparability predicate: comparable=true/false/unknown with machine-readable reasons.",
   "counts": {
-    "artifacts": 90,
-    "measurements": 109,
-    "measurements_advisory": 101,
+    "artifacts": 94,
+    "measurements": 113,
+    "measurements_advisory": 105,
     "measurements_author_reported": 15,
     "measurements_independently_verified": 0,
-    "measurements_self_measured": 94,
+    "measurements_self_measured": 98,
     "measurements_strict": 8,
     "measurements_third_party_reported": 0,
-    "models": 17,
-    "panels": 18,
-    "pipelines": 30,
-    "references": 29
+    "models": 18,
+    "panels": 19,
+    "pipelines": 31,
+    "references": 30
   },
   "cross_refs": {
     "local_ai_registry": {
@@ -2811,13 +2967,13 @@
       "url": "https://huggingface.co/datasets/0xSero/local-ai-registry"
     }
   },
-  "generated_at": "2026-09-08T13:16:25+00:00",
+  "generated_at": "2026-09-08T13:58:49+00:00",
   "registry_id": "malaiwah/quant-fidelity-registry",
   "resolver_rule": "Every *_ref is the id field of a record in the collection named by the ref's id prefix: model--, artifact--, panel--, reference--, pipeline--, measurement--.",
   "schema_version": "quant-fidelity-registry/v1",
   "validator": {
     "invariants_file": "schema/invariants.json",
-    "last_run_at": "2026-09-08T13:16:25+00:00",
+    "last_run_at": "2026-09-08T13:58:49+00:00",
     "passed": true,
     "tool": "tools/registry_validate.py"
   }
