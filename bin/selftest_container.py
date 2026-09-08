@@ -1038,11 +1038,11 @@ def rung_dockerfile():
             FIDELITY_FS_ROOT=str(refused_suite), FIDELITY_BOOTSTRAP_INSTALL_ONLY="1")
         unsupported_env["BASH_FUNC_uname%%"] = (
             '() { case "$1" in -s) printf "Linux\\n" ;; '
-            '-m) printf "riscv64\\n" ;; *) return 2 ;; esac; }')
+            '-m) printf "aarch64\\n" ;; *) return 2 ;; esac; }')
         refused = subprocess.run(
             ["bash", str(SUITE / "bin" / "bootstrap_measure.sh")],
             env=unsupported_env, capture_output=True, text=True, timeout=10)
-        check("C9platform unsupported bootstrap hosts fail before creating setup state",
+        check("C9platform ARM bootstrap fails before creating setup state",
               refused.returncode == 2
               and not refused_root.exists() and not refused_suite.exists(),
               refused.stderr[-300:])
@@ -1076,7 +1076,7 @@ def rung_dockerfile():
     for platform, filename in RP.WHEEL_LOCKS.items():
         closure, malformed = read_wheel_lock(filename)
         closures[platform] = closure
-        machine = {"linux/amd64": "x86_64", "linux/arm64": "aarch64"}[platform]
+        machine = {"linux/amd64": "x86_64"}[platform]
         incompatible = []
         for name, (url, _digest) in closure.items():
             wheel = urllib.parse.unquote(urllib.parse.urlparse(url).path.rsplit("/", 1)[-1])
@@ -1100,14 +1100,7 @@ def rung_dockerfile():
               len(closure) == 72 and not malformed and not incompatible,
               (len(closure), malformed, incompatible))
     locked = closures["linux/amd64"]
-    arm_locked = closures["linux/arm64"]
-    def wheel_version(url):
-        return urllib.parse.unquote(url).rsplit("/", 1)[-1].split("-")[1]
-    check("C9l3b ARM retains every exact distribution version, including CUDA",
-          set(arm_locked) == set(locked)
-          and all(wheel_version(arm_locked[name][0]) == wheel_version(url)
-                  for name, (url, _digest) in locked.items()))
-    check("C9l3c both architecture locks are included in the uploaded bundle",
+    check("C9l3c every supported platform lock is included in the uploaded bundle",
           all("bin/" + filename in CE.bundle_entries(SUITE)
               for filename in RP.WHEEL_LOCKS.values()))
     # The GUARD these two rungs mean is the install-only EARLY EXIT, not any
@@ -1164,9 +1157,6 @@ def rung_dockerfile():
                   locked[name.lower().replace("_", "-")][0])
               for name, version in expected.items()),
           locked)
-    check("C9l3d architecture-independent wheels retain their exact bytes",
-          all(arm_locked[name] == pin for name, pin in locked.items()
-              if pin[0].endswith("-any.whl")))
     check("C9l4 bootstrap permits no resolver-selected or unhashed wheel",
           "--no-deps --require-hashes --only-binary=:all:" in boot
           and '-r "$WHEEL_LOCK"' in boot
@@ -1593,8 +1583,8 @@ def rung_release():
               publish="true", manual_publish="true")
     check("C11g a pull request never pushes, even with both gates on",
           pr["push"] is False)
-    check("C11h both architectures are in every plan",
-          rel["platforms"] == ["linux/amd64", "linux/arm64"])
+    check("C11h every release advertises only the validated CUDA architecture",
+          rel["platforms"] == ["linux/amd64"])
 
     try:
         plan(sha="deadbeef")

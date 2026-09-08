@@ -13,7 +13,7 @@ and reading a red run. This repository's whole discipline is that a rule which
 decides what gets published is exercised offline first -- so the tag rule, the
 platform list and the publish gate live in a script the workflow calls, and
 `bin/selftest_container.py` drives that script with known inputs and known
-answers. The workflow becomes plumbing: checkout, qemu, buildx, call this,
+answers. The workflow becomes plumbing: checkout, buildx, call this,
 build what it said.
 
 THE PUBLISH GATE IS DEFAULT-OFF, ON PURPOSE.  Pushing an image to a registry
@@ -35,11 +35,10 @@ import os
 import re
 import sys
 
-# Every advertised platform has its own immutable CUDA wheel closure. Version
-# equality is not wheel portability; the bootstrap selects the matching lock.
+# Only validated platform closures may be advertised. The same-version ARM
+# candidate fails pip check on upstream cuSPARSELt wheel metadata; see docs/CONTAINER.md.
 WHEEL_LOCKS = {
     "linux/amd64": "requirements-cu130-py312.lock",
-    "linux/arm64": "requirements-cu130-py312-aarch64.lock",
 }
 
 SEMVER = re.compile(r"^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$")

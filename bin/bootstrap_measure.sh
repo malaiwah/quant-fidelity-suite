@@ -43,9 +43,8 @@ BOOTSTRAP_SYSTEM="$(uname -s)"
 BOOTSTRAP_ARCH="$(uname -m)"
 case "$BOOTSTRAP_SYSTEM/$BOOTSTRAP_ARCH" in
   Linux/x86_64) WHEEL_LOCK_NAME=requirements-cu130-py312.lock ;;
-  Linux/aarch64) WHEEL_LOCK_NAME=requirements-cu130-py312-aarch64.lock ;;
   *)
-    echo "bootstrap_measure: unsupported host $BOOTSTRAP_SYSTEM/$BOOTSTRAP_ARCH; use Linux x86_64 or aarch64 with the pinned Python 3.12/CUDA 13.0 closure (docs/CONTAINER.md). No CPU or alternate-CUDA fallback." >&2
+    echo "bootstrap_measure: unsupported host $BOOTSTRAP_SYSTEM/$BOOTSTRAP_ARCH; use Linux x86_64 with the pinned Python 3.12/CUDA 13.0 closure. ARM is blocked by invalid upstream cuSPARSELt 0.8.0 wheel metadata (docs/CONTAINER.md). No CPU or alternate-CUDA fallback." >&2
     exit 2
     ;;
 esac
@@ -466,10 +465,6 @@ if probe >"$RCPT/pipeline-import.txt" 2>&1 \
   _needs_exl3=0
 fi
 if [ "$_needs_exl3" -eq 1 ]; then
-  if [ "$BOOTSTRAP_ARCH" != x86_64 ]; then
-    echo "bootstrap_measure: this pipeline requires exllamav3, whose pinned flash-attn/CUDA toolkit bootstrap is x86_64-only. Use a Linux x86_64 CUDA host; no ARM source build or alternate backend is substituted (docs/CONTAINER.md)." >&2
-    exit 2
-  fi
   log "pipeline requires exllamav3; reconstructing its exact source checkout"
   cat "$RCPT/pipeline-import.txt" || true
   if ! { command -v nvcc >/dev/null && nvcc --list-gpu-arch 2>/dev/null | grep -q compute_100; }; then

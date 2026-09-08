@@ -1,8 +1,8 @@
-# Build the measurement image, multi-arch, and (once enabled) publish it.
+# Build the linux/amd64 CUDA measurement image and (once enabled) publish it.
 #
 # NOTHING IS PUBLISHED UNTIL A MAINTAINER SAYS SO. The registry push is gated
 # on the repository variable PUBLISH_CONTAINER; with it unset this workflow
-# builds both architectures, prints the plan and the digests, and pushes
+# builds the supported architecture, prints the plan and the digests, and pushes
 # nothing. Releases require that variable to be explicitly enabled (Settings ->
 # Secrets and variables -> Actions -> Variables -> PUBLISH_CONTAINER=true).
 # Manual dispatch also requires its default-false publish input to be enabled.
@@ -88,26 +88,17 @@ jobs:
     needs: plan
     runs-on: ubuntu-latest
     strategy:
-      # One job per architecture rather than one job building both: under QEMU
-      # the arm64 leg is several times the wall clock of the amd64 one, and
-      # serialising them inside a single job means the fast one waits. Each
-      # pushes by digest; `manifest` below joins them into one tag.
+      # Only linux/amd64 has a validated exact closure. ARM is not a build leg:
+      # its upstream cuSPARSELt wheel fails pip check (docs/CONTAINER.md).
+      # Keep digest publication separate from the SSH target and publish gate.
       fail-fast: false
       matrix:
         include:
           - platform: linux/amd64
             arch: amd64
-          - platform: linux/arm64
-            arch: arm64
     steps:
       - uses: actions/checkout@v4
 
-      # ARM uses its own exact-URL/SHA-256 closure at the same Python/CUDA and
-      # distribution versions, never the x86 wheel URLs. QEMU checks image
-      # installation/imports only, not numerical qualification on a CUDA GPU.
-      # See docs/CONTAINER.md for the optional x86-only exllamav3 boundary.
-      - uses: docker/setup-qemu-action@v3
-        if: matrix.arch != 'amd64'
       - uses: docker/setup-buildx-action@v3
 
       - name: log in to GHCR
@@ -126,8 +117,8 @@ jobs:
           file: container/Dockerfile
           platforms: ${{ matrix.platform }}
           push: ${{ needs.plan.outputs.push == 'true' }}
-          # By digest, not by tag: two architectures cannot both own one tag.
-          # The manifest job below is what makes the tag mean both.
+          # Publish the validated image by digest; the manifest job assigns
+          # release tags only after the gated build succeeds.
           outputs: >-
             ${{ needs.plan.outputs.push == 'true'
                 && format('type=image,name=ghcr.io/{0}/quant-fidelity-measure,push-by-digest=true,name-canonical=true,push=true', github.repository_owner)

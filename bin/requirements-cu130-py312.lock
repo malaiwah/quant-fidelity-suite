@@ -1,6 +1,6 @@
 # Generated from a Python 3.12 Linux x86_64 pip resolution.
 # Every allowed wheel is an exact URL with an exact SHA-256.
-# Linux x86_64 only; bootstrap selects requirements-cu130-py312-aarch64.lock on ARM.
+# Linux x86_64 only; the exact ARM stack is unsupported (see docs/CONTAINER.md).
 accelerate @ https://files.pythonhosted.org/packages/a8/db/253133d7e7cb40d3af384bb2f5c0b4a2b7fdcffbc95c688cc67a20a3c103/accelerate-1.14.0-py3-none-any.whl \
     --hash=sha256:e94390c2863b873be18f623f9df48a0d8fe5eff13ea7f1a00092b0a7904888c6
 annotated-doc @ https://files.pythonhosted.org/packages/3e/30/e900b21425a860e195f32e37657aa1f7c7f2b1bfb26f03ca209b90933c06/annotated_doc-0.0.5-py3-none-any.whl \

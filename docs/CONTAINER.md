@@ -468,71 +468,72 @@ The current authenticated Hub path is not bypassed with an unverified mirror.
 
 ---
 
-## Architecture-specific CUDA closures
+## Supported CUDA image architecture
 
-The base measurement image targets `linux/amd64` and `linux/arm64`, but a wheel
-version is **not** a portable wheel. `bootstrap_measure.sh` selects:
+**The measurement image and cold-instance bootstrap support `linux/amd64`
+(Linux `x86_64`) only.** This applies to both the default measurement image and
+the separate RunPod SSH release target. Use an x86_64 CUDA host with
+[`requirements-cu130-py312.lock`](../bin/requirements-cu130-py312.lock): its
+72 exact distribution versions, HTTPS wheel URLs and SHA-256 hashes remain
+unchanged. Python 3.12, `torch==2.11.0+cu130`, CUDA 13.0, `triton==3.6.0`,
+`numpy==2.5.2`, `transformers==5.16.1` and numerical precision are not changed.
 
-| Host | Exact-URL/SHA-256 lock |
+ARM and other unsupported hosts are refused by bootstrap before filesystem
+changes, TLS traffic or installation; unsupported or misidentified Docker
+targets are refused before apt/pip. Release plans and the workflow build only
+`linux/amd64`. No ARM leg downloads x86 wheels, and no CPU, alternate-CUDA,
+source-build or precision fallback is substituted.
+
+### Why an ARM filename is not an ARM closure
+
+The 2026-09-08 index audit found same-version aarch64 filenames and hashes for
+all 33 native wheels in an ARM candidate. That was **insufficient**:
+[actual ARM CI](https://github.com/malaiwah/quant-fidelity-suite/actions/runs/34178473234/job/101912556514)
+installed those wheels and validated the direct versions, including
+`torch.version.cuda == "13.0"`, but then failed the required `pip check`:
+
+```text
+nvidia-cusparselt-cu13 0.8.0 is not supported on this platform
+```
+
+Inspection of the upstream ZIP identified the exact defect:
+
+| Field | Upstream value |
 |---|---|
-| Linux `x86_64` / `linux/amd64` | [`requirements-cu130-py312.lock`](../bin/requirements-cu130-py312.lock) |
-| Linux `aarch64` / `linux/arm64` | [`requirements-cu130-py312-aarch64.lock`](../bin/requirements-cu130-py312-aarch64.lock) |
+| Filename | `nvidia_cusparselt_cu13-0.8.0-py3-none-manylinux2014_aarch64.whl` |
+| Published SHA-256 | `400c6ed1cf6780fc6efedd64ec9f1345871767e6a1a0a552a1ea0578117ea77c` |
+| Internal `.dist-info/WHEEL` tag | `py3-none-manylinux2014_sbsa` |
+| Native `libcusparseLt.so.0` ELF machine | `183` (`AArch64`) |
 
-Both locks contain the same 72 distribution versions, including Python 3.12's
-`torch==2.11.0+cu130`, `triton==3.6.0`, `numpy==2.5.2` and
-`transformers==5.16.1`. The ARM lock replaces **all 33 native wheels**, not just
-the first failure (`cuda-bindings==13.3.1`); pure-Python wheel URLs and hashes
-are shared. Every install still uses `--no-deps --require-hashes
---only-binary=:all:` and then checks the installed dependencies and CUDA version.
-No CPU wheel, alternate CUDA version, precision change or source-wheel fallback
-is substituted.
+The library is ARM, but `sbsa` is not the wheel platform tag `aarch64`.
+The filename and internal compatibility declaration disagree, so the
+installed-wheel validator correctly rejects it.
+[NVIDIA's index](https://pypi.nvidia.com/nvidia-cusparselt-cu13/),
+[PyPI's exact release](https://pypi.org/pypi/nvidia-cusparselt-cu13/0.8.0/json)
+and [PyTorch's CUDA index](https://download.pytorch.org/whl/cu130/nvidia-cusparselt-cu13/)
+all identify the same malformed artifact, not an alternate corrected
+same-version wheel. [ARM torch's own metadata](https://download-r2.pytorch.org/whl/cu130/torch-2.11.0%2Bcu130-cp312-cp312-manylinux_2_28_aarch64.whl.metadata)
+requires cuSPARSELt **exactly 0.8.0**.
 
-The 2026-09-08 compatibility audit found same-version aarch64 wheels and
-published SHA-256 hashes for every native package in the closure:
-
-* [PyTorch CUDA 13.0 index](https://download.pytorch.org/whl/cu130/torch/) and
-  [Triton index](https://download.pytorch.org/whl/triton/): CPython 3.12 ARM
-  wheels at the exact required versions.
-* [ARM torch metadata](https://download-r2.pytorch.org/whl/cu130/torch-2.11.0%2Bcu130-cp312-cp312-manylinux_2_28_aarch64.whl.metadata):
-  the same CUDA toolkit 13.0.2, cuDNN 9.19.0.56, cuSPARSELt 0.8.0,
-  NCCL 2.28.9, NVSHMEM 3.4.5 and Triton 3.6.0 requirements.
-* [NVIDIA package index](https://pypi.nvidia.com/): matching aarch64 wheels for
-  all 15 locked NVIDIA distributions.
-* [PyPI](https://pypi.org/): compatible CPython 3.12/abi3 wheels for the other
-  16 native distributions, including
-  [CUDA bindings](https://pypi.org/pypi/cuda-bindings/13.3.1/json) and
-  `pydantic-core` (the compiled dependency of `pydantic`).
-
-**Qualification is separate from availability.** This audit establishes an
-immutable ARM wheel closure, not a successful build or a GPU measurement.
-Earlier `b76fb79` ARM/QEMU build timings predate this lock and do not validate
-it. A successful QEMU build can establish installation/importability only.
-Numerical qualification must run on the actual ARM CUDA GPU before any
-measurement claim; CPU or emulated imports do not establish CUDA parity.
-
-**The optional exllamav3 path is x86_64-only.** Its pinned flash-attn wheel and
-CUDA-toolkit bootstrap are x86-only. If the pipeline import probe requires
-exllamav3 on ARM, bootstrap refuses before downloading either rather than
-building an unpinned substitute. Use an x86_64 CUDA host for that path. The
-separate RunPod SSH release target remains `linux/amd64`.
-
-Unsupported hosts are refused by bootstrap before filesystem changes, TLS
-traffic or installs; unsupported or misidentified Docker targets are refused
-before apt/pip. Use one of the two declared Linux targets and its matching
-lock. `container_manifest.py` continues to bind `arch` and `platform` into the
-image content digest: architecture-specific bytes are different stacks even
-when they share distribution versions and a multi-architecture tag.
+We do not suppress `pip check`, rewrite installed metadata, repack the wheel,
+or silently substitute a newer numerical library. The unusable ARM lock is
+not shipped. Re-enabling ARM requires a separately reviewed immutable,
+internally valid closure (an upstream correction or an explicitly authorized,
+provenance-tracked metadata-only repair), successful image validation, and
+numerical qualification on the actual ARM CUDA GPU. Older `b76fb79` QEMU
+timings do not validate this closure; neither successful imports nor an
+emulated build would establish CUDA numerical parity.
 
 ---
 
 ## Releasing it
 
 [`.github/workflows/container-image.yml`](../.github/workflows/container-image.yml)
-builds both architectures and, once enabled, publishes to GHCR.
+builds `linux/amd64` and, once enabled, publishes to GHCR.
 
 **Nothing is published until a maintainer says so.** The registry push is gated
-on the repository variable `PUBLISH_CONTAINER`; unset, the workflow builds both
-architectures, prints the plan and the digests into the run summary, and pushes
+on the repository variable `PUBLISH_CONTAINER`; unset, the workflow builds the
+supported architecture, prints the plan and digests into the run summary, and pushes
 nothing. Landing the file is not a decision to publish. Published releases
 require `PUBLISH_CONTAINER=true` (Settings → Secrets and variables → Actions →
 Variables). Manual workflow runs additionally require the default-false
@@ -562,16 +563,15 @@ The `sha-<12>` tag is always first and is what the image records as its own
 `IMAGE_REFERENCE`, because a receipt needs a reference that still means these
 bytes tomorrow and `latest` never does.
 
-**The ARM build is an installation check.** Its separate QEMU matrix job uses
-the ARM lock, so no ARM leg attempts an x86 wheel. A native ARM runner can avoid
-emulation overhead, but neither kind of CI builder establishes numerical CUDA
-qualification without exercising the actual GPU. The matrix is checked against
-the release plan and each declared platform's wheel closure by the contract
-selftest.
+**Platform support is checked, not inferred from filenames.** The contract
+selftest verifies release/workflow agreement, the declared lock's wheel
+filenames and hashes, and early ARM refusal. Image builds also run `pip check`,
+which validates installed wheel metadata; the filename-only audit did not
+catch the malformed ARM cuSPARSELt tag and is not a substitute for this gate.
 
 **The digest is the point.** `produced_by.container_digest` has been `null` on
 every row this repository has published. The `manifest` job prints the digest of
-the multi-arch tag it just created, together with the exact command that cites
+the published image tag it just created, together with the exact command that cites
 it:
 
 ```

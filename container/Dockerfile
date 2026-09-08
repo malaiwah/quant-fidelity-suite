@@ -34,12 +34,11 @@ ARG SUITE_REVISION=""
 ARG IMAGE_REFERENCE=""
 ARG DEBIAN_FRONTEND=noninteractive
 
-# PLATFORM CONTRACT. The base measurement closure supports linux/amd64 and
-# linux/arm64 with separate exact-URL/SHA-256 locks selected by the bootstrap.
-# The versions, Python 3.12 and CUDA 13.0 are identical; native wheel bytes are
-# not. See docs/CONTAINER.md for the full-closure audit and qualification limits.
-# The optional exllamav3/flash-attn bootstrap is x86_64-only and explicitly
-# refuses ARM if the pipeline import probe requires it.
+# PLATFORM CONTRACT. This exact Python 3.12/CUDA 13.0 measurement image supports
+# linux/amd64 only. NVIDIA's pinned cuSPARSELt 0.8.0 ARM wheel has invalid
+# internal platform metadata; pip check correctly rejects it. Do not bypass
+# that check, repack upstream binaries, or change CUDA versions implicitly.
+# See docs/CONTAINER.md for the upstream evidence and ARM re-enablement boundary.
 #
 # Fail before apt or pip, including for raw Docker/Podman builds outside CI.
 # TARGETARCH is automatic under BuildKit; dpkg covers builders without it and
@@ -47,8 +46,8 @@ ARG DEBIAN_FRONTEND=noninteractive
 ARG TARGETARCH
 RUN arch="$(dpkg --print-architecture)" \
  && case "${TARGETARCH:-$arch}/$arch" in \
-      amd64/amd64|arm64/arm64) ;; \
-      *) echo "Unsupported CUDA measurement target ${TARGETARCH:-unset}/$arch: use linux/amd64 or linux/arm64 with the matching pinned closure; see docs/CONTAINER.md. No CPU or alternate-CUDA fallback." >&2; exit 2 ;; \
+      amd64/amd64) ;; \
+      *) echo "Unsupported CUDA measurement target ${TARGETARCH:-unset}/$arch: use linux/amd64. The exact ARM closure fails upstream cuSPARSELt wheel validation; see docs/CONTAINER.md. No CPU or alternate-CUDA fallback." >&2; exit 2 ;; \
     esac
 
 # Where the image bakes itself.  IMAGE_ROOT is FIDELITY_ENGINE_ROOT: the bootstrap
