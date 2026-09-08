@@ -89,9 +89,10 @@ def main():
     actor = Actor("budget-fixture", "hf_not_a_real_token", source="test")
     quote = dict(hardware, name="a100-large", hourly_usd="2.50002", unit_cost_micro_usd=41667)
     inventory = json.loads((ROOT / "engines/tools/layer-outer-evidence/qwen38-27b-unexpected-keys.json").read_text())
-    native = dict(model, repository=inventory["repository"], revision=inventory["revision"],
-                  config_sha256=inventory["evidence"]["config_sha256"],
-                  index_sha256=inventory["evidence"]["index_sha256"],
+    provenance = json.loads((ROOT / "engines/tools/layer-outer-evidence/qwen38-27b-unexpected-keys.json.provenance.json").read_text())
+    native = dict(model, repository=provenance["repository"], revision=provenance["revision"],
+                  config_sha256=provenance["config_sha256"],
+                  index_sha256=provenance["index_sha256"],
                   config={"hidden_size": 5120, "vocab_size": 248320})
     inputs = {"preset": "root:qwen38-27b", "max_output_bytes": 32 * R.GIB,
               "max_compute_usd": "6", "timeout_seconds": 7200}
@@ -189,7 +190,7 @@ with tempfile.TemporaryDirectory() as td, patch.object(Actor,'client') as client
         (mount / "config.json").write_text(json.dumps(config))
         (mount / "model.safetensors").write_bytes(b"synthetic-census-only")
         (mount / "model.safetensors.index.json").write_text(json.dumps({"weight_map": {"weight": "model.safetensors"}}))
-        model_meta = {"repository": inventory["repository"], "revision": inventory["revision"],
+        model_meta = {"repository": provenance["repository"], "revision": provenance["revision"],
                       "mount_path": str(mount), "config": config,
                       "config_sha256": job_worker.digest(mount / "config.json"),
                       "index_sha256": job_worker.digest(mount / "model.safetensors.index.json"),
@@ -199,22 +200,32 @@ with tempfile.TemporaryDirectory() as td, patch.object(Actor,'client') as client
         name = "engines/tools/layer-outer-evidence/qwen38-27b-unexpected-keys.json"
         path = root / name;path.parent.mkdir(parents=True)
         document = copy.deepcopy(inventory)
-        document["evidence"].update(config_sha256=model_meta["config_sha256"], index_sha256=model_meta["index_sha256"])
+        evidence = dict(provenance, config_sha256=model_meta["config_sha256"], index_sha256=model_meta["index_sha256"])
+        Path(str(path) + ".provenance.json").write_text(json.dumps(evidence))
         path.write_text(json.dumps(document))
         (root / "engines/coverage.json").write_text('{"architectures":[]}')
         allow = {"path": name, "artifact_sha256": job_worker.digest(path),
-                 "canonical_sorted_names_sha256": jobs.hashlib.sha256(jobs.canonical(sorted(document["names"]))).hexdigest()}
+                 "canonical_sorted_names_sha256": jobs.hashlib.sha256(jobs.canonical(sorted(document))).hexdigest()}
         worker_plan = {"mode": "root", "inputs": {"model": model_meta},
                        "runtime": {"unexpected_allowlist": allow, "trusted_code": None}}
         with patch.object(job_worker, "ROOT", root):
             assert job_worker.model_binding(worker_plan, out) == mount
             assert (out / "unexpected-tensors.json").read_bytes() == path.read_bytes()
-            assert json.loads((out / "unexpected-tensors.provenance.json").read_text()) == document["evidence"]
+            assert json.loads((out / "unexpected-tensors.provenance.json").read_text()) == evidence
+            from engines.tools.hf_capture import load_unexpected_tensor_allowlist
+            captured = load_unexpected_tensor_allowlist(str(out / "unexpected-tensors.json"),
+                                                       allow["artifact_sha256"], allow["canonical_sorted_names_sha256"])
+            assert captured["expected_keys"] == sorted(inventory)
             for field in ("repository", "revision", "config_sha256", "index_sha256"):
                 wrong = dict(model_meta, **{field: "foreign"})
                 refuses(lambda wrong=wrong: job_worker.vetted_unexpected_inventory(allow, wrong), "binding mismatch")
-            refuses(lambda: job_worker.vetted_unexpected_inventory(dict(allow, canonical_sorted_names_sha256="0"*64), model_meta), "binding mismatch")
+            refuses(lambda: job_worker.vetted_unexpected_inventory(dict(allow, canonical_sorted_names_sha256="0"*64), model_meta), "capture CLI")
             refuses(lambda: job_worker.vetted_unexpected_inventory(dict(allow, path="engines/coverage.json"), model_meta), "vetted")
+            path.write_text(json.dumps({"schema": "qfs.exact-unexpected-tensors.v1", "names": document,
+                                        "repository": model_meta["repository"], "revision": model_meta["revision"],
+                                        "evidence": evidence}))
+            old_format = dict(allow, artifact_sha256=job_worker.digest(path))
+            refuses(lambda: job_worker.vetted_unexpected_inventory(old_format, model_meta), "capture CLI")
     print("PASS exact vetted Qwen inventory reaches real worker binding; foreign identities and inventories refuse")
     return 0
 

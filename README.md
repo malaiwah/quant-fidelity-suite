@@ -101,6 +101,8 @@ quoted compute ceiling; increasing the ceiling alone does not extend a Job.
 Preparation and worker execution share the same vetted unexpected-tensor
 inventory checks, including exact artifact, model/config/index and name-set
 bindings. An inventory that the worker cannot admit is refused before rental.
+The check uses the capture CLI's own plain-array/digest loader; provenance
+is a separate sidecar, not a wrapper that the capture CLI cannot consume.
 
 **Large captures:** output allowance is explicit per plan (4 GiB by default,
 up to 64 GiB); recovery honors the sealed allowance rather than an unrelated

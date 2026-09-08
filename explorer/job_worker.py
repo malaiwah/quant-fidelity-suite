@@ -328,24 +328,18 @@ def vetted_unexpected_inventory(allowlist, model):
     if name not in vetted:
         raise ValueError("unexpected tensor inventory is not an authored vetted artifact")
     path = regular(ROOT / name)
-    document = load_json(path)
-    if isinstance(document, dict):
-        if (document.get("schema") != "qfs.exact-unexpected-tensors.v1"
-                or document.get("repository") != model.get("repository")
-                or document.get("revision") != model.get("revision")):
-            raise ValueError("unexpected tensor inventory model/revision binding mismatch")
-        names, provenance = document.get("names"), document.get("evidence")
-    else:
-        names, provenance = document, load_json(str(path) + ".provenance.json")
-    if (not isinstance(names, list) or not names
-            or any(not isinstance(value, str) or not value for value in names)
-            or len(names) != len(set(names)) or not isinstance(provenance, dict)):
-        raise ValueError("unexpected tensor inventory requires unique names and provenance")
-    names_hash = hashlib.sha256(canonical(sorted(names))).hexdigest()
-    if (digest(path) != allowlist["artifact_sha256"]
-            or names_hash != allowlist["canonical_sorted_names_sha256"]
+    from engines.tools.hf_capture import load_unexpected_tensor_allowlist
+    try:
+        load_unexpected_tensor_allowlist(str(path), allowlist["artifact_sha256"],
+                                        allowlist["canonical_sorted_names_sha256"])
+    except SystemExit as exc:
+        raise ValueError("capture CLI rejected the inventory format or digest") from exc
+    provenance = load_json(str(path) + ".provenance.json")
+    if (not isinstance(provenance, dict)
             or provenance.get("config_sha256") != model.get("config_sha256")
-            or provenance.get("index_sha256") != model.get("index_sha256")):
+            or provenance.get("index_sha256") != model.get("index_sha256")
+            or any(key in provenance and provenance[key] != model.get(key)
+                   for key in ("repository", "revision"))):
         raise ValueError("unexpected tensor inventory/config/index binding mismatch")
     return path, provenance
 
@@ -413,11 +407,7 @@ def model_binding(plan, out):
     if vetted_inventory is not None:
         path, provenance = vetted_inventory
         shutil.copyfile(path, out / "unexpected-tensors.json")
-        sidecar = Path(str(path) + ".provenance.json")
-        if sidecar.is_file():
-            shutil.copyfile(sidecar, out / "unexpected-tensors.provenance.json")
-        else:
-            save(out / "unexpected-tensors.provenance.json", provenance)
+        shutil.copyfile(str(path) + ".provenance.json", out / "unexpected-tensors.provenance.json")
     return mount
 
 
