@@ -14,6 +14,103 @@ OK: schema + invariants clean, README tables match the data, self-tests pass.
 
 The one piece that is still deferred is named in §4, with the reason.
 
+## Publication audit warning disposition — 2026-09-08
+
+The checked-in [`registry/publication-audit.json`](../registry/publication-audit.json)
+records **0 errors and 298 warnings**, all `retained-and-disclosed`, across
+17 models, 90 artifacts, 18 panels, 29 references, 30 pipelines and 109
+measurements. These are the audit snapshot's counts, not a fresh validation
+claim about subsequent source changes. Its
+`strict_warning_free_release_gate_passed` is **false**: a disclosed data snapshot
+is **not a clean software release**, and `make check-release` still fails when
+warnings remain. No receipts or audit dispositions were changed by this guide.
+
+The table accounts for every warning occurrence, not distinct affected rows.
+Checks can overlap on one row; FLOOR-003 and CMP-005 count groups, and HARN-005
+counts individual recorded file hashes that differ from the checkout.
+
+| Class | Check | Count | Meaning and honest remedy |
+| --- | --- | ---: | --- |
+| Historical source-version drift | HARN-005 | 249 | Measurement-time code differs from the audit's checkout. Preserve the original code digests, harness IDs and source commits. This is provenance working, not evidence the historical number is wrong. Reproducing with changed code requires a new run/receipt; restamping an old receipt with today's hash fabricates provenance. |
+| Missing panel evidence | PANEL-006 | 5 | Strict rows use panels whose `contamination.checked` is false. A real, documented contamination investigation is needed before claiming it was checked. Existing verifiable scan evidence could be linked without model execution; otherwise do the scan. Changing evaluation bytes or selections requires new measurement evidence, not a renamed panel. |
+| Missing control evidence | FLOOR-003 | 9 | Multi-row comparability groups lack an unquantized control on any lane. Link a genuinely matching existing control, if one is recovered; otherwise capture/qualify one with the required panel, scope and lane. Do not invent a zero floor, subtract an assumed offset or infer ranking permission from the key. |
+| Missing comparison context | CMP-005 | 16 | Singleton groups have no comparator. Present them as observations/fixture floors, not rankings. A matching existing measurement may add context without redoing either capture; otherwise new compatible evidence is needed. Never alter keys just to place unlike rows together. |
+| Attribution evidence requiring review | PROV-006 | 6 | The panel-author naming heuristic asks for authorship review; it does not prove misattribution. Check the original panel builders, sealed receipts and publisher/corpus lineage. Correct explanatory attribution or derived registry metadata only when supported by those sources; no model rerun is needed. Credit cannot be reassigned to the maintainer merely because they uploaded the evidence. |
+| Missing statistical context | STAT-005 | 11 | Published KL rows omit top-1 agreement, so KL alone cannot distinguish unchanged argmax predictions from changed ones. This is **not** a confidence-interval warning. Recover the recorded metric, or re-derive it from complete matching saved predictions/logits; if those are unavailable, new captures are needed. KL averages alone cannot reconstruct it. |
+| Actionable disclosure defects | DET-006 | 2 | Self-measured published rows have fewer than five runs but lack both `reduced_run_count` and `single_run` disclosures. Add evidence-backed disclosures to the derived claim without changing the recorded run count or sealed receipt. Extra runs are needed only to claim stronger repeatability evidence, not to disclose the current limitation. |
+
+Totals: **249 historical drift + 47 missing evidence/context/attribution +
+2 actionable disclosure defects = 298 warnings**. The 47 are
+5 PANEL-006 + 9 FLOOR-003 + 16 CMP-005 + 6 PROV-006 + 11 STAT-005.
+The nine floorless-group messages describe 50 published rows in total;
+the 249 HARN-005 occurrences affect 37 distinct measurement IDs.
+
+### Disclosure defects and uncertainty must not be hidden
+
+The two DET-006 records are:
+
+* `measurement--fruit.bf16-selfcompare-floor.heldout-v1`: **two** recorded runs;
+  disclose the reduced run count, not five-run qualification.
+* `measurement--malaiwah.qwen3-5-tiny-random-gptq-v1-g32-rtn-format.fixture.a53145fb225cc15b73887d0f`:
+  **one** recorded run; disclose the single run. The shared audit rationale talks
+  only about Fruit's two runs and does not explain this second record. That is
+  an actionable explanation gap, not evidence of a second RTN run.
+
+These fixes are identified here, **not applied or counted as resolved**.
+For the one-run fixture, run-to-run uncertainty cannot be estimated from that
+run alone. A two-run result is also not a five-run study. Re-deriving a
+within-run interval from saved per-window evidence requires its actual
+resampling unit, method and seed; it cannot supply missing run-to-run
+variation. The snapshot contains no separate uncertainty-warning check beyond
+the listed checks, and the missing top-1 warnings must not be relabeled as
+missing confidence intervals. Zero validator errors does not certify complete
+uncertainty evidence, absence of contamination, calibrated optimization or
+independent reproduction.
+
+The six PROV-006 warnings name five fixture panels with ID suffixes
+`2218037d11b09e931ba412f6`, `3e2777903c672346baceac98`,
+`53326a9cd31fede1ea932442`, `9d187d1dab31575b41ab4b00`,
+`a53145fb225cc15b73887d0f`, plus `panel--fruit.malaiwah.heldout-v1`.
+The audit retains attribution to publisher-authored synthetic builders and
+their sealed receipts, and retains existing Fruit attribution; this is a
+recorded disposition, not a newly performed independent authorship audit.
+
+### Source paths and evidence-preserving correction boundary
+
+The warning inventory and full affected IDs/messages are in
+[`registry/publication-audit.json`](../registry/publication-audit.json).
+Definitions and executable checks are in
+[`registry/schema/invariants.json`](../registry/schema/invariants.json) and
+[`registry/tools/registry_validate.py`](../registry/tools/registry_validate.py).
+The affected records are in `registry/data/measurements.jsonl` and
+`registry/data/panels.jsonl`; the audit's `data_sha256` binds its data snapshot.
+
+HARN-005 breaks down by **recorded source path** as follows:
+
+| Path | Occurrences |
+| --- | ---: |
+| `engines/tools/hf_capture.py` | 62 |
+| `engines/tools/layer_outer.py` | 38 |
+| `bin/fidelity/dscompare.py` | 34 |
+| `bin/fidelity_dataset.py` | 34 |
+| `engines/tools/kld_report.py` | 31 |
+| `bin/fidelity/panel.py` | 15 |
+| `bin/fidelity/dsformat.py` | 12 |
+| `bin/fidelity/dsmanifest.py` | 12 |
+| `registry/tools/registry_add.py` | 2 |
+| `bin/invoke_engine.py`, `bin/invoke_scorer.py`, `bin/seal_receipt.py`, `bin/BUNDLE.txt`, `bin/selftest_fidelity_dataset.py`, `explorer/review.py`, `registry/tools/registry_render.py`, `registry/tools/registry_selftest.py`, `registry/tools/review_requests.py` | 1 each (9) |
+
+Without rerunning the model, contributors can improve explanation, cite
+existing immutable evidence, correct proven attribution and disclose actual
+run counts. Re-derived statistics require a new analysis receipt linked to the
+original bytes. A missing control, unavailable predictions or an unperformed
+repeat needs new scientific evidence. Source changes need fresh execution if
+the claim is that the new source produced the result. Keep historical
+receipts immutable in every case, publish corrections as new revisions and
+link the old and new evidence explicitly. See the
+[contributor walkthrough](THIRD-PARTY-QUICKSTART.md#contributor-walkthrough--hf-jobs-to-an-immutable-registry-citation)
+for the separate attribution, publication, request and owner-acceptance steps.
+
 ---
 
 ## 1. Two new disclosure codes — APPLIED

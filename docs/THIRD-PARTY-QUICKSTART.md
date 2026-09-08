@@ -1,14 +1,119 @@
 # Third-party quickstart — from a fresh clone to a submitted measurement
 
-This is the unaided path for the paid route: one fresh secure on-demand
-RunPod pod reached by authenticated SSH, rented for exactly one measurement
-and destroyed afterwards. Everything here is $0.00 except the single step
-marked **PAID**. No command here publishes externally unless you add
-`--publish-root-to`.
+Choose either the caller-funded **HF Jobs** walkthrough below, local capture,
+or the separately gated **RunPod CLI** route in §1–7. Browsing, preparing and
+local inspection do not rent compute. HF Jobs and RunPod execution are paid;
+publication and registry requests are separate outward-facing actions.
 
 What is always enforced, and what strict campaign mode adds on top, is in
 [`CLOUD-RECIPES.md`](CLOUD-RECIPES.md). `bin/measure-cloud --help` is the
 ground truth for every flag.
+
+## Contributor walkthrough — HF Jobs to an immutable registry citation
+
+This describes the implemented contributor/owner workflow, not a completed
+independent-user usability trial. **A genuine two-account browser trial has not
+been performed:** the available credential inventory contained only the stored
+`oauth-malaiwah` token, and the browser relay was unavailable. Single-account
+execution/publication evidence is not proof of a second contributor's OAuth
+journey, account isolation, authentication failure or revocation scenarios.
+Those authentication/revocation scenarios were **not exercised** in that trial.
+
+1. **Use your actual account.** Open **HF Jobs**, sign in through Hugging Face,
+   and choose **Check my account & hardware**. Confirm the displayed personal
+   handle is yours: Jobs, billing, private results and new output repositories
+   belong to that authenticated namespace, not the Space owner's. A private
+   duplicate is optional; local/mock OAuth is not spending authority.
+2. **Choose the scientific inputs, pinned to commits.** A native root needs the
+   original model repository/full 40-hex revision and raw token-panel tree
+   (`panel.json`, sealed build receipt, referenced token/mask arrays and matching
+   tokenizer). It performs two captures and a control comparison. A candidate
+   additionally needs the published reference dataset/revision, actual
+   intervention scope, codec and nominal bits; its model pin must identify the
+   quantized weights, not the native checkpoint. Compare-only instead takes two
+   existing sealed fidelity datasets at immutable revisions. Use an admitted
+   preset or supported native/reviewed runtime; a format name alone is not
+   admission, and a capture's internal panel view is not the raw input panel.
+3. **Keep calibration separate from evaluation.** These workflows measure
+   already-produced weights; they do not train or calibrate a quantizer.
+   Calibration examples fit the quantizer, while a held-out evaluation panel
+   measures its effect. Preserve each corpus revision, selection/extraction
+   receipt and tokenizer identity; disclose overlap rather than claiming a
+   held-out result. GPTQ-format packing or RTN is not evidence of calibrated
+   GPTQ optimization. Tiny random fixtures qualify plumbing, not model quality.
+4. **Preview, then consent to spend.** Choose hardware, a provider deadline and
+   your compute-estimate ceiling; inspect **Preview inputs and cost**, including
+   the billing account, immutable inputs and producing source/image. Preview is
+   read-only. Authorize the Job explicitly before **Run selected workflow**;
+   changed inputs require renewed review and consent. The estimate is not an
+   account-wide hard-dollar cap; storage and other services are separate.
+   CPU Basic Jobs are paid even though CPU Basic Space hosting is free.
+5. **Recover privately before publishing.** Save the actual HF Job ID. Use
+   **Refresh my Jobs / logs**, or paste your own QFS Job ID after a page/Space
+   restart, then **Fetch & verify persisted results**. Provider `COMPLETED`
+   alone is not scientific verification. Failed/partial results are not
+   promoted into successful captures. Private publication is optional and
+   separate from public publication; neither recovery nor a successful run
+   silently submits a registry claim.
+   **Measured phase timings** separates bootstrap, input preparation, capture,
+   verification and comparison where the worker recorded them. These are
+   monotonic elapsed durations, not billed time; input preparation may include
+   lazy mount reads. Older Jobs keep unknown durations rather than invented zeroes.
+   Status shows the last verified digest, not a fresh integrity verdict.
+6. **Complete original-author attribution after the run if needed.** Native
+   root review needs `name`, `family`, `model_license`, `corpus_lineage`, and
+   `publisher`, `panel_author`, `toolchain_author` objects containing actual
+   `name`, `handle`, `url` facts. Exact registry matches may supply them;
+   unknown authors must not be replaced with the contributor/maintainer.
+   **Save root publication attribution** can correct these facts without
+   rerunning the model or changing sealed captures, scope or producing-code
+   hashes. If already public, the explanatory card gets a new revision and a
+   pending review is superseded; request review of that new revision.
+7. **Publish deliberately.** Choose public visibility and separately confirm
+   publication and redistribution rights for captures, head weights, token
+   panels and license/lineage evidence. **Publish verified datasets/evidence**
+   writes new repositories in your personal namespace, reads back their exact
+   bytes and returns immutable revisions. It does not turn an existing private
+   repository public. Check the returned evidence and canonical capture links.
+8. **Request review, then let the owner validate.** **Request registry review**
+   requires explicit public-post consent and previously public evidence; it
+   does not expose private results or accept the claim. In **Registry review**,
+   only the registry namespace owner can **Validate and preview changes**,
+   inspect evidence, warnings and the exact staged records, then separately
+   **Accept reviewed claim**. A changed request or registry HEAD requires fresh
+   inspection. Acceptance is receipt validation, **not independent model
+   reproduction**; it does not grant ranking eligibility or clear warnings.
+9. **Cite immutable evidence.** Keep model/panel/source commits, publication
+   `repository@revision`, file SHA-256s, the public request, accepted registry
+   commit and its acceptance-receipt URL. Cite `/resolve/<commit>/<path>` or
+   `/blob/<commit>/<path>`, not mutable `main`. A later card correction is a new
+   citation, not permission to rewrite the earlier scientific receipt.
+
+The implementation contracts are in [`explorer/auth.py`](../explorer/auth.py),
+[`explorer/job_ui.py`](../explorer/job_ui.py),
+[`explorer/jobs.py`](../explorer/jobs.py) and
+[`explorer/review.py`](../explorer/review.py). For the current audit's warning
+counts and what each permits, see
+[Registry warning disposition](REGISTRY-INTEGRATION.md#publication-audit-warning-disposition--2026-09-08).
+
+### Recovery and private staging retention
+
+For a failed or interrupted Job, first read its provider status and bounded logs.
+Do not repeatedly launch while creation is unresolved: a lost response may still
+represent a billed Job. A running Job can be canceled explicitly; terminal partial
+files remain private and are not promoted into successful scientific evidence.
+After a Space restart, use the original Job ID and private ledger, not a copied
+model name or inferred plan. Revoked/expired authentication requires a fresh sign-in.
+
+To reclaim storage, select a terminal Job and open **Private staging retention**.
+**Preview selected Job staging** lists the exact private bucket prefix, file count,
+bytes and preserved publications without deleting anything. Confirmation binds that
+inventory and expires after ten minutes. **Delete previewed private staging**
+removes only that Job's bucket inputs/outputs: the Job, audit ledger, public/private
+evidence repositories and registry records remain. Without a published copy, this
+loses capture recovery. Bucket deletion is not atomic; an interrupted deletion is
+journaled and requires a fresh preview of the remaining files. Changed inventories,
+other accounts and active Jobs are refused.
 
 ## Local capture without renting hardware
 

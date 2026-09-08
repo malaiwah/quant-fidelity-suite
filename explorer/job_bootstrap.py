@@ -45,8 +45,10 @@ def clean(raw):
     return "".join(c for c in value if c in "\n\t" or 32 <= ord(c) != 127).encode()
 
 
-def run(command, deadline, commands):
-    record = {"argv": command, "returncode": None}
+def run(command, deadline, commands, *, step):
+    started = time.monotonic()
+    record = {"step": step, "argv": command, "returncode": None,
+              "started_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
     commands.append(record)
     save(RECEIPT, {"schema": "qfs.hf-workflow-bootstrap.v1", "commands": commands})
     print(json.dumps({"stage": "bootstrap", "command": command[:4], "event": "started"}), flush=True)
@@ -74,6 +76,8 @@ def run(command, deadline, commands):
         selector.close()
         process.stdout.close()
         record.update(returncode=process.returncode, output_bytes_observed=observed)
+        record.update(finished_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                      duration_seconds=time.monotonic() - started)
         save(RECEIPT, {"schema": "qfs.hf-workflow-bootstrap.v1", "commands": commands})
         print(json.dumps({"stage": "bootstrap", "returncode": process.returncode}), flush=True)
     if process.returncode:
@@ -123,10 +127,10 @@ def main(argv=None):
         for name in ("PYTHONPATH", "PYTHONHOME", "PIP_EXTRA_INDEX_URL", "PIP_INDEX_URL", "PIP_FIND_LINKS", "PIP_TRUSTED_HOST"):
             os.environ.pop(name, None)
         os.environ["PIP_CONFIG_FILE"] = "/dev/null"
-        run(["git", "init", str(CHECKOUT)], deadline, commands)
-        run(["git", "-C", str(CHECKOUT), "remote", "add", "origin", SOURCE], deadline, commands)
-        run(["git", "-C", str(CHECKOUT), "-c", "core.hooksPath=/dev/null", "fetch", "--depth", "1", "origin", source["revision"]], deadline, commands)
-        run(["git", "-C", str(CHECKOUT), "-c", "core.hooksPath=/dev/null", "checkout", "--detach", source["revision"]], deadline, commands)
+        run(["git", "init", str(CHECKOUT)], deadline, commands, step="initialize-source")
+        run(["git", "-C", str(CHECKOUT), "remote", "add", "origin", SOURCE], deadline, commands, step="configure-source")
+        run(["git", "-C", str(CHECKOUT), "-c", "core.hooksPath=/dev/null", "fetch", "--depth", "1", "origin", source["revision"]], deadline, commands, step="fetch-source")
+        run(["git", "-C", str(CHECKOUT), "-c", "core.hooksPath=/dev/null", "checkout", "--detach", source["revision"]], deadline, commands, step="checkout-source")
         worker = CHECKOUT / "explorer/job_worker.py"
         if hashlib.sha256(worker.read_bytes()).hexdigest() != source["worker_sha256"]:
             raise ValueError("immutable checkout worker hash mismatch")
@@ -138,8 +142,8 @@ def main(argv=None):
         job_worker.require_no_credentials()
         job_worker.validate_plan(plan, Path(args.out))
         wheel_kind = "cpu" if device == "cpu" else "cu130"
-        run([sys.executable, "-m", "pip", "install", "--only-binary=:all:", "--index-url", "https://download.pytorch.org/whl/" + wheel_kind, "torch==2.11.0+" + wheel_kind], deadline, commands)
-        run([sys.executable, "-m", "pip", "install", "--only-binary=:all:", "--index-url", "https://pypi.org/simple", "-r", str(CHECKOUT / "explorer/requirements-worker.txt")], deadline, commands)
+        run([sys.executable, "-m", "pip", "install", "--only-binary=:all:", "--index-url", "https://download.pytorch.org/whl/" + wheel_kind, "torch==2.11.0+" + wheel_kind], deadline, commands, step="install-torch")
+        run([sys.executable, "-m", "pip", "install", "--only-binary=:all:", "--index-url", "https://pypi.org/simple", "-r", str(CHECKOUT / "explorer/requirements-worker.txt")], deadline, commands, step="install-runtime")
         from importlib.metadata import distributions
         versions = {distribution.metadata["Name"]: distribution.version for distribution in distributions()}
         save(RECEIPT, {"schema": "qfs.hf-workflow-bootstrap.v1", "commands": commands,

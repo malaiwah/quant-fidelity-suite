@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 import gradio as gr
 
-from . import jobs, review
+from . import jobs, review, retention
 from .auth import actor_from_request
 
 
@@ -18,9 +18,24 @@ def build_jobs_ui():
     prepared_state = gr.State(None)
     publication_state = gr.State(None)
     approval_state = gr.State(None)
+    retention_state = gr.State(None)
     options = jobs.presets()
     choices = [(p["label"], p["id"]) for p in options]
     default = next((p["id"] for p in options if p["id"] == "root:glm_moe_dsa"), choices[0][1] if choices else None)
+    def recommend(selected):
+        p = next((p for p in options if p["id"] == selected), None)
+        if p is None:
+            return "Custom inputs need an explicit hardware/deadline quote; no runtime is assumed."
+        return "Suggested: **%s**, **%s seconds**. %s Your spending ceiling is never raised automatically." % (
+            p["recommended_flavor"], p.get("recommended_timeout_seconds", 600),
+            p.get("recommendation_basis", "Tiny fixture guidance, not a production-model runtime guarantee."))
+
+    def apply_recommendation(selected):
+        p = next((p for p in options if p["id"] == selected), None)
+        if p is None:
+            return gr.skip(), gr.skip(), None, False, recommend(selected), {}
+        return p["recommended_flavor"], p.get("recommended_timeout_seconds", 600), None, False, recommend(selected), {}
+
 
     def account(request: gr.Request, oauth_profile: gr.OAuthProfile | None, oauth_token: gr.OAuthToken | None):
         try:
@@ -94,8 +109,27 @@ def build_jobs_ui():
         try:
             proof = jobs.fetch_result(actor_from_request(request, oauth_profile, oauth_token), job_id)
             result = proof["result"]
-            return "**Persisted result verified.** Captures/receipts are recoverable. Public publication and registry submission are still separate actions.", {"mode": proof["plan"]["mode"], "workflow_id": result["workflow_id"], "outputs": result["outputs"], "result_sha256": result["result_sha256"], "qualified": bool(proof.get("qualification"))}
-        except Exception as exc:return "**Result not verified:** " + _error(exc), {}
+            timings = proof.get("timings", {"phases": []})
+            rows = [[p["step"] or p["group"], p["duration_seconds"],
+                     "exit %s" % p["returncode"] if p["returncode"] is not None else ("complete" if p["completed"] else "not recorded")]
+                    for p in timings["phases"]]
+            return "**Persisted result verified.** Captures/receipts are recoverable. Public publication and registry submission are still separate actions.", {"mode": proof["plan"]["mode"], "workflow_id": result["workflow_id"], "outputs": result["outputs"], "result_sha256": result["result_sha256"], "qualified": bool(proof.get("qualification")), "timings": timings}, rows
+        except Exception as exc:return "**Result not verified:** " + _error(exc), {}, []
+
+    def preview_retention(job_id, request: gr.Request, oauth_profile: gr.OAuthProfile | None, oauth_token: gr.OAuthToken | None):
+        try:
+            result = retention.preview(actor_from_request(request, oauth_profile, oauth_token), job_id)
+            count, size = result["inventory"]["file_count"], result["inventory"]["bytes"]
+            return result, "**No deletion yet:** %s staging files, %.3f GiB. %s" % (count, size / 1024**3, result["notice"]), result, False
+        except Exception as exc:return None, "**Cannot preview deletion:** " + _error(exc), {}, False
+
+    def delete_retention(job_id, reviewed, consent, request: gr.Request, oauth_profile: gr.OAuthProfile | None, oauth_token: gr.OAuthToken | None):
+        try:
+            if not reviewed or reviewed["inventory"]["job_id"] != job_id:
+                raise ValueError("Preview the currently selected Job before deleting its staging.")
+            result = retention.delete(actor_from_request(request, oauth_profile, oauth_token), reviewed, confirm_delete=consent)
+            return None, result["notice"], result, False
+        except Exception as exc:return None, "**Deletion not confirmed:** " + _error(exc) + " Preview again to reconcile any remaining files.", {}, False
 
     def publish(job_id, visibility, consent, rights, request: gr.Request, oauth_profile: gr.OAuthProfile | None, oauth_token: gr.OAuthToken | None):
         try:
@@ -156,6 +190,8 @@ def build_jobs_ui():
             seconds = gr.Number(value=600, precision=0, minimum=60, maximum=7200, label="Provider deadline (seconds)")
             maximum = gr.Textbox(value="0.25", label="Maximum compute estimate (USD)")
             output_repo = gr.Textbox(label="Optional NEW capture dataset repository", placeholder="Leave blank for a unique repo in your account")
+        recommendation = gr.Markdown(recommend(default))
+        apply_recommendation_button = gr.Button("Apply suggested hardware and deadline — keep my cost ceiling")
         gr.Markdown("**Cost boundary:** HF bills starting/running time by the minute. The preview includes the deadline plus two startup minutes; it is not an account-wide hard-dollar cap. Storage and other HF services are separate. CPU Basic Jobs are paid, unlike CPU Basic Space hosting. **Observed example, not a runtime guarantee:** Fruit (~10 GB weights) completed two captures and reproduction in 693 seconds on CPU Performance with a 1200-second deadline and $0.75 estimate ceiling. Tiny fixtures use CPU Basic.")
         with gr.Accordion("Custom immutable inputs and actual intervention scope", open=False, visible=False) as custom_inputs:
             mode = gr.Radio([("Native root: two captures + control", "root"), ("Candidate: two captures + reference measurement", "candidate"), ("Compare existing fidelity datasets", "compare")], value="root", label="Custom workflow")
@@ -191,6 +227,9 @@ def build_jobs_ui():
             recover_button=gr.Button("Fetch & verify persisted results")
         result_status=gr.Markdown("")
         result_json=gr.JSON(label="Verified result / immutable publication",open=False)
+        with gr.Accordion("Measured phase timings", open=False):
+            timing_table = gr.Dataframe(headers=["Phase", "Measured seconds", "Outcome"], interactive=False)
+            gr.Markdown("Elapsed monotonic stage time, not billed time. Input preparation can include lazy mount reads; provider scheduling remains separate. Blank durations mean older runs did not record them.")
         with gr.Row():
             visibility=gr.Radio([("Private (default)","private"),("Public, shareable evidence","public")],value="private",label="Publication visibility")
             publish_consent=gr.Checkbox(value=False,label="Save this verified result to my new HF repositories")
@@ -204,19 +243,32 @@ def build_jobs_ui():
         review_button=gr.Button("Request registry review")
         request_status=gr.Markdown("")
         request_json=gr.JSON(open=False)
+        with gr.Accordion("Private staging retention — explicit deletion only", open=False):
+            gr.Markdown("Only terminal Jobs can be cleaned. Public/private evidence repositories and registry records are preserved. If no published copy exists, deleting staging loses capture recovery. Interrupted deletion remains journaled and requires a fresh preview.")
+            retention_preview_button = gr.Button("Preview selected Job staging")
+            retention_status = gr.Markdown("")
+            retention_json = gr.JSON(open=False)
+            retention_consent = gr.Checkbox(value=False, label="Delete exactly the previewed private bucket staging for this Job. Keep its audit ledger and all published datasets.")
+            retention_delete_button = gr.Button("Delete previewed private staging", variant="stop")
         load_account.click(account,outputs=[account_status,flavor,account_json],api_name=False)
         load_account.click(lambda: (None, False), outputs=[prepared_state,consent], api_name=False, queue=False)
         prepare_button.click(prepare,controls,[prepared_state,status,plan_json,consent],api_name=False)
         for control in controls:
             control.input(lambda: (None, False, "Inputs changed. Preview again; Run uses the current inputs and ceiling.", {}), outputs=[prepared_state,consent,status,plan_json], api_name=False, queue=False)
         preset.change(lambda selected: gr.Accordion(visible=selected=="custom"), [preset], [custom_inputs], api_name=False, queue=False)
+        preset.change(recommend,[preset],[recommendation],api_name=False,queue=False)
+        apply_recommendation_button.click(apply_recommendation,[preset],[flavor,seconds,prepared_state,consent,status,plan_json],api_name=False,queue=False)
         run_button.click(one_click,controls+[consent],[prepared_state,job_id,status,plan_json],api_name=False,concurrency_limit=1)
         refresh_button.click(refresh,[job_id],[job_id,job_json,job_log],api_name=False)
         cancel_button.click(stop,[job_id,cancel_consent],[job_json],api_name=False)
-        recover_button.click(recover,[job_id],[result_status,result_json],api_name=False,concurrency_limit=2)
+        recover_button.click(recover,[job_id],[result_status,result_json,timing_table],api_name=False,concurrency_limit=2)
         publish_button.click(publish,[job_id,visibility,publish_consent,rights],[publication_state,result_status,result_json],api_name=False,concurrency_limit=1)
         review_button.click(request_review,[job_id,review_consent],[request_status,request_json],api_name=False,concurrency_limit=1)
         metadata_button.click(update_metadata,[job_id,publication_metadata,metadata_consent],[result_status,result_json,metadata_consent],api_name=False,concurrency_limit=1)
+        retention_preview_button.click(preview_retention,[job_id],[retention_state,retention_status,retention_json,retention_consent],api_name=False)
+        retention_delete_button.click(delete_retention,[job_id,retention_state,retention_consent],[retention_state,retention_status,retention_json,retention_consent],api_name=False,concurrency_limit=1)
+        job_id.input(lambda: (None, False, "Job changed. Preview its staging before deletion.", {}),
+                     outputs=[retention_state,retention_consent,retention_status,retention_json],api_name=False,queue=False)
 
     with gr.Tab("Registry review",id="review"):
         gr.Markdown("## Review claims without running contributor code\nAnyone can request review of public evidence. **Only the authenticated registry namespace owner can inspect an acceptance preview and commit it.** Validation is not independent reproduction; reported evidence stays labeled as such.")

@@ -317,6 +317,7 @@ class Runner:
 
     def run(self, name, arguments, *, allowed=(0,)):
         self.bound()
+        started = time.monotonic()
         command = {"step": name, "argv": [str(a) for a in arguments], "started_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "returncode": None}
         self.commands.append(command)
         save(self.out / "commands.json", self.commands)
@@ -354,11 +355,33 @@ class Runner:
             selector.close()
             process.stdout.close()
             command.update(returncode=process.returncode, log_bytes_retained=written, log_bytes_observed=seen, log_truncated=seen > written)
+            command.update(finished_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                           duration_seconds=time.monotonic() - started)
             save(self.out / "commands.json", self.commands)
             print(json.dumps({"step": name, "returncode": process.returncode}), flush=True)
         if process.returncode not in allowed:
+            diagnostic = (self.out / (name + ".log")).read_bytes()[-8000:]
+            if diagnostic:
+                print(safe_log(diagnostic).decode("utf-8", "replace"), flush=True)
             raise RuntimeError(name + " refused or failed (exit " + str(process.returncode) + "); see bounded log and raw receipts")
         self.bound()
+
+    def measure(self, name, function, *args):
+        """Time a local preparation phase without inventing a subprocess exit code."""
+        self.bound()
+        started = time.monotonic()
+        record = {"step": name, "kind": "local-preparation",
+                  "started_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "completed": False}
+        self.commands.append(record)
+        save(self.out / "commands.json", self.commands)
+        try:
+            value = function(*args)
+            record["completed"] = True
+            return value
+        finally:
+            record.update(finished_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                          duration_seconds=time.monotonic() - started)
+            save(self.out / "commands.json", self.commands)
 
 
 def dataset_view(descriptor, name):
@@ -402,7 +425,7 @@ def workflow(plan, out, runner, outputs):
     datasets = {}
     for name in ("reference", "candidate"):
         if inputs.get(name):
-            path = dataset_view(inputs[name], name)
+            path = runner.measure("prepare-" + name, dataset_view, inputs[name], name)
             datasets[name] = path
             observed = dsformat.load_manifest(str(path))
             if observed["dataset_sha256"] != inputs[name]["dataset_sha256"]:
@@ -410,7 +433,7 @@ def workflow(plan, out, runner, outputs):
             runner.run("verify-" + name, [*tool, "verify", path, "--verify-tensors", "--json", out / (name + ".verify.json")])
             save(out / (name + ".input.json"), inputs[name])
     if mode != "compare":
-        model = model_binding(plan, out)
+        model = runner.measure("verify-model-input", model_binding, plan, out)
         descriptor = inputs["panel"]
         panel = Path(descriptor["mount_path"]) / str(relative(descriptor["path"]))
         if panel.resolve() != panel or not panel.is_dir():
@@ -428,7 +451,7 @@ def workflow(plan, out, runner, outputs):
             shutil.copyfile(path, destination)
         from fidelity import panel as panel_api
         tokenizer_root = Path(inputs["tokenizer"]["mount_path"]) if mode == "candidate" else model
-        resolved = panel_api.resolve_panel(panel, role="final", tokenizer_root=tokenizer_root).to_dict()
+        resolved = runner.measure("resolve-token-panel", lambda: panel_api.resolve_panel(panel, role="final", tokenizer_root=tokenizer_root).to_dict())
         save(out / "panel-binding.json", resolved)
         binding = load_json(out / "panel-binding.json")
         if not binding["tokenizer"]["files_verified"]:

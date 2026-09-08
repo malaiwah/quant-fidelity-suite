@@ -200,7 +200,9 @@ def presets():
                     "model_repository": "malaiwah/GLM-5.2-SIQ-Fruit-bf16", "model_revision": "ef68013aa6e16453cf52b5b77647f72fbe258c3c",
                     "panel": {"kind": "bundled", "path": "engines/panels/panel--fruit.malaiwah.heldout-v1", "role": "final"},
                     "unexpected_allowlist": "engines/tools/layer-outer-evidence/fruit-unexpected-keys.json",
-                    "recommended_flavor": "cpu-upgrade", "scope_note": "Heavier trained Fruit proxy; declared indexer/MTP omissions retained. Not an assistant or upstream-model quality claim."})
+                    "recommended_flavor": "cpu-performance", "recommended_timeout_seconds": 1200,
+                    "recommendation_basis": "Observed two-capture/reproduction Job completed in 693 seconds on CPU Performance; not a runtime guarantee. Requote current prices and choose your own ceiling.",
+                    "scope_note": "Heavier trained Fruit proxy; declared indexer/MTP omissions retained. Not an assistant or upstream-model quality claim."})
     return entries
 
 
@@ -382,7 +384,7 @@ def _prepare(actor, spec, registry=None):
     if mode not in ("root", "candidate", "compare"):
         raise JobsError("Choose root capture, candidate measurement, or existing-dataset comparison.")
     source, image = _source_identity()
-    timeout = request.get("timeout_seconds", 600)
+    timeout = request.get("timeout_seconds", request.get("recommended_timeout_seconds", 600))
     if type(timeout) is not int or not 60 <= timeout <= 7200:
         raise JobsError("Job deadline must be 60–7200 seconds.")
     try:
@@ -512,9 +514,11 @@ def prepare(actor, spec, registry=None):
         _PREPARE_SLOTS.release()
 
 
-def _ledger(actor):
+def _ledger(actor, *, create=False):
     api = actor.client();repo = actor.username + "/qfs-explorer-runs"
     if not api.repo_exists(repo, repo_type="dataset"):
+        if not create:
+            raise JobsError("The original private workflow ledger is missing; do not infer a plan from Job labels.")
         try:
             api.create_repo(repo, repo_type="dataset", private=True, exist_ok=False)
             initial = api.repo_info(repo, repo_type="dataset")
@@ -581,7 +585,7 @@ def launch(actor, prepared, *, confirm_compute=False):
     from huggingface_hub import Volume
     api = actor.client()
     with _LOCK:
-        repo, head, ledger = _ledger(actor)
+        repo, head, ledger = _ledger(actor, create=True)
         wid = plan["workflow_id"]
         if wid in ledger["runs"]:
             prior = ledger["runs"][wid]
@@ -679,6 +683,17 @@ def inspect(actor, job_id):
     out = _job_public(job)
     out["billing_namespace"] = actor.username
     out["results_verified"] = False
+    out["last_verified_result_sha256"] = None
+    try:
+        _, _, ledger = _ledger(actor)
+        saved = ledger["runs"].get(out["workflow_id"], {})
+        out["last_verified_result_sha256"] = saved.get("verified_result_sha256")
+        out["staging_retention"] = saved.get("staging_retention")
+        out["publications"] = {visibility: {"repository": value["repository"], "revision": value["revision"]}
+                               for visibility, value in (saved.get("publications") or {}).items()}
+        out["verification_note"] = "Status is not a fresh integrity check. Fetch results to revalidate the recorded digest."
+    except JobsError as exc:
+        out["recovery_note"] = str(exc)
     return out
 
 
@@ -726,6 +741,8 @@ def _fetch_result(actor, job_id, directory):
         _verify_provider(actor, job, saved["plan"])
     if saved is None:
         raise JobsError("Import this Job's original private ledger/plan first; provider labels alone are not a trusted plan.")
+    if (saved.get("staging_retention") or {}).get("status") in ("DELETING", "DELETED"):
+        raise JobsError("Private staging was deleted or deletion is incomplete. Use preserved published evidence, or preview retention to reconcile; no model was rerun.")
     plan = saved["plan"];verify_seal(plan, "plan_sha256")
     if saved.get("job_id") not in (None, job_id) or plan["owner"] != actor.username:
         raise JobsError("The private ledger identifies a different Job or owner.")
@@ -771,6 +788,7 @@ def _fetch_result(actor, job_id, directory):
                  "provider_identity_note": "Controller read authenticated HF Jobs API. Worker hardware is worker-reported, not independent reproduction."}
     (directory / "hf-execution.json").write_text(json.dumps(execution, indent=2) + "\n")
     proof = {"result": result, "plan": plan, "execution": execution, "directory": str(directory)}
+    proof["timings"] = _phase_timings(directory)
     if plan["mode"] in ("root", "candidate"):
         from fidelity.hfjobs import qualify_result
         proof["qualification"] = qualify_result(directory, plan, execution, suite_root=ROOT)
@@ -1195,7 +1213,12 @@ def request_review(actor, job_id, *, confirm_public=False):
             _validate_review_metadata({k: v for k, v in publication["metadata"].items()
                                        if k not in {"root_repository", "root_revision"}}, complete=True)
         _check_saved_publication(actor, publication, proof, public=True)
-        publication = review.attest_publication(actor, publication)
+        if review._signing_key() is not None:
+            publication = review.attest_publication(actor, publication)
+        else:
+            # Duplicates do not inherit canonical secrets. Their public claim stays
+            # reported until the original Job is revalidated by the registry service.
+            publication = {key: value for key, value in publication.items() if key != "attestation"}
         saved["publications"]["public"] = publication
         head = _save_ledger(actor, repo, head, ledger)
         receipt = review.request_review(actor, publication, confirm_public=True)
@@ -1286,3 +1309,25 @@ def update_publication_metadata(actor, job_id, metadata, *, confirm_metadata=Fal
             head = _save_ledger(actor, repo, head, ledger)
         return {"job_id": job_id, "metadata": resolved, "missing_for_review": missing,
                 "publications": saved.get("publications", {}), "model_rerun": False}
+
+
+def _phase_timings(directory):
+    """Expose only measured phase durations from already hash-verified sidecars."""
+    rows = []
+    root = Path(directory)
+    for name, group in (("bootstrap.json", "bootstrap"), ("commands.json", "workflow")):
+        if not (root / name).is_file():
+            continue
+        document = _read_json(root / name)
+        commands = document.get("commands", []) if isinstance(document, dict) else document
+        if not isinstance(commands, list):
+            raise JobsError("Invalid command timing sidecar.")
+        for command in commands:
+            duration = command.get("duration_seconds")
+            if duration is not None and (type(duration) not in (int, float) or not math.isfinite(duration) or duration < 0):
+                raise JobsError("Invalid measured phase duration.")
+            rows.append({"group": group, "step": command.get("step"),
+                         "started_at": command.get("started_at"), "finished_at": command.get("finished_at"),
+                         "duration_seconds": duration, "returncode": command.get("returncode"),
+                         "completed": command.get("completed"), "timing_recorded": duration is not None})
+    return {"phases": rows, "note": "Monotonic elapsed phase time, not billing time. Preparation may include lazy mount reads; provider scheduling is separate. Older runs retain unknown durations, not invented zeroes."}

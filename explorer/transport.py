@@ -135,11 +135,12 @@ def _result_public(proof):
             "plan_sha256": plan["plan_sha256"], "result_sha256": result["result_sha256"],
             "outputs": result["outputs"], "qualification": bool(proof.get("qualification")),
             "bucket": plan["output"]["bucket"], "prefix": plan["output"]["prefix"],
+            "timings": proof.get("timings"),
             "notice": "Persisted bytes and scientific receipts verified; no automatic public publication or registry acceptance."}
 
 
 async def api_response(request):
-    from . import jobs, review
+    from . import jobs, review, retention
     actor = await asyncio.to_thread(actor_from_request, request)
     path, method = request.url.path, request.method
     data = await _body(request) if method == "POST" else {}
@@ -159,6 +160,12 @@ async def api_response(request):
         if action == "publish" and method == "POST":return await asyncio.to_thread(jobs.publish_result, actor, job_id, visibility=data.get("visibility", "private"), confirm_publish=data.get("confirm_publish") is True, confirm_redistribution=data.get("confirm_redistribution") is True)
         if action == "metadata" and method == "POST":return await asyncio.to_thread(jobs.update_publication_metadata, actor, job_id, data.get("metadata"), confirm_metadata=data.get("confirm_metadata") is True)
         if action == "request-review" and method == "POST":return await asyncio.to_thread(jobs.request_review, actor, job_id, confirm_public=data.get("confirm_public") is True)
+        if action == "retention" and method == "GET":return await asyncio.to_thread(retention.preview, actor, job_id)
+        if action == "delete-staging" and method == "POST":
+            reviewed = data.get("reviewed")
+            if not isinstance(reviewed, dict) or (reviewed.get("inventory") or {}).get("job_id") != job_id:
+                raise ValueError("Preview this exact Job before deleting staging.")
+            return await asyncio.to_thread(retention.delete, actor, reviewed, confirm_delete=data.get("confirm_delete") is True)
     if path == "/qfs/api/review" and method == "GET":return await asyncio.to_thread(review.list_requests, actor)
     if path == "/qfs/api/review/inspect" and method == "POST":return await asyncio.to_thread(review.inspect_request, actor, data.get("discussion_id"))
     if path == "/qfs/api/review/accept" and method == "POST":
