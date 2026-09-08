@@ -7,7 +7,7 @@ full-tensor/two-cold-capture qualification gates; it never executes model code.
 from __future__ import annotations
 
 import re
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from types import SimpleNamespace
 
 from . import common, dsformat as F, dsmanifest, dsvalidate, jobcontract, resultsink
@@ -241,6 +241,79 @@ def _target(model, census, license_identity):
             'download_manifest_sha256': _digest(downloads)}
 
 
+def _worker_verifications(root, plan, bundle, manifest_names):
+    """Bind original verification subjects to the sealed producing commands."""
+    _require({'commands.json', 'bootstrap.json'} <= manifest_names,
+             'worker manifest omits command/workspace evidence')
+    bootstrap = _read(root / 'bootstrap.json')
+    _require(bootstrap.get('schema') == 'qfs.hf-workflow-bootstrap.v1'
+             and bootstrap.get('source_revision') == plan['source']['revision']
+             and bootstrap.get('worker_sha256') == plan['source']['worker_sha256'],
+             'bootstrap source identity differs from plan')
+
+    def command(records, step):
+        _require(isinstance(records, list) and all(isinstance(row, dict) for row in records),
+                 'invalid worker command inventory')
+        matches = [(index, row) for index, row in enumerate(records) if row.get('step') == step]
+        _require(len(matches) == 1, 'missing or duplicate worker command: ' + step)
+        index, record = matches[0]
+        argv = record.get('argv')
+        _require(type(record.get('returncode')) is int and record['returncode'] == 0
+                 and isinstance(argv, list) and argv and all(isinstance(value, str) for value in argv),
+                 'worker command did not succeed: ' + step)
+        return index, argv
+
+    def absolute(value):
+        path = PurePosixPath(value)
+        _require(path.is_absolute() and path.as_posix() == value and '..' not in path.parts
+                 and '\\' not in value and len(path.parts) > 1, 'noncanonical worker path')
+        return path
+
+    def argument(argv, flag):
+        _require(argv.count(flag) == 1 and not any(value.startswith(flag + '=') for value in argv),
+                 'ambiguous worker capture argument: ' + flag)
+        index = argv.index(flag) + 1
+        _require(index < len(argv), 'missing worker capture argument: ' + flag)
+        return argv[index]
+
+    _, checkout = command(bootstrap.get('commands'), 'checkout-source')
+    _require(len(checkout) == 8, 'invalid immutable source checkout command')
+    source_root = absolute(checkout[2])
+    _require(checkout == ['git', '-C', str(source_root), '-c', 'core.hooksPath=/dev/null',
+                          'checkout', '--detach', plan['source']['revision']],
+             'bootstrap checkout does not identify the pinned source workspace')
+    tools = {'engines/tools/hf_capture.py', 'bin/fidelity_dataset.py'}
+    _require(tools <= {row['path'] for row in bundle['files']},
+             'producing capture/verification tools absent from sealed source')
+    commands = _read(root / 'commands.json')
+    workspace, interpreter, previous_verify = None, None, -1
+    for name in ('first', 'repeat'):
+        capture_index, capture = command(commands, 'capture-' + name)
+        verify_index, verify = command(commands, 'verify-' + name)
+        _require(len(capture) >= 2 and capture[1] == str(source_root / 'engines/tools/hf_capture.py')
+                 and previous_verify < capture_index < verify_index,
+                 'capture/verification order or producing source differs')
+        python = absolute(capture[0])
+        subject = absolute(argument(capture, '--out'))
+        if workspace is None:
+            workspace, interpreter = subject.parent, python
+        _require(subject == workspace / name and python == interpreter
+                 and argument(capture, '--cold-run') == plan['workflow_id'] + '-' + name,
+                 'cold capture output/workspace identity differs')
+        verify_name = name + '.verify.json'
+        _require(verify == [str(interpreter), str(source_root / 'bin/fidelity_dataset.py'),
+                            'verify', str(subject), '--verify-tensors', '--json', str(workspace / verify_name)],
+                 'verification command differs from the actual full capture output')
+        _require(verify_name in manifest_names, 'worker omitted original full verification')
+        receipt = _read(root / verify_name)
+        _require(common.verify_seal(receipt) and receipt.get('schema') == F.VALIDATION_SCHEMA
+                 and receipt.get('structural_status') == 'sealed'
+                 and receipt.get('error_count') == 0 and receipt.get('errors') == []
+                 and receipt.get('subject') == str(subject),
+                 'worker verification identity/status differs from capture output')
+        previous_verify = verify_index
+
+
 def qualify_result(result_dir, plan, execution_receipt, *, suite_root):
     """Return job_path, qualification_path, dataset_path after full qualification.
 
@@ -258,19 +331,11 @@ def qualify_result(result_dir, plan, execution_receipt, *, suite_root):
     _require(outputs.get('first') == 'first' and outputs.get('repeat') == 'repeat',
              'capture outputs must identify distinct canonical first/repeat directories')
     first, repeat = root / 'first', root / 'repeat'
+    _worker_verifications(root, plan, bundle, manifest_names)
     manifests, runtimes = [], []
     for label, path in (('canonical', first), ('repeat', repeat)):
         names = {str(Path(path.name) / rel) for rel in F.iter_dataset_files(str(path), exclude=())}
         _require(names <= manifest_names, 'dataset has files absent from worker manifest')
-        worker_verify_name = path.name + '.verify.json'
-        _require(worker_verify_name in manifest_names, 'worker omitted original full verification')
-        worker_verify = _read(root / worker_verify_name)
-        _require(common.verify_seal(worker_verify)
-                 and worker_verify.get('schema') == F.VALIDATION_SCHEMA
-                 and worker_verify.get('structural_status') == 'sealed'
-                 and worker_verify.get('error_count') == 0 and worker_verify.get('errors') == []
-                 and worker_verify.get('subject') == '/outputs/result/' + path.name,
-                 'worker verification identity/status differs from capture output')
         manifest, runtime = fd._local_runtime_receipt(str(path), label)
         panel_input = plan['inputs']['panel']
         _require(panel_input.get('role') == 'final'

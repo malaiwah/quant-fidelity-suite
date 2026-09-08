@@ -2617,10 +2617,98 @@ def section_hf_job_binding():
             check("HF exact checkpoint census refuses " + name, True)
 
 
+def section_hf_worker_workspace():
+    """Original verifier subjects must identify the sealed producing commands."""
+    from fidelity import hfjobs
+    plan = {"workflow_id": "a" * 32, "owner": "selftest", "mode": "root",
+            "plan_sha256": "f" * 64, "limits": {"max_output_bytes": 1024 * 1024},
+            "source": {"repository": "https://github.com/malaiwah/quant-fidelity-suite",
+                       "revision": "b" * 40, "worker_sha256": "c" * 64}}
+    source_root = "/tmp/measured-source"
+    source_files = [{"path": name, "bytes": 1, "sha256": "c" * 64}
+                    for name in ("bin/BUNDLE.txt", "bin/fidelity_dataset.py",
+                                 "engines/tools/hf_capture.py", "explorer/job_worker.py")]
+
+    def fixture(root, workspace, fault=None):
+        commands, receipts = [], {}
+        for name in ("first", "repeat"):
+            subject = workspace + "/" + name
+            commands.extend([
+                {"step": "capture-" + name, "returncode": 0,
+                 "argv": ["/usr/bin/python3", source_root + "/engines/tools/hf_capture.py",
+                          "--out", subject, "--cold-run", plan["workflow_id"] + "-" + name]},
+                {"step": "verify-" + name, "returncode": 0,
+                 "argv": ["/usr/bin/python3", source_root + "/bin/fidelity_dataset.py",
+                          "verify", subject, "--verify-tensors", "--json", workspace + "/" + name + ".verify.json"]}])
+            receipts[name + ".verify.json"] = {
+                "schema": F.VALIDATION_SCHEMA, "subject": subject, "structural_status": "sealed",
+                "error_count": 0, "errors": [], "receipt_sha256": ""}
+        bootstrap = {"schema": "qfs.hf-workflow-bootstrap.v1",
+                     "source_revision": plan["source"]["revision"],
+                     "worker_sha256": plan["source"]["worker_sha256"],
+                     "commands": [{"step": "checkout-source", "returncode": 0,
+                                   "argv": ["git", "-C", source_root, "-c", "core.hooksPath=/dev/null",
+                                            "checkout", "--detach", plan["source"]["revision"]]}]}
+        if fault == "foreign subject":
+            receipts["first.verify.json"]["subject"] = "/other-attempt/first"
+        elif fault == "foreign verify command":
+            commands[1]["argv"][3] = receipts["first.verify.json"]["subject"] = "/other-attempt/first"
+        elif fault == "split capture workspaces":
+            commands[2]["argv"][3] = commands[3]["argv"][3] = "/other-attempt/repeat"
+            commands[3]["argv"][-1] = "/other-attempt/repeat.verify.json"
+            receipts["repeat.verify.json"]["subject"] = "/other-attempt/repeat"
+        elif fault == "foreign source workspace":
+            commands[1]["argv"][1] = "/other-source/bin/fidelity_dataset.py"
+        elif fault == "different checked-out revision":
+            bootstrap["commands"][0]["argv"][-1] = "d" * 40
+        elif fault == "failed verification":
+            commands[1]["returncode"] = 3
+        elif fault == "ambiguous capture output":
+            commands[0]["argv"].append("--out=/other-attempt/first")
+        elif fault == "partial verification":
+            commands[1]["argv"].remove("--verify-tensors")
+        elif fault == "duplicate capture":
+            commands.append(dict(commands[0]))
+        source = {"schema": "qfs.hf-workflow-source.v1",
+                  "repository": plan["source"]["repository"], "revision": plan["source"]["revision"],
+                  "source_files": source_files}
+        documents = {"plan.json": plan, "source-manifest.json": source,
+                     "bootstrap.json": bootstrap, "commands.json": commands}
+        documents.update({name: F.seal_receipt(receipt) for name, receipt in receipts.items()})
+        for name, document in documents.items():
+            common.write_json(str(root / name), document)
+        rows = [{"path": name, "bytes": (root / name).stat().st_size,
+                 "sha256": common.sha256_file(str(root / name))} for name in sorted(documents)
+                if fault != "unlisted commands" or name != "commands.json"]
+        result = dict(plan, schema="qfs.hf-workflow-result.v1", status="complete", source=source,
+                      files=rows, result_sha256="")
+        result["result_sha256"] = hfjobs._digest(result)
+        common.write_json(str(root / "result.json"), result)
+        _, bundle, names = hfjobs._result(root, plan)
+        hfjobs._worker_verifications(root, plan, bundle, names)
+
+    with tempfile.TemporaryDirectory(prefix="hf-worker-workspace-selftest-") as td:
+        root = Path(td)
+        # Both historical mounted execution and current local scratch execution
+        # must pass this identity gate before exercising self-consistent mutations.
+        fixture(root, "/outputs/result")
+        fixture(root, "/tmp/qfs-worker-result-fixture")
+        for fault in ("foreign subject", "foreign verify command", "split capture workspaces",
+                      "foreign source workspace", "different checked-out revision", "failed verification",
+                      "ambiguous capture output", "partial verification", "duplicate capture", "unlisted commands"):
+            try:
+                fixture(root, "/tmp/qfs-worker-result-fixture", fault)
+                check("HF sealed worker evidence refuses " + fault, False)
+            except hfjobs.HFQualificationError:
+                check("HF sealed worker evidence refuses " + fault, True)
+
+
+
 def main():
     cli22_anonymous_first_case()
     cli28_catchall_case()
     section_hf_job_binding()
+    section_hf_worker_workspace()
     tmp = tempfile.mkdtemp(prefix="fidelity-dataset-selftest-")
     try:
         base = section_format(tmp)
