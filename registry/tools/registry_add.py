@@ -2610,7 +2610,7 @@ def submission_to_records(sub, path, fsha, registry, strict_new=False,
         "estimator": {"accumulation_dtype": est["accumulation_dtype"],
                       "logits_dtype": est.get("logits_dtype") or "fp32",
                       "two_pass": est.get("two_pass"), "vocab_chunk": est.get("vocab_chunk"),
-                      **{k: est[k] for k in ("replay_backend", "replay_env", "replay_applicable")
+                      **{k: est[k] for k in ("replay_backend", "replay_env", "replay_applicable", "vocab_masking_policy", "padded_columns_masked")
                          if k in est},
                       "stack_relation": est["stack_relation"], "head_policy": est["head_policy"],
                       "zero_handling": est.get("zero_handling")},

@@ -1170,6 +1170,18 @@ def main():
     passed += ok
     failed += not ok
 
+    import registry_render as render_module
+    render_registry = L.load_registry(os.path.join(rend, "data"))
+    render_before = L.canonical_json(render_registry)
+    render_groups = {}
+    for record in render_registry["measurements"].values():
+        render_groups.setdefault(record["comparability"]["key"], []).append(record["id"])
+    render_module.render(render_registry, render_groups)
+    ok = L.canonical_json(render_registry) == render_before
+    print("  %-58s %s" % ("rendering leaves every registry record unchanged", "PASS" if ok else "FAIL"))
+    passed += ok
+    failed += not ok
+
     print()
     print("=" * 78)
     print("H. the CI diff gate must actually refuse a row no receipt generates")

@@ -351,10 +351,18 @@ def accept_request(actor, ticket, *, confirm_accept):
             operations.append(CommitOperationAdd(path_in_repo=path, path_or_fileobj=raw))
         commit = api.create_commit(REGISTRY_REPOSITORY, repo_type="dataset", operations=operations, parent_commit=head,
                                    commit_message="Accept QFS review #%d (%s)" % (state["discussion_id"], digest[:12]))
-        return {"registry_repository": REGISTRY_REPOSITORY, "revision": commit.oid, "commit_url": commit.commit_url,
+        result = {"registry_repository": REGISTRY_REPOSITORY, "revision": commit.oid, "commit_url": commit.commit_url,
                 "request_sha256": digest, "discussion_id": state["discussion_id"], "warnings": state["preview"]["warnings"],
                 "acceptance_receipt": "https://huggingface.co/datasets/" + REGISTRY_REPOSITORY + "/resolve/" + commit.oid + "/protocol/review-requests/" + digest + "/acceptance.json",
                 "independently_verified": False}
+        try:
+            api.change_discussion_status(
+                REGISTRY_REPOSITORY, state["discussion_id"], "closed", repo_type="dataset",
+                comment="Accepted by the registry owner at %s. Receipt integrity was validated; this is not independent model reproduction." % commit.commit_url)
+        except Exception as exc:
+            # The data commit already succeeded; never report a committed claim as rejected.
+            result["discussion_update_warning"] = "Registry commit succeeded; discussion closure needs reconciliation (%s)." % type(exc).__name__
+        return result
     finally:
         with _LOCK:
             _TICKETS.pop(ticket, None)

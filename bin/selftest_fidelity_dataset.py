@@ -2562,9 +2562,65 @@ def cli28_catchall_case():
           "a bug into an unexplained refusal", raised)
 
 
+def section_hf_job_binding():
+    """Provider identity cannot substitute another account, image, or model census."""
+    from fidelity import hfjobs
+    plan = {
+        "schema": "qfs.hf-workflow-plan.v1", "plan_sha256": "",
+        "workflow_id": "a" * 32, "owner": "selftest", "mode": "root",
+        "source": {"repository": "https://github.com/malaiwah/quant-fidelity-suite",
+                   "revision": "b" * 40, "worker_sha256": "c" * 64},
+        "image": "selftest/worker@sha256:" + "d" * 64,
+        "hardware": {"device": "cpu", "flavor": "cpu-basic", "timeout_seconds": 60},
+        "runtime": {"dtype": "bfloat16", "schedule": "layer-outer"},
+        "output": {"dataset_repository": "selftest/root", "bucket": "selftest/results",
+                   "prefix": "runs/" + "a" * 32},
+    }
+    plan["plan_sha256"] = hfjobs._digest(plan)
+    provider = {
+        "schema": "qfs.hf-jobs-execution.v1", "job_id": "provider-job",
+        "namespace": "selftest", "flavor": "cpu-basic", "docker_image": plan["image"],
+        "plan_sha256": plan["plan_sha256"], "source_revision": "b" * 40,
+        "status": "COMPLETED", "requested_timeout_seconds": 60,
+        "created_at": "2026-09-07T00:00:00Z",
+        "provider_identity_note": "authenticated controller readback; worker hardware is reported",
+    }
+    hfjobs._plan_receipt(plan, provider)
+    for field, value in (("namespace", "another-user"), ("docker_image", "selftest/worker:latest"),
+                         ("source_revision", "e" * 40), ("plan_sha256", "f" * 64),
+                         ("status", "RUNNING")):
+        try:
+            hfjobs._plan_receipt(plan, dict(provider, **{field: value}))
+            check("HF provider mismatch refuses " + field, False)
+        except hfjobs.HFQualificationError:
+            check("HF provider mismatch refuses " + field, True)
+    model = {
+        "revision": "b" * 40, "config_sha256": "1" * 64,
+        "index_sha256": None, "index_bytes": None, "weight_bytes": 17,
+        "files": [{"path": "config.json", "bytes": 9, "sha256": "1" * 64},
+                  {"path": "model.safetensors", "bytes": 17, "sha256": "2" * 64}],
+    }
+    census = {row["path"]: {"bytes": row["bytes"], "sha256": row["sha256"]}
+              for row in model["files"]}
+    target = hfjobs._target(model, census, None)
+    check("HF native single-file census preserves no fictional index",
+          target["index_source"] == "single-safetensors" and target["index_sha256"] is None
+          and target["model_bytes"] == 17)
+    for name, changed in (
+            ("missing shard", {"config.json": census["config.json"]}),
+            ("different shard", dict(census, **{"model.safetensors": {"bytes": 17, "sha256": "3" * 64}})),
+            ("unplanned shard", dict(census, **{"extra.safetensors": {"bytes": 17, "sha256": "2" * 64}}))):
+        try:
+            hfjobs._target(model, changed, None)
+            check("HF exact checkpoint census refuses " + name, False)
+        except hfjobs.HFQualificationError:
+            check("HF exact checkpoint census refuses " + name, True)
+
+
 def main():
     cli22_anonymous_first_case()
     cli28_catchall_case()
+    section_hf_job_binding()
     tmp = tempfile.mkdtemp(prefix="fidelity-dataset-selftest-")
     try:
         base = section_format(tmp)

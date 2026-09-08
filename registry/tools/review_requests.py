@@ -13,6 +13,7 @@ import os
 from pathlib import Path
 import re
 import sys
+import subprocess
 
 HERE = Path(__file__).resolve().parent
 SUITE = HERE.parent.parent
@@ -180,6 +181,9 @@ def measurement_records(docs, pub, author, C, receipt_path, provider_verified):
         {"kind": "hf_file", "uri": source_url(pub, "comparison"), "sha256": pub["files"]["comparison"]["sha256"],
          "note": "Original comparison binds both measured dataset seals and the submitted metric; this digest covers file bytes."},
     ]
+    # The admitted QFS own-head comparator scores every stored vocabulary column.
+    # Record the same explicit policy used by native-root intake.
+    row["estimator"]["vocab_masking_policy"] = "full_stored_vocab"
     return extra + [row]
 
 
@@ -351,6 +355,9 @@ def validate_snapshot(root):
     V.check_index_predicate(str(root), C, groups, rep)
     V.check_prose_keys(str(root), groups, rep)
     require(not rep.errors, "Full registry validation refused: " + json.dumps(rep.errors[:30]))
+    joint = subprocess.run([sys.executable, "-I", "-B", str(HERE / "registry_joint_check.py"), "--root", str(root)],
+                           capture_output=True, text=True, timeout=90, check=False)
+    require(joint.returncode == 0, "Joint-standard validation refused: " + (joint.stdout + joint.stderr)[-12000:])
     return rep.warnings
 
 
@@ -440,7 +447,8 @@ def stage(directory):
     (dest / "validation.json").write_bytes(canonical({"errors": [], "warnings": warnings, "scope": "all existing registry schema and invariant checks; no independent model execution"}) + b"\n")
     original = [(name, list(rows.values())) for name, rows in before.items()]
     restored = {name: {r["id"]: r for r in rows} for name, rows in apply(original, registry_root=root)}
-    require(restored == C, "Maintained accepted inputs do not reconstruct the staged registry without loss")
+    require(canonical(restored) == canonical(C),
+            "Maintained accepted inputs do not reconstruct the staged registry without loss")
     (directory / "preview.json").write_bytes(canonical({"kind": pub["kind"], "record_ids": [r["id"] for r in added], "records": added, "original_author": envelope["requested_by"], "warnings": warnings, "provider_metadata_verified": provider_verified, "owner_acknowledgement": provider_notice, "independently_verified": False, "notice": "All registry schema/invariant checks passed in an isolated snapshot. Warnings remain; no independently verified or clean-release status is awarded."}) + b"\n")
 
 
