@@ -161,9 +161,10 @@ def validate_plan(plan, out):
         required = required | {"tokenizer"}
     registered = plan.get("registered")
     if registered:
-        expected_registry = {"repository": registered.get("registry_repository"),
-                             "revision": registered.get("registry_revision"), "mount_path": "/inputs/registry"}
-        if mode == "root" or plan["inputs"]["registry"] != expected_registry:
+        registry_input = plan["inputs"]["registry"]
+        if (mode == "root" or not isinstance(registry_input, dict) or registry_input.get("kind") != "staged"
+                or registry_input.get("repository") != registered.get("registry_repository")
+                or registry_input.get("revision") != registered.get("registry_revision")):
             raise ValueError("registry input differs from the exact registered provenance")
         required = required | {"registry"}
     for name, value in plan["inputs"].items():
@@ -171,7 +172,8 @@ def validate_plan(plan, out):
             if value is not None:
                 raise ValueError("extraneous input: " + name)
             continue
-        if (not isinstance(value, dict) or value.get("mount_path") != "/inputs/" + name
+        expected_mount = "/inputs/plan/datasets/registry" if name == "registry" else "/inputs/" + name
+        if (not isinstance(value, dict) or value.get("mount_path") != expected_mount
                 or not REPOSITORY.fullmatch(str(value.get("repository")))
                 or not HEX40.fullmatch(str(value.get("revision")))):
             raise ValueError("invalid immutable input descriptor: " + name)
@@ -391,16 +393,24 @@ class Runner:
             save(self.out / "commands.json", self.commands)
 
 
+def staged_metadata(descriptor, name):
+    """Verify canonical metadata staged through the caller's private bucket."""
+    metadata_root = PLAN_PATH.parent / "datasets" / name
+    metadata = {row["path"]: row for row in descriptor["metadata_files"]}
+    if not metadata:
+        raise ValueError("staged metadata inventory is empty")
+    for member, record in metadata.items():
+        path = regular(metadata_root / str(relative(member)))
+        if path.stat().st_size != record["bytes"] or digest(path) != record["sha256"]:
+            raise ValueError("staged input metadata differs from its immutable plan")
+    return metadata_root, metadata
+
+
 def dataset_view(descriptor, name):
     """Materialize exactly the sealed dataset, not unrelated Hub sidecars."""
     from fidelity import dsformat, hfjobs
     source = Path(descriptor["mount_path"])
-    metadata_root = PLAN_PATH.parent / "datasets" / name
-    metadata = {row["path"]: row for row in descriptor["metadata_files"]}
-    for member, record in metadata.items():
-        path = regular(metadata_root / str(relative(member)))
-        if path.stat().st_size != record["bytes"] or digest(path) != record["sha256"]:
-            raise ValueError("staged dataset metadata differs from its immutable plan")
+    metadata_root, metadata = staged_metadata(descriptor, name)
     checksums = regular(metadata_root / dsformat.CHECKSUMS_NAME)
     if checksums.stat().st_size > 16 * 1024 * 1024:
         raise ValueError("dataset checksum inventory exceeds its bound")
@@ -428,6 +438,9 @@ def workflow(plan, out, runner, outputs):
     save(out / "harness.json", jobcontract.finalize_bundle_manifest(manifest["source_files"], SOURCE + "@" + manifest["revision"]))
     tool = [sys.executable, ROOT / "bin/fidelity_dataset.py"]
     inputs = plan["inputs"]
+    registry_root = None
+    if inputs.get("registry"):
+        registry_root, _ = runner.measure("prepare-registry", staged_metadata, inputs["registry"], "registry")
     mode = plan["mode"]
     datasets = {}
     for name in ("reference", "candidate"):
@@ -543,7 +556,7 @@ def workflow(plan, out, runner, outputs):
             submission_path.parent.mkdir(parents=True, exist_ok=True)
             dscompare.emit_submission(comparison, str(submission_path), measurer=measurer, artifact=registered["artifact"], panel=registered["panel"], reference=registered["reference"])
             runner.run("submission-validation", [sys.executable, ROOT / "registry/tools/registry_validate.py",
-                       "--root", inputs["registry"]["mount_path"], "--submission", submission_path])
+                       "--root", registry_root, "--submission", submission_path])
             outputs["submission"] = submission_path.relative_to(out).as_posix()
     runner.bound()
 

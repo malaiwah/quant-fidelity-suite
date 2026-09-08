@@ -331,6 +331,32 @@ def _dataset_metadata(actor, repo, revision, mount_path):
             "manifest_bytes": size, "descriptor": descriptor, "metadata_files": metadata}
 
 
+def _registry_metadata(actor, repo, revision):
+    """Stage canonical JSON bytes; Hub dataset mounts may expose transformed data."""
+    _identity(repo, revision)
+    names = sorted(name for name in actor.client().list_repo_files(repo, repo_type="dataset", revision=revision)
+                   if re.fullmatch(r"(?:data/[A-Za-z0-9_.-]+\.jsonl|schema/[A-Za-z0-9_.-]+\.json|index\.json)", name))
+    if not names or len(names) > MAX_FILES:
+        raise JobsError("Registry metadata inventory is empty or unbounded.")
+    metadata, total = [], 0
+    for name in names:
+        raw, sha, size = _json_download(actor, repo, revision, name, repo_type="dataset", parse_json=False)
+        try:
+            if name.endswith(".jsonl"):
+                for line in raw.splitlines():
+                    if line.strip(): json.loads(line)
+            else:
+                json.loads(raw)
+        except (ValueError, UnicodeError):
+            raise JobsError("Registry metadata is not intact JSON: " + name) from None
+        total += size
+        if total > 64 * 1024**2:
+            raise JobsError("Registry metadata exceeds the bounded private staging allowance.")
+        metadata.append({"path": name, "sha256": sha, "bytes": size})
+    return {"kind": "staged", "repository": repo, "revision": revision,
+            "mount_path": "/inputs/plan/datasets/registry", "metadata_files": metadata}
+
+
 def _signing_key():
     secret = os.environ.get("QFS_WORKFLOW_SIGNING_KEY") or os.environ.get("OAUTH_CLIENT_SECRET")
     return hashlib.sha256(("qfs-launch-ticket-v1:" + secret).encode()).digest() if secret else _LOCAL_SIGNING
@@ -500,9 +526,7 @@ def _prepare(actor, spec, registry=None):
         registered = _registered(registry, reference, observed, d["scope"], weights["codec"], weights["declared_bits"], actor)
     registry_input = None
     if registered:
-        _identity(registered["registry_repository"], registered["registry_revision"])
-        registry_input = {"repository": registered["registry_repository"], "revision": registered["registry_revision"],
-                          "mount_path": "/inputs/registry"}
+        registry_input = _registry_metadata(actor, registered["registry_repository"], registered["registry_revision"])
     plan = {"schema": "qfs.hf-workflow-plan.v1", "workflow_id": workflow_id, "owner": actor.username, "mode": mode,
             "created_at": datetime.now(timezone.utc).isoformat(), "source": source, "image": image,
             "inputs": {"model": model, "panel": panel, "reference": reference, "candidate": candidate,
@@ -637,7 +661,7 @@ def launch(actor, prepared, *, confirm_compute=False):
                 for path in sorted(directory.rglob("*")):
                     if path.is_symlink():raise JobsError("Bundled panel contains a symlink.")
                     if path.is_file(): additions.append((path, prefix + "/inputs/" + panel["path"] + "/" + str(path.relative_to(directory))))
-            for name in ("reference", "candidate"):
+            for name in ("reference", "candidate", "registry"):
                 descriptor = plan["inputs"].get(name)
                 if descriptor is None:
                     continue
@@ -655,7 +679,7 @@ def launch(actor, prepared, *, confirm_compute=False):
                 volumes.append(Volume(type="bucket", source=bucket, path=prefix + "/inputs", mount_path="/inputs/panel", read_only=True))
             for key in ("model", "panel", "reference", "candidate", "tokenizer", "registry"):
                 value = plan["inputs"].get(key)
-                if not value or value.get("kind") == "bundled":continue
+                if not value or value.get("kind") in ("bundled", "staged"):continue
                 volumes.append(Volume(type="model" if key in ("model", "tokenizer") else "dataset", source=value["repository"],
                     revision=value["revision"], mount_path=value["mount_path"], read_only=True))
         except Exception as exc:
@@ -881,7 +905,7 @@ def _verify_provider(actor, job, plan):
         expected.append(dict(expected[0], mount_path="/inputs/panel"))
     for key in ("model", "panel", "reference", "candidate", "tokenizer", "registry"):
         value = plan["inputs"].get(key)
-        if value and value.get("kind") != "bundled":
+        if value and value.get("kind") not in ("bundled", "staged"):
             _identity(value["repository"], value["revision"])
             expected.append({"type": "model" if key in ("model", "tokenizer") else "dataset",
                              "source": value["repository"], "revision": value["revision"], "path": None,
