@@ -116,7 +116,9 @@ def main():
                 "above your")
         refuses(lambda: jobs.prepare(actor, dict(first_run, timeout_seconds=86401), registry=object()),
                 "deadline")
-        api.return_value.create_job.assert_not_called()
+        api.return_value.run_job.assert_not_called()
+        api.return_value.create_bucket.assert_not_called()
+        api.return_value.batch_bucket_files.assert_not_called()
     print("PASS larger explicit cap prepares sealed no-spend plan; omitted cap refuses large payload")
 
     # A fresh process retains no controller global/config override. Recovery must
