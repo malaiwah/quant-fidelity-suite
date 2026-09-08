@@ -684,6 +684,8 @@ def _prepare(actor, spec, registry=None):
             raise JobsError("The preset allowlist has no exact tensor-name census.")
         allowlist = {"path": path, "artifact_sha256": hashlib.sha256(raw).hexdigest(),
                      "canonical_sorted_names_sha256": hashlib.sha256(canonical(sorted(names))).hexdigest()}
+        from .job_worker import vetted_unexpected_inventory
+        vetted_unexpected_inventory(allowlist, model)
     if model:
         panel["binding"] = _resolve_planning_panel(actor, panel, tokenizer or model)
         model["resource_geometry"] = _planning_geometry(actor, model)

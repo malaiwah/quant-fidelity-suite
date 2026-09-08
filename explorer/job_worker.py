@@ -317,10 +317,45 @@ def source_manifest(plan):
     return {"schema": "qfs.hf-workflow-source.v1", "repository": SOURCE, "revision": revision, "source_files": [row(ROOT / p, ROOT) for p in selected]}
 
 
+def vetted_unexpected_inventory(allowlist, model):
+    """Share exact authored inventory admission between planning and execution."""
+    name = str(relative(allowlist["path"]))
+    vetted = {
+        "engines/tools/layer-outer-evidence/fruit-unexpected-keys.json",
+        "engines/tools/layer-outer-evidence/fruit-fp8-unexpected-keys.json",
+        "engines/tools/layer-outer-evidence/qwen38-27b-unexpected-keys.json",
+    }
+    if name not in vetted:
+        raise ValueError("unexpected tensor inventory is not an authored vetted artifact")
+    path = regular(ROOT / name)
+    document = load_json(path)
+    if isinstance(document, dict):
+        if (document.get("schema") != "qfs.exact-unexpected-tensors.v1"
+                or document.get("repository") != model.get("repository")
+                or document.get("revision") != model.get("revision")):
+            raise ValueError("unexpected tensor inventory model/revision binding mismatch")
+        names, provenance = document.get("names"), document.get("evidence")
+    else:
+        names, provenance = document, load_json(str(path) + ".provenance.json")
+    if (not isinstance(names, list) or not names
+            or any(not isinstance(value, str) or not value for value in names)
+            or len(names) != len(set(names)) or not isinstance(provenance, dict)):
+        raise ValueError("unexpected tensor inventory requires unique names and provenance")
+    names_hash = hashlib.sha256(canonical(sorted(names))).hexdigest()
+    if (digest(path) != allowlist["artifact_sha256"]
+            or names_hash != allowlist["canonical_sorted_names_sha256"]
+            or provenance.get("config_sha256") != model.get("config_sha256")
+            or provenance.get("index_sha256") != model.get("index_sha256")):
+        raise ValueError("unexpected tensor inventory/config/index binding mismatch")
+    return path, provenance
+
+
 def model_binding(plan, out):
     sys.path.insert(0, str(ROOT / "engines/tools"))
     import quant_stream
     model = plan["inputs"]["model"]
+    allowlist = plan["runtime"].get("unexpected_allowlist")
+    vetted_inventory = vetted_unexpected_inventory(allowlist, model) if allowlist else None
     mount = Path(model["mount_path"])
     config_path = regular(mount / "config.json")
     config = load_json(config_path)
@@ -375,19 +410,14 @@ def model_binding(plan, out):
             admitted |= code == {"repository": repository, "revision": revision}
         if not admitted:
             raise ValueError("custom code is not the exact vetted architecture catalog pin")
-    allowlist = plan["runtime"].get("unexpected_allowlist")
-    if allowlist:
-        name = str(relative(allowlist["path"]))
-        if name not in ("engines/tools/layer-outer-evidence/fruit-unexpected-keys.json", "engines/tools/layer-outer-evidence/fruit-fp8-unexpected-keys.json"):
-            raise ValueError("unexpected tensor inventory is not a vetted Fruit artifact")
-        path = regular(ROOT / name)
-        provenance = load_json(str(path) + ".provenance.json")
-        names_hash = hashlib.sha256(canonical(sorted(load_json(path)))).hexdigest()
-        if (digest(path) != allowlist["artifact_sha256"] or names_hash != allowlist["canonical_sorted_names_sha256"]
-                or provenance["config_sha256"] != model["config_sha256"] or provenance["index_sha256"] != model["index_sha256"]):
-            raise ValueError("Fruit inventory/config/index binding mismatch")
+    if vetted_inventory is not None:
+        path, provenance = vetted_inventory
         shutil.copyfile(path, out / "unexpected-tensors.json")
-        shutil.copyfile(str(path) + ".provenance.json", out / "unexpected-tensors.provenance.json")
+        sidecar = Path(str(path) + ".provenance.json")
+        if sidecar.is_file():
+            shutil.copyfile(sidecar, out / "unexpected-tensors.provenance.json")
+        else:
+            save(out / "unexpected-tensors.provenance.json", provenance)
     return mount
 
 

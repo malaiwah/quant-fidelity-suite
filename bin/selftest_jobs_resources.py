@@ -15,6 +15,7 @@ sys.path.insert(0, str(ROOT / "bin"))
 from explorer import job_resources as R
 from explorer import jobs
 from explorer.auth import Actor
+from explorer import job_worker
 
 
 def refuses(function, text=None):
@@ -87,7 +88,11 @@ def main():
     # external metadata are the injection seams, never a fake paid provider.
     actor = Actor("budget-fixture", "hf_not_a_real_token", source="test")
     quote = dict(hardware, name="a100-large", hourly_usd="2.50002", unit_cost_micro_usd=41667)
-    native = dict(model, repository="fixture/model", revision="a" * 40, config={"hidden_size": 5120, "vocab_size": 248320})
+    inventory = json.loads((ROOT / "engines/tools/layer-outer-evidence/qwen38-27b-unexpected-keys.json").read_text())
+    native = dict(model, repository=inventory["repository"], revision=inventory["revision"],
+                  config_sha256=inventory["evidence"]["config_sha256"],
+                  index_sha256=inventory["evidence"]["index_sha256"],
+                  config={"hidden_size": 5120, "vocab_size": 248320})
     inputs = {"preset": "root:qwen38-27b", "max_output_bytes": 32 * R.GIB,
               "max_compute_usd": "6", "timeout_seconds": 7200}
     with patch.object(jobs, "_source_identity", return_value=({"revision": "a" * 40}, "fixture@sha256:" + "a" * 64)), \
@@ -172,6 +177,43 @@ with tempfile.TemporaryDirectory() as td, patch.object(Actor,'client') as client
         refuses(lambda: R.check_worker_resources(worker_plan, ".", "."), "scratch disk")
     assert R.check_worker_resources({}, ".", ".") is None
     print("PASS actual worker resource refusal and unchanged legacy-plan admission")
+    # Exercise the actual worker model-binding consumer, not just plan assembly.
+    sys.path.insert(0, str(ROOT / "engines/tools"))
+    with tempfile.TemporaryDirectory(prefix="qfs-inventory-binding-") as td:
+        root = Path(td)
+        mount, out = root / "model", root / "out"
+        mount.mkdir();out.mkdir()
+        config = {"model_type": "qwen3_5"}
+        (mount / "config.json").write_text(json.dumps(config))
+        (mount / "model.safetensors").write_bytes(b"synthetic-census-only")
+        (mount / "model.safetensors.index.json").write_text(json.dumps({"weight_map": {"weight": "model.safetensors"}}))
+        model_meta = {"repository": inventory["repository"], "revision": inventory["revision"],
+                      "mount_path": str(mount), "config": config,
+                      "config_sha256": job_worker.digest(mount / "config.json"),
+                      "index_sha256": job_worker.digest(mount / "model.safetensors.index.json"),
+                      "index_bytes": (mount / "model.safetensors.index.json").stat().st_size,
+                      "weight_bytes": (mount / "model.safetensors").stat().st_size,
+                      "files": [job_worker.row(path, mount) for path in sorted(mount.iterdir())]}
+        name = "engines/tools/layer-outer-evidence/qwen38-27b-unexpected-keys.json"
+        path = root / name;path.parent.mkdir(parents=True)
+        document = copy.deepcopy(inventory)
+        document["evidence"].update(config_sha256=model_meta["config_sha256"], index_sha256=model_meta["index_sha256"])
+        path.write_text(json.dumps(document))
+        (root / "engines/coverage.json").write_text('{"architectures":[]}')
+        allow = {"path": name, "artifact_sha256": job_worker.digest(path),
+                 "canonical_sorted_names_sha256": jobs.hashlib.sha256(jobs.canonical(sorted(document["names"]))).hexdigest()}
+        worker_plan = {"mode": "root", "inputs": {"model": model_meta},
+                       "runtime": {"unexpected_allowlist": allow, "trusted_code": None}}
+        with patch.object(job_worker, "ROOT", root):
+            assert job_worker.model_binding(worker_plan, out) == mount
+            assert (out / "unexpected-tensors.json").read_bytes() == path.read_bytes()
+            assert json.loads((out / "unexpected-tensors.provenance.json").read_text()) == document["evidence"]
+            for field in ("repository", "revision", "config_sha256", "index_sha256"):
+                wrong = dict(model_meta, **{field: "foreign"})
+                refuses(lambda wrong=wrong: job_worker.vetted_unexpected_inventory(allow, wrong), "binding mismatch")
+            refuses(lambda: job_worker.vetted_unexpected_inventory(dict(allow, canonical_sorted_names_sha256="0"*64), model_meta), "binding mismatch")
+            refuses(lambda: job_worker.vetted_unexpected_inventory(dict(allow, path="engines/coverage.json"), model_meta), "vetted")
+    print("PASS exact vetted Qwen inventory reaches real worker binding; foreign identities and inventories refuse")
     return 0
 
 

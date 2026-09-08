@@ -98,6 +98,9 @@ Only one active/unresolved QFS Job per caller is admitted.
 Explicit deadlines may range from 60 seconds to 24 hours, matching the worker
 and bootstrap bound. Every deadline still has to fit the caller's current
 quoted compute ceiling; increasing the ceiling alone does not extend a Job.
+Preparation and worker execution share the same vetted unexpected-tensor
+inventory checks, including exact artifact, model/config/index and name-set
+bindings. An inventory that the worker cannot admit is refused before rental.
 
 **Large captures:** output allowance is explicit per plan (4 GiB by default,
 up to 64 GiB); recovery honors the sealed allowance rather than an unrelated

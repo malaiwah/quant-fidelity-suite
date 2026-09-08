@@ -31,8 +31,8 @@
       "tier": "hermetic",
       "job": "fast",
       "seconds_xeon_x5570": 0.70,
-      "assertions_measured": 4,
-      "note": "Four executed behavior groups under python3 -S: output/geometry/hardware/disk bounds, sealed preparation, fresh-process recovery, actual worker resource refusals. Includes multiple boundary assertions per group."
+      "assertions_measured": 5,
+      "note": "Five executed behavior groups under python3 -S: output/geometry/hardware/disk bounds, sealed preparation, fresh-process recovery, actual worker resource refusals, and shared vetted inventory admission through real model_binding. Includes multiple boundary assertions per group."
     },
     "engines/tools/selftest_v5_panel_transport.py": {
       "tier": "torch",
