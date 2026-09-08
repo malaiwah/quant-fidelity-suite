@@ -70,6 +70,15 @@ def verify_seal(value, field):
         raise JobsError("Document bytes do not match their seal: " + field)
 
 
+@lru_cache(maxsize=1)
+def _scope_validator():
+    from .data import _private_module
+    schema = _private_module("_explorer_job_schema", ROOT / "registry/tools/_minischema.py")
+    validator = schema.Registry(str(ROOT / "registry/schema"))
+    validator.docs["scope-input.schema.json"] = {"$ref": "artifact.schema.json#/properties/scope"}
+    return validator
+
+
 def _plain(value):
     if is_dataclass(value):
         return _plain(asdict(value))
@@ -441,6 +450,9 @@ def _prepare(actor, spec, registry=None):
             scope, _, _ = _json_download(actor, model["repository"], model["revision"], "scope.json")
         if not isinstance(scope, dict) or not isinstance(scope.get("assignments"), list) or not scope["assignments"]:
             raise JobsError("Candidate capture requires an explicit nonempty intervention scope.")
+        errors = _scope_validator().validate(scope, "scope-input.schema.json")
+        if errors:
+            raise JobsError("Candidate scope fails the registry schema; fix it before spending: " + "; ".join(str(error) for error in errors[:12]))
         config_quant = model["config"].get("quantization_config") or model["config"].get("quantization") or {}
         codec = request.get("codec") or ("gguf-k-quant" if any(f["path"].endswith(".gguf") for f in model["files"]) else "mixed" if config_quant.get("quant_algo") == "MIXED_PRECISION" else "mxfp4" if "mxfp4" in str(config_quant).lower() else "nvfp4" if "nvfp4" in str(config_quant).lower() else "fp8_e4m3" if config_quant.get("quant_method") == "fp8" else "int4")
         bits = request.get("declared_bits")
