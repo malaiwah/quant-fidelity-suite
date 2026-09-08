@@ -4273,6 +4273,11 @@ def build_measurements_fruit(artifacts_map):
                   "malaiwah.fidelity-comparison-receipt.v1 for the self-compare of the two "
                   "cold root captures; both sides carry capture_content_digest b417acc2...")],
           disclosures=[
+              disc("reduced_run_count", "info",
+                   "TWO cold root captures, not five. The sealed comparison names "
+                   "fruit-root-cold-1 and fruit-root-cold-2 with distinct dataset seals "
+                   "and matching tensor-content digests. This records observed conditional "
+                   "repeatability, not universal determinism or independent textual samples."),
               disc("record_note", "info",
                    "THE FLOOR, measured rather than assumed. `fidelity-dataset compare "
                    "--self-compare --force-compute` over all 32,752 x 154,880 logits in fp64 "

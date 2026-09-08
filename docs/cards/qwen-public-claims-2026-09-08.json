@@ -1,0 +1,194 @@
+{
+  "schema": "qfs-public-claims-publication/v1",
+  "published_date": "2026-09-08",
+  "change_kind": "text_only_scientific_interpretation_and_protocol_attribution",
+  "models": {
+    "malaiwah/Qwen3.8-27B-EXL3-K5K6-hydrated": {
+      "parent": "1a5cf37b383d165adbe27e6d7dbd75702a240389",
+      "commit": "853acef0b24961b269cdcf32b1ebb405649b545b",
+      "url": "https://huggingface.co/malaiwah/Qwen3.8-27B-EXL3-K5K6-hydrated/commit/853acef0b24961b269cdcf32b1ebb405649b545b",
+      "readme_before_sha256": "a9d6ac3c430f9f70708a7b5f21edd7fa1af991e6b0ebeb213cfaf04b341213d4",
+      "readme_sha256": "48940164c2178f9aa70674a11c30c045dbe05eabd870e598c89cc13fe7ced6c7",
+      "docsums_sha256": "69d7798e898601281dd17198d33a47de4d4de903f1f4db10c8f9ca6e97d423fb",
+      "verified_files_changed": [
+        "DOCS-SHA256SUMS",
+        "README.md"
+      ],
+      "published_bytes_equal_draft": true,
+      "numeric_table_cells_unchanged": true,
+      "browser_verified": {
+        "rendered_correction": true,
+        "legacy_precision_disclosed": true,
+        "advisory_inspection_only": true,
+        "four_v5_values_present": true,
+        "qfs_plot_present": true
+      }
+    },
+    "malaiwah/Qwen3.8-27B-EXL3-K5K6": {
+      "parent": "599d32f62e87f7c8433e09947b198e609cce59d0",
+      "commit": "12a7a0eb770a3ac86969b10dde0642eb87285dec",
+      "url": "https://huggingface.co/malaiwah/Qwen3.8-27B-EXL3-K5K6/commit/12a7a0eb770a3ac86969b10dde0642eb87285dec",
+      "readme_before_sha256": "3b7e16e12c847bc820eb991bbdb16df2a6cb107a589093898f559aa7a0ca768a",
+      "readme_sha256": "0fb6db74b94b5532447446be63a7715a0e684054208f69f02d02cc8d0ab33038",
+      "docsums_sha256": "0e786ff6d13ed7ebdec08fe72070e06c3b69758fd82763073043375d718a09fd",
+      "verified_files_changed": [
+        "DOCS-SHA256SUMS",
+        "README.md"
+      ],
+      "published_bytes_equal_draft": true,
+      "numeric_table_cells_unchanged": true,
+      "browser_verified": {
+        "rendered_correction": true,
+        "legacy_precision_disclosed": true,
+        "advisory_inspection_only": true,
+        "four_v5_values_present": true,
+        "qfs_plot_present": true
+      }
+    },
+    "malaiwah/Qwen3.8-27B-K4": {
+      "parent": "b6cc59ece61de126dbe5aa75b41ba83dc07751bc",
+      "commit": "3df3178b51d0e7f961a6ef54e52b1f327579bb1f",
+      "url": "https://huggingface.co/malaiwah/Qwen3.8-27B-K4/commit/3df3178b51d0e7f961a6ef54e52b1f327579bb1f",
+      "readme_before_sha256": "5405defa3d61331143daf74e33cb177bf8484fc894d30009eb4dfcad66fe679d",
+      "readme_sha256": "d1a03e85862021c40eee5528bbc58d0554abc9acf092e09b50d33f89bd3a788b",
+      "docsums_sha256": "af15b3aa819697b8c56182d62dbe3300238a34afff3298db89893a9ac86e9d93",
+      "verified_files_changed": [
+        "DOCS-SHA256SUMS",
+        "README.md"
+      ],
+      "published_bytes_equal_draft": true,
+      "numeric_table_cells_unchanged": true,
+      "browser_verified": {
+        "rendered_correction": true,
+        "legacy_precision_disclosed": true,
+        "advisory_inspection_only": true,
+        "four_v5_values_present": true,
+        "qfs_plot_present": true
+      }
+    },
+    "malaiwah/Qwen3.8-27B-EXL3-K5K6-context": {
+      "parent": "e26dd2966e20afa13485332470c72094d23d6bff",
+      "commit": "cb813f64e2dd55922bcc448f514ac423b36be99e",
+      "url": "https://huggingface.co/malaiwah/Qwen3.8-27B-EXL3-K5K6-context/commit/cb813f64e2dd55922bcc448f514ac423b36be99e",
+      "readme_before_sha256": "947f20ab7a676d1b6372c9a6e0a1336c77d4efcf7d0517238981e283a0a4dc83",
+      "readme_sha256": "f3f35494afc6aa52e6e45649a10ddf946e7319892a47b8c02eaf1a2c92bccfad",
+      "docsums_sha256": "8bc5bdf197afe559e96df0106a049db117569bfff353188d49ec5d9299f4a701",
+      "verified_files_changed": [
+        "DOCS-SHA256SUMS",
+        "README.md"
+      ],
+      "published_bytes_equal_draft": true,
+      "numeric_table_cells_unchanged": true,
+      "browser_verified": {
+        "rendered_correction": true,
+        "legacy_precision_disclosed": true,
+        "advisory_inspection_only": true,
+        "four_v5_values_present": true,
+        "qfs_plot_present": true
+      }
+    }
+  },
+  "collection": {
+    "slug": "malaiwah/qwen38-27b-mixed-precision-exl3-measured-6a7fe0cb27817c23e4a57025",
+    "url": "https://huggingface.co/collections/malaiwah/qwen38-27b-mixed-precision-exl3-measured-6a7fe0cb27817c23e4a57025",
+    "commit": null,
+    "commit_note": "HF collection metadata does not have a Git repository commit; API exposes last_updated. Checked baseline description and each item note immediately before mutation; no atomic parent/CAS API exists for these fields.",
+    "last_updated": "2026-09-08T13:16:20.417000+00:00",
+    "description_before": "Four EXL3/Trellis quants of Qwen3.8-27B optimizing fidelity, flexibility, capacity, or 262k context. Every KLD measured vs BF16.",
+    "description_after": "Four runtime-specific Qwen3.8 EXL3 builds. v5 10M shared-head, body-only KL vs BF16; advisory, not a quality ranking. Context tested separately.",
+    "items": [
+      {
+        "item_id": "malaiwah/Qwen3.8-27B-EXL3-K5K6-hydrated",
+        "item_object_id": "6a7fe0cb72f87f0631acbd35",
+        "note_before": "Recommended default. 21.61 GB download, 20.31 GiB resident, KLD 0.007406 body-only / 0.007532 as served, 178 s cold start, attention fixed at K6.",
+        "note_after": "Serialized K6 attention; no encode cache. v5 10M shared-head, body-only KL: 0.002760 nats (legacy fp32 reducer; advisory). 21.61 GB recorded download, 20.31 GiB resident; 178 s cold start in the reported profile. Prior v3 full-suite 0.007406 body-only / 0.007532 as-served remain separate historical results. Not a task-quality or native-serving ranking."
+      },
+      {
+        "item_id": "malaiwah/Qwen3.8-27B-EXL3-K5K6",
+        "item_object_id": "6a7fe0cb8df58acee67614b0",
+        "note_before": "Flexible edition. 30.57 GB download because attention ships BF16 and is encoded at load (957 s cold, cache required), but the width is a launch-time knob: K6 0.008157, K5 0.012135 (~206k context on 32 GB), K4 0.027530.",
+        "note_after": "Flexible attention width (K6/K5/K4 at launch). v5 10M shared-head, body-only KL: 0.003210 nats (legacy fp32 reducer; advisory). 30.60 GB recorded download, 20.32 GiB resident. Prior v3 width-ladder values 0.008157 / 0.012135 / 0.027530 remain historical, not v5 measurements. See the card for per-profile capacity and cold-start evidence."
+      },
+      {
+        "item_id": "malaiwah/Qwen3.8-27B-K4",
+        "item_object_id": "6a7fe0cba0bd8cc617ad0ecd",
+        "note_before": "Capacity edition. 17.89 GiB resident is the only build in this family that fits native 262,144 context on a 32 GB card (289,577 KV tokens measured), at KLD 0.030736.",
+        "note_after": "Capacity edition: 17.89 GiB resident; 262,144 context qualified on RTX 5090 in the documented profile. Not the only family build with native-context evidence: the context edition also qualifies. v5 10M shared-head, body-only KL: 0.010604 nats (legacy fp32 reducer; advisory). Prior v3 full-suite 0.030736 is a different panel result, retained on the card."
+      },
+      {
+        "item_id": "malaiwah/Qwen3.8-27B-EXL3-K5K6-context",
+        "item_object_id": "6a80111cf787581b21feb7fb",
+        "note_before": "Context edition. Native 262,144 context on a 32 GB card with int8 embeddings (18.13 GiB resident), retrieval verified at 227,334 tokens, KLD 0.009738 - 26 % below official FP8.",
+        "note_after": "Context edition: 262,144 on RTX 5090 under the documented int8-embedding/MTP-3/8.4 MP profile; memory is profile-specific. v5 10M shared-head, body-only KL: 0.003509 nats WITHOUT int8 overlay or candidate head (legacy fp32 reducer; advisory). Prior v3 0.009738 used the int8 overlay; it is not this v5 result. Context qualification is separate from fidelity; no universal FP8 ranking."
+      }
+    ],
+    "api_readback_verified": true,
+    "browser_visual_verified": true
+  },
+  "evidence": {
+    "pinned_cumulative_receipts": [
+      {
+        "uri": "https://raw.githubusercontent.com/malaiwah/qwen38-27b-exl3/8558b8ca3bba028f852f4b53167b79b4cd552f93/receipts/kld5-10M-k4.json",
+        "sha256": "aff87959aa147e85b78491d3986897bbbfa27003fbb9e976738e71370bea347c",
+        "download_digest_verified": true
+      },
+      {
+        "uri": "https://raw.githubusercontent.com/malaiwah/qwen38-27b-exl3/8558b8ca3bba028f852f4b53167b79b4cd552f93/receipts/kld5-10M-ctx.json",
+        "sha256": "2d605b7005f1e0cef1342eb8e939c9e8afa8d3cbb4ed6a427e86842a6921af31",
+        "download_digest_verified": true
+      },
+      {
+        "uri": "https://raw.githubusercontent.com/malaiwah/qwen38-27b-exl3/8558b8ca3bba028f852f4b53167b79b4cd552f93/receipts/kld5-10M-hyd.json",
+        "sha256": "2e4a28c487d22b0ed152306443169fe34e1d1c713f8bbd6c75b668812e65ce0e",
+        "download_digest_verified": true
+      },
+      {
+        "uri": "https://raw.githubusercontent.com/malaiwah/qwen38-27b-exl3/8558b8ca3bba028f852f4b53167b79b4cd552f93/receipts/kld5-10M-k5k6.json",
+        "sha256": "da1da6c34fecd4ba6b814f6de83ac2ea4c47bef9f9cc83e68e65164d1196b038",
+        "download_digest_verified": true
+      },
+      {
+        "uri": "https://raw.githubusercontent.com/malaiwah/qwen38-27b-exl3/8558b8ca3bba028f852f4b53167b79b4cd552f93/receipts/kld5-10M-fp8.json",
+        "sha256": "03b18684e1bacaad3f65300db96e578626fe47cd22e03d34a09a3b9f79951ac3",
+        "download_digest_verified": true
+      }
+    ],
+    "v5_means_unchanged": {
+      "k4": 0.010603886897374758,
+      "ctx": 0.0035093587497007383,
+      "hyd": 0.0027596250151498245,
+      "k5k6": 0.0032098839572023935,
+      "fp8": 0.005293941260388515
+    },
+    "v5_protocol": {
+      "contexts": 5120,
+      "context_length": 2048,
+      "scored_positions": 10480640,
+      "source_clusters": 842,
+      "head_policy": "shared_reference_head",
+      "head_sha256": "25a30fd5f826da0abc4efc4cc71def9f02bcb8085f7175eee284d221dee4cfff",
+      "accumulation_dtype": "float32_reduce_legacy"
+    },
+    "registry_group": "cmp--c8c4df32774bdb63",
+    "registry_comparability": "false",
+    "model_files_changed_per_destination": [
+      "README.md",
+      "DOCS-SHA256SUMS"
+    ],
+    "all_other_repository_blobs_unchanged": true,
+    "model_frontmatter_and_fenced_blocks_unchanged": true,
+    "numeric_table_cells_unchanged": true,
+    "plots_and_plot_markup_unchanged": true,
+    "new_prose_credentials_and_private_host_paths_scan": "passed",
+    "publication_credential_permissions": "0600"
+  },
+  "limits": [
+    "No new model-forward, capture, score or paid run.",
+    "No project tests/build/lint during concurrent batch.",
+    "Advisory comparability and missing provenance remain disclosed, not fabricated or promoted.",
+    "Original receipts retain historical precision labels and scientific numbers; interpretation corrected additively.",
+    "Historical candidate capture loss prevents full re-derivation from public captures without new work.",
+    "Existing plots and structured artifacts are unchanged, not regenerated."
+  ],
+  "suggested_correction_journal_entry": "2026-09-08 — Qwen collection/card protocol reconciliation. The four malaiwah/Qwen3.8-27B model cards now name the v5 10M-position shared-head, body-only KL estimand at the top and disclose float32_reduce_legacy, advisory/inspection-only status, incomplete revision/harness/stack/replay provenance, and the separation from native-head, int8-overlay, MTP, vision and long-context profiles. Unqualified best-fidelity titles and automatic common-mode-floor cancellation claims were corrected. The replica experiment is not a converter-population variance bound; historical missing candidate captures mean full-ladder capture replay still needs new work. Historical v3 full-suite and corrected-subset values, v4 and v5 shard-0 results remain distinct and unchanged. Collection notes formerly presented v3 values as current summaries; they now explicitly report v5 means 0.002760 / 0.003210 / 0.010604 / 0.003509 for hydrated / flexible / K4 / context while retaining the old values with v3 attribution. The stale K4-only native-context claim was withdrawn because the context edition also has documented hardware qualification. The context collection note no longer conflates its legacy int8-overlay result or profile-specific resident memory with the no-overlay v5 result. Only README.md and its DOCS-SHA256SUMS entry changed per model; all measured table values, fenced structured/example blocks, plots, receipt files and weight files remain unchanged. Five pinned cumulative receipts were downloaded and matched their registry SHA-256 values. Published commit and main-branch README bytes were fetched and verified, repository blob maps confirmed exactly the two documentation files changed, and the public collection plus all four rendered cards were browser-verified. Collection metadata has no Git commit ID; its before/after note text and last-updated timestamp are preserved in the accompanying JSON audit. No measurements, paid work, GitHub commit/push, project tests, build or lint were run by this slice."
+}

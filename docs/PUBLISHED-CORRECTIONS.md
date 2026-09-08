@@ -1084,3 +1084,86 @@ rows are byte-identical throughout.
 `make check` being absent from every review of PR #4 — the fix for that is
 running the registry gates on the merge, not loosening the byte-exact reseed
 contract.
+
+
+## 14. Public GLM and Qwen claims reconciled with qualified evidence (2026-09-08)
+
+This is an interpretation/protocol-attribution correction, not a new measurement.
+No model weights, sealed receipts, plot assets or measured KL values were changed.
+
+### GLM cards, collection and suite
+
+The corrected K6/K8 bodies are now published, retaining the snapshot-pinned plots:
+K6 `bc2b812ad544fbd3321123318c03b25fdc4ef8f3`,
+K8 `423d809aeba30245723e7c6db7c8659d91b308e8`.
+The collection no longer advertises an unqualified cross-lane FP8 quality ratio.
+Conditional tokenwise-KL repeatability is not universal determinism; source-document
+sign tests do not remove mixed-lane confounding. Native-source dtype language now
+retains FP32 routers rather than claiming everything retained is BF16.
+
+The suite dataset card at `6a6cea7adb38b5ff5d38979cbd4334b89fa4e069`
+distinguishes the public 512-context-per-side shards from the historical
+5,120-context / 10,480,640-position run. It declares post-final-norm head-only
+replay and withdraws served-logit equality, universal noise-bound and unique
+runtime-cause claims. Numeric table cells and the other 6,203 suite files were
+unchanged. Collection notes retain scope and availability limitations.
+
+### Qwen cards and collection
+
+The four model cards now distinguish v5 10M-position shared-head/body-only KL
+from prior v3/v4 measurements and native-head, overlay and long-context profiles.
+They disclose `float32_reduce_legacy`, advisory/inspection-only status and missing
+provenance. Automatic common-mode error cancellation, universal resolution-floor
+and converter-population variance interpretations are withdrawn. Missing historical
+candidate captures are disclosed; no new capture/reproduction is asserted.
+
+Published model-card commits:
+
+- K5K6-hydrated: `853acef0b24961b269cdcf32b1ebb405649b545b`
+- K5K6: `12a7a0eb770a3ac86969b10dde0642eb87285dec`
+- K4: `3df3178b51d0e7f961a6ef54e52b1f327579bb1f`
+- K5K6-context: `cb813f64e2dd55922bcc448f514ac423b36be99e`
+
+Only README and its documentation checksum changed in each Qwen repository.
+Frontmatter, numeric table cells, fenced commands, receipts, weights and plots
+were preserved. Exact publication parents, hashes, receipt citations and collection
+before/after text are in `cards/qwen-public-claims-2026-09-08.json`.
+Collection metadata has no Git commit or atomic compare-and-swap API; previous
+values were checked immediately before mutation and updated values fetched after.
+
+All six model cards, both collections and the GLM suite card were inspected in
+Chromium. Published card bytes were re-fetched and checked; local GLM bodies match
+published bodies while retaining their separately generated frontmatter snapshot.
+
+### Registry warning dispositions and divergent snapshots
+
+The canonical source snapshot had 109 measurements and 347 warnings, while its
+audit recorded only 298. All findings were dispositioned; an evidence-backed
+`reduced_run_count` disclosure for the two-capture Fruit control was added in
+the seed producer and regenerated. There are now 346 warnings, zero errors:
+321 retained-and-disclosed findings and 25 missing-evidence findings.
+The GPTQ fixture's prior rationale incorrectly described two Fruit runs;
+it now records the actual single comparison and unknown repeatability without
+rewriting its hash-bound accepted record.
+
+The public registry was independently reconciled, not overwritten with the
+local snapshot. Its 113 measurements include four remote-only SmolLM2 rows,
+and its two historical interval endpoints retain the bit patterns discussed
+in section 13. Under the recorded current full-suite source context, its
+initial 398 warnings and 13 stale-audit errors become 397 warnings and zero
+errors after the same disclosure-only Fruit amendment and audit refresh.
+Every remaining warning has an exact disposition: 371 retained-and-disclosed,
+26 missing-evidence-retained. Counts depend on both data and validator/source
+context; standalone dataset validation is not asserted to yield the full-suite
+harness-drift count.
+
+Published registry commit: `16e38c663dde9725beb200385b33c8d0503e550b`,
+parent `598c441a2281963f1469ea4ec02d166081b3ac5a`. Only the Fruit disclosure
+field changed in measurement data; every scientific value, all 113 rows and
+all receipt bytes were preserved. The index was rebuilt with the matching
+renderer. The audit and seed producer were updated, and the current
+`AUDIT-001` guard was propagated to the remote validator so snapshot drift
+is rejected there too. All five uploaded files were re-fetched at the
+publication commit and byte-verified. No warning gate was weakened:
+strict validation still exits 2 and warning-free release certification
+remains unpassed.

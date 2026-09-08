@@ -3,10 +3,13 @@
 These are the **reference implementation** of
 [`../CARD-ANNOTATION-SPEC.md`](../CARD-ANNOTATION-SPEC.md), applied to our own
 two published models. Frontmatter is produced by `bin/fidelity-card annotate`
-from registry rows; `annotate` does not rewrite body prose. **Correction,
-2026-09-07:** the local bodies now include scientific corrections to the older
-published cards. They are not asserted byte-identical to the live Hub bodies,
-and this repository update does not publish them to the Hub.
+from registry rows; `annotate` does not rewrite body prose. The scientific
+body corrections prepared on 2026-09-07 were published on 2026-09-08, with
+additional lane, repeatability, native-serving and source-dtype qualifications.
+The local and published bodies match; published frontmatter was preserved
+byte-for-byte, including its older registry snapshot hashes. The local
+frontmatter retains its separately generated snapshot, so whole files are
+not asserted byte-identical.
 
 **Plot publication, 2026-09-08:** the `QFS-SIZE-KL` sections and their
 `assets/qfs-glm53-k{6,8}-size-kl-panel25.*` files are published on both Hub
@@ -19,6 +22,30 @@ model were fetched at those commits and matched byte-for-byte. Publication
 added only the plot section/assets to each existing remote card; it did not
 replace the remote body with the separately corrected local body.
 
+**Claim publication, 2026-09-08:** the corrected bodies replace the older
+remote prose in K6 commit `bc2b812ad544fbd3321123318c03b25fdc4ef8f3` and K8
+commit `423d809aeba30245723e7c6db7c8659d91b308e8`. Each guarded commit changes
+only `README.md`; both plot sections and all eight existing plot assets are
+unchanged. Cross-lane FP8 ratios, population extrapolations and native-serving
+fidelity implications are withdrawn or explicitly bounded. Historical
+measurements, receipt bytes, artifact weights and serving observations remain
+unchanged; no new serving experiment was run.
+
+The linked `malaiwah/GLM-5.3-Flash-fidelity-suite-v1` dataset card was corrected
+separately in commit `6a6cea7adb38b5ff5d38979cbd4334b89fa4e069`, changing only
+`README.md`. It distinguishes the public 512-context-per-side shards from the
+historical 5,120-context run, discloses post-final-norm replay, and withdraws
+replay-equivalence, universal noise-bound and cross-lane quality claims. Numeric
+table cells, frontmatter and every other file in its 6,204-file tree are unchanged.
+
+The [GLM collection](https://huggingface.co/collections/malaiwah/glm-53-flash-measured-quants-and-fidelity)
+description and five item notes now name lane/panel and capture-availability
+limits instead of the former K8 "1.66x better than official FP8" claim.
+Collection item order and the calibration-activations note are unchanged.
+Collection edits are mutable API metadata, not repository commits: prior values
+were checked immediately before updates, then exact new values were fetched
+and verified. The API exposes no parent-commit guard for collection metadata.
+
 ```
 GLM-5.3-Flash-TR3-6bpw.README.md    malaiwah/GLM-5.3-Flash-TR3-6bpw
 GLM-5.3-Flash-TR3-8bpw.README.md    malaiwah/GLM-5.3-Flash-TR3-8bpw
@@ -26,8 +53,17 @@ GLM-5.3-Flash-TR3-8bpw.README.md    malaiwah/GLM-5.3-Flash-TR3-8bpw
 
 ## Verification
 
-Pushing a card is a separately permissioned act. The following are historical
-checks, not fresh live Hub/rendering verification:
+Publishing is separately permissioned. For the 2026-09-08 claim publication,
+all three submitted card payloads passed live Hub YAML validation. Pinned remote
+README bytes matched the submitted payloads, model `model-index` and
+`x_fidelity.measurements` entries matched the unchanged local numeric entries,
+and repository trees confirmed only the three README files changed. All eight
+plot assets and the three inspected model qualification receipts were also
+re-fetched and byte-compared. Actual Hub browser surfaces showed both plots,
+both model correction paragraphs, the suite scope correction and the collection
+description/notes. No project-wide validation was run during these edits.
+
+The following are earlier annotation checks, not fresh full-registry validation:
 
 | axis | result |
 |---|---|
@@ -35,11 +71,10 @@ checks, not fresh live Hub/rendering verification:
 | `huggingface_hub` YAML → `ModelCardData` → YAML round-trip | structurally identical, both cards |
 | our XC-1..XC-7 cross-checks against `registry/data/measurements.jsonl` | clean, both cards |
 
-What is **not** verified is how the eval widget *renders*, which needs one push
-to a private scratch model repo. The shape is byte-for-byte the structure
-`HuggingFaceH4/zephyr-7b-beta` uses in production, so confidence is high, but
-the operator should authorize that one scratch push before annotating the real
-repositories.
+The production browser also displayed the existing legacy Evaluation results
+widget. This was visual inspection, not an exhaustive widget/metadata interaction
+test; the publication did not modify eval frontmatter or claim that the widget
+enforces the registry's secondary comparability predicate.
 
 ## Regenerating
 

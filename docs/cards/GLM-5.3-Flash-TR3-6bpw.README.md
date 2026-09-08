@@ -365,13 +365,13 @@ x_fidelity:
 
 # GLM-5.3-Flash-TR3-6bpw (K6)
 
-**The first 6-bit (K6) TR3/MCG trellis quantization of
+**A 6-bit (K6) TR3/MCG trellis quantization of
 [zai-org/GLM-5.3-Flash](https://huggingface.co/zai-org/GLM-5.3-Flash)** —
 321B-total / A18B MoE, `glm5_next` hybrid architecture. Routed experts and the
 MTP layer quantized at K6 (96-word trellis, MCG `0xCBAC1FED`); everything else
 (KDA linear-attention layers, DSA indexer, hyper-connections, routers, norms,
-embeddings, lm_head) **bit-exact native BF16**. 253.5 GB — 77% of the official
-FP8's footprint.
+embeddings, lm_head) **bit-exact in their native source dtypes** (including
+BF16 weights and FP32 routers). 253.5 GB — 77% of the official FP8's footprint.
 
 <!-- QFS-SIZE-KL-BEGIN -->
 ## QFS size–fidelity evidence
@@ -389,7 +389,7 @@ These are descriptive means on the historical panel: its 25 windows come from fo
 Registry snapshot: `598c441a2281963f1469ea4ec02d166081b3ac5a`. The static plot and data are stored with this card; the live image is explicitly mutable. No model weights or measurement values were changed by this plot addition.
 <!-- QFS-SIZE-KL-END -->
 
-## Quality — SEALED five-cold-run qualification
+## Fidelity — sealed-ep8, five-cold-run qualification
 
 > ### ⚠ Scope disclosure — this number is a **panel25** number
 >
@@ -429,13 +429,13 @@ Registry snapshot: `598c441a2281963f1469ea4ec02d166081b3ac5a`. The static plot a
 > **Statistical correction (2026-08-31, peer review P1-15).** This panel's 25
 > windows derive from only **four source documents** (clean17: three), so
 > window-level sign tests and intervals describe these exact windows rather
-> than independent evidence. At the document level the K8-over-K6 contrast
-> reads: all four (three) document means favour K8, exact sign test
-> **p = 0.125** (panel25) / **0.25** (clean17) — the previously printed
-> window-level p = 0.0041 / 0.049 are withdrawn as inferential statements. The
-> ordering survives on this panel; a population claim awaits a panel with many
-> independent documents per domain. **We will not restate "K8 is better than
-> K6" without naming the scope — or beyond this panel.**
+> than independent evidence. The historical document-level calculation
+> reported all four (three) document means favouring K8 and exact sign-test
+> **p = 0.125** (panel25) / **0.25** (clean17). It too compared sealed K6
+> with streaming K8; these p-values are not evidence of a same-lane or
+> population quantizer advantage. The window-level p = 0.0041 / 0.049
+> are withdrawn as inferential statements. Use the same-lane descriptive
+> means above, without extrapolating beyond this panel.
 >
 > **Do not difference a panel25 number against a clean17 one.** They are answers
 > to different questions. Our registry enforces this structurally: `clean17` is
@@ -463,9 +463,10 @@ Registry snapshot: `598c441a2281963f1469ea4ec02d166081b3ac5a`. The static plot a
 
 
 **Mean KLD(teacher ‖ K6) = 0.013723 nats over the full sealed panel (25
-windows, 51,175 positions per run) — five cold runs, bitwise identical
-(population stddev exactly 0.0)**, the same determinism property as
-brandonmusic's protocol. Quality gate (< 0.06): **passed**. Receipts:
+windows, 51,175 positions per run)** — five cold runs with matching recorded
+tokenwise-KL digests and run means (population stddev exactly 0.0).
+This is conditional repeatability, not universal determinism or independent
+textual replication. The receipt's quality gate (< 0.06) **passed**. Receipts:
 [`receipts/k6-five-run-kld.json`](receipts/k6-five-run-kld.json),
 [`receipts/k6-packed-kld.json`](receipts/k6-packed-kld.json) (evidence-artifact
 hashes included).
@@ -494,6 +495,11 @@ runtime/lane and, for NVFP4, one window with a full panel. Panel-wide top-1
 remains **96.56 %** (25-window panel, streaming lane). The separate serving
 qualification below is evidence for its pinned deployment, not equivalence
 to this reference-forward fidelity measurement or a current remote-status check.
+
+The checkpoint measurements reconstruct weights through the reference forward;
+they do not measure native-serving activation/cache/kernel numerics, or prove
+native decode/forward equivalence. Weights-only KL is not a lower bound on
+served KL: omitted perturbations may amplify or cancel divergence.
 
 ### Excess over control (descriptive subtraction)
 
@@ -541,9 +547,10 @@ floor named. Method, receipts and the ways this subtraction can be misused:
   non-torch, 3.02 GiB peak activations, 0.45–0.46 GiB CUDA graphs, and
   21.52–21.56 GiB KV per GPU.
 - **Shared down-`suh` topology:** all 288 experts per layer share the
-  down-projection input sign vector (measured fidelity-free: worst-layer
-  −2×10⁻⁶ relative output error). A one-transform-per-layer grouped-GEMM hoist
-  remains an optimization opportunity; it is not claimed by this release.
+  down-projection input sign vector. The sampled experiment recorded worst-layer
+  −2×10⁻⁶ relative output-error change, not universally fidelity-free behavior.
+  A one-transform-per-layer grouped-GEMM hoist remains an optimization opportunity;
+  it is not claimed by this release.
 
 ## Provenance & disclosed deviations
 
@@ -593,9 +600,10 @@ Z.ai published two sibling roots for this model and neither declares the other:
 [`zai-org/GLM-5.3-Flash-BF16`](https://huggingface.co/zai-org/GLM-5.3-Flash-BF16)
 (the **BF16** weights). This quant declares BF16 as its `base_model` because
 that is what it was actually quantized from — the FP8 release is a *sibling*
-quantization of the same model, not our source, and it is the baseline we
-measure against rather than build on. Quants that list FP8 as their base were
-genuinely made from the FP8 weights; the trees differ for real reasons.
+quantization of the same model, not our source. The fidelity reference here is
+the pinned BF16 teacher; FP8 is a separately measured cross-stack candidate,
+not the reference. A declared base-model link alone does not prove another
+publisher's weight provenance.
 
 Related work on the same model, all measured on one panel in the
 [quant-fidelity registry](https://huggingface.co/datasets/malaiwah/quant-fidelity-registry):
@@ -674,14 +682,17 @@ clock, thermal, driver, storage, or request mixes.
 
 ### Why K6 is the production default
 
-K8 improves raw panel KLD from 0.013723 to 0.012384 nats (absolute 0.001339)
-but grows from 254 GB to 331 GB: about 77 GB / 30% more checkpoint bytes. Its
-live-qualified eager profile uses 78.94–78.97 GiB/GPU for weights plus non-torch
-allocations and leaves 7.10–7.14 GiB/GPU for KV. K6 leaves 21.52–21.56 GiB/GPU
-for KV and is 5.3–7.3× faster at short context, or 8.3–24.4× faster when the
-measured 32K/128K prefill cost is included. K8 is the qualified fidelity-first
-alternative; K6 remains the production default for its quality/bytes/throughput
-balance on 4×96 GiB.
+On panel25's streaming lane, K6 records 0.013715 and K8 0.012384 nats.
+The sealed K6 value, 0.013723, belongs to a different lane; the former
+0.001339 cross-lane contrast is not a same-lane fidelity improvement.
+K8 grows from 254 GB to 331 GB: about 77 GB / 30% more checkpoint bytes.
+Its qualified eager profile uses 78.94–78.97 GiB/GPU for weights plus non-torch
+allocations and leaves 7.10–7.14 GiB/GPU for KV; K6 leaves 21.52–21.56 GiB/GPU.
+On the recorded deployment matrices, K6 is 5.3–7.3× faster at short context,
+or 8.3–24.4× faster when the measured 32K/128K prefill cost is included.
+K6 is the appliance's production default for that measured resource/throughput
+tradeoff on 4×96 GiB. The checkpoint KL values do not establish that K8's
+native-serving output is closer to the teacher.
 
 ### Docker Compose
 
