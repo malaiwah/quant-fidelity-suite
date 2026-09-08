@@ -29,6 +29,7 @@ import shutil
 import sys
 import subprocess
 import tempfile
+from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -103,8 +104,41 @@ def analytic_kl(p_logits, q_logits):
     return out
 
 
+def decoder_evidence_contract(tmp):
+    original_root = dscompare._REPO
+    evidence_path = os.path.join(original_root, dscompare.DECODER_PARITY_EVIDENCE)
+    original = Path(evidence_path).read_bytes()
+    fixture_root = Path(tmp) / "decoder-evidence"
+    fixture = fixture_root / dscompare.DECODER_PARITY_EVIDENCE
+    fixture.parent.mkdir(parents=True)
+    fixture.write_bytes(original)
+    decoder = fixture_root / "engines/tools/exl3hf_surface.py"
+    shutil.copyfile(os.path.join(original_root, "engines/tools/exl3hf_surface.py"), decoder)
+    try:
+        dscompare._REPO = str(fixture_root)
+        check("N0 reviewed native evidence is recognized for its exact decoder",
+              dscompare._decoder_parity() is not None)
+        for label, mutation in (
+                ("forged aggregate", lambda d: d.update(all_bitwise=True)),
+                ("empty coverage", lambda d: d.update(modules=[], modules_compared=0)),
+                ("partial coverage", lambda d: d.update(modules=d["modules"][:-1]))):
+            evidence = json.loads(original)
+            mutation(evidence)
+            fixture.write_text(json.dumps(evidence))
+            check("N0 %s cannot become native parity evidence" % label,
+                  dscompare._decoder_parity() is None)
+        fixture.write_bytes(original)
+        with decoder.open("a") as handle:
+            handle.write("\n# changed decoder fixture\n")
+        check("N0 old native evidence does not certify changed decoder bytes",
+              dscompare._decoder_parity() is None)
+    finally:
+        dscompare._REPO = original_root
+
+
 def main():
     tmp = tempfile.mkdtemp(prefix="fidelity-compare-selftest-")
+    decoder_evidence_contract(tmp)
     backend_note = "torch" if dscompare._torch_available() else "numpy fp64 fallback"
     print("== N: comparator numerics (estimator backend: %s) ==" % backend_note)
     try:

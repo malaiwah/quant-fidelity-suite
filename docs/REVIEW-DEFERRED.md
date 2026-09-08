@@ -2407,3 +2407,76 @@ of a rented box discovering it.
 Residual, and stated rather than closed: rented CUDA boxes and the container
 are post-AVX, so this fault is not reachable there **by hardware** — that is an
 inference from the ISA, not a measurement on those hosts.
+
+## CX1 — support-matrix drift in the Explorer-owned README (2026-09-07)
+
+**Deferred to the concurrent Explorer session.** The user explicitly reserved
+QFS Explorer and its README for that session. The native/test-audit continuation
+did not edit them.
+
+The full battery's `selftest_support_matrix.py` fails M2 (render drift) and M4
+(missing `mlx`, `nvfp4`). The committed marker block omits those surfaces and
+their streaming rate entries. Do not suppress these checks or hand-maintain the
+table. `python3 bin/render_support_matrix.py --write --readme <copy>` followed
+by `--check --readme <copy>` was executed successfully on a scratch copy.
+The owner can apply the normal generator and verify:
+
+```bash
+python3 bin/render_support_matrix.py --write
+python3 bin/selftest_support_matrix.py
+```
+
+The generated repair changes only the marked support block:
+
+```diff
+--- a/README.md
++++ b/README.md
+@@ -190,13 +190,15 @@
+ | `exl3hf` | — | ✓ | — | — | — |
+ | `tr3-published` | — | ✓ | — | — | — |
+ | `gguf` | — | ✓ | — | — | — |
++| `mlx` | — | ✓ | — | — | — |
++| `nvfp4` | — | ✓ | — | — | — |
+ 
+ #### What each lane is, and how you reach it
+ 
+ | lane | reachable via | receipt class | rates with a profile |
+ |---|---|---|---|
+ | `sealed-ep8` | `bin/measure-cloud` | (not declared) | no bpw→profile map (profile named by the campaign driver) |
+-| `streaming` | `bin/measure --lane streaming`, `bin/measure-cloud` | submittable | dione: 3.0, 4.0 bpw; exl3hf: 2.0, 2.05, 3.05, 4.05 bpw; gguf: any rate; native-bf16: unquantized; tr3-published: 4.0, 6.0 bpw |
++| `streaming` | `bin/measure --lane streaming`, `bin/measure-cloud` | submittable | dione: 3.0, 4.0 bpw; exl3hf: 2.0, 2.05, 3.05, 4.05 bpw; gguf: any rate; mlx: any rate; native-bf16: unquantized; nvfp4: any rate; tr3-published: 4.0, 6.0 bpw |
+ | `local-mps` | `bin/measure --lane local-mps`, `bin/measure-local --lane local-mps` | preview | 6.0→k6, 8.0→k8, native→native-bf16 |
+ | `local-cuda-budget` | `bin/measure --lane local-cuda-budget`, `bin/measure-local --lane local-cuda-budget` | preview | 6.0→k6, 8.0→k8, native→native-bf16 |
+ | `bf16-floor` | no runner — campaign lane, driven directly (`engines/tools/`) | (not declared) | fixed: native-bf16 |
+```
+
+**Resolved during pre-commit integration:** upstream commit `29e445c` regenerated
+the support matrix. After rebasing onto the integrated Explorer branch, the
+support-matrix selftest passes all rungs. This workflow did not edit the
+Explorer-owned README; the historical failure and generated repair above are
+retained as the handoff record.
+
+## CI-RESEED-01 — upstream interval serialization drift (2026-09-08)
+
+Pre-commit `make check` reaches **93 registry selftests passed, 1 failed**:
+`seed_registry.py --check` reports measurement drift. The same refusal occurs
+in a clean detached worktree at upstream `086d450`, under Python 3.14.4 /
+NumPy 2.5.2, and also under the existing pinned CPU-wheel environment.
+Clean-upstream and integrated reseeded measurement collections are identical.
+Exactly two serialized fields differ from the committed collection:
+
+| measurement id | JSON pointer | reseeded minus committed |
+|---|---|---|
+| `measurement--glm-5.3.exl3-tr3-3.0bpw-davidsyoung.corpus5x5-v1` | `/uncertainty/ci95_low` | `+9.7144514654701197e-17` |
+| `measurement--glm53.k8-8bpw-stream.brandonmusic-final25.clean17` | `/uncertainty/ci95_high` | `-1.0061396160665481e-16` |
+
+This is an upstream reproducibility failure, not a new native/controller
+regression. Its numerical cause is not established. The exact reseed gate
+remains enabled; no interval, derivation code, harness identity or published
+record was changed to make it pass. Investigation belongs to the historical
+interval derivation, with an additive correction if published values change.
+
+Still present after integration onto `8d02663`: the validator reports **0 errors
+and 332 warnings**, render drift passes, and the completed registry selftest
+reports **94 passed, 1 failed**. Reseeding to a scratch directory reproduces
+exactly the two field differences above, with no additional drift.

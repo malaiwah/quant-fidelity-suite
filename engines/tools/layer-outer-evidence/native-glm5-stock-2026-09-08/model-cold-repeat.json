@@ -1,0 +1,10 @@
+{
+  "schema": "qfs.glm5-native-cold-repeat.v1",
+  "execution_complete": true,
+  "cold_process_byte_equal": false,
+  "same_path_reset_byte_equal": false,
+  "reference_value_equal": false,
+  "tensor_count": 32,
+  "whole_model_reference_equivalence_qualified": false,
+  "original_published_fixture_qualified": false
+}

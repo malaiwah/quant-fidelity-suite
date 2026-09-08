@@ -14,6 +14,14 @@
 > Neither synthetic reference checks nor passing requested layer rows qualify
 > whole-model serving, cache rewind or full long-context behavior.
 > Offline refusal regression: `python port/tests/selftest_parity_fail_closed.py`.
+>
+> Continuation: `--output` emits atomic layer-only evidence with exact named
+> required/observed/passed/missing coverage; duplicates and substitute rows do not
+> satisfy it. Geometry, finite/nonempty values, metrics and tolerances are
+> validated before a pass. `--hc-layer` is independent of attention/MLP selection.
+> Truncated experts and missing sparse/cache regimes are disclosed. The synthetic
+> mini-checkpoint asserts independent load, causal/carried-state, sparse-selection
+> and mHC invariants, but still supplies no native or whole-model qualification.
 
 ## Summary
 

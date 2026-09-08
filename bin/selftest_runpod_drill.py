@@ -605,6 +605,9 @@ def _rewrite_deadline_proof(proof_path, mutate):
 
 def _deadline_mutation_refused(proof_path, plan, mutate, *, now):
     proof_path = Path(proof_path)
+    validate_safety_proof(proof_path, plan.bundle_contract_sha256,
+                          plan.control_manifest_sha256, plan.provider_account_id,
+                          plan.campaign_ledger, now=now)
     proof = json.loads(proof_path.read_text())
     paths = [
         proof_path,
@@ -626,6 +629,9 @@ def _deadline_mutation_refused(proof_path, plan, mutate, *, now):
 
 def _destroy_health_mutation_refused(proof_path, plan, mutate, *, now):
     proof_path = Path(proof_path)
+    validate_safety_proof(proof_path, plan.bundle_contract_sha256,
+                          plan.control_manifest_sha256, plan.provider_account_id,
+                          plan.campaign_ledger, now=now)
     proof = json.loads(proof_path.read_text())
     root = proof_path.parent
     health_path = root / proof["artifacts"]["reaper_destroy_health"]["path"]

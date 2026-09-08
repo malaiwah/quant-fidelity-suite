@@ -1,0 +1,157 @@
+{
+  "actual_invoice_total_usd": null,
+  "attempts": [
+    {
+      "absence_confirmations": 2,
+      "catalogue_hourly_usd": "3.29",
+      "cleanup_closed": true,
+      "closed_at_epoch": 1788811512.9429455,
+      "conservative_base_exposure_usd": "1.38",
+      "gpu_type": "gpu_1x_h100_pcie",
+      "post_intent_epoch": 1788810032.9064803,
+      "provider_id": "5f06adefaa04432f9e8fe06cf03c22a3"
+    },
+    {
+      "absence_confirmations": 2,
+      "catalogue_hourly_usd": "1.09",
+      "cleanup_closed": true,
+      "closed_at_epoch": 1788815081.1506352,
+      "conservative_base_exposure_usd": "0.24",
+      "gpu_type": "gpu_1x_a6000",
+      "post_intent_epoch": 1788814308.788688,
+      "provider_id": "2153f423be624119b4c7b72da8490b2e"
+    },
+    {
+      "absence_confirmations": 2,
+      "catalogue_hourly_usd": "3.29",
+      "cleanup_closed": true,
+      "closed_at_epoch": 1788817000.5912344,
+      "conservative_base_exposure_usd": "1.10",
+      "gpu_type": "gpu_1x_h100_pcie",
+      "post_intent_epoch": 1788815853.1066937,
+      "provider_id": "1ad3673f38f54c049757648cd5864f37"
+    },
+    {
+      "absence_confirmations": 2,
+      "catalogue_hourly_usd": "1.29",
+      "cleanup_closed": true,
+      "closed_at_epoch": 1788817723.8391964,
+      "conservative_base_exposure_usd": "0.13",
+      "gpu_type": "gpu_1x_a10",
+      "post_intent_epoch": 1788817389.0976667,
+      "provider_id": "31bcb04ba41242a0aa62f7d43a3290ad"
+    },
+    {
+      "absence_confirmations": 2,
+      "catalogue_hourly_usd": "1.29",
+      "cleanup_closed": true,
+      "closed_at_epoch": 1788819073.1180995,
+      "conservative_base_exposure_usd": "0.20",
+      "gpu_type": "gpu_1x_a10",
+      "post_intent_epoch": 1788818535.4558687,
+      "provider_id": "74e5f5f494994cd982fa499c278877f0"
+    },
+    {
+      "absence_confirmations": 2,
+      "catalogue_hourly_usd": "1.29",
+      "cleanup_closed": true,
+      "closed_at_epoch": 1788820693.792038,
+      "conservative_base_exposure_usd": "0.24",
+      "gpu_type": "gpu_1x_a10",
+      "post_intent_epoch": 1788820058.546319,
+      "provider_id": "5590220283614ea3aa18ca1f7cde66c1"
+    },
+    {
+      "absence_confirmations": 2,
+      "catalogue_hourly_usd": "1.29",
+      "cleanup_closed": true,
+      "closed_at_epoch": 1788822553.962119,
+      "conservative_base_exposure_usd": "0.20",
+      "gpu_type": "gpu_1x_a10",
+      "post_intent_epoch": 1788822071.0559244,
+      "provider_id": "c5b4502770f646029544b5aac75085ff"
+    },
+    {
+      "absence_confirmations": 2,
+      "catalogue_hourly_usd": "1.29",
+      "cleanup_closed": true,
+      "closed_at_epoch": 1788823511.6081269,
+      "conservative_base_exposure_usd": "0.20",
+      "gpu_type": "gpu_1x_a10",
+      "post_intent_epoch": 1788823013.6605942,
+      "provider_id": "e3e15aec7823408f9e381fe4c6da672d"
+    },
+    {
+      "absence_confirmations": 2,
+      "catalogue_hourly_usd": "1.29",
+      "cleanup_closed": true,
+      "closed_at_epoch": 1788829935.204567,
+      "conservative_base_exposure_usd": "0.24",
+      "gpu_type": "gpu_1x_a10",
+      "post_intent_epoch": 1788829296.3091779,
+      "provider_id": "e862e49a6d7d488c8b6daeb8a8d582e7"
+    },
+    {
+      "absence_confirmations": 2,
+      "catalogue_hourly_usd": "1.29",
+      "cleanup_closed": true,
+      "closed_at_epoch": 1788832423.4029388,
+      "conservative_base_exposure_usd": "0.16",
+      "gpu_type": "gpu_1x_a10",
+      "post_intent_epoch": 1788832038.1175463,
+      "provider_id": "043d333aedaf498bb2c234afe177315a"
+    },
+    {
+      "absence_confirmations": 2,
+      "catalogue_hourly_usd": "1.29",
+      "cleanup_closed": true,
+      "closed_at_epoch": 1788833473.4850016,
+      "conservative_base_exposure_usd": "0.22",
+      "gpu_type": "gpu_1x_a10",
+      "post_intent_epoch": 1788832903.7960129,
+      "provider_id": "1907656c812d4b8ca17fa5b57ab89c2a"
+    },
+    {
+      "absence_confirmations": 2,
+      "catalogue_hourly_usd": "1.29",
+      "cleanup_closed": true,
+      "closed_at_epoch": 1788834612.7872021,
+      "conservative_base_exposure_usd": "0.26",
+      "gpu_type": "gpu_1x_a10",
+      "post_intent_epoch": 1788833915.7192907,
+      "provider_id": "586ff0f14c084a7aa4b70ad2aa8ce2d5"
+    }
+  ],
+  "authorized_total_cap_usd": "25",
+  "billing_authoritative": false,
+  "conservative_catalogue_exposure_before_tax_usd": "4.57",
+  "credential_snapshots_removed": true,
+  "exposure_basis": "whole POST-intent to repeated-closure interval, rounded up to provider minute and currency cent; not actual billed health-qualified usage",
+  "final_inventory": {
+    "complete": true,
+    "families": {
+      "instances": {
+        "complete": true,
+        "resources": [],
+        "source": "GET https://cloud.lambdalabs.com/api/v1/instances"
+      },
+      "network_volumes": {
+        "complete": true,
+        "resources": [],
+        "source": "GET https://cloud.lambdalabs.com/api/v1/file-systems"
+      }
+    },
+    "observed_at_utc": "2026-09-08T02:43:52Z",
+    "provider": "lambda",
+    "schema": "fidelity-suite/lambda-chargeable-inventory.v1",
+    "unknown_families": []
+  },
+  "original_api_key_retained": true,
+  "production_paid_admission_qualified": false,
+  "provider": "lambda",
+  "provider_enforced_deadline": false,
+  "risk": "Provider/control/network failure can defeat timely cleanup; no provider hard cutoff or authoritative billing API is claimed.",
+  "schema": "qfs.lambda-native-campaign-observation.v1",
+  "temporary_ssh_key_removed_and_absence_verified": true,
+  "time_extension_authorized": true
+}

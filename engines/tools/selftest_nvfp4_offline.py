@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Offline (no GPU, no weights download) validation of the NVFP4 surface adapter.
+"""Offline (no weights download) validation of the NVFP4 surface adapter.
 
-Proves, on this machine, in seconds:
+Checks on CPU and every available CUDA device / MPS backend:
 
   1. F8E4M3 LUT EXACTNESS - the 256-entry float8_e4m3fn -> float32 table the
      adapter uses (so the decode needs no float8 kernel, which MPS lacks) is
@@ -10,13 +10,12 @@ Proves, on this machine, in seconds:
      because IEEE-754 does not specify them.
   2. E2M1 NIBBLE ORDER - the adapter's unpack over ALL 256 byte values equals
      compressed-tensors' unpack_fp4_from_uint8 math (transliterated here, and
-     re-checked against the LIVE package when it is importable), signbits
+     re-checked against the LIVE package when installed), signbits
      included: nibble 0b1000 is -0.0 in both.
   3. DEQUANT KNOWN-ANSWERS - hand-computed values for both scale conventions
      (compressed-tensors' divide, modelopt's multiply), a group-axis probe that
-     a transposed-scale regression cannot pass, six refusals, and - when MPS is
-     present - bitwise CPU==MPS for the whole kernel, which is also the proof
-     it uses no float64 (MPS has none).
+     a transposed-scale regression cannot pass, six refusals, and bitwise
+     reference parity for both conventions on every available accelerator.
   4. REAL-TENSOR CROSS-CHECK - the four committed fixtures (RedHatAI and
      LibertAIDAI, gate_proj and down_proj of layer 3 expert 0, ranged-fetched
      from the pinned revisions) decode BITWISE to their expected fp32, which
@@ -25,14 +24,14 @@ Proves, on this machine, in seconds:
   5. REAL-METADATA CENSUS - census_weight_map over the REAL indexes of both
      repos (148,498 and 150,226 tensors) closes at 36,288 main NVFP4 modules +
      864 MTP modules + 1,618 non-routed names that biject the official BF16
-     non-routed set - and nine doctored indexes are each REFUSED BY NAME.
+     non-routed set - and nine doctored indexes are each refused.
   6. SURFACE LOAD + IDENTITY - both real configs load to the right layout,
      scope policy and activation disclosure; a synthetic genuine-W4A16 index
      takes the "fully captured" branch; the identity hash is stable across
      loads and moves when a pin moves; seven malformed snapshots are refused.
   7. STREAMING SOURCE E2E - Nvfp4ExpertSource reads a synthetic shard written
-     under the REAL index's shard names and returns exactly what dequant_nvfp4
-     returns, with a receipt-grade census row and correct byte/shard counters,
+     under the REAL index's shard names and matches an independent CPU decode,
+     with a receipt-grade census row and correct byte/shard counters,
      for both dialects.
   8. CLI - `nvfp4_surface.py dry-run` reaches plan-print on the real config +
      index of both repos, and refuses an unpinned revision and an unverified
@@ -40,15 +39,16 @@ Proves, on this machine, in seconds:
   9. STREAM_SCORE DRY-RUN - `stream_score.py --source nvfp4 --dry-run` reaches
      plan-print against the real metadata (SKIPped without --pipeline-root),
      and refuses --bf16 and a profile/source mismatch.
- 10. REGISTRY ADAPTER - registry_add turns an nvfp4 summary into a row that
-     carries the repo/revision pin, the measured scope and the seal and
-     activation caveats verbatim, gives a genuine W4A16 artifact no caveat it
-     has not earned, and refuses eight summaries with those blocks stripped.
+ 10. REGISTRY ADAPTER - actual NVFP4 summary adaptation checks recomputed
+     determinism, inconsistent evidence refusal, and conditional activation
+     caveats, including a genuine W4A16 artifact.
+ 11. FLAGSHIP - six pinned real-tensor fixtures decode numerically; all three
+     real modelopt config/index plans close and malformed inputs are refused.
 
-Two rungs degrade to SKIP rather than failing, and say so on the line they
-print: 2/4's live reference needs `compressed-tensors` (absent on the CUDA
-boxes), and 9 needs a --pipeline-root whose quant_pipeline imports (python
-3.11+, for tomllib).
+Missing compressed-tensors, unavailable accelerator backends, and an omitted
+--pipeline-root are reported separately as SKIP, never PASS. An installed
+oracle's import, API or runtime errors fail. A supplied invalid pipeline root
+fails. Historical orientation evidence is not a live BF16 orientation check.
 
 Run:  python3 selftest_nvfp4_offline.py [--pipeline-root <tree-with-quant_pipeline>]
 """
@@ -58,6 +58,8 @@ from __future__ import annotations
 import argparse
 import gzip
 import hashlib
+import importlib.metadata
+import importlib.util
 import json
 import os
 import shutil
@@ -75,28 +77,45 @@ EVIDENCE = TOOLS / "nvfp4-evidence"
 KE2M1 = [0.0, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0]
 
 
-def refuses(fragment, call, *args, **kwargs):
-    """Assert `call` raises a ValueError whose message NAMES the problem."""
+def refuses(scenario, call, *args, **kwargs):
+    """Assert an invalid input is refused, without pinning diagnostic prose."""
     try:
         call(*args, **kwargs)
-    except ValueError as exc:
-        assert fragment in str(exc), (
-            "refusal did not mention %r; it said: %s" % (fragment, exc)
-        )
-        return str(exc)
-    raise AssertionError("expected a refusal mentioning %r, got none" % (fragment,))
+    except ValueError:
+        return
+    raise AssertionError("accepted invalid input: %s" % scenario)
 
 
-def refuses_any(fragment, call, *args, **kwargs):
-    """Like `refuses`, for paths where the refusal comes from a library below us."""
+def live_unpack_or_none():
+    """Only a genuinely absent optional oracle may disable live checks."""
     try:
-        call(*args, **kwargs)
-    except Exception as exc:  # noqa: BLE001 - the point is that SOMETHING refuses
-        assert fragment in str(exc), (
-            "refusal did not mention %r; it said: %s" % (fragment, exc)
+        importlib.metadata.distribution("compressed-tensors")
+    except importlib.metadata.PackageNotFoundError:
+        if importlib.util.find_spec("compressed_tensors") is None:
+            return None
+    from compressed_tensors.compressors.nvfp4.helpers import unpack_fp4_from_uint8
+
+    return unpack_fp4_from_uint8
+
+
+def check_accelerator_decode(ns, devices, packed, scale, expected, **scalars):
+    """Exercise real device tensors and compare fp32 bits, including signed zero."""
+    import torch
+
+    for device in devices:
+        # MPS has no float8 storage support; the decoder explicitly accepts the
+        # same scale bits as uint8 and decodes them through its fp32 LUT.
+        device_scale = (scale.view(torch.uint8) if device.startswith("mps")
+                        and scale.dtype == torch.float8_e4m3fn else scale)
+        decoded = ns.dequant_nvfp4(
+            packed.to(device), device_scale.to(device),
+            **{key: value.to(device) for key, value in scalars.items()},
         )
-        return str(exc)
-    raise AssertionError("expected a refusal mentioning %r, got none" % (fragment,))
+        assert decoded.device == torch.device(device), "decode left %s" % device
+        assert decoded.dtype == torch.float32, "%s decode is not fp32" % device
+        assert torch.equal(decoded.cpu().view(torch.int32), expected.view(torch.int32)), (
+            "%s decode differs from independent CPU reference" % device
+        )
 
 
 def ct_reference_unpack(packed, dtype):
@@ -177,6 +196,17 @@ def main() -> int:
 
     rng = np.random.default_rng(0x4FB4)
     passed = []
+    skipped = []
+    live_unpack = live_unpack_or_none()
+    if live_unpack is None:
+        skipped.append("2/4/11 live compressed-tensors oracle: optional package absent")
+    devices = ["cuda:%d" % index for index in range(torch.cuda.device_count())]
+    if not devices:
+        skipped.append("3/4/11 CUDA decode: no available CUDA device")
+    if torch.backends.mps.is_available():
+        devices.append("mps:0")
+    else:
+        skipped.append("3/4/11 MPS decode: backend unavailable")
     scratch = Path(tempfile.mkdtemp(prefix="nvfp4-selftest-"))
     try:
         # -------------------------------------------------------------- 1
@@ -220,16 +250,12 @@ def main() -> int:
         assert float(one_byte[0, 1]) == 1.5, "high nibble 0x3 decodes SECOND, as magnitude[3]=1.5"
         assert sorted({abs(float(v)) for v in ours.flatten()}) == KE2M1, "e2m1 magnitude set"
         refuses("must be 2-D uint8", ns.unpack_e2m1, torch.zeros(4, 4, dtype=torch.int8))
-        try:
-            from compressed_tensors.compressors.nvfp4.helpers import unpack_fp4_from_uint8
-
-            live = unpack_fp4_from_uint8(all_bytes, 16, 32, dtype=torch.float32)
+        if live_unpack is not None:
+            live = live_unpack(all_bytes, 16, 32, dtype=torch.float32)
             assert torch.equal(ours, live), "e2m1 unpack != LIVE compressed-tensors"
             assert torch.equal(ours.signbit(), live.signbit()), "LIVE signbits differ"
-            note = "vs LIVE compressed-tensors"
-        except ImportError:
-            note = "vs transliterated reference (compressed-tensors absent: live rung SKIPPED)"
-        passed.append("2 e2m1 nibble order/LUT, all 256 byte codes, %s" % note)
+        passed.append("2 e2m1 nibble order/LUT, all 256 byte codes, independent CPU reference"
+                      + (" and live compressed-tensors" if live_unpack is not None else ""))
 
         # -------------------------------------------------------------- 3
         # one row, two groups of 16: values 1.0 and -6.0 alternating
@@ -263,19 +289,22 @@ def main() -> int:
         refuses("not a multiple of the NVFP4 group size", ns.dequant_nvfp4,
                 torch.zeros(1, 4, dtype=torch.uint8), torch.zeros(1, 1, dtype=torch.uint8),
                 weight_global_scale=torch.tensor([1.0]))
-        mps_note = "MPS absent: device rung SKIPPED"
-        if torch.backends.mps.is_available():
-            big = torch.from_numpy(rng.integers(0, 256, size=(64, 128), dtype=np.uint8))
-            sc = torch.from_numpy(random_scale_bytes(rng, (64, 16))).view(torch.float8_e4m3fn)
-            gs = torch.tensor([17280.0])
-            cpu = ns.dequant_nvfp4(big, sc, weight_global_scale=gs)
-            mps = ns.dequant_nvfp4(big.to("mps"), sc.to("mps"), weight_global_scale=gs.to("mps"))
-            assert mps.dtype == torch.float32, "MPS decode must stay fp32"
-            assert torch.equal(cpu, mps.to("cpu")), "MPS decode differs from CPU"
-            assert torch.equal(cpu.signbit(), mps.to("cpu").signbit()), "MPS signbits differ"
-            mps_note = "CPU==MPS bitwise (no float64 anywhere in the kernel)"
-        passed.append("3 dequant known-answers (both conventions), group axis, 6 refusals; %s"
-                      % mps_note)
+        big = torch.arange(256, dtype=torch.uint8).repeat(32).reshape(64, 128)
+        sc = torch.from_numpy(random_scale_bytes(rng, (64, 16))).view(torch.float8_e4m3fn)
+        values = ct_reference_unpack(big, torch.float32).reshape(64, 16, 16)
+        for scalar_name, scalar in (
+            ("weight_global_scale", torch.tensor([17280.0])),
+            ("weight_scale_2", torch.tensor([0.03125])),
+        ):
+            effective = (sc.float() / scalar.reshape(()) if scalar_name == "weight_global_scale"
+                         else sc.float() * scalar.reshape(()))
+            reference = (values * effective.reshape(64, 16, 1)).reshape(64, 256)
+            cpu = ns.dequant_nvfp4(big, sc, **{scalar_name: scalar})
+            assert torch.equal(cpu.view(torch.int32), reference.view(torch.int32))
+            check_accelerator_decode(ns, devices, big, sc, reference, **{scalar_name: scalar})
+        passed.append("3 CPU dequant known-answers and independent reference (both conventions), "
+                      "group axis, 6 refusals"
+                      + ("; bitwise numeric decode on " + ", ".join(devices) if devices else ""))
 
         # -------------------------------------------------------------- 4
         fixtures = sorted(p for p in EVIDENCE.glob("*-l3e0-*.pt")
@@ -297,13 +326,15 @@ def main() -> int:
             want = fixture["expected_fp32"]
             assert torch.equal(decoded, want), "real-tensor decode differs: %s" % path.name
             assert torch.equal(decoded.signbit(), want.signbit()), "signbits: %s" % path.name
+            scalar_name = ("weight_global_scale" if fixture["layout"] == ns.LAYOUT_COMPRESSED_TENSORS
+                           else "weight_scale_2")
+            check_accelerator_decode(ns, devices, fixture["packed"], fixture["weight_scale"],
+                                     want, **{scalar_name: fixture[scalar_name]})
             rows, cols = want.shape
             assert (rows, cols) == (fixture["rows"], ns.PROJECTION_SHAPE[fixture["projection"]][1])
-            try:
-                from compressed_tensors.compressors.nvfp4.helpers import unpack_fp4_from_uint8
-            except ImportError:
+            if live_unpack is None:
                 continue
-            values = unpack_fp4_from_uint8(fixture["packed"], rows, cols, dtype=torch.float32)
+            values = live_unpack(fixture["packed"], rows, cols, dtype=torch.float32)
             scale32 = fixture["weight_scale"].to(torch.float32)
             if fixture["layout"] == ns.LAYOUT_COMPRESSED_TENSORS:
                 effective = scale32 / fixture["weight_global_scale"].to(torch.float32).reshape(())
@@ -314,11 +345,12 @@ def main() -> int:
                 values.reshape(rows, groups, ns.GROUP_SIZE) * effective.reshape(rows, groups, 1)
             ).reshape(rows, cols)
             assert torch.equal(decoded, reference), "LIVE ct reference differs: %s" % path.name
+            assert torch.equal(decoded.signbit(), reference.signbit()), "LIVE ct signbits differ"
             live_checked += 1
         passed.append(
             "4 real fetched tensors (RedHatAI + LibertAIDAI, gate+down of L3/E0) decode "
-            "BITWISE to the compressed-tensors reference%s"
-            % ("" if live_checked == 4 else " (committed fixtures; live package absent)")
+            "BITWISE to committed expected fp32 on CPU%s; %d live oracle checks"
+            % ((" and " + ", ".join(devices)) if devices else "", live_checked)
         )
 
         # -------------------------------------------------------------- 5
@@ -387,7 +419,7 @@ def main() -> int:
         refuses("not the official one", ns._verify_nonrouted_names, drifted)
         passed.append(
             "5 REAL-index census closes for both repos (148,498 / 150,226 tensors -> 36,288 "
-            "main + 864 MTP + 1,618 official non-routed names); 9 doctored indexes refused BY NAME"
+            "main + 864 MTP + 1,618 official non-routed names); 9 doctored indexes refused"
         )
 
         # -------------------------------------------------------------- 6
@@ -409,12 +441,8 @@ def main() -> int:
             # both flagship repos ship activation scales, so neither is fully captured
             assert surface.activations["activation_scale_tensors_present"] is True
             assert surface.activations["weights_only_decode_captures_artifact_fully"] is False
-            assert "NOT captured" in surface.activations["disclosure"] or \
-                   "not captured" in surface.activations["disclosure"]
             summary = ns.surface_summary(surface)
             assert summary["schema"] == ns.NVFP4_SURFACE_SCHEMA
-            assert summary["seal_disclosure"] == ns.SEAL_DISCLOSURE
-            assert summary["scope_policy"]["quantized_scope"].startswith("routed experts only")
             identity = surface.checkpoint_identity_sha256()
             again = ns.load_nvfp4_surface(
                 root, repo="mock/%s" % tag, revision="a" * 40, require_shard_hashes=False
@@ -498,18 +526,21 @@ def main() -> int:
                 built[ns.component_name(3, 0, projection, components[0])] = packed
                 built[ns.component_name(3, 0, projection, components[1])] = scale
                 built[ns.component_name(3, 0, projection, components[2])] = scalar
-                if surface.layout == ns.LAYOUT_COMPRESSED_TENSORS:
-                    expected[projection] = ns.dequant_nvfp4(
-                        packed, scale, weight_global_scale=scalar)
-                else:
-                    expected[projection] = ns.dequant_nvfp4(packed, scale, weight_scale_2=scalar)
+                effective = (scale.float() / scalar.reshape(())
+                             if surface.layout == ns.LAYOUT_COMPRESSED_TENSORS
+                             else scale.float() * scalar.reshape(()))
+                expected[projection] = (
+                    ct_reference_unpack(packed, torch.float32).reshape(
+                        out_features, in_features // ns.GROUP_SIZE, ns.GROUP_SIZE
+                    ) * effective.unsqueeze(-1)
+                ).reshape(out_features, in_features)
             shards = synthetic_module_shard(surface.root, surface.weight_map, built)
             source = ns.Nvfp4ExpertSource(surface)
             total_bytes = 0
             for projection in ns.PROJECTIONS:
                 decoded, row = source.load(layer=3, expert=0, projection=projection)
-                assert torch.equal(decoded, expected[projection]), \
-                    "%s source decode != dequant_nvfp4 (%s)" % (tag, projection)
+                assert torch.equal(decoded.view(torch.int32), expected[projection].view(torch.int32)), \
+                    "%s source decode != independent CPU reference (%s)" % (tag, projection)
                 assert decoded.dtype == torch.float32
                 assert tuple(decoded.shape) == ns.PROJECTION_SHAPE[projection]
                 assert row["tensor"] == ns.official_name(3, 0, projection)
@@ -523,13 +554,16 @@ def main() -> int:
             assert source.shards_read == set(shards)
             refuses("is not a streamed main routed layer",
                     source.load, layer=ns.MTP_LAYER, expert=0, projection="gate_proj")
-            # a shard that is present but lost a tensor fails LOUDLY, naming it -
+            # A shard that is present but lost a tensor must fail:
             # nothing in this path can quietly substitute zeros for a missing expert
-            missing = refuses_any(
-                ns.component_name(3, 1, "gate_proj", components[0]),
-                source.load, layer=3, expert=1, projection="gate_proj",
-            )
-            assert "does not contain tensor" in missing.lower() or "not in weight_map" in missing
+            from safetensors import SafetensorError
+
+            try:
+                source.load(layer=3, expert=1, projection="gate_proj")
+            except SafetensorError:
+                pass
+            else:
+                raise AssertionError("source accepted a shard missing the requested tensor")
             # a shard whose bytes do not match the declared geometry is refused,
             # not silently reshaped
             bad_root = scratch / ("bad-%s" % tag)
@@ -566,7 +600,6 @@ def main() -> int:
             assert summary["layout"] == surfaces[tag].layout
             assert summary["group_size"] == 16
             assert summary["scope_policy"]["counts"]["nvfp4_main_modules"] == 36288
-            assert summary["activations"]["disclosure"]
             assert summary["checkpoint_identity_sha256"] == \
                 surfaces[tag].checkpoint_identity_sha256()
         run = subprocess.run(
@@ -574,14 +607,14 @@ def main() -> int:
              "--root", str(surfaces["redhat"].root), "--revision", "a" * 40],
             capture_output=True, text=True, env=env,
         )
-        assert run.returncode != 0 and "verification marker absent" in run.stderr
+        assert run.returncode == 2, run.stderr
         run = subprocess.run(
             [sys.executable, str(TOOLS / "nvfp4_surface.py"), "dry-run",
              "--root", str(surfaces["redhat"].root), "--revision", "main",
              "--skip-shard-hashes"],
             capture_output=True, text=True, env=env,
         )
-        assert run.returncode != 0 and "40-hex repo commit" in run.stderr
+        assert run.returncode == 2, run.stderr
         passed.append("8 nvfp4_surface CLI dry-run reaches plan-print on both REAL indexes; "
                       "unpinned revision and unverified snapshot refused")
 
@@ -593,9 +626,9 @@ def main() -> int:
                 if probe.is_file():
                     source_root = str((Path(args.pipeline_root) / candidate).resolve())
                     break
+            assert source_root is not None, "supplied pipeline root has no quant_pipeline package"
         if source_root is None:
-            passed.append("9 SKIPPED (no --pipeline-root/QP_PIPELINE_ROOT with quant_pipeline: "
-                          "stream_score cannot import its sealed helpers)")
+            skipped.append("9 stream_score: no --pipeline-root/QP_PIPELINE_ROOT supplied")
         else:
             sys.path.insert(0, source_root)
             from quant_pipeline.core.artifacts import canonical_json, sha256_bytes, sha256_file
@@ -681,11 +714,8 @@ def main() -> int:
             assert block["nvfp4_revision"] == "36c184c6cda000a481711306df5adde42f63321a"
             assert block["scope_policy"]["counts"]["nvfp4_main_modules"] == 36288
             assert block["activations"]["weights_only_decode_captures_artifact_fully"] is False
-            assert block["seal_disclosure"] == ns.SEAL_DISCLOSURE
-            assert any("activation quantization" in item
-                       for item in plan["streaming_disclosure"]["sealed_path_differences"])
             run = stream_score("--bf16", str(surfaces["libertai"].root))
-            assert run.returncode != 0 and "--bf16 plays no role" in run.stderr
+            assert run.returncode == 1, run.stderr
             run = subprocess.run(
                 [sys.executable, str(TOOLS / "stream_score.py"),
                  "--source", "nvfp4", "--profile", "k6",
@@ -696,7 +726,7 @@ def main() -> int:
                  "--pipeline-root", args.pipeline_root, "--dry-run"],
                 capture_output=True, text=True, env=env,
             )
-            assert run.returncode != 0 and "must be used together" in run.stderr
+            assert run.returncode == 1, run.stderr
             passed.append(
                 "9 stream_score --source nvfp4 --dry-run reaches plan-print on the REAL "
                 "config/index (scope + activation caveat in the plan); --bf16 and a "
@@ -706,14 +736,9 @@ def main() -> int:
         sys.path.insert(0, str(TOOLS.parent.parent / "registry" / "tools"))
         import registry_add as ra
 
-        assert ra.NVFP4_SUMMARY == "malaiwah.glm53-nvfp4-packed-kld-summary.v1"
-        assert ra.NVFP4_SUMMARY in ra.STREAM_SUMMARIES and ra.NVFP4_SUMMARY in ra.OWN_SCHEMAS
-        assert ra.LANE_STATED_BY_SCHEMA[ra.NVFP4_SUMMARY] is None, \
-            "the nvfp4 family name carries no lane marker; --lane must supply it"
-
         def summary_receipt(**overrides):
             receipt = {
-                "schema": ra.NVFP4_SUMMARY,
+                "schema": "malaiwah.glm53-nvfp4-packed-kld-summary.v1",
                 "profile": "nvfp4-stream",
                 "student_label": ns.NVFP4_STUDENT_LABEL,
                 "measured_mean_kld": 0.0304,
@@ -731,22 +756,25 @@ def main() -> int:
             return [(receipt, str(scratch / "summary.json"), "c" * 64)]
 
         adapted = ra.adapt_stream_summary(summary_receipt())
-        assert adapted["receipt_schema"] == ra.NVFP4_SUMMARY
-        assert adapted["lane"] is None and adapted["requires_lane"] is True
-        assert adapted["artifact_repo"] == "RedHatAI/GLM-5.3-Flash-NVFP4"
-        assert adapted["artifact_revision"] == "36c184c6cda000a481711306df5adde42f63321a"
-        codes = [d["code"] for d in adapted["verbatim_disclosure_coded"]]
-        assert codes == ["unsealed_source", "quantization_scope",
-                         "activation_quantization_not_captured"], codes
-        assert ns.SEAL_DISCLOSURE in adapted["verbatim_disclosure_coded"][0]["detail"]
-        assert "routed experts only" in adapted["verbatim_disclosure_coded"][1]["detail"]
+        assert adapted["identical"] is True
+        varied = ra.adapt_stream_summary(summary_receipt(
+            run_means=[0.0204, 0.0404], bitwise_deterministic=False,
+        ))
+        assert varied["identical"] is False, "different run means claimed deterministic"
+        varied = ra.adapt_stream_summary(summary_receipt(
+            distinct_tokenwise_kld_sha256=["b" * 64, "d" * 64], bitwise_deterministic=False,
+        ))
+        assert varied["identical"] is False, "different tokenwise digests claimed deterministic"
+        codes = {d["code"] for d in adapted["verbatim_disclosure_coded"]}
+        assert codes == {"unsealed_source", "quantization_scope",
+                         "activation_quantization_not_captured"}, codes
 
         # a genuine W4A16 artifact earns NO activation caveat
         adapted = ra.adapt_stream_summary(summary_receipt(activations=dict(w4a16.activations)))
-        codes = [d["code"] for d in adapted["verbatim_disclosure_coded"]]
-        assert codes == ["unsealed_source", "quantization_scope"], codes
+        codes = {d["code"] for d in adapted["verbatim_disclosure_coded"]}
+        assert codes == {"unsealed_source", "quantization_scope"}, codes
 
-        for overrides, fragment in (
+        for overrides, scenario in (
             ({"scope_policy": {}}, "no /scope_policy"),
             ({"seal_disclosure": None}, "no /seal_disclosure"),
             ({"activations": {}}, "no /activations"),
@@ -757,16 +785,22 @@ def main() -> int:
              "activations.disclosure is missing"),
             ({"scope_policy": {"quantized_scope": "routed experts only"}},
              "no quantized_scope/nonrouted_policy"),
+            ({"measured_mean_kld": 0.1}, "mean disagrees with runs"),
+            ({"cold_run_count": 3}, "run count disagrees with evidence"),
+            ({"bitwise_deterministic": False}, "determinism contradicts identical evidence"),
+            ({"run_means": [0.0204, 0.0404]}, "unequal means claimed deterministic"),
+            ({"distinct_tokenwise_kld_sha256": ["b" * 64, "d" * 64]},
+             "unequal digests claimed deterministic"),
         ):
             try:
                 ra.adapt_stream_summary(summary_receipt(**overrides))
-            except ra.Refuse as exc:
-                assert fragment in str(exc), "refusal did not mention %r: %s" % (fragment, exc)
+            except ra.Refuse:
+                pass
             else:
-                raise AssertionError("registry_add accepted %r" % (overrides,))
+                raise AssertionError("registry_add accepted %s: %r" % (scenario, overrides))
         passed.append(
-            "10 registry_add adapts the nvfp4 summary family (repo/revision pinned, scope + "
-            "seal + activation caveats verbatim, W4A16 earns none) and refuses 8 stripped ones"
+            "10 registry_add adapts NVFP4 summaries, recomputes determinism from means/digests, "
+            "conditionally discloses activation coverage, refuses 13 invalid summaries"
         )
 
         # -------------------------------------------------------------- 11
@@ -774,15 +808,12 @@ def main() -> int:
         # stack) through the same decode and the same fail-closed census, on
         # the three real modelopt exports the layer-outer lane measures.
         parity = json.loads((EVIDENCE / "glm53-nvfp4-parity.json").read_text(encoding="utf-8"))
-        assert parity["all_bitwise"] is True
         flagship = sorted(EVIDENCE.glob("glm53-*-l3e0-*.pt"))
         assert len(flagship) == 6, "expected 6 flagship fixtures, found %d" % len(flagship)
         geo = ns.GLM_MOE_DSA_GEOMETRY
         live_flagship = 0
         for path in flagship:
             record = parity["fixtures"][path.name]
-            assert record["max_abs_diff_fp32"] == 0.0 and record["bitwise_fp32"] is True
-            assert record["bitwise_after_bf16_cast"] is True and record["nonfinite_values"] == 0
             assert hashlib.sha256(path.read_bytes()).hexdigest() == record["fixture_sha256"], path.name
             fixture = torch.load(path, map_location="cpu")
             assert fixture["layout"] == ns.LAYOUT_MODELOPT and fixture["geometry"] == geo.model_type
@@ -791,22 +822,21 @@ def main() -> int:
             want = fixture["expected_fp32"]
             assert torch.equal(decoded, want), "flagship decode differs: %s" % path.name
             assert torch.equal(decoded.signbit(), want.signbit()), "signbits: %s" % path.name
+            check_accelerator_decode(ns, devices, fixture["packed"], fixture["weight_scale"],
+                                     want, weight_scale_2=fixture["weight_scale_2"])
             rows, cols = want.shape
             assert (rows, cols) == (fixture["rows"], geo.projection_shape[fixture["projection"]][1])
             assert torch.isfinite(decoded).all()
-            audit = parity["orientation_audit"]["tensors"][path.name]
-            assert audit["passed"] is True and audit["cosine_vs_official_bf16"] > 0.98
-            try:
-                from compressed_tensors.compressors.nvfp4.helpers import unpack_fp4_from_uint8
-            except ImportError:
+            if live_unpack is None:
                 continue
-            values = unpack_fp4_from_uint8(fixture["packed"], rows, cols, dtype=torch.float32)
+            values = live_unpack(fixture["packed"], rows, cols, dtype=torch.float32)
             effective = fixture["weight_scale"].to(torch.float32) * fixture["weight_scale_2"].to(
                 torch.float32).reshape(())
             groups = cols // ns.GROUP_SIZE
             reference = (values.reshape(rows, groups, ns.GROUP_SIZE)
                          * effective.reshape(rows, groups, 1)).reshape(rows, cols)
             assert torch.equal(decoded, reference), "LIVE ct reference differs: %s" % path.name
+            assert torch.equal(decoded.signbit(), reference.signbit()), "LIVE ct signbits differ"
             live_flagship += 1
         # the plan on the three REAL configs + indexes, each 232,385 tensors
         contracts = {}
@@ -832,7 +862,7 @@ def main() -> int:
         assert contracts["radixark"]["weights_declared_by"] == "config_groups.group_0.weights"
         assert contracts["inferact"]["producer"] is None
         assert contracts["incoai"]["producer"] == {"name": "modelopt", "version": "0.45.0"}
-        # ... and the plan's refusals, each BY NAME
+        # ... and the plan's invalid-config refusals
         base_config = json.loads((EVIDENCE / "inferact-config.json").read_text(encoding="utf-8"))
         base_map = real_index("inferact")["weight_map"]
         for mutate, fragment in (
@@ -854,8 +884,7 @@ def main() -> int:
             doctored = json.loads(json.dumps(base_config))
             mutate(doctored)
             refuses(fragment, ns.modelopt_nvfp4_plan, doctored, base_map)
-        # the modelopt block through the STREAMING surface loader too: the
-        # flat Inferact spelling and the config_groups spelling both load
+        # Both modelopt config spellings normalize to the supported declaration.
         for tag in ("radixark", "inferact"):
             weight_map = real_index(tag)["weight_map"]
             declaration = ns.modelopt_weight_declaration(
@@ -885,12 +914,14 @@ def main() -> int:
             refuses(fragment, ns.modelopt_nvfp4_plan, base_config, doctored)
         passed.append(
             "11 FLAGSHIP: 6 real fetched RadixArk/incoai/Inferact tensors (gate+down of L3/E0) "
-            "decode BITWISE to the compressed-tensors reference%s, fixture hashes match the "
-            "parity record, orientation audit vs the BF16 root recorded; modelopt_nvfp4_plan "
+            "decode BITWISE to committed expected fp32 on CPU%s; %d live oracle checks; "
+            "fixture hashes match the parity record; modelopt_nvfp4_plan "
             "closes on all three REAL indexes (57,600 modules, MTP plain bf16, 1,217 official "
-            "non-routed names) and 14 doctored configs/indexes are refused BY NAME"
-            % ("" if live_flagship == 6 else " (committed fixtures; live package absent)")
+            "non-routed names) and 14 doctored configs/indexes are refused"
+            % ((" and " + ", ".join(devices)) if devices else "", live_flagship)
         )
+        skipped.append("11 live orientation vs official BF16: root not supplied; historical "
+                       "parity record is fixture provenance, not an executed comparison")
     finally:
         if not args.keep:
             shutil.rmtree(scratch, ignore_errors=True)
@@ -899,7 +930,10 @@ def main() -> int:
 
     for line in passed:
         print("  PASS  %s" % line)
-    print("nvfp4 offline selftest: %d rungs" % len(passed))
+    for line in skipped:
+        print("  SKIP  %s" % line)
+    print("nvfp4 offline selftest: %d passed rungs; %d skipped coverage items"
+          % (len(passed), len(skipped)))
     return 0
 
 

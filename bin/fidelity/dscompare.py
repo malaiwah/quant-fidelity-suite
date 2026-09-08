@@ -29,6 +29,8 @@ The A == B short-circuit (SC-1) answers by hash proof without a matmul;
 from __future__ import annotations
 
 import functools
+import hashlib
+import json
 import os
 import sys
 from typing import Any, Dict, List, Optional, Sequence, Tuple
@@ -554,13 +556,11 @@ def run_gates(reference: Dataset, candidate: Dataset, options: Dict[str, Any]
     return gates, findings
 
 
-#: Decoder parity evidence against exllamav3 itself
-#: (engines/tools/exl3_decoder_parity_vs_exllamav3.py writes it).  Absent, or
-#: neither `all_bitwise` nor `all_bitwise_pre_hadamard` exactly true, means
-#: "no parity": the caveat then says the decoder is this repository's
-#: transcription, proven only against in-house routes.
+# Frozen historical evidence, not a user-asserted qualification flag. New native
+# observations are adopted only after review, never by overwriting this record.
 DECODER_PARITY_EVIDENCE = os.path.join(
     "engines", "tools", "layer-outer-evidence", "exl3-decoder-parity-vs-exllamav3.json")
+DECODER_PARITY_RECEIPT_SHA256 = "b2f7710b4ad83575642a598b265348d4b09807921572a4d2b25805030ca287f4"
 
 
 def _decoder_parity() -> Optional[Dict[str, Any]]:
@@ -568,14 +568,26 @@ def _decoder_parity() -> Optional[Dict[str, Any]]:
     if not os.path.isfile(path):
         return None
     try:
-        doc = F.read_json(path)
-    except Exception:
+        with open(path, "rb") as handle:
+            raw = handle.read()
+        if hashlib.sha256(raw).hexdigest() != DECODER_PARITY_RECEIPT_SHA256:
+            return None
+        doc = json.loads(raw)
+        modules = doc.get("modules") or []
+        if (doc.get("schema") != "malaiwah.exl3-decoder-parity-vs-exllamav3.v1"
+                or not modules or doc.get("modules_compared") != len(modules)):
+            return None
+        decoder = os.path.join(_REPO, "engines", "tools", "exl3hf_surface.py")
+        if (doc.get("ours") or {}).get("code_sha256") != F.sha256_file(decoder):
+            return None
+        pre_equal = all(m.get("pre_hadamard", {}).get("equal") is True for m in modules)
+        full_equal = all(m.get("equal") is True for m in modules)
+        if (doc.get("all_bitwise_pre_hadamard") is not pre_equal
+                or doc.get("all_bitwise") is not full_equal):
+            return None
+    except (OSError, ValueError):
         return None
-    if not isinstance(doc, dict):
-        return None
-    if doc.get("all_bitwise") is True or doc.get("all_bitwise_pre_hadamard") is True:
-        return doc
-    return None
+    return doc if pre_equal or full_equal else None
 
 
 def _decode_gate(reference: Dataset, candidate: Dataset, gates: Dict[str, Any],
@@ -712,10 +724,14 @@ def _reconstruction_detail(side: str, decode: Dict[str, Any],
                          "and native-forward equivalence remain unproven"
                          % (version, count, DECODER_PARITY_EVIDENCE,
                             "%.3g" % worst if worst is not None else "unrecorded"))
+        parts.append("retained samples cover codebooks %s at K=%s only; they are not "
+                     "artifact-wide or whole-model qualification"
+                     % (", ".join(sorted(parity.get("codebooks") or [])),
+                        ", ".join(str(k) for k in sorted(parity.get("k_values") or []))))
     else:
-        parts.append("the decoder has NOT been proven bitwise against exllamav3 itself "
-                     "(no %s evidence); it is proven against in-house fp64 routes and real "
-                     "payloads only" % DECODER_PARITY_EVIDENCE)
+        parts.append("no retained native parity evidence matching the reviewed receipt "
+                     "and current decoder bytes is available; decoder/native-forward "
+                     "qualification is not established by this comparison")
     parts.append("the served exllamav3 kernel's fp16 activations and on-the-fly dequant are "
                  "not in this number. The comparison is advisory")
     return ". ".join(parts) + "."

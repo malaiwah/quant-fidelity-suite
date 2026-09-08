@@ -148,6 +148,8 @@ t "vast provider contract (the twelve, offline)" \
                                            0 python3 bin/selftest_vast_contract.py
 t "lambda provider contract (the twelve, offline)" \
                                            0 python3 bin/selftest_lambda_contract.py
+t "Lambda experiment: owned launch, guardian, deadline and cleanup transitions" \
+                                           0 python3 bin/selftest_lambda_experiment.py
 t "jarvislabs provider contract (the twelve, offline)" \
                                            0 python3 bin/selftest_jl_parity.py
 # T21. Runs listed by what they PRODUCED. `qualified-unpublished` was a
@@ -189,8 +191,14 @@ t "clean-scope report: scientific qualifications survive publication" \
 if [ -n "$TPY" ]; then
   t "native parity harness refuses execution errors and missing coverage" \
                                            0 "$TPY" port/tests/selftest_parity_fail_closed.py
+  t "native EXL3 observation gates: CPU numeric and evidence regressions" \
+                                           0 "$TPY" engines/tools/selftest_exl3_native_producer_offline.py
+  t "GLM reference smoke: dense/sparse, causal prefix and stream conservation" \
+                                           0 "$TPY" port/tests/mini_ckpt_test.py
 else
   s "native parity harness refusal regressions" "CPU Torch required; no native GPU parity claimed"
+  s "native EXL3 observation gate regressions" "CPU Torch required; no native GPU parity claimed"
+  s "GLM reference smoke" "CPU Torch required; no native model qualification claimed"
 fi
 # T22. Thirteen suites that existed, passed, and were run by NOTHING -- the
 # battery's 73 rungs covered 55 of 71 selftest files on disk (LocalCoverage;

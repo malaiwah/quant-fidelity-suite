@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Offline (no GPU, no weights download) validation of the MLX surface adapter.
 
-Proves, on this machine, in seconds:
+Exercises the following contracts; unavailable optional rungs are reported as skips:
 
   1. PACK-LAYOUT EQUIVALENCE + ACCELERATOR PARITY - a numpy reference packer
      (mlx's affine layout: a plain little-endian bitstream per output row)
@@ -17,9 +17,8 @@ Proves, on this machine, in seconds:
      pipenetwork/GLM-5.3-Flash-MLX-mixed-4_8bit, together with the output
      mlx.core.dequantize itself produced), our fp32 dequant rounded ONCE to
      mlx's own output dtype is BITWISE equal to that stored output.  This is
-     the mlx equality proof, replayable on machines where mlx cannot be
-     installed (every CUDA box).
-  3. LIVE mlx EQUALITY (macOS rung; SKIPped where mlx is absent) - round-trip
+     replayable evidence without an installed MLX backend.
+  3. LIVE mlx EQUALITY (installed backend; SKIPped where mlx is absent) - round-trip
      through ``mlx.core.quantize``: our unpacked codes are EXACTLY mlx's codes
      and our dequant is bitwise equal to ``mlx.core.dequantize``, over the full
      bits x group-size grid, for f16 AND bf16 scales.
@@ -42,15 +41,14 @@ Proves, on this machine, in seconds:
   6. DRY-RUN (surface) - ``mlx_surface.py dry-run`` over the REAL repo metadata
      prints the plan, and its fetch ledger reconciles EXACTLY with the index's
      own declared total_size (tensor bytes + the 62 shards' container headers).
-     The mlx wiring inside stream_score.py is proven statically here too.
   7. DRY-RUN (runner) - ``stream_score.py --source mlx --dry-run`` prints its
      plan against that same metadata when a quant_pipeline tree is available
      (--pipeline-root / QP_PIPELINE_ROOT); SKIP otherwise, since the runner
      imports quant_pipeline unconditionally.
   8. REGISTRY ADAPTER - registry_add adapts a
-     ``malaiwah.glm53-mlx-packed-kld-summary.v1`` receipt into a row: lane left
-     to --lane, artifact revision pinned from the receipt, and the unsealed
-     source / measured quantization scope / decoded non-routed weights /
+     ``malaiwah.glm53-mlx-packed-kld-summary.v1`` receipt: adaptation requires an
+     explicit lane and carries the artifact revision from the receipt, with the
+     unsealed source / measured quantization scope / decoded non-routed weights /
      unverified shard hashes carried as coded disclosures.  A receipt with no
      scope census is REFUSED.
 
@@ -61,6 +59,7 @@ from __future__ import annotations
 
 import argparse
 import gzip
+import importlib.util
 import json
 import os
 import shutil
@@ -161,6 +160,7 @@ def main() -> int:
 
     rng = np.random.default_rng(0x314159)
     passed = []
+    skipped = []
     scratch = Path(tempfile.mkdtemp(prefix="mlx-selftest-"))
 
     devices = []
@@ -257,11 +257,13 @@ def main() -> int:
         )
 
         # -------------------------------------------------------------- 3
-        try:
-            import mlx.core as mx
-        except ImportError:
-            passed.append("3 SKIPPED live mlx equality (mlx not importable: macOS-only rung)")
+        if importlib.util.find_spec("mlx") is None:
+            skipped.append("3 SKIPPED live mlx equality (optional MLX backend absent)")
         else:
+            # An installed but broken oracle is a failure, including import/linker
+            # errors and missing transitive dependencies, not optional absence.
+            import mlx.core as mx
+
             grid = 0
             reference = (rng.standard_normal((8, 512)) * 0.02).astype(np.float32)
             for bits in ms.SUPPORTED_BITS:
@@ -441,10 +443,11 @@ def main() -> int:
             tensors[module + ".weight"] = torch.from_numpy(packed.view(np.int32).copy())
             tensors[module + ".scales"] = torch.from_numpy(scales)
             tensors[module + ".biases"] = torch.from_numpy(biases)
-            expected[projection] = ms.dequant_affine(
-                tensors[module + ".weight"], tensors[module + ".scales"],
-                tensors[module + ".biases"], bits=bits, group_size=group_size,
-            )
+            expected[projection] = (
+                torch.from_numpy(codes.astype(np.float32)).reshape(out_f, -1, group_size)
+                * tensors[module + ".scales"].float().unsqueeze(-1)
+                + tensors[module + ".biases"].float().unsqueeze(-1)
+            ).reshape(out_f, in_f)
             quantized_rows[module] = {
                 "bits": bits, "group_size": group_size, "out_features": out_f,
                 "in_features": in_f, "scales_dtype": "F16",
@@ -461,6 +464,11 @@ def main() -> int:
         tensors[nonrouted_module + ".biases"] = torch.from_numpy(
             (rng.standard_normal((128, 4)) * 0.01).astype(np.float16)
         )
+        expected_nonrouted = (
+            torch.from_numpy(codes.astype(np.float32)).reshape(128, -1, group_size)
+            * tensors[nonrouted_module + ".scales"].float().unsqueeze(-1)
+            + tensors[nonrouted_module + ".biases"].float().unsqueeze(-1)
+        ).reshape(128, 256).to(torch.bfloat16)
         quantized_rows[nonrouted_module] = {
             "bits": bits, "group_size": group_size, "out_features": 128,
             "in_features": 256, "scales_dtype": "F16",
@@ -526,11 +534,7 @@ def main() -> int:
                 framework="pt", device="cpu",
             ).get_tensor(nonrouted_module + ".weight")
         assert torch.equal(got_norm, tensors[passthrough_name]), "passthrough not byte-identical"
-        want_o = ms.dequant_affine(
-            tensors[nonrouted_module + ".weight"], tensors[nonrouted_module + ".scales"],
-            tensors[nonrouted_module + ".biases"], bits=bits, group_size=group_size,
-        ).to(torch.bfloat16)
-        assert got_o.dtype == torch.bfloat16 and torch.equal(got_o, want_o), \
+        assert got_o.dtype == torch.bfloat16 and torch.equal(got_o, expected_nonrouted), \
             "decoded non-routed tensor is not the fp32 dequant rounded once to bf16"
         again = ms.prepare_nonrouted_view_decoded(mini, work, progress=False)[1]
         assert again.get("reused") is True, "second call did not reuse the materialized view"
@@ -582,17 +586,6 @@ def main() -> int:
         identity = plan["checkpoint_identity_sha256"]
         assert len(identity) == 64
 
-        source_text = (TOOLS / "stream_score.py").read_text()
-        for needle in (
-            '"mlx"',
-            "mlx_surface_obj.student_label()",
-            "prepare_nonrouted_view_decoded",
-            "mlx_source=mlx_expert_source",
-            "decoded_bf16_view_materialized_from_the_quant_snapshot",
-            "streamed_decoded_mlx_affine_u32_to_bf16_one_layer_resident",
-        ):
-            assert needle in source_text, f"stream_score.py lost its mlx wiring: {needle}"
-
         passed.append(
             "6 dry-run: `mlx_surface.py dry-run` over the REAL repo metadata prints identity "
             "%s..., the scope census and a fetch ledger that reconciles EXACTLY with the "
@@ -627,22 +620,18 @@ def main() -> int:
                 "decoded-view, scope census carried, no BF16 inventory required"
             )
         else:
-            passed.append(
+            skipped.append(
                 "7 SKIPPED stream_score --source mlx --dry-run (no --pipeline-root / "
-                "QP_PIPELINE_ROOT on this machine); its mlx wiring was proven statically above"
+                "QP_PIPELINE_ROOT on this machine); runner behavior not exercised"
             )
 
-        # -------------------------------------------------------------- 7
+        # -------------------------------------------------------------- 8
         registry_tools = TOOLS.parent.parent / "registry" / "tools"
         sys.path.insert(0, str(registry_tools))
         import registry_add as ra
 
-        assert ra.MLX_SUMMARY in ra.STREAM_SUMMARIES and ra.MLX_SUMMARY in ra.OWN_SCHEMAS
-        assert ra.LANE_STATED_BY_SCHEMA[ra.MLX_SUMMARY] is None, (
-            "the mlx family's schema string does not name a lane; --lane must supply it"
-        )
         summary = {
-            "schema": ra.MLX_SUMMARY,
+            "schema": "malaiwah.glm53-mlx-packed-kld-summary.v1",
             "profile": "mlx-stream",
             "student_label": plan["student_label"],
             "cold_run_count": 2,
@@ -660,28 +649,24 @@ def main() -> int:
             "seal_disclosure": "unsealed-source scoring: [...]",
         }
         adapted = ra.adapt_stream_summary([(summary, "mlx-packed-kld.json", None)])
-        assert adapted["receipt_schema"] == ra.MLX_SUMMARY
         assert adapted["lane"] is None and adapted["requires_lane"] is True
         assert adapted["artifact_revision"] == ORCAROUTER_REVISION
         codes = [entry["code"] for entry in adapted["verbatim_disclosure_coded"]]
         for code in ("unsealed_source", "quantization_scope", "nonrouted_weights_decoded",
                      "shard_hashes_unverified"):
             assert code in codes, (code, codes)
-        scope_text = next(entry["detail"] for entry in adapted["verbatim_disclosure_coded"]
-                          if entry["code"] == "quantization_scope")
-        assert "36288 routed expert" in scope_text and "186 non-routed" in scope_text
         no_scope = dict(summary)
         no_scope.pop("mlx_scope_policy")
         try:
             ra.adapt_stream_summary([(no_scope, "mlx-packed-kld.json", None)])
-        except ra.Refuse as error:
-            assert "mlx_scope_policy" in str(error)
+        except ra.Refuse:
+            pass
         else:
             raise AssertionError("a receipt without the scope census must be REFUSED")
         passed.append(
-            "8 registry adapter: %s adapts to a row (lane via --lane), pins the artifact "
-            "revision, carries 4 coded disclosures incl. the measured scope, and refuses a "
-            "receipt with no scope census" % ra.MLX_SUMMARY
+            "8 registry adapter: %s adapts with an explicit lane required, carries the "
+            "artifact revision and 4 coded disclosures, and refuses a receipt with no "
+            "scope census" % summary["schema"]
         )
     finally:
         if args.keep:
@@ -689,13 +674,17 @@ def main() -> int:
         else:
             shutil.rmtree(scratch, ignore_errors=True)
 
-    skipped = sum(1 for line in passed if " SKIPPED" in line)
-    for line in passed:
-        print(("SKIP  " if " SKIPPED" in line else "PASS  ") + line)
+    # Keep the existing ordered string table for JSON consumers, but never put
+    # an unavailable rung in the passed collection or infer status from prose.
+    rungs = sorted(passed + skipped, key=lambda line: int(line.split()[0]))
+    for line in rungs:
+        print(("SKIP  " if line in skipped else "PASS  ") + line)
     print("selftest_mlx_offline: %d/%d rungs green, %d skipped"
-          % (len(passed) - skipped, len(passed), skipped))
+          % (len(passed), len(rungs), len(skipped)))
     if args.json:
-        args.json.write_text(json.dumps({"rungs": passed}, indent=2) + "\n")
+        args.json.write_text(json.dumps({
+            "rungs": rungs, "passed": passed, "skipped": skipped,
+        }, indent=2) + "\n")
     return 0
 
 

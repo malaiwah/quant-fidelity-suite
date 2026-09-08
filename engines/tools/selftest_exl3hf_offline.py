@@ -23,21 +23,20 @@ skipped rungs run there before any paid capture.
   [5] materializer mapping on a synthetic mini-checkpoint: KDA qkv/conv split,
       visual qkv fusion, bias adoption, routed skip + virtual entries,
       official-index completeness gate, sealed inventory + receipt.
-  [7] decoder parity vs exllamav3 ITSELF: every rung above compares our decoder
-      with in-house code or a transliteration (review S2-4). The receipt
-      layer-outer-evidence/exl3-decoder-parity-vs-exllamav3.json is produced by
-      exl3_decoder_parity_vs_exllamav3.py on a CUDA host (exllamav3 1.4.2 has
-      no CPU reconstruct). Here: the committed 8x8-tile windows re-decode to the
-      committed digests and equal exllamav3's committed pre-Hadamard digests
-      bitwise on ANY host; where `import exllamav3` succeeds with a CUDA device,
-      exllamav3 reconstructs the windows again and the result is re-asserted.
-      SKIPS loudly (never silently) when the receipt is absent or exllamav3
-      cannot run.
+  [7] Retained native evidence: current pre-Hadamard window bytes must match the
+      committed native digests. Complete native weights differ in that record;
+      these checks do not qualify a whole artifact or native forward.
+      A missing committed fixture is an error, not optional coverage.
+      Live oracle execution is optional unless --require-live-native is set.
+      Missing CUDA/pinned package skips visibly; failure of an installed pinned
+      native runtime fails instead of being converted into a skip.
 """
 
 from __future__ import annotations
 
 import json
+import argparse
+import importlib.metadata
 import math
 import sys
 import tempfile
@@ -57,6 +56,12 @@ import exl3hf_surface as xs  # noqa: E402
 import dione_surface as ds  # noqa: E402
 
 RESULTS = []
+SKIPPED = []
+
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument("--require-live-native", action="store_true",
+                    help="require the pinned CUDA oracle to execute; does not certify full native parity")
+args = parser.parse_args()
 
 
 def check(name, ok, detail=""):
@@ -67,7 +72,7 @@ def check(name, ok, detail=""):
 
 
 def skip(name, why):
-    RESULTS.append((name, True, f"SKIPPED: {why}"))
+    SKIPPED.append((name, why))
     print(f"[skip] {name} - {why}")
 
 
@@ -429,15 +434,12 @@ if CAMPAIGN_READER is not None:
 import exl3_decoder_parity_vs_exllamav3 as xp  # noqa: E402
 
 PARITY_RUNG = "decoder parity vs exllamav3 reconstruct"
-if not xp.DEFAULT_OUT.exists():
-    skip(PARITY_RUNG,
-         f"{xp.DEFAULT_OUT.relative_to(TOOLS.parent.parent)} absent: exllamav3 {xp.EXLLAMAV3_VERSION}'s "
-         "reconstruct is a CUDA kernel; run engines/tools/exl3_decoder_parity_vs_exllamav3.py "
-         "--install on a CUDA host (python 3.12, torch 2.11.0) to produce it")
+if not xp.FROZEN_RECEIPT.exists():
+    check(PARITY_RUNG, False, "required committed native evidence fixture is missing")
 else:
-    parity = json.loads(xp.DEFAULT_OUT.read_text(encoding="utf-8"))
+    parity = json.loads(xp.FROZEN_RECEIPT.read_text(encoding="utf-8"))
     check("parity receipt schema + pinned exllamav3 version",
-          parity.get("schema") == xp.SCHEMA and parity.get("exllamav3_version") == xp.EXLLAMAV3_VERSION
+          parity.get("schema") == xp.FROZEN_SCHEMA and parity.get("exllamav3_version") == xp.EXLLAMAV3_VERSION
           and parity.get("exllamav3_commit") == xp.EXLLAMAV3_COMMIT,
           f"{parity.get('schema')} exllamav3 {parity.get('exllamav3_version')}@{parity.get('exllamav3_commit')}")
     check("parity receipt covers both codebooks, K3 and K4, and >= 9 real modules",
@@ -464,14 +466,25 @@ else:
               window["exllamav3_pre_hadamard_sha256"] == window["ours_pre_hadamard_sha256"]
               and window["pre_hadamard"]["equal"] and window["pre_hadamard"]["differing_elements"] == 0)
         windows.append((module, trellis, suh, svh, pre))
-    try:
-        _, exl3_live, imported = xp.import_exllamav3(expect_precompiled=False)
-        if not torch.cuda.is_available():
-            raise xp.ParityError("exllamav3 imported but no CUDA device is present")
-    except Exception as exc:  # noqa: BLE001 - the skip names the failure
-        skip("exllamav3 live re-reconstruction of the committed windows",
-             f"{type(exc).__name__}: {str(exc)[:200]}")
+    unavailable = None
+    if not torch.cuda.is_available():
+        unavailable = "no CUDA device; CPU replay does not execute the native oracle"
     else:
+        try:
+            installed_version = importlib.metadata.version("exllamav3").split("+", 1)[0]
+        except importlib.metadata.PackageNotFoundError:
+            unavailable = "pinned exllamav3 package is not installed"
+        else:
+            if installed_version != xp.EXLLAMAV3_VERSION:
+                unavailable = f"native oracle requires {xp.EXLLAMAV3_VERSION}, installed {installed_version}"
+    if unavailable:
+        if args.require_live_native:
+            check("required live native oracle", False, unavailable)
+        skip("exllamav3 live re-reconstruction of the committed windows", unavailable)
+    else:
+        # Availability is established. A broken import/version/extension is now
+        # a failed requested check, never a missing-dependency skip.
+        _, exl3_live, imported = xp.import_exllamav3(expect_precompiled=False)
         device = torch.device("cuda:0")
         for module, trellis, suh, svh, pre in windows:
             marker = torch.tensor([module["marker"]], dtype=torch.int32)
@@ -487,4 +500,5 @@ else:
                   and abs(live["max_abs_diff"] - committed["max_abs_diff"]) <= 1e-12,
                   f"live {live} committed {committed}")
 
-print(f"selftest_exl3hf_offline: {sum(1 for _, ok, _ in RESULTS if ok)}/{len(RESULTS)} green")
+print(f"selftest_exl3hf_offline: {len(RESULTS)} passed, 0 failed, {len(SKIPPED)} skipped")
+print("Retained-window checks are not full native reconstruction or forward qualification.")

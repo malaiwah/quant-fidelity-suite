@@ -12,6 +12,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -77,6 +78,8 @@ class BatteryDispatchTest(unittest.TestCase):
             "SKIPPED missing fifth prerequisite",
             "SKIP missing sixth prerequisite",
             "SKIP seventh-prerequisite-must-remain-visible",
+            "[SKIP] native oracle unavailable",
+            "0 failure(s), 4 skip(s)",
         )
         for notice in notices:
             with self.subTest(notice=notice):
@@ -94,11 +97,12 @@ class BatteryDispatchTest(unittest.TestCase):
             self.assertIn(notice, result.stdout)
 
     def test_zero_skip_summary_is_not_a_skipped_test(self):
-        result, counts = self.run_battery(
-            't complete 0 printf "11 passed, 0 failed, 0 skipped\\n"'
-        )
-        self.assertEqual(result.returncode, 0, result.stdout)
-        self.assertEqual(counts, (1, 0, 0, 0))
+        for notice in ("11 passed, 0 failed, 0 skipped", "0 failure(s), 0 skip(s)"):
+            with self.subTest(notice=notice):
+                result, counts = self.run_battery(
+                    "t complete 0 printf '%s\\n' " + repr(notice))
+                self.assertEqual(result.returncode, 0, result.stdout)
+                self.assertEqual(counts, (1, 0, 0, 0))
 
     def test_nonzero_skip_summary_is_not_hidden(self):
         result, counts = self.run_battery(
@@ -124,6 +128,40 @@ class BatteryDispatchTest(unittest.TestCase):
             "t partial 0 printf '%s\\n' " + repr(notice))
         self.assertEqual(counts, (1, 0, 0, 1))
         self.assertIn("native-oracle-unavailable", result.stdout)
+
+
+class BundleCoverageTest(unittest.TestCase):
+    def child(self, text):
+        from selftest_bundle_complete import run_setup_selftest
+        with tempfile.TemporaryDirectory(prefix="qfs-bundle-coverage-") as directory:
+            script = Path(directory) / "selftest_child.py"
+            script.write_text(text, encoding="utf-8")
+            return run_setup_selftest(script)
+
+    def test_prior_pipeline_skip_cannot_hide_a_later_failure(self):
+        result = self.child(
+            "print('[skip] quant_pipeline is unavailable')\n"
+            "raise AssertionError('decoded tensor is wrong')\n")
+        self.assertEqual(result["status"], "fail")
+        self.assertNotEqual(result["returncode"], 0)
+
+    def test_pipeline_words_cannot_hide_a_missing_fixture(self):
+        result = self.child(
+            "print('quant_pipeline --pipeline-root')\n"
+            "open('a-required-fixture-that-does-not-exist')\n")
+        self.assertEqual(result["status"], "fail")
+
+    def test_explicit_dependency_absence_is_skip_not_pass(self):
+        result = self.child(
+            "raise SystemExit('pass --pipeline-root (tree containing quant_pipeline)')\n")
+        self.assertEqual(result["status"], "skip")
+        self.assertNotEqual(result["returncode"], 0)
+
+    def test_success_with_nested_skips_remains_partial(self):
+        result = self.child("print('SKIP native oracle unavailable')\n")
+        self.assertEqual(result["status"], "partial")
+        self.assertEqual(len(result["skip_notices"]), 1)
+        self.assertEqual(self.child("assert 2 + 2 == 4\n")["status"], "pass")
 
 
 if __name__ == "__main__":

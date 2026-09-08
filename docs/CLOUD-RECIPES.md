@@ -9,10 +9,56 @@ adoption and race mode are refused before provider mutation.
 executable walkthrough is [`THIRD-PARTY-QUICKSTART.md`](THIRD-PARTY-QUICKSTART.md);
 this document explains the boundary.
 
+## Lambda native-qualification experiments
+
+Lambda's missing provider-side termination deadline is an **acknowledged risk**,
+not a permanent exclusion from measurement support. The production
+`measure-cloud` dispatch above has not yet been migrated to Lambda's resource
+and receipt contracts. The separate, tested experiment entrypoint is
+`bin/lambda_native_experiment.py`; it does not pretend to produce a RunPod proof
+or an authoritative Lambda invoice.
+
+```bash
+python3 bin/lambda_native_experiment.py plan \
+  --run-dir /path/to/new-private-run \
+  --gpu-type gpu_1x_a10 --region us-east-1 \
+  --max-cost 25 --max-runtime 4h \
+  --ssh-key /path/to/private-key --ssh-key-name registered-key-name \
+  --key-file /path/to/private-lambda-key \
+  --accept-no-provider-deadline
+python3 bin/lambda_native_experiment.py run \
+  --run-dir /path/to/new-private-run --accept-no-provider-deadline
+```
+
+Planning makes read-only provider calls and snapshots a private credential; it
+creates no VM. Execution permits one durable launch POST, checks a frozen quote
+and unique ownership, authenticates the cloud-init host key, and requires both
+a lingering controller guardian and an authenticated on-VM termination backstop.
+Only the exact owned instance can be terminated; acknowledgements are not
+absence. Incomplete inventory, ambiguous launch or API failure retains liability.
+Never reset the common campaign deadline or reuse a spent plan for a retry.
+
+The VM credential travels as a separate root-owned `0600` file, never in
+arguments, userdata, bundles or observations. The driver-compatible native stack
+is pinned in `bin/requirements-cu128-py312.lock`; full-model experiments use the
+separate `bin/requirements-glm-native-py312.lock`. Python development headers
+are required for Triton, not merely the interpreter and `venv`.
+
+`run --fixture-dir <new-native-compatible-fixture>` selects complete GLM5-next
+text/cache observations rather than the EXL3 module workload. Inputs and code
+are hashed before launch, incomplete/numerically different results are retained,
+and no reference-equivalence claim follows merely from execution. Current
+experiment ceilings are operational limits, not provider-enforced cost caps;
+Lambda bills until termination and OS shutdown does not stop billing. See
+[Lambda's billing](https://docs.lambda.ai/public-cloud/billing/) and
+[instance lifecycle guidance](https://docs.lambda.ai/public-cloud/on-demand/creating-managing-instances/).
+
+
 ## What is always enforced
 
-These four safety mechanisms apply to every paid run, alongside the target,
-credential, panel and resource preflight gates.
+These mechanisms apply to production `measure-cloud` runs, alongside the target,
+credential, panel and resource preflight gates; the Lambda experiment above
+explicitly discloses its different backstop and billing capabilities.
 
 **Cost cap — `--max-cost`.** Before anything is created the controller
 computes the all-in maximum liability: the live GPU rate for the whole

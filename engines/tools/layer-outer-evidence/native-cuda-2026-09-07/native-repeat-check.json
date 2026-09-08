@@ -1,0 +1,14 @@
+{
+  "schema": "fidelity.native-repeat-observation.v1",
+  "complete": true,
+  "deterministic": true,
+  "modules": 15,
+  "forward_cases": 60,
+  "native_export_bitwise": true,
+  "historical_primary_qualification": [
+    "not-qualified",
+    "not-qualified"
+  ],
+  "whole_model_qualified": false,
+  "cache_qualified": false
+}

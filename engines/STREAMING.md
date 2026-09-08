@@ -1292,6 +1292,77 @@ full reconstruction rounding (native fp16 stages versus reference fp32).
 The native reconstruction caveat cannot be retired on pre-Hadamard parity.
 No surface reconstruction math or historical metric is changed by this correction.
 
+### Native observation continuation
+
+`tools/exl3_decoder_parity_vs_exllamav3.py` now writes a new v2 observation,
+not a replacement for the frozen v1 evidence above. Its stages are distinct:
+verified native implementation, pre-Hadamard values, full reconstructed weights,
+and native module forward. Every declared module and forward case is required;
+empty, duplicate, skipped or partial coverage cannot qualify. Comparisons require
+matching geometry/dtype, finite nonempty tensors and byte equality, including
+signed zero.
+
+On an **authorized supported CUDA host**, with the pinned wheel's matching Torch
+stack in an isolated environment, the command is:
+
+```bash
+python engines/tools/exl3_decoder_parity_vs_exllamav3.py \
+  --install --device cuda:0 \
+  --cache-dir /path/to/scratch/exl3-cache \
+  --out /path/to/new-native-observation.json
+```
+
+`--install` verifies the release wheel digest, forcibly installs it without
+dependency upgrades, then verifies the installed implementation bytes. A matching
+version string alone cannot qualify the named reference. The forward cases invoke
+the real `LinearEXL3.forward`; branch labels follow the pinned dispatch predicates,
+not a CUDA execution trace. The primary output reference uses the unchanged
+reconstructed weights; the native-weight dense comparison is diagnostic only.
+Native weight bytes are retained for both the isolated diagnostic window and
+the corresponding slice of the full reconstruction, with dtype, shape, byte
+order and content digest. This permits offline mismatch diagnosis; those saved
+windows are not artifact-wide evidence.
+Neither result qualifies whole-model logits, generation, cache behavior or serving.
+
+An existing output or the canonical v1 destination is refused. A complete strict
+JSON observation is published exclusively and atomically; serialization failure
+cannot leave a partial observation. Ranged downloads reject an ignored/mismatched
+range before reading its body and validate bounded tensor geometry. `--fetch-only`
+populates its cache but writes no native observation.
+
+No new CUDA qualification was performed for this continuation. The offline
+producer selftest is a synthetic CPU error-boundary test, not a native oracle.
+`tools/selftest_exl3hf_offline.py --require-live-native` requires execution of the
+live oracle rather than accepting its absence as a skip; it does **not** turn
+pre-Hadamard replay into full reconstruction or forward qualification. The
+comparator accepts the reviewed v1 evidence only with its exact receipt digest
+and matching current decoder source bytes; `weights_reconstructed` remains.
+
+### Live CUDA continuation
+
+The subsequent Lambda A10 / Torch 2.11 CUDA 12.8 run is retained under
+[`native-cuda-2026-09-07`](tools/layer-outer-evidence/native-cuda-2026-09-07/native-repeat-check.json).
+Both complete observations are present, not just their aggregate verdict.
+`native_export_reference` independently decodes the inputs and reproduces the
+native export's four fp16 rounding points. It matches all 15 full reconstructed
+matrices bitwise on that runtime. It shares the general-purpose PyTorch fp32
+CUDA matrix-multiply backend; this is not independent verification of BLAS.
+Two fresh processes reproduce all full native reconstruction hashes and all
+60 corresponding native-forward cases exactly.
+
+The historical comparisons still fail: native export is not the unchanged
+fp32 decoder, and native direct/unfused/fused forward programs are not a CPU
+fp64 dense matmul. No tolerance was loosened and no historical primary failure
+was overwritten. Outer dispatch labels remain predicate observations, not proof
+of the exact inner GEMV/int8/MMA kernel. `weights_reconstructed` remains, and
+neither export equality nor sampled repeatability qualifies a whole model.
+
+The separate complete-model investigation is documented in
+[`port/README.md`](../port/README.md). It found a native recurrent-state
+repeatability defect that immediate output-only checks missed, and qualifies
+an explicitly changed ordered CUDA backend under a separate runtime identity.
+That finding does not alter these historical reconstruction comparisons.
+
 The hidden-replay staging evidence separately records 98,878 present/nonempty
 files, but `hidden-replay-evidence/packed-content-verify.txt` hashes only
 400/61,711 objects (1,277,972,480 bytes) with zero mismatches, and

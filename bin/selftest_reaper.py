@@ -2812,7 +2812,7 @@ def spawn_reaped_stage():
     helper = subprocess.Popen(
         [sys.executable, "-c",
          "import subprocess,sys; "
-         "p=subprocess.Popen(['setsid','sleep','60']); "
+         "p=subprocess.Popen(['sleep','60'],start_new_session=True); "
          "print(p.pid,flush=True); raise SystemExit(p.wait())"],
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     return helper, int(helper.stdout.readline().strip())
@@ -2824,7 +2824,7 @@ def watchdog_case():
     with tempfile.TemporaryDirectory() as td:
         fs = Path(td)
         unrelated = subprocess.Popen(
-            ["setsid", "sleep", "60"],
+            ["sleep", "60"], start_new_session=True,
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         try:
             (fs / "receipts").mkdir()
@@ -2903,9 +2903,9 @@ def watchdog_case():
         fs = Path(td)
         child_file = fs / "child.pid"
         leader = subprocess.Popen(
-            ["setsid", "sh", "-c",
+            ["sh", "-c",
              "sleep 60 & echo $! > %s; sleep 1" % str(child_file)],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         try:
             record = fs / "runtime" / "stage.pgid"
             armed = subprocess.run(

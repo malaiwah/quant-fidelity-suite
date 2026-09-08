@@ -22,6 +22,7 @@ bin/verify_published_sums.py
 # exist) and gates a decode-only run on an ENCODER closure it never needs.
 bin/bootstrap_measure.sh
 bin/requirements-cu130-py312.lock
+bin/requirements-cu128-py312.lock
 bin/watchdog.sh
 bin/invoke_engine.py
 # Stock-Python remote archive writer; stdout is only path/bytes/SHA transfer
@@ -130,9 +131,10 @@ engines/tools/stream_score.py
 # which is the only place that check can be made before a paid capture.
 engines/tools/exl3hf_surface.py
 engines/tools/selftest_exl3hf_offline.py
-# Decoder parity vs exllamav3's own reconstruct; selftest_exl3hf_offline imports it
-# and its [7] rung SKIPs loudly until the receipt exists.
+# Native producer and the frozen payload windows the offline decoder check
+# actually consumes. Missing evidence is a bundle defect, not a passing skip.
 engines/tools/exl3_decoder_parity_vs_exllamav3.py
+engines/tools/layer-outer-evidence/exl3-decoder-parity-vs-exllamav3.json
 engines/tools/selftest_trellis_decode_offline.py
 # The SEALED tr3-published surface (stream_score.py --source tr3). It composes
 # exl3hf_surface for the decode, and needs official-nonrouted-names.json: the

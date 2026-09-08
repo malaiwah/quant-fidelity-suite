@@ -109,7 +109,7 @@ lane.
 
 ```bash
 cd engines/tools
-PY=/path/to/python                     # torch + safetensors; mlx optional (macOS)
+PY=/path/to/python                     # torch + safetensors; MLX backend optional
 
 # 0. offline validation (8 rungs, ~8 s, no network, no GPU)
 $PY selftest_mlx_offline.py
@@ -123,7 +123,7 @@ $PY mlx_surface.py fetch-meta --repo orcarouter/GLM-5.3-Flash-MLX \
 $PY mlx_surface.py dry-run --mlx-root /tmp/mlx-meta \
     --repo orcarouter/GLM-5.3-Flash-MLX --revision c80f6810... --skip-shard-hashes
 
-# 3. prove the dequant against mlx on real tensors (macOS; SKIPs elsewhere)
+# 3. prove dequant against an installed MLX backend (absence is an explicit skip)
 $PY mlx_surface.py crosscheck --mlx-root /tmp/mlx-meta \
     --repo orcarouter/GLM-5.3-Flash-MLX --revision c80f6810...
 

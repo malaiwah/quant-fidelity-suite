@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """Offline selftest for layer_outer's EXL3 trellis weight source.
 
-The decode ARITHMETIC is exl3hf_surface's and is proven bitwise elsewhere
-(`selftest_exl3hf_offline.py`: LUTs against an independent fp64 route, anybits
-unpack against dione_surface at K2/K3/K4/K6/K8, mcg against the campaign
-reader). What is new here, and what this file covers, is the WEIGHT SOURCE:
+The decode arithmetic is checked separately against scoped reference/evidence
+fixtures (`selftest_exl3hf_offline.py`); pre-Hadamard equality is not full native
+reconstruction or forward qualification. This file covers the WEIGHT SOURCE:
 grouping a checkpoint's payload objects per module, choosing each module's
 codebook from the object it actually carries, composing with the block-FP8
 decoder for a mixed artifact, and refusing every shape of partial or
@@ -23,8 +22,7 @@ unrecognised payload rather than loading trellis bytes as weights.
   [8] mixed trellis + block-FP8 in one subset: both hooks run, FP8 tensors
       arrive dequantized, trellis modules arrive decoded (wrldsuksgo2mars).
   [9] non-payload tensors pass through untouched, by identity.
-  [19] the rotation-layout census is the SAME TEXT in hfmeta (controller)
-       and layer_outer (pod), not merely agreeing on fixtures.
+  [19] source-text mirror assertions were retired; [13]/[24] exercise contracts.
   [20] shared_h_v1 (willfalco / jpsequeira): the H-side vector resolved by
        name from `experts.shared_h.{proj}.rank{r}`, bitwise the stock decode;
        undeclared, missing, duplicated and orphaned vectors all refuse.
@@ -54,6 +52,7 @@ import exl3hf_surface as xs  # noqa: E402
 import layer_outer as lo  # noqa: E402
 
 RESULTS = []
+SKIPPED = []
 
 
 def check(name, ok, detail=""):
@@ -373,20 +372,7 @@ def main() -> int:
                   and lazy_stats["decoded_modules"] == 2,
                   repr(lazy_stats))
 
-    # [12] the decode device reaches the decoder. The trellis decode is
-    # matmul-heavy and a host decode is ~11 h per cold run at GLM-5.3 scale,
-    # so _materialized MUST forward the capture device; a default-to-cpu
-    # signature silently reintroduces that.
-    import inspect
-    sig = inspect.signature(lo._materialized)
-    check("[12] _materialized takes a device", "device" in sig.parameters)
-    src = Path(lo.__file__).read_text()
-    import re as _re
-    calls = _re.findall(r"_materialized\((?:[^()]|\([^()]*\))*\)", src)
-    calls = [c for c in calls if "trellis_stats" in c and "Dict[str, Any]" not in c]
-    check("[12] both call sites pass device=device",
-          len(calls) >= 2 and all("device=device" in c for c in calls),
-          "call sites must forward the model device, not default to cpu: %r" % calls)
+    # [12] Execute materialization, not a signature/source-string assertion.
     dev_stats = {"decoded_modules": 0, "trellis_bits": 0}
     out6 = lo._materialized(subset, None, plan, None, torch.bfloat16,
                             {"dequantized": 0, "scales_consumed": 0, "fp8_bytes": 0},
@@ -395,6 +381,21 @@ def main() -> int:
           torch.equal(out6["%s.weight" % module_a],
                       xs.decode_payload_hf(pay_a["trellis"], pay_a["suh"], pay_a["svh"],
                                             codebook="mcg").to(torch.bfloat16)))
+    if torch.cuda.is_available():
+        gpu = torch.device("cuda:0")
+        gpu_out = lo._materialized(
+            subset, None, plan, None, torch.bfloat16,
+            {"dequantized": 0, "scales_consumed": 0, "fp8_bytes": 0},
+            {"decoded_modules": 0, "trellis_bits": 0}, device=gpu)
+        gpu_expected = xs.decode_payload_hf(
+            pay_a["trellis"].to(gpu), pay_a["suh"].to(gpu), pay_a["svh"].to(gpu),
+            codebook="mcg").to(torch.bfloat16)
+        check("[12] materialized weights reside on the requested GPU with the decoder's values",
+              gpu_out["%s.weight" % module_a].device == gpu
+              and torch.equal(gpu_out["%s.weight" % module_a], gpu_expected))
+    else:
+        SKIPPED.append("CUDA materialization device path")
+        print("SKIP [12] CUDA materialization device path: no CUDA device; source text is not execution")
 
     # [13] DRIFT GUARD: the controller's candidate block and the pod's plan are
     # two implementations of one contract that qualify_root compares for exact
@@ -677,22 +678,8 @@ def main() -> int:
     check("[18d] a sidecar whose layer set disagrees with moe_layers is refused", ok, detail)
     shutil.rmtree(td, ignore_errors=True)
 
-    # ---- rotation layouts (GLM-5.2 candidates) ----------------------------
-    # [19] The layout census is ONE rule in two files: the pod's copy in
-    # layer_outer must be the SAME TEXT as bin/fidelity/hfmeta's (the
-    # controller's), not merely agree on today's fixtures.
-    import inspect
-    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "bin"))
-    from fidelity import hfmeta as hm19
-    for fn in ("exl3_rotation_groups", "exl3_declared_module_bits", "exl3_layout_contract"):
-        check("[19] %s is byte-identical in hfmeta and layer_outer" % fn,
-              inspect.getsource(getattr(hm19, fn)) == inspect.getsource(getattr(lo, fn)))
-    check("[19] the layout constants agree",
-          hm19.EXL3_ROTATION_LAYOUTS == lo.EXL3_ROTATION_LAYOUTS
-          and hm19.EXL3_SHARED_H_TENSOR_SCHEMA == lo.EXL3_SHARED_H_TENSOR_SCHEMA
-          and hm19._EXL3_EXPERT_RE.pattern == lo._EXL3_EXPERT_RE.pattern
-          and hm19._EXL3_SHARED_H_RE.pattern == lo._EXL3_SHARED_H_RE.pattern
-          and hm19._EXL3_R7_SHARED_RE.pattern == lo._EXL3_R7_SHARED_RE.pattern)
+    # Controller/pod layout behavior is exercised in [13] and [24].
+    # Byte-identical function source is not evidence that either path ran.
 
     # [20] shared_h_v1 (willfalco / jpsequeira): the rank groups carry only
     # the I-side vector; the H-side one (svh for down, suh for gate/up) is
@@ -1025,8 +1012,8 @@ def main() -> int:
           ok, detail)
 
     passed = sum(1 for _, ok, _ in RESULTS if ok)
-    print("\nselftest_trellis_decode_offline: %d passed, %d failed"
-          % (passed, len(RESULTS) - passed))
+    print("\nselftest_trellis_decode_offline: %d passed, %d failed, %d skipped"
+          % (passed, len(RESULTS) - passed, len(SKIPPED)))
     return 0 if passed == len(RESULTS) else 1
 
 

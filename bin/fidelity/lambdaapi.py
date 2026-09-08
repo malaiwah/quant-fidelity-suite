@@ -45,14 +45,15 @@ that matter to this suite:
 SSH keys are per-account and must already be registered by NAME; Lambda does
 not accept an inline public key at launch. The user is `ubuntu`, not `root`.
 
-VERIFICATION STATUS. Every method added for provider parity (the twelve in
-docs/PROVIDER-PARITY.md) is written against the official published OpenAPI
-document (`GET /api/v1/openapi.json`, version 1.10.0, retrieved 2026-09-06)
-and is exercised only by the offline fixtures in
-`bin/selftest_lambda_contract.py`. NOTHING in this file below `available()` has
-ever run against a live Lambda account, because no credential exists on the
-controller this was written on. Each such method says so in its own docstring.
-An unverified implementation labelled as verified is worse than none.
+VERIFICATION STATUS. The contract was initially implemented from OpenAPI1.10.0
+and offline fixtures. On2026-09-07, authenticated catalog/key/inventory reads,
+prepared single-GPU launches, exact-ID lifecycle, cloud-init-pinned SSH, VM
+attestation, guarded workload retrieval and termination were exercised through
+bin/lambda_native_experiment.py. Native CUDA observations are retained in
+engines/tools/layer-outer-evidence/native-cuda-2026-09-07/. This is not proof of
+every error branch, authoritative billing reconciliation or production
+measure-cloud integration. Original offline-only notes below describe the
+implementation baseline, not the current controller's credential availability.
 """
 from __future__ import annotations
 
@@ -92,8 +93,8 @@ API_PRODUCTION_HOST = "cloud.lambda.ai"
 OPENAPI_VERSION = "1.10.0"
 
 # Sole stable default, expanded once, matching the RunPod backend's convention.
-# Absent on the controller this was written on, which is why `available()`
-# returns False and the whole parity surface below is offline-only.
+# Credential presence is checked at runtime, never inferred from old operational
+# notes. available() proves local readability, not successful API authentication.
 DEFAULT_KEY_FILE = os.path.abspath(
     os.path.expanduser("~/.config/lambda/api_key"))
 

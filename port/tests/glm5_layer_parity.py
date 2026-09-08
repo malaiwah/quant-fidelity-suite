@@ -56,10 +56,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import sys
 import time
 import traceback
+import tempfile
+from contextlib import contextmanager
 from types import SimpleNamespace
 
 import torch
@@ -109,53 +112,46 @@ class ShardReader:
         return t.to(device)
 
 
-def load_text_config(model_dir: str) -> SimpleNamespace:
+def load_text_config(model_dir: str, tests=None) -> SimpleNamespace:
     with open(os.path.join(model_dir, "config.json")) as f:
         cfg = json.load(f)
     tc = cfg.get("text_config", cfg)
-    lac = tc["linear_attn_config"]
+    tests = set(tests or ("kda", "dsa", "moe", "hc"))
     ns = SimpleNamespace(
-        arch = cfg.get("architectures", ["?"])[0],
-        hidden_size = tc["hidden_size"],
-        num_hidden_layers = tc["num_hidden_layers"],
-        rms_norm_eps = tc["rms_norm_eps"],                     # 1e-5
-        layer_types = tc["layer_types"],
-        mlp_layer_types = tc["mlp_layer_types"],
-        # KDA
-        kda_num_heads = lac["num_heads"],                      # 64
-        kda_head_dim = lac["head_dim"],                        # 128
-        kda_conv_k = lac["short_conv_kernel_size"],            # 4
-        kda_lower_bound = lac["gate_lower_bound"],             # -5.0
-        # DSA / MLA
-        num_q_heads = tc["num_attention_heads"],               # 64
-        q_lora_rank = tc["q_lora_rank"],                       # 1536
-        kv_lora_rank = tc["kv_lora_rank"],                     # 512
-        qk_nope_head_dim = tc["qk_nope_head_dim"],             # 256
-        qk_rope_head_dim = tc["qk_rope_head_dim"],             # 0
-        v_head_dim = tc["v_head_dim"],                         # 256
-        index_n_heads = tc["index_n_heads"],                   # 32
-        index_head_dim = tc["index_head_dim"],                 # 128
-        index_topk = tc["index_topk"],                         # 2048
-        index_kpool = tc["index_kpool"],                       # 4
-        index_tail = tc.get("index_kpool_always_select_tail", True),
-        # MoE
-        n_routed_experts = tc["n_routed_experts"],             # 288
-        num_experts_per_tok = tc["num_experts_per_tok"],       # 8
-        moe_intermediate_size = tc["moe_intermediate_size"],   # 2048
-        intermediate_size = tc["intermediate_size"],           # 12288
-        routed_scaling_factor = tc["routed_scaling_factor"],   # 2.5
-        n_shared_experts = tc["n_shared_experts"],             # 1
-        swiglu_limit = tc.get("swiglu_limit", 10.0),           # 10.0
-        # mHC
-        hc_mult = tc["hc_mult"],                               # 4
-        hc_sinkhorn_iters = tc["hc_sinkhorn_iters"],           # 20
-        hc_eps = tc["hc_eps"],                                 # 1e-6
-        hc_post_mult = tc.get("mhc_post_mult_value", 2.0),     # 2.0
+        arch=cfg.get("architectures", ["?"])[0],
+        hidden_size=tc["hidden_size"],
+        num_hidden_layers=tc["num_hidden_layers"],
+        rms_norm_eps=tc["rms_norm_eps"],
+        layer_types=tc["layer_types"],
+        mlp_layer_types=tc.get("mlp_layer_types", []),
     )
-    assert ns.qk_rope_head_dim == 0, "harness assumes the NoPE (qk_rope_head_dim = 0) config"
-    assert tc.get("scoring_func", "sigmoid") == "sigmoid"
-    assert tc.get("topk_method", "noaux_tc") == "noaux_tc"
-    assert tc.get("norm_topk_prob", True) is True
+    if "kda" in tests:
+        lac = tc["linear_attn_config"]
+        for name, source in (("kda_num_heads", "num_heads"), ("kda_head_dim", "head_dim"),
+                             ("kda_conv_k", "short_conv_kernel_size"),
+                             ("kda_lower_bound", "gate_lower_bound")):
+            setattr(ns, name, lac[source])
+    if "dsa" in tests:
+        ns.num_q_heads = tc["num_attention_heads"]
+        for name in ("q_lora_rank", "kv_lora_rank", "qk_nope_head_dim", "qk_rope_head_dim",
+                     "v_head_dim", "index_n_heads", "index_head_dim", "index_topk", "index_kpool"):
+            setattr(ns, name, tc[name])
+        ns.index_tail = tc.get("index_kpool_always_select_tail", True)
+        if ns.qk_rope_head_dim != 0:
+            raise ValueError("DSA harness requires NoPE (qk_rope_head_dim=0)")
+    if "moe" in tests:
+        for name in ("n_routed_experts", "num_experts_per_tok", "moe_intermediate_size",
+                     "intermediate_size", "routed_scaling_factor", "n_shared_experts"):
+            setattr(ns, name, tc[name])
+        ns.swiglu_limit = tc.get("swiglu_limit", 10.0)
+        if (tc.get("scoring_func", "sigmoid") != "sigmoid"
+                or tc.get("topk_method", "noaux_tc") != "noaux_tc"
+                or tc.get("norm_topk_prob", True) is not True):
+            raise ValueError("MoE harness requires normalized sigmoid noaux_tc routing")
+    if "hc" in tests:
+        for name in ("hc_mult", "hc_sinkhorn_iters", "hc_eps"):
+            setattr(ns, name, tc[name])
+        ns.hc_post_mult = tc.get("mhc_post_mult_value", 2.0)
     return ns
 
 
@@ -342,7 +338,7 @@ def ref_dsa_forward(R: ShardReader, key: str, x: torch.Tensor, tc: SimpleNamespa
     pos = torch.arange(T, device = device)
     allow = pos.unsqueeze(1) >= pos.unsqueeze(0)                     # allow[q, k] = k <= q
     if sparse:
-        assert T > tc.index_topk, "sparse reference only meaningful for T > index_topk"
+        # Also exercise the dense boundary through the actual sparse selector.
         allow = allow & ref_kpool_topk_indices(R, key, xf, qr, tc, device)
     scores = scores.masked_fill(~allow.unsqueeze(0), float("-inf"))
     p = torch.softmax(scores, dim = -1)
@@ -372,6 +368,8 @@ def ref_moe_forward(R: ShardReader, key: str, x: torch.Tensor, tc: SimpleNamespa
     from the checkpoint (bf16 -> fp32), never all resident. Returns (out_vllm, out_exl3act,
     diagnostics)."""
     top_k = tc.num_experts_per_tok
+    if not 1 <= top_k <= num_experts <= tc.n_routed_experts:
+        raise ValueError("expert count must cover top-k and not exceed checkpoint experts")
     rsf = tc.routed_scaling_factor
     limit = tc.swiglu_limit
     T = x.shape[1]
@@ -389,7 +387,7 @@ def ref_moe_forward(R: ShardReader, key: str, x: torch.Tensor, tc: SimpleNamespa
 
     # tie margin diagnostic: gap between the top_k-th and (top_k + 1)-th biased scores
     srt = torch.sort(biased, dim = -1, descending = True).values
-    margin = (srt[:, top_k - 1] - srt[:, top_k])
+    margin = (srt[:, top_k - 1] - srt[:, top_k]) if top_k < num_experts else None
 
     out_a = torch.zeros_like(xf)
     out_b = torch.zeros_like(xf)
@@ -419,7 +417,8 @@ def ref_moe_forward(R: ShardReader, key: str, x: torch.Tensor, tc: SimpleNamespa
     out_a = out_a + _act_vllm(g, u, limit) @ Wd.T
     out_b = out_b + _act_exl3(g, u, limit) @ Wd.T
 
-    diag = {"min_margin": margin.min().item(), "median_margin": margin.median().item()}
+    diag = {"min_margin": margin.min().item() if margin is not None else None,
+            "median_margin": margin.median().item() if margin is not None else None}
     return out_a.unsqueeze(0), out_b.unsqueeze(0), diag
 
 
@@ -472,12 +471,16 @@ def mhc_post_torch(x, residual, post_layer_mix, comb_res_mix):
 # --------------------------------------------------------------------------------------------
 
 def metrics(out: torch.Tensor, ref: torch.Tensor) -> dict:
+    if out.shape != ref.shape:
+        raise ValueError(f"shape mismatch {tuple(out.shape)} vs {tuple(ref.shape)}")
+    if not out.numel() or not torch.isfinite(out).all() or not torch.isfinite(ref).all():
+        raise ValueError("comparisons require nonempty, finite tensors")
     a = out.detach().double().flatten().cpu()
     b = ref.detach().double().flatten().cpu()
-    assert a.shape == b.shape, f"shape mismatch {tuple(out.shape)} vs {tuple(ref.shape)}"
     diff = (a - b).abs()
     ref_scale = b.abs().max().clamp_min(1e-12)
-    cos = float((a @ b) / (a.norm().clamp_min(1e-12) * b.norm().clamp_min(1e-12)))
+    cos = 1.0 if torch.equal(a, b) else float(
+        (a @ b) / (a.norm().clamp_min(1e-12) * b.norm().clamp_min(1e-12)))
     m = {
         "max_abs": float(diff.max()),
         "rel_max": float(diff.max() / ref_scale),
@@ -494,15 +497,29 @@ def metrics(out: torch.Tensor, ref: torch.Tensor) -> dict:
 
 
 class Report:
-    def __init__(self, ref_only=False, required=None):
+    def __init__(self, ref_only=False, required=None, limitations=None):
         self.rows = []
         self.failures = 0
         self.skips = 0
         self.ref_only = ref_only
-        self.required = required or {}
+        if isinstance(required, dict):
+            raise ValueError("required coverage must contain exact case names, not counts")
+        self.required = set(required or ())
+        self.limitations = list(limitations or ())
+        self.tolerances = {}
+        self.run_config = {}
 
     def add(self, name: str, m: dict | None, tol_rel: float, tol_cos: float,
             note: str = "", skip: str | None = None):
+        if not math.isfinite(tol_rel) or tol_rel < 0 or not math.isfinite(tol_cos) or not -1 <= tol_cos <= 1:
+            raise ValueError("invalid comparison tolerances")
+        if any(row[0] == name for row in self.rows):
+            raise ValueError(f"duplicate comparison case: {name}")
+        if m is not None and (not m or not all(math.isfinite(v) for v in m.values())):
+            raise ValueError("comparison metrics must be nonempty and finite")
+        if skip is None and (m is None or not {"max_abs", "rel_max", "rmse", "cosine"} <= m.keys()):
+            raise ValueError("comparison is missing required metrics")
+        self.tolerances[name] = {"rel_max": tol_rel, "cosine_min": tol_cos}
         if skip is not None:
             status = "SKIP" if self.ref_only else "FAIL"
             self.rows.append((name, None, note or skip, status))
@@ -533,20 +550,58 @@ class Report:
                 print(f"{name:44s} {m['rel_max']:>10.3e} {m['cosine']:>10.6f} {status:>8s}  {note}")
         print("=" * 100)
         print(f"{self.failures} failure(s), {self.skips} skip(s)")
-        missing = []
-        if not self.ref_only:
-            for group, count in self.required.items():
-                completed = sum(name.startswith(group + "/") and "/oracle-" not in name
-                                and m is not None for name, m, _, _ in self.rows)
-                if completed != count:
-                    missing.append(f"{group}: {completed}/{count}")
+        missing = sorted(self.required - self.observed())
+        empty_native = not self.ref_only and not self.required
+        if empty_native:
+            print("MISSING NATIVE COVERAGE: no required cases declared")
         if missing:
             print("MISSING NATIVE COVERAGE: " + ", ".join(missing))
         if self.ref_only:
             print("UNQUALIFIED / NON-NATIVE: reference-only checks; no native parity claim.")
-        elif not self.failures and not missing:
+        elif not self.failures and not missing and not empty_native:
             print("Requested layer comparisons passed; NOT whole-model/native-serving qualification.")
-        return 1 if self.failures or missing else 0
+        for limitation in self.limitations:
+            print("LIMITATION: " + limitation)
+        return 1 if self.failures or empty_native or (missing and not self.ref_only) else 0
+
+    def observed(self):
+        return {name for name, m, _, _ in self.rows if m is not None and name in self.required}
+
+    def finish(self, output=None):
+        code = self.summary()
+        if output:
+            evidence = {
+                "schema": "glm5-layer-parity-v1",
+                "scope": "native-layer-comparisons",
+                "status": "failed" if code else (
+                    "reference-only-unqualified" if self.ref_only else "requested-layer-cases-passed"),
+                "whole_model_qualified": False,
+                "native_serving_qualified": False,
+                "required_cases": sorted(self.required),
+                "observed_cases": sorted(self.observed()),
+                "passed_cases": sorted(name for name, _, _, status in self.rows
+                                       if status == "PASS" and name in self.required),
+                "missing_cases": sorted(self.required - self.observed()),
+                "limitations": self.limitations,
+                "run_config": self.run_config,
+                "comparisons": [
+                    {"case": name, "metrics": m, "note": note, "status": status,
+                     "tolerances": self.tolerances[name]}
+                    for name, m, note, status in self.rows],
+            }
+            directory = os.path.dirname(os.path.abspath(output))
+            fd, temporary = tempfile.mkstemp(prefix=".layer-parity-", suffix=".json", dir=directory)
+            try:
+                with os.fdopen(fd, "w") as stream:
+                    json.dump(evidence, stream, indent=2, allow_nan=False)
+                    stream.write("\n")
+                    stream.flush()
+                    os.fsync(stream.fileno())
+                os.replace(temporary, output)
+            finally:
+                if os.path.exists(temporary):
+                    os.unlink(temporary)
+        return code
 
 
 # --------------------------------------------------------------------------------------------
@@ -566,10 +621,14 @@ def build_exl3_model(model_dir: str):
     return config, model
 
 
+@contextmanager
 def exl3_load_module(model, key: str, device: torch.device):
     module = model.find_module(key)
-    module.load(device)
-    return module
+    try:
+        module.load(device)
+        yield module
+    finally:
+        module.unload()
 
 
 def exl3_run_dsa_cached(module, x: torch.Tensor, device: torch.device, chunk: int | None = None):
@@ -577,28 +636,30 @@ def exl3_run_dsa_cached(module, x: torch.Tensor, device: torch.device, chunk: in
     from exllamav3.cache import CacheLayer_MLA_fp16
     from exllamav3.constants import PAGE_SIZE
     bsz, S, _ = x.shape
-    assert bsz == 1
+    if bsz != 1 or S < 1 or (chunk is not None and chunk < 1):
+        raise ValueError("cached comparison requires batch=1, positive sequence and chunk")
     npages = (S + PAGE_SIZE - 1) // PAGE_SIZE
     layer = CacheLayer_MLA_fp16(None, module, 0, npages * PAGE_SIZE)
-    layer.alloc(device)
-    bt = torch.arange(npages, dtype = torch.int32, device = device).view(1, npages)
-    chunk = chunk or S
-    seqlens = torch.zeros((bsz,), dtype = torch.int32, device = device)
-    outs = []
-    for a in range(0, S, chunk):
-        b = min(a + chunk, S)
-        params = {
-            "attn_mode": "flash_attn",
-            "cache": layer,
-            "block_table": bt,
-            "cache_seqlens": seqlens,
-            "positions": seqlens.clone(),
-        }
-        outs.append(module.forward(x[:, a:b].contiguous(), params))
-        seqlens = seqlens + (b - a)
-    out = torch.cat(outs, dim = 1)
-    layer.free()
-    return out
+    try:
+        layer.alloc(device)
+        bt = torch.arange(npages, dtype=torch.int32, device=device).view(1, npages)
+        chunk = S if chunk is None else chunk
+        seqlens = torch.zeros((bsz,), dtype=torch.int32, device=device)
+        outs = []
+        for a in range(0, S, chunk):
+            b = min(a + chunk, S)
+            params = {
+                "attn_mode": "flash_attn",
+                "cache": layer,
+                "block_table": bt,
+                "cache_seqlens": seqlens,
+                "positions": seqlens.clone(),
+            }
+            outs.append(module.forward(x[:, a:b].contiguous(), params))
+            seqlens = seqlens + (b - a)
+        return torch.cat(outs, dim=1)
+    finally:
+        layer.free()
 
 
 def exl3_run_moe_truncated(R: ShardReader, key: str, x: torch.Tensor,
@@ -700,18 +761,19 @@ def exl3_run_moe_truncated(R: ShardReader, key: str, x: torch.Tensor,
             act_limit = tc.swiglu_limit,
         ),
     )
-    module.load(device)
-    out = module.forward(x, {})
-    module.unload()
-    return out
+    try:
+        module.load(device)
+        return module.forward(x, {})
+    finally:
+        module.unload()
 
 
 def exl3_run_hc(model, key: str, resid_bf16: torch.Tensor, y_half: torch.Tensor,
                 device: torch.device, source: ShardReader):
     """Check native loads against independent checkpoint values before mix/apply."""
     hc = model.find_module(key)
-    hc.load(device)
     try:
+        hc.load(device)
         tensors = tuple(source.get(f"{key}_{name}").float().to(device)
                         for name in ("fn", "base", "scale"))
         for name, expected in zip(("fn", "base", "scale"), tensors):
@@ -731,19 +793,38 @@ def exl3_run_hc(model, key: str, resid_bf16: torch.Tensor, y_half: torch.Tensor,
 # --------------------------------------------------------------------------------------------
 
 def pick_layers(tc: SimpleNamespace, args):
-    kda = args.kda_layer
-    if kda < 0:
-        kda = tc.layer_types.index("linear_attention")
-    dsa = args.dsa_layer
-    if dsa < 0:
-        dsa = tc.layer_types.index("deepseek_sparse_attention")
-    moe = args.moe_layer
-    if moe < 0:
-        moe = next(i for i, t in enumerate(tc.mlp_layer_types) if t == "sparse")
-    assert tc.layer_types[kda] == "linear_attention", f"layer {kda} is not linear_attention"
-    assert tc.layer_types[dsa] == "deepseek_sparse_attention", f"layer {dsa} is not DSA"
-    assert tc.mlp_layer_types[moe] == "sparse", f"layer {moe} mlp is not sparse"
-    return kda, dsa, moe
+    tests = set(args.tests.split(",")) if isinstance(args.tests, str) else set(args.tests)
+    result = []
+    for group, kinds, expected in (
+        ("kda", getattr(tc, "layer_types", []), "linear_attention"),
+        ("dsa", getattr(tc, "layer_types", []), "deepseek_sparse_attention"),
+        ("moe", getattr(tc, "mlp_layer_types", []), "sparse"),
+    ):
+        if group not in tests:
+            result.append(None)
+            continue
+        index = getattr(args, group + "_layer")
+        if index == -1:
+            try:
+                index = kinds.index(expected)
+            except ValueError:
+                raise ValueError(f"no {expected} layer for requested {group}") from None
+        if index < 0 or index >= len(kinds) or kinds[index] != expected:
+            raise ValueError(f"layer {index} is not {expected}")
+        result.append(index)
+    return tuple(result)
+
+
+def required_cases(tests, long_dsa=False):
+    cases = {
+        "kda": ["prefill-vs-ref", "short-vs-ref"],
+        "dsa": ["nc-vs-ref", "cached-prefill-vs-ref", "decode-vs-ref"]
+               + (["sparse-kpool-vs-ref"] if long_dsa else []),
+        "moe": ["batch-vs-ref(vllm-act)", "batch-vs-ref(exl3-act)", "bsz1-vs-ref(vllm-act)"],
+        "hc": [f"{tag}-{part}" for tag in ("decode(R=8)", "prefill(R=48)")
+               for part in ("mix-post", "mix-comb", "mix-collapsed", "apply")],
+    }
+    return {f"{group}/{case}" for group in tests for case in cases[group]}
 
 
 def main():
@@ -757,6 +838,8 @@ def main():
     ap.add_argument("--kda-layer", type = int, default = -1)
     ap.add_argument("--dsa-layer", type = int, default = -1)
     ap.add_argument("--moe-layer", type = int, default = -1)
+    ap.add_argument("--hc-layer", type=int, default=0,
+                    help="mHC layer, independent of attention/MLP kinds")
     ap.add_argument("--seq", type = int, default = 512,
                     help = "prefill length for kda/dsa (must be <= index_topk for exact DSA parity)")
     ap.add_argument("--moe-tokens", type = int, default = 64)
@@ -767,29 +850,65 @@ def main():
     ap.add_argument("--seed", type = int, default = 17)
     ap.add_argument("--ref-only", action = "store_true",
                     help = "UNQUALIFIED / NON-NATIVE: run reference oracles + self-checks only")
+    ap.add_argument("--output", help="atomically write machine-readable layer evidence (not model qualification)")
     args = ap.parse_args()
     tests = [t.strip() for t in args.tests.split(",") if t.strip()]
     if not tests or len(tests) != len(set(tests)) or set(tests) - {"kda", "dsa", "moe", "hc"}:
         ap.error("--tests must be a nonempty, unique list from {kda,dsa,moe,hc}")
+    args.tests = tests
+    if args.seq < 1 or ("kda" in tests and args.seq < 2) or args.moe_tokens < 1:
+        ap.error("sequence/token lengths must be positive; KDA split check requires --seq >= 2")
+    if args.moe_experts < 0:
+        ap.error("--moe-experts must be zero (auto) or positive")
+    if args.long_dsa and "dsa" not in tests:
+        ap.error("--long-dsa requires --tests dsa")
 
     torch.manual_seed(args.seed)
-    tc = load_text_config(args.model_dir)
+    tc = load_text_config(args.model_dir, tests)
     R = ShardReader(args.model_dir)
-    counts = {"kda": 2, "dsa": 3 + int(args.long_dsa), "moe": 3, "hc": 8}
-    rep = Report(args.ref_only, {test: counts[test] for test in tests})
+    rep = Report(args.ref_only, required_cases(tests, args.long_dsa), [
+        "Layer-local comparisons only: whole-model logits, generation and serving are untested.",
+        "Native KDA carried-state/cache parity is untested; dispatch is not instrumented.",
+        "DSA sparse cached prefill/decode, noncontiguous pages, cache reuse and multi-batch are untested.",
+    ])
+    if not args.long_dsa:
+        rep.limitations.append("Long sparse DSA is untested (--long-dsa not requested).")
 
     device = torch.device(args.device)
     cuda_ok = device.type == "cuda" and torch.cuda.is_available()
     ref_device = args.ref_device or (str(device) if cuda_ok else "cpu")
 
-    kda_l, dsa_l, moe_l = pick_layers(tc, args)
+    try:
+        kda_l, dsa_l, moe_l = pick_layers(tc, args)
+    except ValueError as error:
+        ap.error(str(error))
+    if "hc" in tests and not 0 <= args.hc_layer < len(tc.layer_types):
+        ap.error("--hc-layer must name an existing layer")
     kda_key = f"{KEY_PREFIX}.layers.{kda_l}.self_attn"
     dsa_key = f"{KEY_PREFIX}.layers.{dsa_l}.self_attn"
     moe_key = f"{KEY_PREFIX}.layers.{moe_l}.mlp"
-    hc_key = f"{KEY_PREFIX}.layers.{kda_l}.hc_attn"
+    hc_key = f"{KEY_PREFIX}.layers.{args.hc_layer}.hc_attn"
 
-    assert args.seq <= tc.index_topk, \
-        f"--seq {args.seq} > index_topk {tc.index_topk}: dense DSA reference would not be exact"
+    if "dsa" in tests and (tc.index_topk < 1 or tc.index_kpool < 1
+                           or args.seq > tc.index_topk or not tc.index_tail):
+        ap.error("dense DSA requires positive index geometry, --seq <= index_topk and always-select-tail")
+    n_experts = args.moe_experts
+    if "moe" in tests:
+        if not 1 <= tc.num_experts_per_tok <= tc.n_routed_experts:
+            ap.error("invalid checkpoint routed-expert/top-k counts")
+        if n_experts == 0:
+            full_memory = cuda_ok and torch.cuda.mem_get_info(device)[0] > 18 * (1 << 30)
+            n_experts = tc.n_routed_experts if full_memory else min(
+                max(32, tc.num_experts_per_tok), tc.n_routed_experts)
+        if not tc.num_experts_per_tok <= n_experts <= tc.n_routed_experts:
+            ap.error("--moe-experts must cover routing top-k and not exceed checkpoint experts")
+        rep.limitations.append(
+            f"MoE experts requested for comparison: {n_experts}/{tc.n_routed_experts}; "
+            f"selection={'auto' if args.moe_experts == 0 else 'explicit'}; "
+            + ("truncated router/expert population does NOT qualify full MoE."
+               if n_experts != tc.n_routed_experts else "full expert population requested."))
+    rep.run_config = dict(vars(args), effective_moe_experts=n_experts if "moe" in tests else None,
+                          selected_kda_layer=kda_l, selected_dsa_layer=dsa_l, selected_moe_layer=moe_l)
 
     print(f"model:      {args.model_dir}  ({tc.arch})")
     print(f"layers:     kda={kda_l}  dsa={dsa_l}  moe={moe_l}")
@@ -801,7 +920,8 @@ def main():
     x_kda = torch.randn(1, args.seq, H).half()
     x_kda_short = torch.randn(1, 32, H).half()
     x_dsa = torch.randn(1, args.seq, H).half()
-    x_dsa_dec = torch.randn(1, 96, H).half()
+    decode_length = min(96, tc.index_topk) if "dsa" in tests else 1
+    x_dsa_dec = torch.randn(1, decode_length, H).half()
     x_moe = torch.randn(1, args.moe_tokens, H).half()
     x_moe1 = x_moe[:, :1].contiguous()
 
@@ -820,7 +940,7 @@ def main():
         exl3_err = "--ref-only"
     if model is None and not args.ref_only:
         rep.add("native/construction", None, 0, 0, skip=exl3_err)
-        sys.exit(rep.summary())
+        sys.exit(rep.finish(args.output))
 
     # ---- KDA -------------------------------------------------------------------------------
     if "kda" in tests:
@@ -839,14 +959,13 @@ def main():
 
         if model is not None:
             try:
-                mod = exl3_load_module(model, kda_key, device)
-                out = mod.forward(x_kda.to(device), {})
-                rep.add("kda/prefill-vs-ref", metrics(out, ref_kda),
-                        tol_rel = 3e-2, tol_cos = 0.999, note = f"T={args.seq}; dispatch unverified")
-                out_s = mod.forward(x_kda_short.to(device), {})
-                rep.add("kda/short-vs-ref", metrics(out_s, ref_kda_s),
-                        tol_rel = 3e-2, tol_cos = 0.999, note = "T=32; dispatch unverified")
-                mod.unload()
+                with exl3_load_module(model, kda_key, device) as mod:
+                    out = mod.forward(x_kda.to(device), {})
+                    rep.add("kda/prefill-vs-ref", metrics(out, ref_kda),
+                            tol_rel=3e-2, tol_cos=0.999, note=f"T={args.seq}; dispatch unverified")
+                    out_s = mod.forward(x_kda_short.to(device), {})
+                    rep.add("kda/short-vs-ref", metrics(out_s, ref_kda_s),
+                            tol_rel=3e-2, tol_cos=0.999, note="T=32; dispatch unverified")
             except Exception as e:
                 traceback.print_exc()
                 rep.add("kda/exl3", None, 0, 0, skip = f"exl3 KDA failed: {type(e).__name__}: {e}")
@@ -862,33 +981,27 @@ def main():
 
         if model is not None:
             try:
-                mod = exl3_load_module(model, dsa_key, device)
-                positions = torch.zeros((1,), dtype = torch.int32, device = device)
-                out_nc = mod.forward(x_dsa.to(device),
-                                     {"attn_mode": "flash_attn_nc", "positions": positions})
-                rep.add("dsa/nc-vs-ref", metrics(out_nc, ref_dsa),
-                        tol_rel = 1e-2, tol_cos = 0.999, note = f"T={args.seq} dense (<= index_topk)")
-
-                out_c = exl3_run_dsa_cached(mod, x_dsa.to(device), device)
-                rep.add("dsa/cached-prefill-vs-ref", metrics(out_c, ref_dsa),
-                        tol_rel = 1e-2, tol_cos = 0.999, note = "paged fp16 cache, D_r=0 kernels")
-
-                out_d = exl3_run_dsa_cached(mod, x_dsa_dec.to(device), device, chunk = 1)
-                rep.add("dsa/decode-vs-ref", metrics(out_d, ref_dsa_dec),
-                        tol_rel = 1e-2, tol_cos = 0.999, note = "T=96, chunk=1 (decode kernel)")
-
-                if args.long_dsa:
-                    T_long = tc.index_topk + 256
-                    x_long = torch.randn(1, T_long, H).half()
-                    ref_sp = ref_dsa_forward(R, dsa_key, x_long, tc, ref_device, sparse = True)
-                    out_sp = mod.forward(x_long.to(device),
-                                         {"attn_mode": "flash_attn_nc",
-                                          "positions": torch.zeros((1,), dtype = torch.int32,
-                                                                   device = device)})
-                    rep.add("dsa/sparse-kpool-vs-ref", metrics(out_sp, ref_sp),
-                            tol_rel = 1e-1, tol_cos = 0.99,
-                            note = f"T={T_long} > index_topk; near-tie pool picks may differ")
-                mod.unload()
+                with exl3_load_module(model, dsa_key, device) as mod:
+                    positions = torch.zeros((1,), dtype=torch.int32, device=device)
+                    out_nc = mod.forward(x_dsa.to(device),
+                                         {"attn_mode": "flash_attn_nc", "positions": positions})
+                    rep.add("dsa/nc-vs-ref", metrics(out_nc, ref_dsa),
+                            tol_rel=1e-2, tol_cos=0.999, note=f"T={args.seq} dense (<= index_topk)")
+                    out_c = exl3_run_dsa_cached(mod, x_dsa.to(device), device)
+                    rep.add("dsa/cached-prefill-vs-ref", metrics(out_c, ref_dsa),
+                            tol_rel=1e-2, tol_cos=0.999, note="paged fp16 cache, D_r=0 kernels")
+                    out_d = exl3_run_dsa_cached(mod, x_dsa_dec.to(device), device, chunk=1)
+                    rep.add("dsa/decode-vs-ref", metrics(out_d, ref_dsa_dec),
+                            tol_rel=1e-2, tol_cos=0.999, note=f"T={decode_length}, chunk=1; dispatch unverified")
+                    if args.long_dsa:
+                        T_long = tc.index_topk + 256
+                        x_long = torch.randn(1, T_long, H).half()
+                        ref_sp = ref_dsa_forward(R, dsa_key, x_long, tc, ref_device, sparse=True)
+                        out_sp = mod.forward(x_long.to(device),
+                                             {"attn_mode": "flash_attn_nc", "positions": positions})
+                        rep.add("dsa/sparse-kpool-vs-ref", metrics(out_sp, ref_sp),
+                                tol_rel=1e-1, tol_cos=0.99,
+                                note=f"T={T_long} > index_topk; near-tie pool picks may differ")
             except Exception as e:
                 traceback.print_exc()
                 rep.add("dsa/exl3", None, 0, 0, skip = f"exl3 DSA failed: {type(e).__name__}: {e}")
@@ -897,41 +1010,31 @@ def main():
 
     # ---- MoE -------------------------------------------------------------------------------
     if "moe" in tests:
-        n_experts = args.moe_experts
-        if n_experts <= 0:
-            if cuda_ok:
-                free_b, _ = torch.cuda.mem_get_info(device)
-                n_experts = tc.n_routed_experts if free_b > 18 * (1 << 30) else 32
-            else:
-                n_experts = 32
-        n_experts = min(n_experts, tc.n_routed_experts)
         full = n_experts == tc.n_routed_experts
 
         t0 = time.time()
         ref_a, ref_b, diag = ref_moe_forward(R, moe_key, x_moe, tc, n_experts, ref_device)
         ref1_a, ref1_b, _ = ref_moe_forward(R, moe_key, x_moe1, tc, n_experts, ref_device)
         print(f"(moe reference computed in {time.time() - t0:.1f}s; experts={n_experts}, "
-              f"router tie margin: min={diag['min_margin']:.3e} median={diag['median_margin']:.3e})")
+              f"router tie margin: {diag}; null means every expert selected)")
 
         if model is not None:
             try:
                 if full:
-                    mod = exl3_load_module(model, moe_key, device)
-                    out = mod.forward(x_moe.to(device), {})
-                    out1 = mod.forward(x_moe1.to(device), {})
-                    mod.unload()
+                    with exl3_load_module(model, moe_key, device) as mod:
+                        out = mod.forward(x_moe.to(device), {})
+                        out1 = mod.forward(x_moe1.to(device), {})
                 else:
                     out = exl3_run_moe_truncated(R, moe_key, x_moe.to(device),
                                                  tc, n_experts, device)
                     out1 = exl3_run_moe_truncated(R, moe_key, x_moe1.to(device),
                                                   tc, n_experts, device)
-                tag = "288" if full else f"trunc{n_experts}"
-                rep.add(f"moe/{tag}-batch-vs-ref(vllm-act)", metrics(out, ref_a),
-                        tol_rel = 5e-2, tol_cos = 0.998, note = f"T={args.moe_tokens}")
-                rep.add(f"moe/{tag}-batch-vs-ref(exl3-act)", metrics(out, ref_b),
-                        tol_rel = 5e-2, tol_cos = 0.998, note = "same output, exl3 clamp convention")
-                rep.add(f"moe/{tag}-bsz1-vs-ref(vllm-act)", metrics(out1, ref1_a),
-                        tol_rel = 5e-2, tol_cos = 0.998, note = "T=1 routing path")
+                rep.add("moe/batch-vs-ref(vllm-act)", metrics(out, ref_a),
+                        tol_rel=5e-2, tol_cos=0.998, note=f"T={args.moe_tokens}; experts={n_experts}")
+                rep.add("moe/batch-vs-ref(exl3-act)", metrics(out, ref_b),
+                        tol_rel=5e-2, tol_cos=0.998, note="same output, exl3 clamp convention")
+                rep.add("moe/bsz1-vs-ref(vllm-act)", metrics(out1, ref1_a),
+                        tol_rel=5e-2, tol_cos=0.998, note="T=1 routing path")
             except Exception as e:
                 traceback.print_exc()
                 rep.add("moe/exl3", None, 0, 0, skip = f"exl3 MoE failed: {type(e).__name__}: {e}")
@@ -978,7 +1081,7 @@ def main():
         else:
             rep.add("hc/exl3", None, 0, 0, skip = exl3_err)
 
-    sys.exit(rep.summary())
+    sys.exit(rep.finish(args.output))
 
 
 if __name__ == "__main__":

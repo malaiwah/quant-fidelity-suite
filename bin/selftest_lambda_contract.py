@@ -3,10 +3,9 @@
 
     python3 bin/selftest_lambda_contract.py
 
-WHAT THIS CAN AND CANNOT PROVE. There is no Lambda credential on the
-controller this was written on (`LambdaCloud().available()` is False), so
-`bin/fidelity/lambdaapi.py`'s twelve parity methods have never run against a
-live Lambda account. Every fixture below is hand-built from the official
+WHAT THIS CAN AND CANNOT PROVE. These are offline fixtures, independent of
+whether this controller has a configured Lambda credential. They establish no
+live-provider qualification. Every fixture is hand-built from the official
 published OpenAPI document (`GET /api/v1/openapi.json`, version 1.10.0,
 retrieved 2026-09-06) -- `Instance`, `InstanceStatus`, `InstanceType`,
 `InstanceTypeSpecs`, `Filesystem`, `SSHKey`, `Region`, `InstanceLaunchResponse`
@@ -38,6 +37,7 @@ import tempfile
 import time
 import urllib.error
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -232,8 +232,7 @@ def credential_rungs() -> None:
               "Authorization header", refused and "empty" in message)
         refused, _ = refuses(_read_key_file, os.path.join(vault, "absent"))
         check("a missing key file is refused with its path", refused)
-        os.environ["LAMBDA_KEY_FILE"] = good
-        try:
+        with patch.dict(os.environ, {"LAMBDA_KEY_FILE": good}):
             os.chmod(good, 0o640)
             refused, _ = refuses(LambdaCloud().require)
             check("the group-readable file is refused THROUGH the adapter, "
@@ -243,8 +242,10 @@ def credential_rungs() -> None:
             os.chmod(good, 0o600)
             check("and a correct file makes the adapter available",
                   LambdaCloud().available() is True)
-        finally:
-            os.environ.pop("LAMBDA_KEY_FILE", None)
+            missing = LambdaCloud(key_file=os.path.join(vault, "absent"))
+            refused, _ = refuses(missing._load_key)
+            check("an explicit missing credential refuses instead of falling back "
+                  "to a configured credential", refused)
 
 
 def transport_rungs() -> None:

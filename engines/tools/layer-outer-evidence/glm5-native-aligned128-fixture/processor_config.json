@@ -1,0 +1,32 @@
+{
+  "image_processor": {
+    "default_to_square": false,
+    "do_convert_rgb": true,
+    "do_normalize": true,
+    "do_rescale": true,
+    "do_resize": true,
+    "image_mean": [
+      0.48145466,
+      0.4578275,
+      0.40821073
+    ],
+    "image_processor_type": "Glm5NextImageProcessor",
+    "image_std": [
+      0.26862954,
+      0.26130258,
+      0.27577711
+    ],
+    "max_image_tokens": 4,
+    "merge_size": 2,
+    "min_image_tokens": 4,
+    "patch_expand_factor": 1,
+    "patch_size": 4,
+    "resample": 3,
+    "rescale_factor": 0.00392156862745098,
+    "size": {
+      "longest_edge": 1
+    },
+    "temporal_patch_size": 2
+  },
+  "processor_class": "Glm5NextProcessor"
+}

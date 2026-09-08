@@ -247,13 +247,13 @@ def is_internal_skip(line):
             skipped = document.get("skipped") if isinstance(document, dict) else None
             return bool(skipped) if isinstance(skipped, list) else (
                 type(skipped) is int and skipped > 0)
-    if re.match(r"^(?:SKIP|SKIPPED)\b|^\[skip\]", stripped):
+    if re.match(r"^(?:skip(?:ped)?\b|\[skip(?:ped)?\])", stripped, re.IGNORECASE):
         return True
     if re.search(r"\bSKIPPED\b|\bSKIP(?:PED)?:", stripped):
         return True
     if re.match(r"^(?:PASS|FAIL|ok|\[ok\])(?:\s|$)", stripped):
         return False
-    return re.search(r"\b[1-9][0-9]* skipped\b", stripped) is not None
+    return re.search(r"\b[1-9][0-9]* (?:skipped\b|skip\(s\))", stripped) is not None
 
 
 def run_job(doc, job):

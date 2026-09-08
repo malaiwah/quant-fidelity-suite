@@ -36,8 +36,8 @@
     "bin/selftest_battery_harness.py": {
       "tier": "hermetic",
       "job": "full",
-      "seconds_xeon_x5570": 7.942,
-      "assertions_measured": 8
+      "seconds_xeon_x5570": 10.054,
+      "assertions_measured": 12
     },
     "bin/selftest_bundle_complete.py": {
       "tier": "torch",
@@ -191,11 +191,17 @@
       "seconds_xeon_x5570": 5.53,
       "assertions_measured": 108
     },
+    "bin/selftest_lambda_experiment.py": {
+      "tier": "hermetic",
+      "job": "fast",
+      "seconds_xeon_x5570": 0.171,
+      "assertions_measured": 29
+    },
     "bin/selftest_lambda_contract.py": {
       "tier": "hermetic",
       "job": "fast",
       "seconds_xeon_x5570": 1.02,
-      "assertions_measured": 210
+      "assertions_measured": 197
     },
     "bin/selftest_layer_outer.py": {
       "tier": "torch",
@@ -449,6 +455,10 @@
       "tier": "orphan-dead",
       "reason": "rc=1 at this ref: 'root timing rows bind exact target metadata' fails on two drifted model_bytes pins in bin/engines.json while config_sha256 and index_sha256 still match (LocalCoverage-report.md section 1.3d). Main has FROZEN action on it pending an explanation of how a size pin moved while content digests held. It must NOT be wired into CI or the battery until that is answered: model_bytes is an input to root fit arithmetic, the same neighbourhood as this session's failure 15. Frozen, not dead -- revisit, do not delete."
     },
+    "engines/tools/selftest_exl3_native_producer_offline.py": {
+      "tier": "torch",
+      "reason": "CPU Torch exercises independent numeric references, exact coverage, immutable observations, pinned implementation bytes and range-fetch refusals; no vendor import or CUDA/native qualification."
+    },
     "engines/tools/selftest_exl3hf_offline.py": {
       "tier": "torch",
       "reason": "needs numpy; reached indirectly through selftest_bundle_complete.py (T5g).",
@@ -480,7 +490,7 @@
     },
     "engines/tools/selftest_mlx_offline.py": {
       "tier": "torch",
-      "reason": "needs numpy; rung 3 (live mlx equality) is macOS-only and cannot run on any Linux runner, which the file says in its own output.",
+      "reason": "needs numpy; live MLX equality additionally needs a functional installed backend. MLX supports Apple Metal and Linux CPU/CUDA; missing MLX is a visible skip, not a platform assumption.",
       "missing_module_measured": "numpy"
     },
     "engines/tools/selftest_nvfp4_offline.py": {
