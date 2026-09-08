@@ -8,6 +8,17 @@ from registry rows; `annotate` does not rewrite body prose. **Correction,
 published cards. They are not asserted byte-identical to the live Hub bodies,
 and this repository update does not publish them to the Hub.
 
+**Plot publication, 2026-09-08:** the `QFS-SIZE-KL` sections and their
+`assets/qfs-glm53-k{6,8}-size-kl-panel25.*` files are published on both Hub
+cards: K6 commit `1e40b7ede0479fe0979a649155a2188c7819628d`, K8 commit
+`feac953db533aaa9378162fd6a0d145b82d9371d`. They use registry snapshot
+`598c441a2281963f1469ea4ec02d166081b3ac5a`, retain the streaming/panel25
+inspection-only predicate, and include PNG, SVG, CSV and provenance JSON.
+Both live card images were visually verified; all five uploaded files per
+model were fetched at those commits and matched byte-for-byte. Publication
+added only the plot section/assets to each existing remote card; it did not
+replace the remote body with the separately corrected local body.
+
 ```
 GLM-5.3-Flash-TR3-6bpw.README.md    malaiwah/GLM-5.3-Flash-TR3-6bpw
 GLM-5.3-Flash-TR3-8bpw.README.md    malaiwah/GLM-5.3-Flash-TR3-8bpw

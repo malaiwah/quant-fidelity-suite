@@ -230,6 +230,22 @@ MTP layer quantized at K8 (128-word trellis, MCG `0xCBAC1FED`); everything else
 embeddings, lm_head) **bit-exact native BF16**. 331.4 GB — within 1% of the
 official FP8 release's footprint. Fidelity values below retain their own lanes.
 
+<!-- QFS-SIZE-KL-BEGIN -->
+## QFS size–fidelity evidence
+
+[![Recorded serialized size versus full-vocabulary KL on panel25, streaming lane; K8 highlighted](assets/qfs-glm53-k8-size-kl-panel25.png)](https://malaiwah-qfs-explorer.hf.space/?tab=plots&measurement=measurement--glm53.k8-8bpw-stream.brandonmusic-final25&registry_revision=598c441a2281963f1469ea4ec02d166081b3ac5a&scale=auto)
+
+The **panel25 streaming-lane** measurements: 25 windows, 51,175 scored positions, full-vocabulary KL(reference || candidate) in nats, with this artifact highlighted and its peers retained. K6 is plotted at **0.013714889 nats** and K8 at **0.012384191 nats**; these are the two-run streaming receipts, not K6's five-run sealed-ep8 result. Neither clean17 values nor cross-stack FP8 measurements are mixed into this plot.
+
+This is **inspection-only, not a certified ranking**: the registry retains its scope, pipeline and missing-provenance limitations and draws no ranking line. The x-axis is recorded serialized bytes in GiB, **not VRAM**; K6/K8 use tensor-payload bytes while peers can use whole-repository bytes. The unquantized control has no recorded size, so it remains in the downloadable data with its exclusion reason rather than receiving an invented x-coordinate. No control subtraction is performed.
+
+These are descriptive means on the historical panel: its 25 windows come from four source documents and include calibration-adjacent material. They do not establish population-level, native-serving or task-quality rankings; see the scope disclosures below.
+
+[Interactive highlighted plot](https://malaiwah-qfs-explorer.hf.space/?tab=plots&measurement=measurement--glm53.k8-8bpw-stream.brandonmusic-final25&registry_revision=598c441a2281963f1469ea4ec02d166081b3ac5a&scale=auto) · [PNG](assets/qfs-glm53-k8-size-kl-panel25.png) · [SVG](assets/qfs-glm53-k8-size-kl-panel25.svg) · [CSV and exclusions](assets/qfs-glm53-k8-size-kl-panel25.csv) · [Full provenance JSON](assets/qfs-glm53-k8-size-kl-panel25.json) · [Live cached image](https://malaiwah-qfs-explorer.hf.space/plots/live.png?measurement=measurement--glm53.k8-8bpw-stream.brandonmusic-final25&scale=auto)
+
+Registry snapshot: `598c441a2281963f1469ea4ec02d166081b3ac5a`. The static plot and data are stored with this card; the live image is explicitly mutable. No model weights or measurement values were changed by this plot addition.
+<!-- QFS-SIZE-KL-END -->
+
 ## Quality — SEALED, full panel, two bitwise-identical cold runs
 
 > ### ⚠ Scope disclosure — this number is a **panel25** number

@@ -1,0 +1,364 @@
+{
+  "schema": "qfs-explorer-plots/v1",
+  "kind": "scatter",
+  "title": "GLM-5.3-Flash \u2014 size vs KL",
+  "subtitle": "Lane: streaming \u00b7 Panel: brandonmusic GLM-5.3-Flash sealed qualification panel v1 -- 25 final windows \u00b7 Reference: brandonmusic BF16 fp32 teacher logits over the 25 final windows",
+  "caution": "Lower KL is closer to the reference, only within this comparability group. x is recorded serialized size (GiB), not VRAM. Size basis is retained per point; unknown sizes and missing/non-finite KL are excluded with reasons. Group comparability is false; this plot is inspection-only and not a ranking.",
+  "scale_requested": "auto",
+  "scale": "linear",
+  "scale_note": "",
+  "y_unit": "millinats",
+  "y_unit_factor": 1000.0,
+  "registry_revision": "598c441a2281963f1469ea4ec02d166081b3ac5a",
+  "registry_snapshot": "598c441a2281",
+  "registry_origin": "fetched from the public HF dataset malaiwah/quant-fidelity-registry",
+  "registry_notes": [],
+  "highlight": {
+    "measurement_id": "measurement--glm53.k6-6bpw-stream.brandonmusic-final25",
+    "name": "malaiwah GLM-5.3-Flash TR3 6bpw (K6)",
+    "excluded": false,
+    "exclusion_reason": null
+  },
+  "group": {
+    "id": "[\"cmp--202b717f3219c414\",\"streaming\"]",
+    "title": "GLM-5.3-Flash \u2014 size vs KL",
+    "status": "false",
+    "lane": "streaming",
+    "key": "cmp--202b717f3219c414",
+    "ranking_allowed": false,
+    "ordering": "measurement identity; not a ranking",
+    "predicate": {
+      "predicate_version": "comparability-predicate/v2",
+      "comparable": "false",
+      "reasons": [
+        "harness: unrecorded for 10 members; homogeneity cannot be certified",
+        "stack: unrecorded for 11 members; homogeneity cannot be certified",
+        "replay_backend: unrecorded for 11 members; homogeneity cannot be certified",
+        "replay_env: unrecorded for 11 members; homogeneity cannot be certified",
+        "lane: members span {sealed-ep8, streaming} -- lanes are not interchangeable: where one artifact appears on two lanes it is one set of weights measured twice, not two quants, and the renderer tables non-sealed lanes apart (a same-stack pipeline with no lane declaration is the sealed-ep8 lane, per BIAS-006)",
+        "pipeline: members span {pipeline--brandonmusic.glm53-packed-kld, pipeline--malaiwah.glm53-dione-packed-kld, pipeline--malaiwah.glm53-packed-kld, pipeline--malaiwah.glm53-stream-packed-kld} -- the candidate pipeline is not a key input, and a measured pipeline effect of ~24% exists on this registry's own data",
+        "scope: members span {attn.o+attn.qkv+lm_head+mlp.down+mlp.gate+mlp.up+moe.experts+moe.shared_expert+mtp+other|head=quantized|kv=not_applicable, moe.experts+mtp|head=native|kv=bf16, moe.experts|head=native|kv=bf16} -- these are different interventions; equal nominal bpw does not make a routed-experts-only quant and a full-forward quant the same thing (docs/GGUF-MEASUREMENT.md)",
+        "hardware: unrecorded for 3 members; homogeneity cannot be certified"
+      ],
+      "secondary": {
+        "key": {
+          "status": "pass",
+          "values": [
+            "cmp--202b717f3219c414"
+          ]
+        },
+        "harness": {
+          "status": "unknown",
+          "values": [
+            "harness--1d5d479e75bb0bfa",
+            "unrecorded"
+          ]
+        },
+        "stack": {
+          "status": "unknown",
+          "values": [
+            "unrecorded"
+          ]
+        },
+        "replay_backend": {
+          "status": "unknown",
+          "values": [
+            "unrecorded"
+          ]
+        },
+        "replay_env": {
+          "status": "unknown",
+          "values": [
+            "unrecorded"
+          ]
+        },
+        "lane": {
+          "status": "fail",
+          "values": [
+            "sealed-ep8",
+            "streaming"
+          ]
+        },
+        "pipeline": {
+          "status": "fail",
+          "values": [
+            "pipeline--brandonmusic.glm53-packed-kld",
+            "pipeline--malaiwah.glm53-dione-packed-kld",
+            "pipeline--malaiwah.glm53-packed-kld",
+            "pipeline--malaiwah.glm53-stream-packed-kld"
+          ]
+        },
+        "scope": {
+          "status": "fail",
+          "values": [
+            "attn.o+attn.qkv+lm_head+mlp.down+mlp.gate+mlp.up+moe.experts+moe.shared_expert+mtp+other|head=quantized|kv=not_applicable",
+            "moe.experts+mtp|head=native|kv=bf16",
+            "moe.experts|head=native|kv=bf16"
+          ]
+        },
+        "hardware": {
+          "status": "unknown",
+          "values": [
+            "1x H200",
+            "unrecorded"
+          ]
+        }
+      },
+      "live_member_count": 11
+    },
+    "predicate_scope": "all original members of the full comparability key, before lane or model filtering",
+    "reasons": [
+      "harness: unrecorded for 10 members; homogeneity cannot be certified",
+      "stack: unrecorded for 11 members; homogeneity cannot be certified",
+      "replay_backend: unrecorded for 11 members; homogeneity cannot be certified",
+      "replay_env: unrecorded for 11 members; homogeneity cannot be certified",
+      "lane: members span {sealed-ep8, streaming} -- lanes are not interchangeable: where one artifact appears on two lanes it is one set of weights measured twice, not two quants, and the renderer tables non-sealed lanes apart (a same-stack pipeline with no lane declaration is the sealed-ep8 lane, per BIAS-006)",
+      "pipeline: members span {pipeline--brandonmusic.glm53-packed-kld, pipeline--malaiwah.glm53-dione-packed-kld, pipeline--malaiwah.glm53-packed-kld, pipeline--malaiwah.glm53-stream-packed-kld} -- the candidate pipeline is not a key input, and a measured pipeline effect of ~24% exists on this registry's own data",
+      "scope: members span {attn.o+attn.qkv+lm_head+mlp.down+mlp.gate+mlp.up+moe.experts+moe.shared_expert+mtp+other|head=quantized|kv=not_applicable, moe.experts+mtp|head=native|kv=bf16, moe.experts|head=native|kv=bf16} -- these are different interventions; equal nominal bpw does not make a routed-experts-only quant and a full-forward quant the same thing (docs/GGUF-MEASUREMENT.md)",
+      "hardware: unrecorded for 3 members; homogeneity cannot be certified",
+      "Mixed serialized-size bases: inspection only, no size\u2013KL ranking guide."
+    ],
+    "caveats": [],
+    "rule": "Different keys or lanes are never ranked together. Equal keys alone do not certify like-for-like comparison. Comparability is not a claim of general model quality.",
+    "snapshot_notes": [],
+    "key_inputs": {
+      "panel_id": "panel--glm53.brandonmusic.final25",
+      "reference_id": "reference--brandonmusic.glm53-bf16-fp32-logits.final25",
+      "metric_name": "mean_of_run_means_tokenwise_kld",
+      "direction": "reference_to_candidate",
+      "accumulation_dtype": "float64",
+      "stack_relation": "same_stack",
+      "head_policy": "native_head"
+    },
+    "full_key_member_count": 11,
+    "displayed_member_count": 8,
+    "control_measurement_ids": [
+      "measurement--glm53.bf16-stream-floor.brandonmusic-final25"
+    ],
+    "member_count_total": 8,
+    "member_count_plotted": 7,
+    "member_count_excluded": 1
+  },
+  "panel": {
+    "id": "panel--glm53.brandonmusic.final25",
+    "name": "brandonmusic GLM-5.3-Flash sealed qualification panel v1 -- 25 final windows"
+  },
+  "reference": {
+    "id": "reference--brandonmusic.glm53-bf16-fp32-logits.final25",
+    "name": "brandonmusic BF16 fp32 teacher logits over the 25 final windows"
+  },
+  "model": {
+    "name": "GLM-5.3-Flash"
+  },
+  "axes": {
+    "x": {
+      "min": 0.0,
+      "max": 308.6866455003619,
+      "label": "Serialized size (GiB; basis disclosed)",
+      "scale": "linear",
+      "ticks": [
+        0,
+        100,
+        200,
+        300
+      ],
+      "tick_labels": [
+        "0",
+        "100",
+        "200",
+        "300"
+      ]
+    },
+    "y": {
+      "min": 0.0,
+      "max": 155.20955491423007,
+      "label": "Mean KL (millinats)",
+      "scale": "linear",
+      "linthresh": null,
+      "ticks": [
+        0,
+        50,
+        100,
+        150
+      ],
+      "tick_labels": [
+        "0",
+        "50",
+        "100",
+        "150"
+      ]
+    }
+  },
+  "points": [
+    {
+      "measurement_id": "measurement--glm53.dione-3.0bpw-stream.brandonmusic-final25",
+      "artifact": "0xSero GLM-5.3-Flash EXL3 3.0bpw (Dione, K3, TP4-sliced, native BF16 head)",
+      "name": "0xSero GLM-5.3-Flash EXL3 3.0bpw (Dione, K3, TP4-sliced, native BF16 head)",
+      "label": "EXL3 3.0bpw (Dione, K3, TP4-sliced, native BF16 head)",
+      "classification": "advisory",
+      "is_control": false,
+      "is_highlight": false,
+      "revision": "8b099bf276507a17faea920deff3f62d5597fb52",
+      "size_bytes": 149556991042,
+      "size_basis": "repo_all_files",
+      "size_gib": 139.2858019489795,
+      "kl_nats": 0.050501241465423556,
+      "source_url": "https://huggingface.co/0xSero/GLM-5.3-Flash-EXL3-3.0bpw",
+      "dataset_viewer_url": "https://huggingface.co/datasets/malaiwah/quant-fidelity-registry/viewer/measurements/train?q=measurement--glm53.dione-3.0bpw-stream.brandonmusic-final25",
+      "plotted": true,
+      "exclusion_reason": null,
+      "kl_display": 50.501241465423554
+    },
+    {
+      "measurement_id": "measurement--glm53.k6-6bpw-stream.brandonmusic-final25",
+      "artifact": "malaiwah GLM-5.3-Flash TR3 6bpw (K6)",
+      "name": "malaiwah GLM-5.3-Flash TR3 6bpw (K6)",
+      "label": "TR3 6bpw (K6)",
+      "classification": "advisory",
+      "is_control": false,
+      "is_highlight": true,
+      "revision": null,
+      "size_bytes": 253536370680,
+      "size_basis": "tensor_payload",
+      "size_gib": 236.12414550036192,
+      "kl_nats": 0.013714888822596553,
+      "source_url": "https://huggingface.co/malaiwah/GLM-5.3-Flash-TR3-6bpw",
+      "dataset_viewer_url": "https://huggingface.co/datasets/malaiwah/quant-fidelity-registry/viewer/measurements/train?q=measurement--glm53.k6-6bpw-stream.brandonmusic-final25",
+      "plotted": true,
+      "exclusion_reason": null,
+      "kl_display": 13.714888822596553
+    },
+    {
+      "measurement_id": "measurement--glm53.k8-8bpw-stream.brandonmusic-final25",
+      "artifact": "malaiwah GLM-5.3-Flash TR3 8bpw (K8)",
+      "name": "malaiwah GLM-5.3-Flash TR3 8bpw (K8)",
+      "label": "TR3 8bpw (K8)",
+      "classification": "advisory",
+      "is_control": false,
+      "is_highlight": false,
+      "revision": null,
+      "size_bytes": 331449761784,
+      "size_basis": "tensor_payload",
+      "size_gib": 308.6866455003619,
+      "kl_nats": 0.012384191023436866,
+      "source_url": "https://huggingface.co/malaiwah/GLM-5.3-Flash-TR3-8bpw",
+      "dataset_viewer_url": "https://huggingface.co/datasets/malaiwah/quant-fidelity-registry/viewer/measurements/train?q=measurement--glm53.k8-8bpw-stream.brandonmusic-final25",
+      "plotted": true,
+      "exclusion_reason": null,
+      "kl_display": 12.384191023436866
+    },
+    {
+      "measurement_id": "measurement--glm53.tr3-4bpw-stream.brandonmusic-final25",
+      "artifact": "Mia-AiLab GLM-5.3-Flash EXL3 TR3 4bpw (byte-identical mirror of brandonmusic's)",
+      "name": "Mia-AiLab GLM-5.3-Flash EXL3 TR3 4bpw (byte-identical mirror of brandonmusic's)",
+      "label": "EXL3 TR3 4bpw (byte-identical mirror of brandonmusic's)",
+      "classification": "advisory",
+      "is_control": false,
+      "is_highlight": false,
+      "revision": "024db9f7e9871e8efdf21538ba55af7442be3cd5",
+      "size_bytes": 175715854761,
+      "size_basis": "repo_all_files",
+      "size_gib": 163.648142256774,
+      "kl_nats": 0.02550342763436377,
+      "source_url": "https://huggingface.co/Mia-AiLab/GLM-5.3-Flash-EXL3-TR3-4bpw",
+      "dataset_viewer_url": "https://huggingface.co/datasets/malaiwah/quant-fidelity-registry/viewer/measurements/train?q=measurement--glm53.tr3-4bpw-stream.brandonmusic-final25",
+      "plotted": true,
+      "exclusion_reason": null,
+      "kl_display": 25.503427634363767
+    },
+    {
+      "measurement_id": "measurement--glm53.turbo-2.05bpw-stream.brandonmusic-final25",
+      "artifact": "turboderp GLM-5.3-Flash EXL3 2.05bpw (stock exllamav3, mul1, quantized head at 5 bits)",
+      "name": "turboderp GLM-5.3-Flash EXL3 2.05bpw (stock exllamav3, mul1, quantized head at 5 bits)",
+      "label": "EXL3 2.05bpw (stock exllamav3, mul1, quantized head at 5 bits)",
+      "classification": "advisory",
+      "is_control": false,
+      "is_highlight": false,
+      "revision": "51058cd551c7e570d87bd32a4adee720edce2349",
+      "size_bytes": 85233484348,
+      "size_basis": "repo_all_files",
+      "size_gib": 79.37986808642745,
+      "kl_nats": 0.12163767673339457,
+      "source_url": "https://huggingface.co/turboderp/GLM-5.3-Flash-exl3",
+      "dataset_viewer_url": "https://huggingface.co/datasets/malaiwah/quant-fidelity-registry/viewer/measurements/train?q=measurement--glm53.turbo-2.05bpw-stream.brandonmusic-final25",
+      "plotted": true,
+      "exclusion_reason": null,
+      "kl_display": 121.63767673339457
+    },
+    {
+      "measurement_id": "measurement--glm53.turbo-4.05bpw-stream.brandonmusic-final25",
+      "artifact": "turboderp GLM-5.3-Flash EXL3 4.05bpw (stock exllamav3, mul1, quantized head)",
+      "name": "turboderp GLM-5.3-Flash EXL3 4.05bpw (stock exllamav3, mul1, quantized head)",
+      "label": "EXL3 4.05bpw (stock exllamav3, mul1, quantized head)",
+      "classification": "advisory",
+      "is_control": false,
+      "is_highlight": false,
+      "revision": "2a30229e67012798ba9f0cd832bb78abf4c363d5",
+      "size_bytes": 165151543361,
+      "size_basis": "repo_all_files",
+      "size_gib": 153.80936056468636,
+      "kl_nats": 0.025526426915472484,
+      "source_url": "https://huggingface.co/turboderp/GLM-5.3-Flash-exl3",
+      "dataset_viewer_url": "https://huggingface.co/datasets/malaiwah/quant-fidelity-registry/viewer/measurements/train?q=measurement--glm53.turbo-4.05bpw-stream.brandonmusic-final25",
+      "plotted": true,
+      "exclusion_reason": null,
+      "kl_display": 25.526426915472484
+    },
+    {
+      "measurement_id": "measurement--glm53.vcruz-k2-2bpw-stream.brandonmusic-final25",
+      "artifact": "vcruz305 GLM-5.3-Flash EXL3 K2 (stock-exllamav3 HF layout, mcg, routed experts only, native BF16 head)",
+      "name": "vcruz305 GLM-5.3-Flash EXL3 K2 (stock-exllamav3 HF layout, mcg, routed experts only, native BF16 head)",
+      "label": "EXL3 K2 (stock-exllamav3 HF layout, mcg, routed experts only, native BF16 head)",
+      "classification": "advisory",
+      "is_control": false,
+      "is_highlight": false,
+      "revision": "1718dd403534fd369e82d676e55a50dc19630ffc",
+      "size_bytes": 97767357064,
+      "size_basis": "repo_all_files",
+      "size_gib": 91.05294669419527,
+      "kl_nats": 0.15520955491423008,
+      "source_url": "https://huggingface.co/vcruz305/GLM-5.3-Flash-EXL3-K2",
+      "dataset_viewer_url": "https://huggingface.co/datasets/malaiwah/quant-fidelity-registry/viewer/measurements/train?q=measurement--glm53.vcruz-k2-2bpw-stream.brandonmusic-final25",
+      "plotted": true,
+      "exclusion_reason": null,
+      "kl_display": 155.20955491423007
+    }
+  ],
+  "exclusions": [
+    {
+      "measurement_id": "measurement--glm53.bf16-stream-floor.brandonmusic-final25",
+      "artifact": "GLM-5.3-Flash BF16 @a6c167b6",
+      "name": "GLM-5.3-Flash BF16 @a6c167b6",
+      "label": "BF16 @a6c167b6",
+      "classification": "advisory",
+      "is_control": true,
+      "is_highlight": false,
+      "revision": "a6c167b62691b2bac901344b65cb651a70f53e43",
+      "size_bytes": null,
+      "size_basis": "unknown",
+      "size_gib": null,
+      "kl_nats": 0.011505922619330299,
+      "source_url": "https://huggingface.co/zai-org/GLM-5.3-Flash-BF16",
+      "dataset_viewer_url": "https://huggingface.co/datasets/malaiwah/quant-fidelity-registry/viewer/measurements/train?q=measurement--glm53.bf16-stream-floor.brandonmusic-final25",
+      "plotted": false,
+      "kl_display": null,
+      "exclusion_reason": "serialized size not recorded"
+    }
+  ],
+  "pareto": {
+    "shown": false,
+    "order": [],
+    "note": ""
+  },
+  "links": {
+    "registry_dataset": "https://huggingface.co/datasets/malaiwah/quant-fidelity-registry",
+    "immutable_registry_records": "https://huggingface.co/datasets/malaiwah/quant-fidelity-registry/resolve/598c441a2281963f1469ea4ec02d166081b3ac5a/data/measurements.jsonl",
+    "dataset_viewer_measurements": "https://huggingface.co/datasets/malaiwah/quant-fidelity-registry/viewer/measurements/train",
+    "viewer_note": "The dataset viewer searches live data; only the Explorer and raw records above pin this registry snapshot."
+  },
+  "render": {
+    "width": 840,
+    "height": 580,
+    "max_points": 48
+  }
+}
