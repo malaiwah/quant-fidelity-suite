@@ -70,6 +70,15 @@ def verify_seal(value, field):
         raise JobsError("Document bytes do not match their seal: " + field)
 
 
+@lru_cache(maxsize=1)
+def _scope_validator():
+    from .data import _private_module
+    schema = _private_module("_explorer_job_schema", ROOT / "registry/tools/_minischema.py")
+    validator = schema.Registry(str(ROOT / "registry/schema"))
+    validator.docs["scope-input.schema.json"] = {"$ref": "artifact.schema.json#/properties/scope"}
+    return validator
+
+
 def _plain(value):
     if is_dataclass(value):
         return _plain(asdict(value))
@@ -200,7 +209,9 @@ def presets():
                     "model_repository": "malaiwah/GLM-5.2-SIQ-Fruit-bf16", "model_revision": "ef68013aa6e16453cf52b5b77647f72fbe258c3c",
                     "panel": {"kind": "bundled", "path": "engines/panels/panel--fruit.malaiwah.heldout-v1", "role": "final"},
                     "unexpected_allowlist": "engines/tools/layer-outer-evidence/fruit-unexpected-keys.json",
-                    "recommended_flavor": "cpu-upgrade", "scope_note": "Heavier trained Fruit proxy; declared indexer/MTP omissions retained. Not an assistant or upstream-model quality claim."})
+                    "recommended_flavor": "cpu-performance", "recommended_timeout_seconds": 1200,
+                    "recommendation_basis": "Observed two-capture/reproduction Job completed in 693 seconds on CPU Performance; not a runtime guarantee. Requote current prices and choose your own ceiling.",
+                    "scope_note": "Heavier trained Fruit proxy; declared indexer/MTP omissions retained. Not an assistant or upstream-model quality claim."})
     return entries
 
 
@@ -320,6 +331,32 @@ def _dataset_metadata(actor, repo, revision, mount_path):
             "manifest_bytes": size, "descriptor": descriptor, "metadata_files": metadata}
 
 
+def _registry_metadata(actor, repo, revision):
+    """Stage canonical JSON bytes; Hub dataset mounts may expose transformed data."""
+    _identity(repo, revision)
+    names = sorted(name for name in actor.client().list_repo_files(repo, repo_type="dataset", revision=revision)
+                   if re.fullmatch(r"(?:data/[A-Za-z0-9_.-]+\.jsonl|schema/[A-Za-z0-9_.-]+\.json|index\.json)", name))
+    if not names or len(names) > MAX_FILES:
+        raise JobsError("Registry metadata inventory is empty or unbounded.")
+    metadata, total = [], 0
+    for name in names:
+        raw, sha, size = _json_download(actor, repo, revision, name, repo_type="dataset", parse_json=False)
+        try:
+            if name.endswith(".jsonl"):
+                for line in raw.splitlines():
+                    if line.strip(): json.loads(line)
+            else:
+                json.loads(raw)
+        except (ValueError, UnicodeError):
+            raise JobsError("Registry metadata is not intact JSON: " + name) from None
+        total += size
+        if total > 64 * 1024**2:
+            raise JobsError("Registry metadata exceeds the bounded private staging allowance.")
+        metadata.append({"path": name, "sha256": sha, "bytes": size})
+    return {"kind": "staged", "repository": repo, "revision": revision,
+            "mount_path": "/inputs/plan/datasets/registry", "metadata_files": metadata}
+
+
 def _signing_key():
     secret = os.environ.get("QFS_WORKFLOW_SIGNING_KEY") or os.environ.get("OAUTH_CLIENT_SECRET")
     return hashlib.sha256(("qfs-launch-ticket-v1:" + secret).encode()).digest() if secret else _LOCAL_SIGNING
@@ -382,7 +419,7 @@ def _prepare(actor, spec, registry=None):
     if mode not in ("root", "candidate", "compare"):
         raise JobsError("Choose root capture, candidate measurement, or existing-dataset comparison.")
     source, image = _source_identity()
-    timeout = request.get("timeout_seconds", 600)
+    timeout = request.get("timeout_seconds", request.get("recommended_timeout_seconds", 600))
     if type(timeout) is not int or not 60 <= timeout <= 7200:
         raise JobsError("Job deadline must be 60–7200 seconds.")
     try:
@@ -418,6 +455,8 @@ def _prepare(actor, spec, registry=None):
             doc, _, _ = _json_download(actor, panel["repository"], panel["revision"], panel["path"] + "/panel.json", repo_type="dataset")
             if doc.get("schema") != "quant-pipeline.glm53-token-panel.v1":
                 raise JobsError("Select the original token-panel tree, not a sealed capture's internal panel directory.")
+            if not re.fullmatch(r"panel--[A-Za-z0-9_.-]+", str(doc.get("panel_id", ""))):
+                raise JobsError("Raw panel_id must start with panel-- and use a portable identifier; fix it before spending.")
             panel["mount_path"] = "/inputs/panel"
     tokenizer = None
     if mode == "candidate":
@@ -437,6 +476,9 @@ def _prepare(actor, spec, registry=None):
             scope, _, _ = _json_download(actor, model["repository"], model["revision"], "scope.json")
         if not isinstance(scope, dict) or not isinstance(scope.get("assignments"), list) or not scope["assignments"]:
             raise JobsError("Candidate capture requires an explicit nonempty intervention scope.")
+        errors = _scope_validator().validate(scope, "scope-input.schema.json")
+        if errors:
+            raise JobsError("Candidate scope fails the registry schema; fix it before spending: " + "; ".join(str(error) for error in errors[:12]))
         config_quant = model["config"].get("quantization_config") or model["config"].get("quantization") or {}
         codec = request.get("codec") or ("gguf-k-quant" if any(f["path"].endswith(".gguf") for f in model["files"]) else "mixed" if config_quant.get("quant_algo") == "MIXED_PRECISION" else "mxfp4" if "mxfp4" in str(config_quant).lower() else "nvfp4" if "nvfp4" in str(config_quant).lower() else "fp8_e4m3" if config_quant.get("quant_method") == "fp8" else "int4")
         bits = request.get("declared_bits")
@@ -482,9 +524,13 @@ def _prepare(actor, spec, registry=None):
         weights = d["weights"]
         observed = _model_metadata(actor, weights["repository"], weights["revision"], mode="candidate")
         registered = _registered(registry, reference, observed, d["scope"], weights["codec"], weights["declared_bits"], actor)
+    registry_input = None
+    if registered:
+        registry_input = _registry_metadata(actor, registered["registry_repository"], registered["registry_revision"])
     plan = {"schema": "qfs.hf-workflow-plan.v1", "workflow_id": workflow_id, "owner": actor.username, "mode": mode,
             "created_at": datetime.now(timezone.utc).isoformat(), "source": source, "image": image,
-            "inputs": {"model": model, "panel": panel, "reference": reference, "candidate": candidate, "tokenizer": tokenizer},
+            "inputs": {"model": model, "panel": panel, "reference": reference, "candidate": candidate,
+                       "tokenizer": tokenizer, "registry": registry_input},
             "output": {"dataset_repository": output_repo, "bucket": actor.username + "/qfs-explorer-results",
                        "prefix": "runs/" + workflow_id, "mount_path": "/outputs"},
             "hardware": {"flavor": flavor, "device": hw["device"], "hourly_usd": hw["hourly_usd"],
@@ -512,9 +558,11 @@ def prepare(actor, spec, registry=None):
         _PREPARE_SLOTS.release()
 
 
-def _ledger(actor):
+def _ledger(actor, *, create=False):
     api = actor.client();repo = actor.username + "/qfs-explorer-runs"
     if not api.repo_exists(repo, repo_type="dataset"):
+        if not create:
+            raise JobsError("The original private workflow ledger is missing; do not infer a plan from Job labels.")
         try:
             api.create_repo(repo, repo_type="dataset", private=True, exist_ok=False)
             initial = api.repo_info(repo, repo_type="dataset")
@@ -581,7 +629,7 @@ def launch(actor, prepared, *, confirm_compute=False):
     from huggingface_hub import Volume
     api = actor.client()
     with _LOCK:
-        repo, head, ledger = _ledger(actor)
+        repo, head, ledger = _ledger(actor, create=True)
         wid = plan["workflow_id"]
         if wid in ledger["runs"]:
             prior = ledger["runs"][wid]
@@ -613,7 +661,7 @@ def launch(actor, prepared, *, confirm_compute=False):
                 for path in sorted(directory.rglob("*")):
                     if path.is_symlink():raise JobsError("Bundled panel contains a symlink.")
                     if path.is_file(): additions.append((path, prefix + "/inputs/" + panel["path"] + "/" + str(path.relative_to(directory))))
-            for name in ("reference", "candidate"):
+            for name in ("reference", "candidate", "registry"):
                 descriptor = plan["inputs"].get(name)
                 if descriptor is None:
                     continue
@@ -629,9 +677,9 @@ def launch(actor, prepared, *, confirm_compute=False):
                        Volume(type="bucket", source=bucket, path=prefix + "/outputs", mount_path="/outputs", read_only=False)]
             if panel and panel.get("kind") == "bundled":
                 volumes.append(Volume(type="bucket", source=bucket, path=prefix + "/inputs", mount_path="/inputs/panel", read_only=True))
-            for key in ("model", "panel", "reference", "candidate", "tokenizer"):
+            for key in ("model", "panel", "reference", "candidate", "tokenizer", "registry"):
                 value = plan["inputs"].get(key)
-                if not value or value.get("kind") == "bundled":continue
+                if not value or value.get("kind") in ("bundled", "staged"):continue
                 volumes.append(Volume(type="model" if key in ("model", "tokenizer") else "dataset", source=value["repository"],
                     revision=value["revision"], mount_path=value["mount_path"], read_only=True))
         except Exception as exc:
@@ -679,6 +727,17 @@ def inspect(actor, job_id):
     out = _job_public(job)
     out["billing_namespace"] = actor.username
     out["results_verified"] = False
+    out["last_verified_result_sha256"] = None
+    try:
+        _, _, ledger = _ledger(actor)
+        saved = ledger["runs"].get(out["workflow_id"], {})
+        out["last_verified_result_sha256"] = saved.get("verified_result_sha256")
+        out["staging_retention"] = saved.get("staging_retention")
+        out["publications"] = {visibility: {"repository": value["repository"], "revision": value["revision"]}
+                               for visibility, value in (saved.get("publications") or {}).items()}
+        out["verification_note"] = "Status is not a fresh integrity check. Fetch results to revalidate the recorded digest."
+    except JobsError as exc:
+        out["recovery_note"] = str(exc)
     return out
 
 
@@ -726,6 +785,8 @@ def _fetch_result(actor, job_id, directory):
         _verify_provider(actor, job, saved["plan"])
     if saved is None:
         raise JobsError("Import this Job's original private ledger/plan first; provider labels alone are not a trusted plan.")
+    if (saved.get("staging_retention") or {}).get("status") in ("DELETING", "DELETED"):
+        raise JobsError("Private staging was deleted or deletion is incomplete. Use preserved published evidence, or preview retention to reconcile; no model was rerun.")
     plan = saved["plan"];verify_seal(plan, "plan_sha256")
     if saved.get("job_id") not in (None, job_id) or plan["owner"] != actor.username:
         raise JobsError("The private ledger identifies a different Job or owner.")
@@ -771,6 +832,7 @@ def _fetch_result(actor, job_id, directory):
                  "provider_identity_note": "Controller read authenticated HF Jobs API. Worker hardware is worker-reported, not independent reproduction."}
     (directory / "hf-execution.json").write_text(json.dumps(execution, indent=2) + "\n")
     proof = {"result": result, "plan": plan, "execution": execution, "directory": str(directory)}
+    proof["timings"] = _phase_timings(directory)
     if plan["mode"] in ("root", "candidate"):
         from fidelity.hfjobs import qualify_result
         proof["qualification"] = qualify_result(directory, plan, execution, suite_root=ROOT)
@@ -841,9 +903,9 @@ def _verify_provider(actor, job, plan):
     panel = plan["inputs"].get("panel")
     if panel and panel.get("kind") == "bundled":
         expected.append(dict(expected[0], mount_path="/inputs/panel"))
-    for key in ("model", "panel", "reference", "candidate", "tokenizer"):
+    for key in ("model", "panel", "reference", "candidate", "tokenizer", "registry"):
         value = plan["inputs"].get(key)
-        if value and value.get("kind") != "bundled":
+        if value and value.get("kind") not in ("bundled", "staged"):
             _identity(value["repository"], value["revision"])
             expected.append({"type": "model" if key in ("model", "tokenizer") else "dataset",
                              "source": value["repository"], "revision": value["revision"], "path": None,
@@ -1195,7 +1257,12 @@ def request_review(actor, job_id, *, confirm_public=False):
             _validate_review_metadata({k: v for k, v in publication["metadata"].items()
                                        if k not in {"root_repository", "root_revision"}}, complete=True)
         _check_saved_publication(actor, publication, proof, public=True)
-        publication = review.attest_publication(actor, publication)
+        if review._signing_key() is not None:
+            publication = review.attest_publication(actor, publication)
+        else:
+            # Duplicates do not inherit canonical secrets. Their public claim stays
+            # reported until the original Job is revalidated by the registry service.
+            publication = {key: value for key, value in publication.items() if key != "attestation"}
         saved["publications"]["public"] = publication
         head = _save_ledger(actor, repo, head, ledger)
         receipt = review.request_review(actor, publication, confirm_public=True)
@@ -1286,3 +1353,25 @@ def update_publication_metadata(actor, job_id, metadata, *, confirm_metadata=Fal
             head = _save_ledger(actor, repo, head, ledger)
         return {"job_id": job_id, "metadata": resolved, "missing_for_review": missing,
                 "publications": saved.get("publications", {}), "model_rerun": False}
+
+
+def _phase_timings(directory):
+    """Expose only measured phase durations from already hash-verified sidecars."""
+    rows = []
+    root = Path(directory)
+    for name, group in (("bootstrap.json", "bootstrap"), ("commands.json", "workflow")):
+        if not (root / name).is_file():
+            continue
+        document = _read_json(root / name)
+        commands = document.get("commands", []) if isinstance(document, dict) else document
+        if not isinstance(commands, list):
+            raise JobsError("Invalid command timing sidecar.")
+        for command in commands:
+            duration = command.get("duration_seconds")
+            if duration is not None and (type(duration) not in (int, float) or not math.isfinite(duration) or duration < 0):
+                raise JobsError("Invalid measured phase duration.")
+            rows.append({"group": group, "step": command.get("step"),
+                         "started_at": command.get("started_at"), "finished_at": command.get("finished_at"),
+                         "duration_seconds": duration, "returncode": command.get("returncode"),
+                         "completed": command.get("completed"), "timing_recorded": duration is not None})
+    return {"phases": rows, "note": "Monotonic elapsed phase time, not billing time. Preparation may include lazy mount reads; provider scheduling is separate. Older runs retain unknown durations, not invented zeroes."}

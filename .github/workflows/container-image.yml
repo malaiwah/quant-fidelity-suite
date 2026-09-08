@@ -1,11 +1,12 @@
-# Build the measurement image, multi-arch, and (once enabled) publish it.
+# Build the linux/amd64 CUDA measurement image and (once enabled) publish it.
 #
 # NOTHING IS PUBLISHED UNTIL A MAINTAINER SAYS SO. The registry push is gated
 # on the repository variable PUBLISH_CONTAINER; with it unset this workflow
-# builds both architectures, prints the plan and the digests, and pushes
-# nothing. Landing this file is not a decision to publish -- enabling it is one
-# switch (Settings -> Secrets and variables -> Actions -> Variables ->
-# PUBLISH_CONTAINER=true), which is the point.
+# builds the supported architecture, prints the plan and the digests, and pushes
+# nothing. Releases require that variable to be explicitly enabled (Settings ->
+# Secrets and variables -> Actions -> Variables -> PUBLISH_CONTAINER=true).
+# Manual dispatch also requires its default-false publish input to be enabled.
+# Pull requests never publish, even with both switches on.
 #
 # The rules that decide what gets built and tagged live in bin/release_plan.py,
 # not in `${{ }}` expressions. A workflow expression is untestable anywhere
@@ -33,6 +34,7 @@ on:
       - '.github/workflows/container-image.yml'
       - 'bin/BUNDLE.txt'
       - 'bin/bootstrap_measure.sh'
+      - 'bin/requirements-cu130-py312*.lock'
       - 'bin/container_*.py'
       - 'bin/release_plan.py'
 
@@ -67,6 +69,7 @@ jobs:
             --sha "${{ github.sha }}" \
             --image "ghcr.io/${{ github.repository_owner }}/quant-fidelity-measure" \
             --publish "${{ vars.PUBLISH_CONTAINER }}" \
+            --manual-publish "${{ inputs.publish }}" \
             --github-output \
             | tee "$GITHUB_STEP_SUMMARY"
           # release_plan writes $GITHUB_OUTPUT itself (P1-17: a `2>` on tee
@@ -85,29 +88,17 @@ jobs:
     needs: plan
     runs-on: ubuntu-latest
     strategy:
-      # One job per architecture rather than one job building both: under QEMU
-      # the arm64 leg is several times the wall clock of the amd64 one, and
-      # serialising them inside a single job means the fast one waits. Each
-      # pushes by digest; `manifest` below joins them into one tag.
+      # Only linux/amd64 has a validated exact closure. ARM is not a build leg:
+      # its upstream cuSPARSELt wheel fails pip check (docs/CONTAINER.md).
+      # Keep digest publication separate from the SSH target and publish gate.
       fail-fast: false
       matrix:
         include:
           - platform: linux/amd64
             arch: amd64
-          - platform: linux/arm64
-            arch: arm64
     steps:
       - uses: actions/checkout@v4
 
-      # QEMU is the starting point, not the destination. Cross-building the
-      # CUDA wheel set for aarch64 is emulated I/O and unpacking rather than
-      # emulated compilation (every pinned wheel publishes an aarch64 build --
-      # see container/Dockerfile's MULTI-ARCH note), so it is slow but not
-      # pathological. If it becomes the bottleneck, the upgrade is a native
-      # arm64 runner (`runs-on: ubuntu-24.04-arm`), which needs no change here
-      # beyond the label.
-      - uses: docker/setup-qemu-action@v3
-        if: matrix.arch != 'amd64'
       - uses: docker/setup-buildx-action@v3
 
       - name: log in to GHCR
@@ -126,8 +117,8 @@ jobs:
           file: container/Dockerfile
           platforms: ${{ matrix.platform }}
           push: ${{ needs.plan.outputs.push == 'true' }}
-          # By digest, not by tag: two architectures cannot both own one tag.
-          # The manifest job below is what makes the tag mean both.
+          # Publish the validated image by digest; the manifest job assigns
+          # release tags only after the gated build succeeds.
           outputs: >-
             ${{ needs.plan.outputs.push == 'true'
                 && format('type=image,name=ghcr.io/{0}/quant-fidelity-measure,push-by-digest=true,name-canonical=true,push=true', github.repository_owner)

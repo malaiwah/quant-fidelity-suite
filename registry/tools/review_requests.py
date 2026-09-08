@@ -163,6 +163,24 @@ def measurement_records(docs, pub, author, C, receipt_path, provider_verified):
     # merely because the reviewer owns the registry. Independent verification is false.
     own_run = provider_verified and author == L.MAINTAINER
     row, extra = add.submission_to_records(sub, receipt_path, pub["files"]["submission"]["sha256"], C, maintainer_attribution=own_run)
+    require(weights.get("model_ref") == row["model_ref"],
+            "Measured candidate model differs from the registered reference model")
+    model = docs["plan"]["inputs"].get("model")
+    if model:
+        require(model["repository"] == weights["repository"] and model["revision"] == weights["revision"],
+                "Planned model census differs from the measured candidate")
+        shards = [f for f in model["files"] if f["path"].endswith((".safetensors", ".gguf"))]
+        total = sum(f["bytes"] for f in shards)
+        require(shards and total == model["weight_bytes"] == sub["artifact"]["size_bytes"],
+                "Submitted weight size differs from the producing plan's exact weight-file census")
+        for artifact in extra:
+            if artifact["id"] == row["artifact_ref"]:
+                artifact["weights"].update(size_basis="repo_weight_files", shard_count=len(shards),
+                                           shard_sha256={f["path"]: f["sha256"] for f in shards},
+                                           config_sha256=weights["config_sha256"], index_sha256=weights.get("index_sha256"))
+                artifact["sources"].append({"kind": "hf_file", "uri": source_url(pub, "plan"),
+                                            "sha256": pub["files"]["plan"]["sha256"],
+                                            "note": "Original producing plan binds the exact serialized weight-file census and its size basis."})
     require(row["provenance"]["independently_verified"] is False, "Intake must not award independent verification")
     row["comparability"]["class"] = "advisory"
     if sub["lane"] != "sealed-ep8" and row["comparability"]["bias"] is None:

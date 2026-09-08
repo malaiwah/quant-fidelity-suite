@@ -155,16 +155,25 @@ def validate_plan(plan, out):
         raise ValueError("only the declared BF16 layer-outer runtime is admitted")
     mode = plan.get("mode")
     required = {"root": {"model", "panel"}, "candidate": {"model", "panel", "reference"}, "compare": {"reference", "candidate"}}.get(mode)
-    if required is None or set(plan["inputs"]) != {"model", "panel", "reference", "candidate", "tokenizer"}:
+    if required is None or set(plan["inputs"]) != {"model", "panel", "reference", "candidate", "tokenizer", "registry"}:
         raise ValueError("invalid action/input contract")
     if mode == "candidate":
         required = required | {"tokenizer"}
+    registered = plan.get("registered")
+    if registered:
+        registry_input = plan["inputs"]["registry"]
+        if (mode == "root" or not isinstance(registry_input, dict) or registry_input.get("kind") != "staged"
+                or registry_input.get("repository") != registered.get("registry_repository")
+                or registry_input.get("revision") != registered.get("registry_revision")):
+            raise ValueError("registry input differs from the exact registered provenance")
+        required = required | {"registry"}
     for name, value in plan["inputs"].items():
         if name not in required:
             if value is not None:
                 raise ValueError("extraneous input: " + name)
             continue
-        if (not isinstance(value, dict) or value.get("mount_path") != "/inputs/" + name
+        expected_mount = "/inputs/plan/datasets/registry" if name == "registry" else "/inputs/" + name
+        if (not isinstance(value, dict) or value.get("mount_path") != expected_mount
                 or not REPOSITORY.fullmatch(str(value.get("repository")))
                 or not HEX40.fullmatch(str(value.get("revision")))):
             raise ValueError("invalid immutable input descriptor: " + name)
@@ -317,6 +326,7 @@ class Runner:
 
     def run(self, name, arguments, *, allowed=(0,)):
         self.bound()
+        started = time.monotonic()
         command = {"step": name, "argv": [str(a) for a in arguments], "started_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "returncode": None}
         self.commands.append(command)
         save(self.out / "commands.json", self.commands)
@@ -354,23 +364,53 @@ class Runner:
             selector.close()
             process.stdout.close()
             command.update(returncode=process.returncode, log_bytes_retained=written, log_bytes_observed=seen, log_truncated=seen > written)
+            command.update(finished_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                           duration_seconds=time.monotonic() - started)
             save(self.out / "commands.json", self.commands)
             print(json.dumps({"step": name, "returncode": process.returncode}), flush=True)
         if process.returncode not in allowed:
+            diagnostic = (self.out / (name + ".log")).read_bytes()[-8000:]
+            if diagnostic:
+                print(safe_log(diagnostic).decode("utf-8", "replace"), flush=True)
             raise RuntimeError(name + " refused or failed (exit " + str(process.returncode) + "); see bounded log and raw receipts")
         self.bound()
+
+    def measure(self, name, function, *args):
+        """Time a local preparation phase without inventing a subprocess exit code."""
+        self.bound()
+        started = time.monotonic()
+        record = {"step": name, "kind": "local-preparation",
+                  "started_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "completed": False}
+        self.commands.append(record)
+        save(self.out / "commands.json", self.commands)
+        try:
+            value = function(*args)
+            record["completed"] = True
+            return value
+        finally:
+            record.update(finished_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                          duration_seconds=time.monotonic() - started)
+            save(self.out / "commands.json", self.commands)
+
+
+def staged_metadata(descriptor, name):
+    """Verify canonical metadata staged through the caller's private bucket."""
+    metadata_root = PLAN_PATH.parent / "datasets" / name
+    metadata = {row["path"]: row for row in descriptor["metadata_files"]}
+    if not metadata:
+        raise ValueError("staged metadata inventory is empty")
+    for member, record in metadata.items():
+        path = regular(metadata_root / str(relative(member)))
+        if path.stat().st_size != record["bytes"] or digest(path) != record["sha256"]:
+            raise ValueError("staged input metadata differs from its immutable plan")
+    return metadata_root, metadata
 
 
 def dataset_view(descriptor, name):
     """Materialize exactly the sealed dataset, not unrelated Hub sidecars."""
     from fidelity import dsformat, hfjobs
     source = Path(descriptor["mount_path"])
-    metadata_root = PLAN_PATH.parent / "datasets" / name
-    metadata = {row["path"]: row for row in descriptor["metadata_files"]}
-    for member, record in metadata.items():
-        path = regular(metadata_root / str(relative(member)))
-        if path.stat().st_size != record["bytes"] or digest(path) != record["sha256"]:
-            raise ValueError("staged dataset metadata differs from its immutable plan")
+    metadata_root, metadata = staged_metadata(descriptor, name)
     checksums = regular(metadata_root / dsformat.CHECKSUMS_NAME)
     if checksums.stat().st_size > 16 * 1024 * 1024:
         raise ValueError("dataset checksum inventory exceeds its bound")
@@ -398,11 +438,14 @@ def workflow(plan, out, runner, outputs):
     save(out / "harness.json", jobcontract.finalize_bundle_manifest(manifest["source_files"], SOURCE + "@" + manifest["revision"]))
     tool = [sys.executable, ROOT / "bin/fidelity_dataset.py"]
     inputs = plan["inputs"]
+    registry_root = None
+    if inputs.get("registry"):
+        registry_root, _ = runner.measure("prepare-registry", staged_metadata, inputs["registry"], "registry")
     mode = plan["mode"]
     datasets = {}
     for name in ("reference", "candidate"):
         if inputs.get(name):
-            path = dataset_view(inputs[name], name)
+            path = runner.measure("prepare-" + name, dataset_view, inputs[name], name)
             datasets[name] = path
             observed = dsformat.load_manifest(str(path))
             if observed["dataset_sha256"] != inputs[name]["dataset_sha256"]:
@@ -410,7 +453,7 @@ def workflow(plan, out, runner, outputs):
             runner.run("verify-" + name, [*tool, "verify", path, "--verify-tensors", "--json", out / (name + ".verify.json")])
             save(out / (name + ".input.json"), inputs[name])
     if mode != "compare":
-        model = model_binding(plan, out)
+        model = runner.measure("verify-model-input", model_binding, plan, out)
         descriptor = inputs["panel"]
         panel = Path(descriptor["mount_path"]) / str(relative(descriptor["path"]))
         if panel.resolve() != panel or not panel.is_dir():
@@ -428,7 +471,7 @@ def workflow(plan, out, runner, outputs):
             shutil.copyfile(path, destination)
         from fidelity import panel as panel_api
         tokenizer_root = Path(inputs["tokenizer"]["mount_path"]) if mode == "candidate" else model
-        resolved = panel_api.resolve_panel(panel, role="final", tokenizer_root=tokenizer_root).to_dict()
+        resolved = runner.measure("resolve-token-panel", lambda: panel_api.resolve_panel(panel, role="final", tokenizer_root=tokenizer_root).to_dict())
         save(out / "panel-binding.json", resolved)
         binding = load_json(out / "panel-binding.json")
         if not binding["tokenizer"]["files_verified"]:
@@ -512,7 +555,8 @@ def workflow(plan, out, runner, outputs):
             submission_path = out / "receipts" / plan["owner"] / "submission-receipt.json"
             submission_path.parent.mkdir(parents=True, exist_ok=True)
             dscompare.emit_submission(comparison, str(submission_path), measurer=measurer, artifact=registered["artifact"], panel=registered["panel"], reference=registered["reference"])
-            runner.run("submission-validation", [sys.executable, ROOT / "registry/tools/registry_validate.py", "--submission", submission_path])
+            runner.run("submission-validation", [sys.executable, ROOT / "registry/tools/registry_validate.py",
+                       "--root", registry_root, "--submission", submission_path])
             outputs["submission"] = submission_path.relative_to(out).as_posix()
     runner.bound()
 

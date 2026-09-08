@@ -2413,29 +2413,31 @@ def submission_to_records(sub, path, fsha, registry, strict_new=False,
     if art_id is None:
         owner = (art_in.get("repository") or "unknown/x").split("/")[0]
         art_id = "artifact--%s.%s" % (_slug(owner), _slug((art_in.get("repository") or "x").split("/")[-1]))
-        model_ref = None
-        for mid, m in registry["models"].items():
-            if (m.get("tokenizer") or {}).get("id") and mid.split("--")[1].split(".")[-1] in \
-                    (art_in.get("repository") or "").lower():
-                model_ref = mid
-        if model_ref is None:
-            raise Refuse(E_MISSING,
-                         "cannot tell which model %s is a quantization of. Register the model and the "
-                         "artifact first, or name an existing artifact." % art_in.get("repository"))
+        reference_artifact = registry["artifacts"].get(ref.get("artifact_ref")) or {}
+        model_ref = reference_artifact.get("model_ref")
+        if model_ref not in registry["models"]:
+            raise Refuse(E_MISSING, "the registered reference does not identify a known base model")
         cd = art_in.get("codec") or {}
+        artifact_url = art_in.get("url") or ("https://huggingface.co/" + art_in["repository"])
+        precision_label = art_in.get("precision_label") or cd.get("family") or "unknown"
+        artifact_scope = dict(art_in["scope"])
+        if not any(a["treatment"] == "unknown" for a in artifact_scope["assignments"]):
+            # Authoring tools also use "mixed" for native-plus-quantized tensors.
+            # Registry policy describes quantized rates; assignments and digest do not change.
+            artifact_scope["policy"] = L.derived_scope_policy(artifact_scope["assignments"])
         new.append({
             "schema_version": L.SCHEMA_VERSION, "id": art_id, "model_ref": model_ref,
             "name": art_in.get("precision_label") or art_in.get("repository"),
             "kind": "quant",
             "huggingface": {"repository": art_in.get("repository"),
-                            "url": art_in.get("url"), "revision": art_in.get("revision"),
+                            "url": artifact_url, "revision": art_in.get("revision"),
                             "path": None, "revision_source": "reported_by_author",
                             "status": "known", "link_type": "repository", "reason": None},
             "weights": {"container": art_in.get("container"),
-                        "precision_label": art_in.get("precision_label"),
+                        "precision_label": precision_label,
                         "size_bytes": art_in.get("size_bytes"),
                         "size_gb": (art_in["size_bytes"] / 1e9) if art_in.get("size_bytes") else None,
-                        "size_basis": "repo_all_files",
+                        "size_basis": "unknown",
                         "index_sha256": art_in.get("index_sha256"),
                         "config_sha256": art_in.get("config_sha256")},
             "codec": {"family": cd.get("family"),
@@ -2447,18 +2449,18 @@ def submission_to_records(sub, path, fsha, registry, strict_new=False,
                                     "pipeline_ref": None},
                       "calibration": {"used": None, "corpus": None, "tokens": None,
                                       "overlaps_any_panel": None, "overlapping_panel_refs": []}},
-            "scope": art_in["scope"], "scope_digest": art_in["scope_digest"],
+            "scope": artifact_scope, "scope_digest": art_in["scope_digest"],
             "producer": {"name": (art_in.get("producer") or {}).get("name") or "unknown",
                          "role": "quantizer",
                          "handle": (art_in.get("producer") or {}).get("handle"),
                          "url": (art_in.get("producer") or {}).get("url"),
                          "is_registry_maintainer":
                              (art_in.get("producer") or {}).get("handle") == L.MAINTAINER},
-            "availability": {"status": "public", "uri": art_in.get("url")},
+            "availability": {"status": "public", "uri": artifact_url},
             "seal": {"sealed": False},
             "cross_refs": {"local_ai_registry": {"model_id": None, "model_instance_id": None,
                                                  "url": None, "match_confidence": "unverified"}},
-            "sources": [{"kind": "url", "uri": art_in.get("url") or "unknown"}],
+            "sources": [{"kind": "url", "uri": artifact_url}],
             "disclosures": ([{"code": "artifact_identity_incomplete", "severity": "caveat",
                               "detail": "Per-class recipe recorded as unknown where the release does "
                                         "not declare one.", "affects_comparability": True}]

@@ -993,6 +993,43 @@ def main():
         passed += ok
         failed += not ok
 
+        # New repository names are not model identity, and optional presentation
+        # fields must not turn a valid submission into invalid registry records.
+        import registry_add
+        import _minischema
+        with open(ex, encoding="utf-8") as fh:
+            fresh = json.load(fh)
+        context = L.load_registry(os.path.join(args.root, "data"))
+        reference_artifact = context["artifacts"][context["references"][fresh["reference"]["reference_ref"]]["artifact_ref"]]
+        expected_model = reference_artifact["model_ref"]
+        decoy = json.loads(json.dumps(context["models"][expected_model]))
+        decoy["id"] = "model--decoy.weight-instance"
+        decoy["tokenizer"] = {"id": "unrelated/tokenizer"}
+        context["models"][decoy["id"]] = decoy
+        fresh["artifact"]["repository"] = "contributor/new-weight-instance"
+        for field in ("url", "precision_label", "path"):
+            fresh["artifact"].pop(field, None)
+        fresh["receipt_sha256"] = ""
+        fresh["artifact"]["scope"]["policy"] = "mixed"
+        for assignment in fresh["artifact"]["scope"]["assignments"]:
+            if assignment["treatment"] == "quantized":
+                assignment.update(format="int4", bits_per_weight=4)
+        fresh["artifact"]["scope_digest"] = L.scope_digest(fresh["artifact"]["scope"])
+        fresh["receipt_sha256"] = L.sha256_hex(L.canonical_json(fresh))
+        projected, additions = registry_add.submission_to_records(fresh, ex, L.sha256_file(ex), context)
+        schemas = _minischema.Registry(os.path.join(args.root, "schema"))
+        errors = [str(error) for record in additions + [projected]
+                  for error in schemas.validate(record, record["id"].split("--", 1)[0] + ".schema.json")]
+        artifact = next(record for record in additions if record["id"] == projected["artifact_ref"])
+        ok = (not errors and artifact["model_ref"] == projected["model_ref"] == expected_model
+              and artifact["weights"]["size_basis"] == "unknown" and artifact["scope"]["policy"] == "uniform"
+              and L.scope_digest(artifact["scope"]) == fresh["artifact"]["scope_digest"])
+        print("  %-58s %s" % ("new artifact binds its reference, not a misleading name", "PASS" if ok else "FAIL"))
+        if not ok and args.verbose:
+            print("      %s" % errors)
+        passed += ok
+        failed += not ok
+
         broken = os.path.join(tmp, "broken-seal.json")
         with open(ex, encoding="utf-8") as fh:
             sub = json.load(fh)

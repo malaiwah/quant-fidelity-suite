@@ -37,6 +37,18 @@
 # NEVER `set -x` here: HF_TOKEN may be exported by the caller.
 set -euo pipefail
 
+# Refuse unsupported hosts before filesystem changes, TLS traffic or installs.
+# These are CUDA measurement closures, not portable CPU requirements.
+BOOTSTRAP_SYSTEM="$(uname -s)"
+BOOTSTRAP_ARCH="$(uname -m)"
+case "$BOOTSTRAP_SYSTEM/$BOOTSTRAP_ARCH" in
+  Linux/x86_64) WHEEL_LOCK_NAME=requirements-cu130-py312.lock ;;
+  *)
+    echo "bootstrap_measure: unsupported host $BOOTSTRAP_SYSTEM/$BOOTSTRAP_ARCH; use Linux x86_64 with the pinned Python 3.12/CUDA 13.0 closure. ARM is blocked by invalid upstream cuSPARSELt 0.8.0 wheel metadata (docs/CONTAINER.md). No CPU or alternate-CUDA fallback." >&2
+    exit 2
+    ;;
+esac
+
 # FIDELITY_K6_ROOT is the pre-2026-08-31 spelling, still read as a fallback.
 ROOT="${FIDELITY_ENGINE_ROOT:-${FIDELITY_K6_ROOT:-/home/jl_fs/fidelity-engine}}"
 FS="${FIDELITY_FS_ROOT:-/home/jl_fs/fidelity}"
@@ -66,7 +78,7 @@ FLASH_ATTN_WHL="https://github.com/Dao-AILab/flash-attention/releases/download/v
 FLASH_ATTN_SHA256=910d8db9def162de5b7c15474b933e7e2371e93733b980e9d3c07cd3bf2f568e
 CUDA_KEYRING_SHA256=d93190d50b98ad4699ff40f4f7af50f16a76dac3bb8da1eaaf366d47898ff8df
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-WHEEL_LOCK="$SCRIPT_DIR/requirements-cu130-py312.lock"
+WHEEL_LOCK="$SCRIPT_DIR/$WHEEL_LOCK_NAME"
 
 mkdir -p "$ROOT" "$RCPT"
 log() { echo "[$(date -u +%FT%TZ)] bootstrap_measure: $*"; }
@@ -89,7 +101,7 @@ ASROOT=""
 #
 # The wheel installs below are NOT protected by this check and do not need to
 # be: every wheel, including transitive ones, is pinned by exact URL + SHA-256
-# in requirements-cu130-py312.lock, so an interceptor cannot substitute
+# in the architecture-selected requirements-cu130-py312*.lock, so an interceptor cannot substitute
 # content without failing that digest.  What this check protects is the
 # credential-bearing Hub traffic that comes later.
 TLSGUARD="$FS/bin/fidelity/tlsguard.py"
@@ -148,7 +160,7 @@ IMAGE_ROOT="${FIDELITY_IMAGE_ROOT:-}"
 seed_from_image() {
   [ -n "$IMAGE_ROOT" ] && [ -d "$IMAGE_ROOT/venv" ] || return 0
   [ "$(realpath -m "$ROOT")" != "$(realpath -m "$IMAGE_ROOT")" ] || return 0
-  local image_lock="$IMAGE_ROOT/suite/bin/requirements-cu130-py312.lock"
+  local image_lock="$IMAGE_ROOT/suite/bin/$WHEEL_LOCK_NAME"
   if [ ! -f "$image_lock" ] || [ "$(sha256sum < "$image_lock")" != "$(sha256sum < "$WHEEL_LOCK")" ]; then
     log "image wheel lock differs from this bundle's; building a fresh venv"
     echo "image-seed: refused (wheel lock differs)" | tee "$RCPT/image-seed.txt"

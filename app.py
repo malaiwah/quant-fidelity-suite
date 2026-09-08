@@ -252,7 +252,7 @@ def create_app():
 
     def use_selected_for_card(mid, revision):
         registry_for(revision).detail(mid)
-        return gr.Tabs(selected="cards"), gr.Dropdown(choices=card_choices(revision), value=[mid])
+        return gr.update(selected="cards"), gr.Dropdown(choices=card_choices(revision), value=[mid])
 
     def load_link(request: gr.Request):
         try:
@@ -284,7 +284,7 @@ def create_app():
                 view = (view[0], view[1], gr.Dropdown(choices=receipt_choices(current.group(gid)["rows"]), value=mid),
                         current.detail(mid), view[4])
             result = {
-                snapshot_state: revision, tabs: gr.Tabs(selected=params.get("tab", "explore")),
+                snapshot_state: revision, tabs: gr.update(selected=params.get("tab", "explore")),
                 model: gr.Dropdown(choices=current.models(), value=model_id),
                 group: gr.Dropdown(choices=current.groups(model_id), value=gid),
                 group_status: view[0], table: view[1], detail_id: view[2], detail: view[3], context: view[4],
@@ -378,7 +378,7 @@ def create_app():
             def use_selected_for_plot(mid, revision, scale):
                 if not mid:
                     raise gr.Error("Select a measurement first.")
-                return (gr.Tabs(selected="plots"), *plot_ui["view"](revision, None, mid, scale))
+                return (gr.update(selected="plots"), *plot_ui["view"](revision, None, mid, scale))
             plot_selected.click(use_selected_for_plot, [detail_id, snapshot_state, plot_ui["scale"]],
                                 [tabs, *plot_ui["outputs"]], api_name=False, concurrency_limit=2)
             with gr.Tab("Costs", id="costs"):
