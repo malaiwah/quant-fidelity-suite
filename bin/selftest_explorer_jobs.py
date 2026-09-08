@@ -25,6 +25,10 @@ EXP-06. A reservation stuck CREATING without a Job ID reconciles ONLY on
 positive provider-side absence proof; any doubt keeps refusing, and stale
 reservations surface as a distinct status.
 
+EXP-07. Results execute and inventory locally, then explicitly checkpoint to the
+bucket. Stale bucket listings cannot omit declared outputs or sealed sidecars;
+final-byte corruption, interruptions and output limits must never seal success.
+
 Everything runs against a stubbed huggingface_hub: no network, no real HF, no
 token. The one token-shaped fixture string is never sent anywhere.
 """
@@ -505,6 +509,147 @@ def rung_worker_canonical_views(root):
 
 
 # ---------------------------------------------------------------------------
+# EXP-07: local inventory, explicit durable publication, and bounded failure.
+# ---------------------------------------------------------------------------
+def rung_worker_result_inventory(root):
+    import signal
+    spec = importlib.util.spec_from_file_location("qfs_worker_result_fixture", ROOT / "explorer/job_worker.py")
+    worker = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(worker)
+    real_walk, real_path = os.walk, worker.Path
+    capture = b"sealed cold capture fixture\n"
+    tokenwise = b"comparison sidecar fixture\n"
+    payloads = {}
+    outputs = {"first": "first", "repeat": "repeat",
+               "reproduction": "reproduction/comparison-receipt.json",
+               "comparison": "comparison/comparison-receipt.json",
+               "submission": "receipts/tester/submission-receipt.json"}
+    for name in ("first", "repeat"):
+        payloads[name + "/capture/data.bin"] = capture
+        payloads[name + "/checksums.txt"] = (hashlib.sha256(capture).hexdigest() + "  capture/data.bin\n").encode()
+        payloads[name + "/fidelity-dataset.json"] = b'{"fixture":"sealed capture closure"}\n'
+    for name in ("reproduction", "comparison"):
+        payloads[name + "/tokenwise-kld.npy"] = tokenwise
+        payloads[name + "/comparison-receipt.json"] = _canonical({
+            "comparison_kind": "measurement" if name == "comparison" else "reproduction_confirmation",
+            "tokenwise": {"path": "tokenwise-kld.npy", "bytes": len(tokenwise),
+                         "sha256": hashlib.sha256(tokenwise).hexdigest()}})
+    payloads[outputs["submission"]] = b'{"fixture":"validated submission"}\n'
+    # An undeclared nested sidecar defends recursive inventory, not a patch
+    # hard-coding the three paths absent from the September private pilot.
+    payloads["audit/arbitrary/deep/sidecar.bin"] = b"closure includes every local file\n"
+
+    def attempt(label, fault=None):
+        base = root / ("worker-result-" + label)
+        mount = base / "outputs"
+        mount.mkdir(parents=True)
+        destination = mount / "result"
+        plan_path = base / "plan.json"
+        plan = {"schema": "qfs.hf-workflow-plan.v1", "workflow_id": "3" * 32,
+                "owner": "tester", "mode": "candidate", "plan_sha256": "d" * 64,
+                "source": {}, "image": "python@sha256:" + "c" * 64,
+                "hardware": {"timeout_seconds": 30}, "runtime": {},
+                "limits": {"max_output_bytes": 8192 if fault == "budget" else 1024 * 1024}}
+        plan_path.write_bytes(_canonical(plan))
+        worker.PLAN_PATH, worker.OUT_PATH = plan_path, destination
+        # Virtualize only the fixed mount boundary; main's admitted CLI spellings
+        # and its real publication/exception/signal paths remain in use.
+        worker.Path = lambda value: mount if str(value) == "/outputs" else real_path(value)
+        worker.validate_plan = lambda plan, out: None
+        worker.require_no_credentials = lambda: None
+
+        def stale_walk(path, *args, **kwargs):
+            if real_path(path) == destination or destination in real_path(path).parents:
+                # A directory can be directly readable while readdir still
+                # reports its pre-publication empty state.
+                yield str(path), [], []
+                return
+            yield from real_walk(path, *args, **kwargs)
+
+        def fixture_workflow(plan, local, runner, declared):
+            declared.update(outputs)
+            # A real child writes the first sealed artifact; its completed-stage
+            # checkpoint must survive later failure or a deadline interrupt.
+            early = {key: value for key, value in payloads.items() if key.startswith("first/")}
+            code = ("import sys; from pathlib import Path; root=Path(sys.argv[1]); "
+                    "files=" + repr(early) + "; "
+                    "[( (root/name).parent.mkdir(parents=True,exist_ok=True), "
+                    "(root/name).write_bytes(data)) for name,data in files.items()]")
+            runner.run("fixture-capture", [sys.executable, "-c", code, str(local)])
+            if fault == "interrupt":
+                os.kill(os.getpid(), signal.SIGTERM)
+            if fault == "child-failure":
+                runner.run("fixture-failure", [sys.executable, "-c", "raise SystemExit(17)"])
+            for name, data in payloads.items():
+                if name in early:
+                    continue
+                if fault == "missing-declared" and name == outputs["submission"]:
+                    continue
+                if fault == "missing-sidecar" and name == "comparison/tokenwise-kld.npy":
+                    continue
+                target = local / name
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(data)
+            if fault == "corruption":
+                (destination / "first/capture/data.bin").write_bytes(b"changed after checkpoint")
+            if fault == "budget":
+                (local / "oversized.bin").write_bytes(b"x" * plan["limits"]["max_output_bytes"])
+            runner.bound()
+
+        worker.workflow = fixture_workflow
+        stdout = io.StringIO()
+        previous_started = os.environ.pop("QFS_WORKFLOW_STARTED", None)
+        try:
+            worker.os.walk = stale_walk
+            with contextlib.redirect_stdout(stdout):
+                code = worker.main(["--plan", str(plan_path), "--out", str(destination)])
+        finally:
+            worker.os.walk = real_walk
+            worker.Path = real_path
+            if previous_started is not None:
+                os.environ["QFS_WORKFLOW_STARTED"] = previous_started
+        result = json.loads((destination / "result.json").read_bytes())
+        return code, result, destination, stdout.getvalue(), plan
+
+    code, result, destination, logged, _ = attempt("stale-listing")
+    actual = {p.relative_to(destination).as_posix() for p in destination.rglob("*") if p.is_file()}
+    listed = {item["path"] for item in result["files"]}
+    check("W3a stale durable enumeration cannot seal an incomplete recursive inventory",
+          code == 0 and result["status"] == "complete" and actual == listed | {"result.json"}
+          and set(payloads).issubset(listed))
+    check("W3b every published file matches the final sealed size and hash",
+          all((destination / item["path"]).stat().st_size == item["bytes"]
+              and hashlib.sha256((destination / item["path"]).read_bytes()).hexdigest() == item["sha256"]
+              for item in result["files"]))
+    check("W3c the completion anchor names the durable manifest's self-seal",
+          worker.seal(dict(result), "result_sha256")["result_sha256"] == result["result_sha256"]
+          and any(json.loads(line).get("result_sha256") == result["result_sha256"]
+                  for line in logged.splitlines()))
+    for fault in ("missing-declared", "missing-sidecar", "corruption", "child-failure", "interrupt", "budget"):
+        code, result, destination, logged, plan = attempt(fault, fault)
+        check("W3d %s cannot emit a successful result" % fault,
+              code == 1 and result["status"] == "failed"
+              and not any(json.loads(line).get("status") == "complete" for line in logged.splitlines()))
+        if fault in ("child-failure", "interrupt", "budget"):
+            check("W3e %s preserves the completed private capture checkpoint" % fault,
+                  (destination / "first/capture/data.bin").read_bytes() == capture)
+        if fault == "budget":
+            check("W3f failure publication respects the durable byte ceiling",
+                  sum(p.stat().st_size for p in destination.rglob("*") if p.is_file())
+                  <= plan["limits"]["max_output_bytes"])
+    # Expiry before publication must refuse without beginning an unbounded copy.
+    expired_local, expired_out = root / "expired-local", root / "expired-durable"
+    expired_local.mkdir()
+    expired_out.mkdir()
+    (expired_local / "payload").write_bytes(capture)
+    expired = worker._Publication(expired_local, expired_out, 1024, time.monotonic() - 1)
+    check("W3g an expired publication deadline retains no success manifest",
+          refuses(expired.checkpoint, TimeoutError) and not list(expired_out.iterdir()))
+
+    check("W3h a strict inventory refuses a directory enumeration failure",
+          refuses(lambda: list(worker.tree(root / "missing-evidence-tree")), FileNotFoundError))
+
+# ---------------------------------------------------------------------------
 # EXP-04: inferred attribution is labeled at the explorer layer.
 # ---------------------------------------------------------------------------
 def rung_attribution_labeling(root):
@@ -758,6 +903,7 @@ def main():
             rung_anonymous_first(actor)
             rung_public_evidence(actor)
             rung_worker_canonical_views(root)
+            rung_worker_result_inventory(root)
             rung_attribution_labeling(root)
             rung_publish_token_file(root)
             rung_stale_reconciliation(actor, root)

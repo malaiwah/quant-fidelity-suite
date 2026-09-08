@@ -106,6 +106,13 @@ and verified against its sealed inventory. Large tensor sources use read-only Hu
 mounts; the worker builds a canonical dataset view rather than treating Hub
 sidecars as captured files. This also avoids the observed truncated JSON prefixes
 from some HF dataset-volume files without weakening checksum verification.
+Worker computations write to local scratch. Completed-stage evidence is copied
+to explicit private-volume paths with byte bounds; final publication verifies
+every file by direct readback and checks declared outputs and sealed sidecars
+before writing the result manifest last. Bucket directory listings are not the
+source of the successful evidence inventory. Scratch, durable output and
+recovery storage must all be budgeted; a provider `COMPLETED` status still does
+not authorize accepting an incomplete manifest.
 
 The interactive registry loads one pinned public snapshot. A disclosed bundled
 fallback disables ranking and card generation. Live plot endpoints refresh the

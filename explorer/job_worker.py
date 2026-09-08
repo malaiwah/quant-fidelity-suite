@@ -15,6 +15,7 @@ import signal
 import stat
 import subprocess
 import sys
+import tempfile
 import time
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -91,7 +92,10 @@ def row(path, root):
 
 
 def tree(root, *, live=False):
-    for directory, directories, files in os.walk(root, followlinks=False):
+    def fail(exc):
+        if not live or not isinstance(exc, FileNotFoundError):
+            raise exc
+    for directory, directories, files in os.walk(root, followlinks=False, onerror=fail):
         for name in directories:
             if (Path(directory) / name).is_symlink():
                 raise ValueError("symlink directory is not an evidence artifact")
@@ -102,6 +106,109 @@ def tree(root, *, live=False):
                 if not live:
                     raise
 
+
+
+class _Publication:
+    """Checkpoint explicit local paths; never inventory the bucket mount."""
+
+    def __init__(self, local, destination, maximum, deadline):
+        self.local, self.destination = local, destination
+        self.maximum, self.deadline = maximum, deadline
+        self.records, self.stamps = {}, {}
+
+    def bound(self):
+        if time.monotonic() >= self.deadline:
+            raise TimeoutError("result publication deadline exceeded")
+
+    def checkpoint(self, *, final=False):
+        self.bound()
+        paths = list(tree(self.local))
+        present = {str(relative(p.relative_to(self.local).as_posix())) for p in paths}
+        for name in self.records.keys() - present:
+            (self.destination / name).unlink()
+            del self.records[name]
+            del self.stamps[name]
+        total = sum(item["bytes"] for item in self.records.values())
+        for path in paths:
+            self.bound()
+            name = path.relative_to(self.local).as_posix()
+            info = path.stat()
+            stamp = (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+            if not final and self.stamps.get(name) == stamp:
+                continue
+            record = row(path, self.local)
+            target = self.destination / name
+            if self.records.get(name) != record:
+                # Include the previous version and the atomic transfer's temporary
+                # bytes in the durable bound, not just the eventual tree size.
+                if total + record["bytes"] > self.maximum:
+                    raise ValueError("durable output byte bound exceeded; checkpoints retained")
+                target.parent.mkdir(parents=True, exist_ok=True)
+                temporary = None
+                try:
+                    with tempfile.NamedTemporaryFile(dir=target.parent, prefix=".qfs-transfer-", delete=False) as output:
+                        temporary = Path(output.name)
+                        copied, sha = 0, hashlib.sha256()
+                        with regular(path).open("rb") as source:
+                            while chunk := source.read(1024 * 1024):
+                                self.bound()
+                                copied += len(chunk)
+                                if copied > record["bytes"]:
+                                    raise ValueError("local evidence changed during publication")
+                                output.write(chunk)
+                                sha.update(chunk)
+                        if copied != record["bytes"] or sha.hexdigest() != record["sha256"]:
+                            raise ValueError("local evidence changed during publication")
+                        output.flush()
+                        os.fsync(output.fileno())
+                    os.replace(temporary, target)
+                finally:
+                    if temporary is not None:
+                        temporary.unlink(missing_ok=True)
+                total += record["bytes"] - self.records.get(name, {}).get("bytes", 0)
+            # Direct final-byte reads are authoritative, even if destination
+            # readdir returns a stale empty directory after a successful rename.
+            if row(target, self.destination) != record:
+                raise ValueError("durable evidence differs from the local inventory: " + name)
+            self.bound()
+            self.records[name], self.stamps[name] = record, stamp
+        return sorted(self.records.values(), key=lambda item: item["path"])
+
+
+def _output_coverage(plan, local, outputs, records):
+    """Require declared roots and their sealed artifact closure in the inventory."""
+    from fidelity import dsformat
+    indexed = {item["path"]: item for item in records}
+
+    def require(name, *, sha=None, size=None):
+        name = str(relative(name))
+        record = indexed.get(name)
+        if record is None or (sha is not None and record["sha256"] != sha) or (size is not None and record["bytes"] != size):
+            raise ValueError("result inventory omits or changes a declared artifact: " + name)
+        return local / name
+
+    expected = {"first", "repeat", "reproduction"} if plan["mode"] != "compare" else set()
+    if plan["mode"] != "root":
+        expected.add("comparison")
+    if not expected.issubset(outputs) or set(outputs) - expected - {"submission"}:
+        raise ValueError("workflow did not declare all required outputs")
+    for key, name in outputs.items():
+        name = str(relative(name))
+        if key in ("first", "repeat"):
+            require(name + "/" + dsformat.MANIFEST_NAME)
+            checksums = require(name + "/" + dsformat.CHECKSUMS_NAME)
+            if checksums.stat().st_size > 16 * 1024 * 1024:
+                raise ValueError("output checksum inventory exceeds its bound")
+            for member, sha in dsformat.parse_checksums(checksums.read_text()).items():
+                require(name + "/" + member, sha=sha)
+        else:
+            receipt = load_json(require(name))
+            if key in ("comparison", "reproduction"):
+                artifact = receipt["tokenwise"]
+                require((relative(name).parent / relative(artifact["path"])).as_posix(),
+                        sha=artifact["sha256"], size=artifact["bytes"])
+                if key == "comparison" and plan.get("registered") and receipt["comparison_kind"] == "measurement" and "submission" not in outputs:
+                    raise ValueError("registered measurement omitted its submission output")
 
 def require_no_credentials():
     forbidden = {"HF_TOKEN", "HF_TOKEN_PATH", "HUGGING_FACE_HUB_TOKEN", "HUGGINGFACEHUB_API_TOKEN", "HF_API_TOKEN", "OAUTH_TOKEN"}
@@ -295,6 +402,7 @@ class Runner:
         self.plan, self.out, self.deadline = plan, out, deadline
         self.commands = []
         self.maximum = plan["limits"]["max_output_bytes"]
+        self.checkpoint = None
         self.environment = dict(os.environ, TOKENIZERS_PARALLELISM="false", HF_HUB_DISABLE_IMPLICIT_TOKEN="1", HF_HOME="/tmp/qfs-worker-hf", PYTHONDONTWRITEBYTECODE="1", STACKPRINT_IMAGE_PIN=plan["image"].rsplit("@", 1)[1], FIDELITY_IMAGE_REFERENCE=plan["image"])
         threads = min(32, len(os.sched_getaffinity(0))) if hasattr(os, "sched_getaffinity") else 2
         try:
@@ -368,6 +476,8 @@ class Runner:
                            duration_seconds=time.monotonic() - started)
             save(self.out / "commands.json", self.commands)
             print(json.dumps({"step": name, "returncode": process.returncode}), flush=True)
+            if self.checkpoint is not None and sys.exc_info()[0] is None:
+                self.checkpoint()
         if process.returncode not in allowed:
             diagnostic = (self.out / (name + ".log")).read_bytes()[-8000:]
             if diagnostic:
@@ -391,6 +501,8 @@ class Runner:
             record.update(finished_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                           duration_seconds=time.monotonic() - started)
             save(self.out / "commands.json", self.commands)
+            if self.checkpoint is not None and sys.exc_info()[0] is None:
+                self.checkpoint()
 
 
 def staged_metadata(descriptor, name):
@@ -579,35 +691,41 @@ def main(argv=None):
     out.mkdir(mode=0o700)
     plan, outputs, error = {}, {}, None
     status = "failed"
-    started = time.monotonic()
+    scratch = Path(tempfile.mkdtemp(prefix="qfs-worker-result-", dir="/tmp"))
+    publication = None
+    final_deadline = time.monotonic() + 30
     def deadline_signal(signum, frame):
         raise TimeoutError("plan runtime deadline exceeded")
+    previous_handlers = {sig: signal.getsignal(sig) for sig in (signal.SIGALRM, signal.SIGTERM)}
+    signal.signal(signal.SIGALRM, deadline_signal)
+    signal.signal(signal.SIGTERM, deadline_signal)
+    signal.setitimer(signal.ITIMER_REAL, 30)
     try:
         require_no_credentials()
         document = load_json(regular(PLAN_PATH), 4 * 1024 * 1024)
         if not isinstance(document, dict):
             raise ValueError("plan must be a JSON object")
         plan = document
-        final_deadline = None
         validate_plan(plan, out)
         remaining = plan["hardware"]["timeout_seconds"] - max(0, time.time() - float(os.environ.get("QFS_WORKFLOW_STARTED", time.time())))
         if remaining <= 0:
             raise TimeoutError("bootstrap consumed the plan runtime deadline")
-        signal.signal(signal.SIGALRM, deadline_signal)
-        signal.signal(signal.SIGTERM, deadline_signal)
         final_deadline = time.monotonic() + remaining
         execution_seconds = remaining - min(30.0, remaining / 10)
         signal.setitimer(signal.ITIMER_REAL, execution_seconds)
-        save(out / "plan.json", plan)
+        save(scratch / "plan.json", plan)
         for name in ("bootstrap.log", "bootstrap.json"):
             path = out.parent / name
             if path.exists():
                 regular(path)
                 if path.stat().st_size > LOG_LIMIT:
                     raise ValueError("bootstrap evidence exceeds its bound")
-                shutil.copyfile(path, out / name)
-        runner = Runner(plan, out, final_deadline - min(30.0, remaining / 10))
-        workflow(plan, out, runner, outputs)
+                shutil.copyfile(path, scratch / name)
+        publication = _Publication(scratch, out, plan["limits"]["max_output_bytes"], final_deadline - 1)
+        runner = Runner(plan, scratch, final_deadline - min(30.0, remaining / 10))
+        runner.checkpoint = publication.checkpoint
+        publication.checkpoint()
+        workflow(plan, scratch, runner, outputs)
         status = "complete"
     except BaseException as exc:
         error = {"type": type(exc).__name__, "message": safe_log(str(exc).encode())[:4096].decode("utf-8", "replace")}
@@ -615,26 +733,48 @@ def main(argv=None):
         signal.setitimer(signal.ITIMER_REAL, 0)
     result = {"schema": "qfs.hf-workflow-result.v1", "workflow_id": plan.get("workflow_id"), "owner": plan.get("owner"), "mode": plan.get("mode"), "plan_sha256": plan.get("plan_sha256"), "status": status, "outputs": outputs,
               "source": plan.get("source") if isinstance(plan.get("source"), dict) else {}, "files": []}
-    manifest_path = out / "source-manifest.json"
-    if manifest_path.is_file():
-        result["source"] = load_json(manifest_path)
-        result["source"].pop("schema", None)
+    manifest_path = scratch / "source-manifest.json"
     if error:
         result["error"] = error
     try:
-        if "final_deadline" in locals() and final_deadline is not None:
-            signal.setitimer(signal.ITIMER_REAL, max(0.01, final_deadline - time.monotonic() - 1))
-        result["files"] = sorted((row(p, out) for p in tree(out) if p != out / "result.json"), key=lambda r: r["path"])
+        signal.setitimer(signal.ITIMER_REAL, max(0.01, final_deadline - time.monotonic() - 1))
+        if publication is not None:
+            result["files"] = publication.checkpoint(final=True)
+        if manifest_path.is_file():
+            result["source"] = load_json(manifest_path)
+            result["source"].pop("schema", None)
+        if status == "complete":
+            _output_coverage(plan, scratch, outputs, result["files"])
         maximum = (plan.get("limits") or {}).get("max_output_bytes")
-        if status == "complete" and sum(item["bytes"] for item in result["files"]) + len(canonical(result)) + 128 > maximum:
-            raise ValueError("complete result including its manifest exceeds the plan output bound")
+        if type(maximum) is int and sum(item["bytes"] for item in result["files"]) + len(canonical(result)) + 128 > maximum:
+            raise ValueError("result including its manifest exceeds the plan output bound")
     except BaseException as exc:
         result["status"] = status = "failed"
-        result["error"] = {"type": type(exc).__name__, "message": "Cannot safely inventory partial evidence: " + safe_log(str(exc).encode())[:4096].decode("utf-8", "replace")}
+        result["files"] = sorted(publication.records.values(), key=lambda item: item["path"]) if publication is not None else []
+        result["error"] = {"type": type(exc).__name__, "message": "Cannot safely finalize evidence: " + safe_log(str(exc).encode())[:4096].decode("utf-8", "replace")}
+        if error:
+            result["error"]["workflow_error"] = error
+    try:
+        if time.monotonic() >= final_deadline:
+            raise TimeoutError("no time remains to seal the failed result")
+        signal.setitimer(signal.ITIMER_REAL, final_deadline - time.monotonic())
+        seal(result, "result_sha256")
+        raw = canonical(result) + b"\n"
+        maximum = (plan.get("limits") or {}).get("max_output_bytes")
+        if type(maximum) is int and sum(item["bytes"] for item in result["files"]) + len(raw) > maximum:
+            raise ValueError("no output allowance remains for the result manifest")
+        shutil.rmtree(scratch)
+        save(out / "result.json", result)
+        if regular(out / "result.json").read_bytes() != raw:
+            raise ValueError("durable result manifest differs from its sealed bytes")
+    except BaseException as exc:
+        print(json.dumps({"status": "failed", "error": safe_log(str(exc).encode()).decode("utf-8", "replace"),
+                          "note": "No successful result anchor; private durable checkpoints retained"}), flush=True)
+        return 1
     finally:
         signal.setitimer(signal.ITIMER_REAL, 0)
-    save(out / "result.json", seal(result, "result_sha256"))
-    os.sync()
+        for sig, handler in previous_handlers.items():
+            signal.signal(sig, handler)
     if result.get("error"):
         print(json.dumps({"error": result["error"]}), flush=True)
     print(json.dumps({"status": status, "workflow_id": result["workflow_id"], "result_sha256": result["result_sha256"]}), flush=True)
