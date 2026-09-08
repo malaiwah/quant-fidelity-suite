@@ -3,7 +3,7 @@
   "purpose": "Data snapshot publication with all remaining limitations explicit; not a warning-free software release",
   "validator": {
     "errors": 0,
-    "warnings": 297,
+    "warnings": 298,
     "strict_warning_free_release_gate_passed": false,
     "strict_gate_policy": "Unchanged: make check-release fails when warnings remain."
   },
@@ -2555,6 +2555,15 @@
       "severity": "warn",
       "id": "measurement--native.floor.827fb81ed36b5dd9ff6e12ae",
       "message": "measurement--native.floor.827fb81ed36b5dd9ff6e12ae was produced by a version of bin/selftest_fidelity_dataset.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "rationale": "Retain measurement-time code hashes and harness IDs; restamping historical measurements would fabricate provenance. New fixture numeric source is retained in the immutable root evidence bundle."
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.827fb81ed36b5dd9ff6e12ae",
+      "message": "measurement--native.floor.827fb81ed36b5dd9ff6e12ae was produced by a version of explorer/review.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
       "remedy": null,
       "status": "retained-and-disclosed",
       "rationale": "Retain measurement-time code hashes and harness IDs; restamping historical measurements would fabricate provenance. New fixture numeric source is retained in the immutable root evidence bundle."

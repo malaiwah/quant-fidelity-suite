@@ -1283,7 +1283,6 @@ registry/protocol/community-fixtures/variants/qwen-gguf--q8_0/dataset.json
 registry/protocol/community-fixtures/variants/qwen-gguf--q8_0/runtime.json
 registry/tools/community_fixtures.py
 bin/fidelity/hfjobs.py
-registry/tools/review_requests.py
 registry/protocol/review-requests/7717c50133ead6ca569dba9be4ca5fd775627c2750a58afe3f698cb7a131043d/acceptance.json
 registry/protocol/review-requests/7717c50133ead6ca569dba9be4ca5fd775627c2750a58afe3f698cb7a131043d/comparison.json
 registry/protocol/review-requests/7717c50133ead6ca569dba9be4ca5fd775627c2750a58afe3f698cb7a131043d/execution.json
