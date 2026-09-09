@@ -267,10 +267,17 @@ with tempfile.TemporaryDirectory() as td, patch.object(Actor,'client') as client
         model_meta = {"repository": provenance["repository"], "revision": provenance["revision"],
                       "mount_path": str(mount), "config": config,
                       "config_sha256": job_worker.digest(mount / "config.json"),
+                      "config_bytes": (mount / "config.json").stat().st_size,
                       "index_sha256": job_worker.digest(mount / "model.safetensors.index.json"),
                       "index_bytes": (mount / "model.safetensors.index.json").stat().st_size,
                       "weight_bytes": (mount / "model.safetensors").stat().st_size,
                       "files": [job_worker.row(path, mount) for path in sorted(mount.iterdir())]}
+        model_meta["metadata_files"] = [row for row in model_meta["files"]
+                                        if not row["path"].endswith(job_worker.WEIGHT_SUFFIXES)]
+        metadata_stage = root / "inputs/datasets/model"
+        metadata_stage.mkdir(parents=True)
+        for row in model_meta["metadata_files"]:
+            (metadata_stage / row["path"]).write_bytes((mount / row["path"]).read_bytes())
         name = "engines/tools/layer-outer-evidence/qwen38-27b-unexpected-keys.json"
         path = root / name;path.parent.mkdir(parents=True)
         document = copy.deepcopy(inventory)
@@ -282,8 +289,11 @@ with tempfile.TemporaryDirectory() as td, patch.object(Actor,'client') as client
                  "canonical_sorted_names_sha256": jobs.hashlib.sha256(jobs.canonical(sorted(document))).hexdigest()}
         worker_plan = {"mode": "root", "inputs": {"model": model_meta},
                        "runtime": {"unexpected_allowlist": allow, "trusted_code": None}}
-        with patch.object(job_worker, "ROOT", root):
-            assert job_worker.model_binding(worker_plan, out) == mount
+        with patch.object(job_worker, "ROOT", root), \
+                patch.object(job_worker, "PLAN_PATH", root / "inputs/plan.json"), \
+                patch("fidelity.hfjobs.INPUT_DATASET_ROOT", str(root / "canonical")):
+            bound = job_worker.model_binding(worker_plan, out)
+            assert {p.name: p.read_bytes() for p in bound.iterdir()} == {p.name: p.read_bytes() for p in mount.iterdir()}
             assert (out / "unexpected-tensors.json").read_bytes() == path.read_bytes()
             assert json.loads((out / "unexpected-tensors.provenance.json").read_text()) == evidence
             from engines.tools.hf_capture import load_unexpected_tensor_allowlist

@@ -7,7 +7,7 @@
     "command": "python3 registry/tools/registry_validate.py --strict --json",
     "context": "Canonical full-suite checkout after recovery of all public accepted records. HARN-005 compares measurement-time source identities with checkout_sha256; standalone HF dataset validation need not have those suite sources.",
     "errors": 0,
-    "warnings": 513,
+    "warnings": 514,
     "comparability_keys": 39,
     "strict_warning_free_release_gate_passed": false,
     "strict_gate_policy": "Unchanged: make check-release fails when warnings remain.",
@@ -28,19 +28,19 @@
     "CMP-005": 19,
     "DET-006": 4,
     "FLOOR-003": 11,
-    "HARN-005": 456,
+    "HARN-005": 457,
     "PANEL-006": 5,
     "PROV-006": 7,
     "STAT-005": 11
   },
   "disposition_counts": {
     "missing-evidence-retained": 27,
-    "retained-and-disclosed": 486
+    "retained-and-disclosed": 487
   },
   "category_counts": {
     "contamination-evidence-missing": 5,
     "frozen-single-comparison-limitation": 4,
-    "historical-source-version-drift": 456,
+    "historical-source-version-drift": 457,
     "panel-attribution-reviewed": 7,
     "same-group-control-missing": 11,
     "same-scope-top1-not-published": 11,
@@ -9550,7 +9550,7 @@
             "sha256": "6e8debcf4888097ae81a146b7fe418b5460c25befe76094e867c71156291a82b"
           }
         ],
-        "checkout_sha256": "b1d02f737e25ef973649baee63e2c2ec6605f4c574e1ed59db94a551c0016a4b",
+        "checkout_sha256": "bfb28cd884b1edacbf3eebe7e27a3cb37785cb3fc6f77df812b75ef8858deff6",
         "harness_id": "harness--d8cd719704083868"
       }
     },
@@ -9965,6 +9965,29 @@
           }
         ],
         "checkout_sha256": "c64f3bf98122dc79c9cd78bfd49d5209065aa3270144c5f77a8c0771c982ec9f",
+        "harness_id": "harness--dac5848f3aa00e25"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.72915a75f9da017af5fe925e",
+      "message": "measurement--native.floor.72915a75f9da017af5fe925e was produced by a version of bin/selftest_jobs_resources.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "bin/selftest_jobs_resources.py",
+        "recorded_entries": [
+          {
+            "path": "bin/selftest_jobs_resources.py",
+            "role": "source_0114",
+            "sha256": "b1d02f737e25ef973649baee63e2c2ec6605f4c574e1ed59db94a551c0016a4b"
+          }
+        ],
+        "checkout_sha256": "bfb28cd884b1edacbf3eebe7e27a3cb37785cb3fc6f77df812b75ef8858deff6",
         "harness_id": "harness--dac5848f3aa00e25"
       }
     },
@@ -11597,7 +11620,7 @@
             "sha256": "6e8debcf4888097ae81a146b7fe418b5460c25befe76094e867c71156291a82b"
           }
         ],
-        "checkout_sha256": "b1d02f737e25ef973649baee63e2c2ec6605f4c574e1ed59db94a551c0016a4b",
+        "checkout_sha256": "bfb28cd884b1edacbf3eebe7e27a3cb37785cb3fc6f77df812b75ef8858deff6",
         "harness_id": "harness--82f5ace09945ce44"
       }
     },
@@ -13532,7 +13555,7 @@
     "remote_base_revision": "16e38c663dde9725beb200385b33c8d0503e550b"
   },
   "previous_disposition_snapshot": {
-    "sha256": "b41540d9f6380f77b16a37fb963ca09e0d8524ddcca38bec6c484e253692ec4e",
+    "sha256": "57082ed1009b71fec350dcf4823544e383643ea2f4b6c7baf70a607f158c79c3",
     "record_counts": {
       "models": 19,
       "artifacts": 95,
