@@ -5,6 +5,11 @@
       "worker_sha256": "7a9b678eecb5121309eb396e7757b6a018ee6fffd1f1ddddd5c7722f7d88f7c4",
       "bootstrap_sha256": "c8d65dcf8f2e7bc7749eaca67d61c9afedb9e9b95e8fdfd526c122c4747920f1",
       "image": "python@sha256:581429e3df12d76e6af4be5ab7d0e7fc2013eb57dc23d2de691411c8efdbb970"
+    },
+    "30d529f7740d5946b9f503cf40a64772a484b2be": {
+      "worker_sha256": "007aa9fb5e2d2e1ea6a46947188d98958d52a5b666341dac9446cb3fa8434ff3",
+      "bootstrap_sha256": "c8d65dcf8f2e7bc7749eaca67d61c9afedb9e9b95e8fdfd526c122c4747920f1",
+      "image": "python@sha256:581429e3df12d76e6af4be5ab7d0e7fc2013eb57dc23d2de691411c8efdbb970"
     }
   }
 }

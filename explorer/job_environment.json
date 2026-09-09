@@ -1,16 +1,20 @@
 {
   "schema": "qfs.hf-job-environment.v1",
-  "image": "python@sha256:581429e3df12d76e6af4be5ab7d0e7fc2013eb57dc23d2de691411c8efdbb970",
-  "image_tag_observed": "python:3.12-bookworm",
+  "image": "ghcr.io/malaiwah/quant-fidelity-measure@sha256:b587227adb3dc56ca2f6fcbd6ecabb143fed04d3d7fabd2d76cbf9bf92bb8006",
+  "image_tag_observed": "ghcr.io/malaiwah/quant-fidelity-measure:main",
+  "launch_contract": "measurement-venv-v1",
+  "interpreter": "/opt/fidelity/venv/bin/python",
   "python": "3.12",
+  "build_sha256": "f7cc2b4af135ac256348073d6a033a3ff980d994d4d63db9ab23f005857cb6cf",
+  "image_content_sha256": "f949d4f872b18762294c440f56539858a8d9a09c04d44c5d720258c9d8a9a534",
+  "baked_source_revision": "1ab2838996f338d5c7957ce147a7cb5234913607",
   "capture_dependencies": {
-    "torch_cpu": "2.11.0+cpu",
-    "torch_cuda": "2.11.0+cu130",
+    "torch": "2.11.0+cu130",
     "transformers": "5.16.1",
-    "numpy": "2.5.3",
+    "numpy": "2.5.2",
     "safetensors": "0.8.0",
-    "tokenizers": "0.23.2",
-    "huggingface_hub": "1.30.0",
+    "tokenizers": "0.23.1",
+    "huggingface_hub": "1.29.0",
     "accelerate": "1.14.0"
   },
   "source_repository": "https://github.com/malaiwah/quant-fidelity-suite"

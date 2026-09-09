@@ -187,11 +187,12 @@ def _source_identity():
     if not SHA.fullmatch(revision or ""):
         raise JobsError("No immutable worker source revision is configured.")
     files = {}
-    for name in ("job_worker.py", "job_bootstrap.py"):
+    for name in ("job_worker.py", "job_bootstrap.py", "job_environment.json"):
         path = ROOT / "explorer" / name
         if not path.is_file():
             raise JobsError("The reviewed Jobs worker is not deployed.")
-        key = "worker_sha256" if name == "job_worker.py" else "bootstrap_sha256"
+        key = {"job_worker.py": "worker_sha256", "job_bootstrap.py": "bootstrap_sha256",
+               "job_environment.json": "environment_sha256"}[name]
         sha = hashlib.sha256(path.read_bytes()).hexdigest()
         if deployment.exists():
             if data.get(key) != sha:
@@ -207,6 +208,8 @@ def _source_identity():
     image = environment.get("image", "")
     if not re.fullmatch(r"[A-Za-z0-9./:_-]+@sha256:[0-9a-f]{64}", image):
         raise JobsError("Worker image must be digest-pinned.")
+    if environment.get("launch_contract") != "measurement-venv-v1" or environment.get("interpreter") != "/opt/fidelity/venv/bin/python":
+        raise JobsError("Jobs require the reviewed baked measurement interpreter.")
     return {"repository": SOURCE, "revision": revision, **files}, image
 
 
@@ -712,6 +715,7 @@ def _prepare(actor, spec, registry=None):
         registry_input = _registry_metadata(actor, registered["registry_repository"], registered["registry_revision"])
     plan = {"schema": "qfs.hf-workflow-plan.v1", "workflow_id": workflow_id, "owner": actor.username, "mode": mode,
             "created_at": datetime.now(timezone.utc).isoformat(), "source": source, "image": image,
+            "launch_contract": "measurement-venv-v1",
             "inputs": {"model": model, "panel": panel, "reference": reference, "candidate": candidate,
                        "tokenizer": tokenizer, "registry": registry_input},
             "output": {"dataset_repository": output_repo, "bucket": actor.username + "/qfs-explorer-results",
@@ -786,7 +790,7 @@ def _job_public(job):
             "workflow_id": (job.labels or {}).get("qfs_workflow_id")}
 
 
-_BOOTSTRAP_FETCH = r'''import hashlib,json,os,urllib.request
+_HISTORICAL_BOOTSTRAP_FETCH = r'''import hashlib,json,os,urllib.request
 from pathlib import Path
 p=json.loads(Path('/inputs/plan/plan.json').read_text())
 assert p['plan_sha256']==os.environ['QFS_PLAN_SHA256']
@@ -798,6 +802,19 @@ assert hashlib.sha256(raw).hexdigest()==p['source']['bootstrap_sha256']
 Path('/tmp/qfs-job-bootstrap.py').write_bytes(raw)
 os.execvp('python',['python','/tmp/qfs-job-bootstrap.py','--plan','/inputs/plan/plan.json','--out','/outputs/result'])
 '''
+
+# Preserve the historical bytes above: existing provider commands attest them.
+_BOOTSTRAP_FETCH = _HISTORICAL_BOOTSTRAP_FETCH.replace(
+    "os.execvp('python',['python',",
+    "os.execv('/opt/fidelity/venv/bin/python',['/opt/fidelity/venv/bin/python',")
+
+
+def _launch_command(contract):
+    if contract == "measurement-venv-v1":
+        return ["/opt/fidelity/venv/bin/python", "-c", _BOOTSTRAP_FETCH]
+    if contract == "python-bootstrap-v1":
+        return ["python", "-c", _HISTORICAL_BOOTSTRAP_FETCH]
+    raise JobsError("Unknown reviewed worker launch contract; no executable fallback is allowed.")
 
 
 def _absent_job_proof(api, namespace, workflow_id):
@@ -833,6 +850,8 @@ def launch(actor, prepared, *, confirm_compute=False):
     verify_seal(plan, "plan_sha256");_check_ticket(actor, plan, ticket)
     if "replay" not in plan.get("runtime", {}):
         raise JobsError("New launches require an explicit sealed replay policy; prepare again.")
+    if plan.get("launch_contract") != "measurement-venv-v1":
+        raise JobsError("New launches require the baked measurement runtime; prepare again.")
     job_resources.resolve_replay(plan)
     max_active_jobs = job_resources.active_job_limit(plan["limits"].get("max_active_jobs", 1))
     if plan["owner"] != actor.username or time.time() - plan["hardware"]["quote_time"] > 600:
@@ -939,7 +958,7 @@ def launch(actor, prepared, *, confirm_compute=False):
             if isinstance(exc, JobsError):raise
             raise _api_error(exc, "Private input/output preparation") from None
         try:
-            job = api.run_job(image=plan["image"], command=["python", "-c", _BOOTSTRAP_FETCH],
+            job = api.run_job(image=plan["image"], command=_launch_command(plan["launch_contract"]),
                 flavor=plan["hardware"]["flavor"], timeout=plan["hardware"]["timeout_seconds"], namespace=actor.username,
                 env={"QFS_PLAN_SHA256": plan["plan_sha256"], "QFS_WORKFLOW_ID": wid}, secrets={},
                 labels={"qfs_app": "explorer", "qfs_workflow_id": wid, "qfs_source": plan["source"]["revision"], "qfs_space": hashlib.sha256(SPACE.encode()).hexdigest()[:32]}, volumes=volumes)
@@ -1151,10 +1170,15 @@ def _reviewed_job_sources():
             raise JobsError("Invalid explicitly reviewed recovery source schema.")
         for revision, pin in revisions.items():
             if (not SHA.fullmatch(str(revision)) or not isinstance(pin, dict)
-                    or set(pin) != {"worker_sha256", "bootstrap_sha256", "image"}
+                    or not {"worker_sha256", "bootstrap_sha256", "image"} <= set(pin)
+                    or set(pin) - {"worker_sha256", "bootstrap_sha256", "image", "launch_contract", "environment_sha256"}
                     or any(not HEX.fullmatch(str(pin.get(key))) for key in ("worker_sha256", "bootstrap_sha256"))
                     or not re.fullmatch(r"[A-Za-z0-9./:_-]+@sha256:[0-9a-f]{64}", str(pin.get("image")))):
                 raise JobsError("Invalid explicitly reviewed recovery source pin.")
+            contract = pin.get("launch_contract", "python-bootstrap-v1")
+            _launch_command(contract)
+            if contract == "measurement-venv-v1" and not HEX.fullmatch(str(pin.get("environment_sha256", ""))):
+                raise JobsError("Reviewed measurement runtime requires its source environment hash.")
             if revision in approved and approved[revision] != pin:
                 raise JobsError("Conflicting explicitly reviewed recovery source pins.")
             approved[revision] = pin
@@ -1165,20 +1189,27 @@ def _verify_provider(actor, job, plan):
     verify_seal(plan, "plan_sha256")
     candidate_source = plan.get("source") or {}
     pin = _reviewed_job_sources().get(candidate_source.get("revision"))
-    reviewed = (pin is not None and candidate_source == {"repository": SOURCE,
-                "revision": candidate_source.get("revision"),
-                "worker_sha256": pin["worker_sha256"], "bootstrap_sha256": pin["bootstrap_sha256"]}
-                and plan.get("image") == pin["image"])
+    expected_source = {"repository": SOURCE, "revision": candidate_source.get("revision")}
+    if pin:
+        expected_source.update({key: pin[key] for key in ("worker_sha256", "bootstrap_sha256", "environment_sha256") if key in pin})
+    reviewed = pin is not None and candidate_source == expected_source and plan.get("image") == pin["image"]
     if reviewed:
         source = candidate_source
+        contract = pin.get("launch_contract", "python-bootstrap-v1")
+        if plan.get("launch_contract", "python-bootstrap-v1") != contract:
+            raise JobsError("The sealed plan differs from its reviewed launch contract.")
     else:
         source, image = _source_identity()
         if candidate_source != source or plan.get("image") != image:
             raise JobsError("This Job source/image is not in the explicitly reviewed recovery pins.")
         if "replay" not in plan.get("runtime", {}):
             raise JobsError("Historical CPU recovery requires an explicitly reviewed source pin.")
+        contract = "measurement-venv-v1"
+        if plan.get("launch_contract") != contract:
+            raise JobsError("Current Jobs require the sealed measurement launch contract.")
     job_resources.resolve_replay(plan)
-    if (plan.get("owner") != actor.username or job.command != ["python", "-c", _BOOTSTRAP_FETCH]
+    if (plan.get("owner") != actor.username or job.command != _launch_command(contract)
+            or job.docker_image != plan["image"]
             or job.arguments or job.secrets or job.space_id
             or job.environment != {"QFS_PLAN_SHA256": plan["plan_sha256"], "QFS_WORKFLOW_ID": plan["workflow_id"]}
             or (job.labels or {}).get("qfs_source") != source["revision"]

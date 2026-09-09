@@ -86,8 +86,14 @@ def main():
     token = _read_token_file(args.token_file)
     root = Path(__file__).resolve().parents[1]
     revision = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip()
-    image = json.loads((root / "explorer/job_environment.json").read_text())["image"]
-    deployment = {"schema": "qfs.explorer-deployment.v1", "source_revision": revision, "image": image}
+    environment_raw = (root / "explorer/job_environment.json").read_bytes()
+    if subprocess.check_output(["git", "show", revision + ":explorer/job_environment.json"], cwd=root) != environment_raw:
+        raise SystemExit("Commit the reviewed Job environment before publishing the Space.")
+    environment = json.loads(environment_raw)
+    image = environment["image"]
+    deployment = {"schema": "qfs.explorer-deployment.v1", "source_revision": revision, "image": image,
+                  "launch_contract": environment.get("launch_contract", "python-bootstrap-v1"),
+                  "environment_sha256": hashlib.sha256(environment_raw).hexdigest()}
     for name, key in (("job_worker.py", "worker_sha256"), ("job_bootstrap.py", "bootstrap_sha256")):
         path = root / "explorer" / name
         committed = subprocess.check_output(["git", "show", revision + ":explorer/" + name], cwd=root)
@@ -117,8 +123,11 @@ def main():
     for prior in prior_manifests:
         reviewed.update(prior.get("reviewed_source_revisions", {}))
         if prior.get("source_revision") and all(prior.get(k) for k in ("worker_sha256", "bootstrap_sha256", "image")):
-            reviewed[prior["source_revision"]] = {k: prior[k] for k in ("worker_sha256", "bootstrap_sha256", "image")}
-    reviewed[revision] = {k: deployment[k] for k in ("worker_sha256", "bootstrap_sha256", "image")}
+            reviewed[prior["source_revision"]] = {
+                k: prior[k] for k in ("worker_sha256", "bootstrap_sha256", "image",
+                                     "launch_contract", "environment_sha256") if k in prior}
+    reviewed[revision] = {k: deployment[k] for k in ("worker_sha256", "bootstrap_sha256", "image",
+                                                   "launch_contract", "environment_sha256")}
     deployment["reviewed_source_revisions"] = reviewed
     local_manifest.write_text(json.dumps(deployment, indent=2) + "\n")
     commit = api.upload_folder(repo_id=args.repo, repo_type="space", folder_path=root,

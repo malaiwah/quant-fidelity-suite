@@ -797,7 +797,7 @@ def _ledger_doc(runs):
 def _launch_plan(actor, source, image, max_active_jobs=1):
     plan = {"schema": "qfs.hf-workflow-plan.v1", "workflow_id": secrets.token_hex(16),
             "owner": actor.username, "mode": "compare", "created_at": "2026-09-08T00:00:00+00:00",
-            "source": source, "image": image,
+            "source": source, "image": image, "launch_contract": "measurement-venv-v1",
             "runtime": {"replay": jobs.job_resources.replay_policy({"device": "cpu"})},
             "limits": {"max_active_jobs": max_active_jobs},
             "inputs": {"model": None, "panel": None, "reference": None, "candidate": None, "tokenizer": None},
@@ -938,6 +938,179 @@ def rung_stale_reconciliation(actor, root):
         jobs._source_identity = real_identity
 
 
+def rung_baked_runtime(actor, root):
+    from unittest.mock import patch
+    from explorer import job_bootstrap as bootstrap
+    import container_manifest
+
+    image_root = root / "baked-image"
+    (image_root / "suite").mkdir(parents=True)
+    (image_root / "patches-v2").mkdir()
+    (image_root / "suite/source.py").write_bytes(b"baked source, not worker source")
+    (image_root / "patches-v2/SERIES").write_bytes(b"patch fixture")
+    freeze = b"torch==2.11.0+cu130\nnumpy==2.5.2\n"
+    (image_root / "pip-freeze.txt").write_bytes(freeze)
+    build = {"schema": "malaiwah.fidelity-image-build.v1", "suite_revision": "1" * 40,
+             "pins": {"python": "3.12.3", "torch_cuda": "13.0"}, "probe_errors": {},
+             "bundle_sha256": {"source.py": hashlib.sha256((image_root / "suite/source.py").read_bytes()).hexdigest()},
+             "patches_sha256": {"SERIES": hashlib.sha256(b"patch fixture").hexdigest()},
+             "pip_freeze_sha256": hashlib.sha256(freeze).hexdigest()}
+    material = {key: build[key] for key in ("pins", "patches_sha256", "bundle_sha256", "pip_freeze_sha256", "suite_revision")}
+    build["image_content_sha256"] = hashlib.sha256(container_manifest.canonical(material).encode()).hexdigest()
+    raw = json.dumps(build).encode()
+    (image_root / "BUILD.json").write_bytes(raw)
+    (image_root / "image-pin.txt").write_text(build["image_content_sha256"] + "\n")
+    environment = {"build_sha256": hashlib.sha256(raw).hexdigest(),
+                   "image_content_sha256": build["image_content_sha256"], "baked_source_revision": "1" * 40,
+                   "capture_dependencies": {"torch": "2.11.0+cu130", "numpy": "2.5.2"}}
+    observed, closure = bootstrap.verify_image(environment, image_root=image_root)
+    check("B1 verified baked provenance remains independent of worker checkout",
+          observed["suite_revision"] == "1" * 40 and closure == freeze)
+    for name, replacement in (("BUILD.json", raw + b" "), ("image-pin.txt", b"0" * 64),
+                              ("pip-freeze.txt", freeze.replace(b"2.5.2", b"2.5.3")),
+                              ("suite/source.py", b"changed baked code"),
+                              ("patches-v2/SERIES", b"changed baked patch")):
+        path = image_root / name
+        original = path.read_bytes()
+        path.write_bytes(replacement)
+        try:
+            check("B2 changed " + name + " refuses before runtime",
+                  refuses(lambda: bootstrap.verify_image(environment, image_root=image_root), ValueError))
+        finally:
+            path.write_bytes(original)
+
+    class Scalar:
+        def __add__(self, other):
+            return self
+        def item(self):
+            return 2
+
+    torch = ns(__version__="2.11.0+cu130", version=ns(cuda="13.0"),
+               cuda=ns(is_available=lambda: False), float64="fp64",
+               ones=lambda *args, **kwargs: Scalar())
+    modules = {"torch": torch, "numpy": ns(__version__="2.5.2")}
+    wheels = [ns(metadata={"Name": name}, version=version) for name, version in
+              (("torch", "2.11.0+cu130"), ("numpy", "2.5.2"), ("pip", "26.0"))]
+    with patch.object(sys, "executable", bootstrap.PYTHON), patch.object(sys, "prefix", "/opt/fidelity/venv"), \
+            patch.object(sys, "version_info", (3, 12, 3)), \
+            patch("importlib.metadata.distributions", return_value=wheels), \
+            patch("importlib.import_module", side_effect=lambda name: modules[name]):
+        runtime = bootstrap.verify_runtime(environment, build, freeze, "cpu")
+        check("B3 CUDA wheel on CPU reports actual unavailable CUDA",
+              runtime["device"] == "cpu" and runtime["cuda_available"] is False and runtime["torch_cuda"] == "13.0")
+        check("B4 requested missing CUDA fails, never falls back",
+              refuses(lambda: bootstrap.verify_runtime(environment, build, freeze, "cuda"), ValueError))
+        for attribute, value in (("executable", "/usr/bin/python3.12"), ("prefix", "/usr"),
+                                 ("version_info", (3, 11, 9))):
+            with patch.object(sys, attribute, value):
+                check("B5 wrong baked " + attribute + " refuses",
+                      refuses(lambda: bootstrap.verify_runtime(environment, build, freeze, "cpu"), ValueError))
+        wheels[1].version = "2.5.3"
+        check("B6 mismatched installed dependency fails instead of installation",
+              refuses(lambda: bootstrap.verify_runtime(environment, build, freeze, "cpu"), ValueError))
+        wheels[1].version = "2.5.2"
+        with patch.object(importlib, "import_module", side_effect=RuntimeError("native import failed")):
+            check("B7 native import exceptions are failures, not skips",
+                  refuses(lambda: bootstrap.verify_runtime(environment, build, freeze, "cpu"), RuntimeError))
+
+    # Recovery authenticates the provider's historical command, not today's venv.
+    for revision, pin in jobs._reviewed_job_sources().items():
+        source = {"repository": jobs.SOURCE, "revision": revision,
+                  **{key: pin[key] for key in ("worker_sha256", "bootstrap_sha256", "environment_sha256") if key in pin}}
+        plan = _launch_plan(actor, source, pin["image"])["plan"]
+        contract = pin.get("launch_contract", "python-bootstrap-v1")
+        if contract == "python-bootstrap-v1":
+            plan.pop("launch_contract")
+        plan["output"]["prefix"] = "runs/" + plan["workflow_id"]
+        plan = jobs.seal(plan, "plan_sha256")
+        job = ns(command=jobs._launch_command(contract), arguments=[], secrets={}, space_id=None,
+                 docker_image=pin["image"],
+                 environment={"QFS_PLAN_SHA256": plan["plan_sha256"], "QFS_WORKFLOW_ID": plan["workflow_id"]},
+                 labels={"qfs_source": revision, "qfs_workflow_id": plan["workflow_id"]},
+                 volumes=[ns(type="bucket", source=plan["output"]["bucket"],
+                             path=plan["output"]["prefix"] + "/" + name, mount_path=mount,
+                             read_only=readonly, revision=None)
+                          for name, mount, readonly in (("inputs", "/inputs/plan", True), ("outputs", "/outputs", False))])
+        jobs._verify_provider(actor, job, plan)
+        job.command = ["/tmp/arbitrary-python", "-c", jobs._BOOTSTRAP_FETCH]
+        check("B8 recovery refuses an arbitrary interpreter for " + revision[:7],
+              refuses(lambda: jobs._verify_provider(actor, job, plan), jobs.JobsError))
+        job.command = jobs._launch_command(contract)
+        job.docker_image = "python@sha256:" + "0" * 64
+        check("B9 recovery refuses a different provider image for " + revision[:7],
+              refuses(lambda: jobs._verify_provider(actor, job, plan), jobs.JobsError))
+
+
+def rung_bootstrap_no_install(root, bootstrap=None):
+    """Exercise successful handoff with an immutable checkout and no installer."""
+    from unittest.mock import patch
+    if bootstrap is None:
+        from explorer import job_bootstrap as bootstrap
+    base = root / "bootstrap-handoff"
+    outputs = base / "outputs"
+    outputs.mkdir(parents=True)
+    checkout = base / "checkout"
+    plan_path = base / "plan.json"
+    environment_raw = (ROOT / "explorer/job_environment.json").read_bytes()
+    environment = json.loads(environment_raw)
+    worker_raw = b"# immutable worker fixture\n"
+    plan = jobs.seal({"schema": "qfs.hf-workflow-plan.v1", "launch_contract": "measurement-venv-v1",
+                     "image": environment["image"], "hardware": {"timeout_seconds": 60, "device": "cpu"},
+                     "source": {"repository": jobs.SOURCE, "revision": "a" * 40,
+                                "worker_sha256": hashlib.sha256(worker_raw).hexdigest(),
+                                "environment_sha256": hashlib.sha256(environment_raw).hexdigest()}}, "plan_sha256")
+    plan_path.write_bytes(jobs.canonical(plan))
+    launched = []
+    attempted_installs = []
+    runtime = {"baked_source_revision": environment["baked_source_revision"],
+               "image_content_sha256": environment["image_content_sha256"],
+               "installed_versions": {"numpy": "2.5.2", "torch": "2.11.0+cu130"}}
+
+    def mapped_path(value):
+        if str(value) == "/inputs/plan/plan.json":
+            return plan_path
+        if str(value) == "/outputs" or str(value).startswith("/outputs/"):
+            return outputs / str(value).removeprefix("/outputs").lstrip("/")
+        return Path(value)
+
+    def execute(command, deadline, commands, *, step):
+        commands.append({"step": step, "argv": command, "returncode": 0})
+        if command[1:4] == ["-m", "pip", "install"]:
+            attempted_installs.append(command)
+            raise RuntimeError("package installation is forbidden in measurement Jobs")
+        if step == "initialize-source":
+            (checkout / "explorer").mkdir(parents=True)
+            (checkout / "explorer/job_worker.py").write_bytes(worker_raw)
+            (checkout / "explorer/job_bootstrap.py").write_bytes(Path(bootstrap.__file__).read_bytes())
+            (checkout / "explorer/job_environment.json").write_bytes(environment_raw)
+        if step == "verify-baked-runtime":
+            (outputs / "image-runtime.json").write_bytes(jobs.canonical(runtime))
+
+    with contextlib.ExitStack() as stack:
+        for name, value in (("CHECKOUT", checkout), ("LOG", outputs / "bootstrap.log"),
+                            ("RECEIPT", outputs / "bootstrap.json"), ("RUNTIME", outputs / "image-runtime.json"),
+                            ("Path", mapped_path), ("run", execute)):
+            stack.enter_context(patch.object(bootstrap, name, value, create=True))
+        stack.enter_context(patch.object(bootstrap, "open", lambda path, mode: open(mapped_path(path), mode), create=True))
+        stack.enter_context(patch.object(sys, "executable", "/opt/fidelity/venv/bin/python"))
+        stack.enter_context(patch.object(sys, "prefix", "/opt/fidelity/venv"))
+        stack.enter_context(patch.object(sys, "version_info", (3, 12, 3)))
+        stack.enter_context(patch.object(sys, "path", list(sys.path)))
+        stack.enter_context(patch.dict(os.environ, {}, clear=True))
+        stack.enter_context(patch.dict(sys.modules, {"job_worker": ns(require_no_credentials=lambda: None,
+                                                                    validate_plan=lambda *args: None)}))
+        stack.enter_context(patch.object(os, "sync", lambda: None))
+        stack.enter_context(patch.object(os, "execve", lambda path, argv, env: launched.append((path, argv))))
+        bootstrap.main(["--plan", "/inputs/plan/plan.json", "--out", "/outputs/result"])
+    check("B10 immutable worker handoff succeeds without per-Job installs",
+          not attempted_installs and launched and launched[0][0] == "/opt/fidelity/venv/bin/python")
+    receipt = json.loads((outputs / "bootstrap.json").read_text())
+    check("B11 final bootstrap evidence separates installed image runtime and worker source",
+          receipt["baked_source_revision"] == environment["baked_source_revision"]
+          and receipt["source_revision"] == "a" * 40
+          and receipt["installed_versions"]["numpy"] == "2.5.2")
+
+
 def main():
     with tempfile.TemporaryDirectory(prefix="qfs-selftest-explorer-") as td:
         root = Path(td)
@@ -950,6 +1123,8 @@ def main():
             rung_attribution_labeling(root)
             rung_publish_token_file(root)
             rung_stale_reconciliation(actor, root)
+            rung_baked_runtime(actor, root)
+            rung_bootstrap_no_install(root)
         except AssertionError as exc:
             print("selftest_explorer_jobs: FAIL: %s" % exc)
             return 1

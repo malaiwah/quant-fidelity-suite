@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bootstrap an immutable public QFS worker in a Python 3.12 full-bookworm Job."""
+"""Run an immutable public QFS worker using the verified baked measurement venv."""
 from __future__ import annotations
 
 import argparse
@@ -20,6 +20,94 @@ CHECKOUT = Path("/tmp/qfs-job-source")
 LOG = Path("/outputs/bootstrap.log")
 RECEIPT = Path("/outputs/bootstrap.json")
 LOG_LIMIT = 1024 * 1024
+IMAGE_ROOT = Path("/opt/fidelity")
+PYTHON = "/opt/fidelity/venv/bin/python"
+RUNTIME = Path("/outputs/image-runtime.json")
+
+
+def verify_image(environment, *, image_root=IMAGE_ROOT):
+    """Verify immutable BUILD material without equating baked and worker sources."""
+    sys.path.insert(0, str(CHECKOUT / "bin"))
+    from container_manifest import canonical as manifest_canonical, sha256_file
+    raw = (image_root / "BUILD.json").read_bytes()
+    if hashlib.sha256(raw).hexdigest() != environment["build_sha256"]:
+        raise ValueError("measurement image BUILD.json hash mismatch")
+    build = json.loads(raw)
+    if build.get("schema") != "malaiwah.fidelity-image-build.v1" or build.get("probe_errors"):
+        raise ValueError("measurement BUILD schema or build probes failed")
+    material = {key: build[key] for key in ("pins", "patches_sha256", "bundle_sha256", "pip_freeze_sha256", "suite_revision")}
+    content = hashlib.sha256(manifest_canonical(material).encode()).hexdigest()
+    if (content != build.get("image_content_sha256") or content != environment["image_content_sha256"]
+            or (image_root / "image-pin.txt").read_text().strip() != content
+            or build["suite_revision"] != environment["baked_source_revision"]):
+        raise ValueError("measurement image content/source identity mismatch")
+    for directory, field in (("suite", "bundle_sha256"), ("patches-v2", "patches_sha256")):
+        if not build[field]:
+            raise ValueError("measurement image has no recorded " + field)
+        root = image_root / directory
+        for name, expected in build[field].items():
+            path = root / name
+            if (Path(name).is_absolute() or ".." in Path(name).parts or path.is_symlink()
+                    or root.resolve() not in path.resolve().parents or sha256_file(path) != expected):
+                raise ValueError("measurement image file identity mismatch: " + name)
+    freeze = (image_root / "pip-freeze.txt").read_bytes()
+    if hashlib.sha256(freeze).hexdigest() != build["pip_freeze_sha256"]:
+        raise ValueError("measurement image baked dependency closure hash mismatch")
+    return build, freeze
+
+
+def verify_runtime(environment, build, freeze, device):
+    from importlib import import_module
+    from importlib.metadata import distributions
+    if (sys.executable != PYTHON or sys.prefix != str(IMAGE_ROOT / "venv")
+            or sys.version_info[:2] != (3, 12)
+            or ".".join(map(str, sys.version_info[:3])) != build["pins"]["python"]):
+        raise ValueError("only the baked Python 3.12 interpreter is allowed; no fallback")
+    normalize = lambda name: re.sub(r"[-_.]+", "-", name).lower()
+    expected = {}
+    for line in freeze.decode().splitlines():
+        if not line.strip():
+            continue
+        name, separator, version = line.partition("==")
+        if not separator or not name or not version or normalize(name) in expected:
+            raise ValueError("unsupported or duplicate baked dependency closure entry")
+        expected[normalize(name)] = version
+    versions = {}
+    for distribution in distributions():
+        name = normalize(distribution.metadata["Name"])
+        if name in versions:
+            raise ValueError("duplicate installed distribution: " + name)
+        versions[name] = distribution.version
+    # Python 3.12 pip freeze omits pip itself, not setuptools/wheel.
+    if {name: version for name, version in versions.items() if name != "pip"} != expected:
+        raise ValueError("installed dependency closure differs from baked pip-freeze.txt")
+    for name, expected_version in environment["capture_dependencies"].items():
+        module = import_module(name)
+        if versions.get(normalize(name)) != expected_version or getattr(module, "__version__", None) != expected_version:
+            raise ValueError("required capture dependency mismatch: " + name)
+    torch = import_module("torch")
+    if torch.version.cuda != build["pins"]["torch_cuda"]:
+        raise ValueError("baked torch CUDA build differs from BUILD.json")
+    available = torch.cuda.is_available()
+    if device not in ("cpu", "cuda") or device == "cuda" and not available:
+        raise ValueError("requested CUDA capability is unavailable; no CPU fallback")
+    probe = torch.ones(1, dtype=torch.float64, device=device)
+    if (probe + probe).item() != 2:
+        raise ValueError("requested device fp64 runtime probe failed")
+    return {"python": sys.version, "interpreter": sys.executable,
+            "installed_versions": dict(sorted(versions.items())),
+            "torch_cuda": torch.version.cuda, "cuda_available": available, "device": device}
+
+
+def inspect_runtime(device):
+    environment = json.loads((CHECKOUT / "explorer/job_environment.json").read_text())
+    build, freeze = verify_image(environment)
+    observed = verify_runtime(environment, build, freeze, device)
+    save(RUNTIME, {**observed, "image": environment["image"],
+                   "build_sha256": environment["build_sha256"],
+                   "image_content_sha256": build["image_content_sha256"],
+                   "baked_source_revision": build["suite_revision"],
+                   "pip_freeze_sha256": build["pip_freeze_sha256"]})
 
 
 def canonical(value):
@@ -88,16 +176,20 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--plan", required=True)
     parser.add_argument("--out", required=True)
+    parser.add_argument("--inspect-runtime", choices=("cpu", "cuda"), help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     if args.plan != "/inputs/plan/plan.json" or args.out != "/outputs/result" or Path("/outputs").resolve() != Path("/outputs"):
         parser.error("bootstrap requires the fixed plan and bucket output paths")
+    if args.inspect_runtime:
+        inspect_runtime(args.inspect_runtime)
+        return 0
     if Path(args.out).exists() or LOG.exists() or RECEIPT.exists():
         parser.error("fresh per-attempt bucket prefix required")
     started = time.time()
     plan, commands = {}, []
     try:
-        if sys.version_info[:2] != (3, 12):
-            raise ValueError("worker image must provide Python 3.12")
+        if sys.executable != PYTHON or sys.prefix != str(IMAGE_ROOT / "venv") or sys.version_info[:2] != (3, 12):
+            raise ValueError("worker requires the baked Python 3.12 venv; no fallback")
         forbidden = ("HF_TOKEN", "HF_TOKEN_PATH", "HUGGING_FACE_HUB_TOKEN", "HUGGINGFACEHUB_API_TOKEN", "HF_API_TOKEN", "OAUTH_TOKEN")
         if any(os.environ.get(name) for name in forbidden):
             raise ValueError("HF credentials must never be passed to the worker")
@@ -114,6 +206,8 @@ def main(argv=None):
         source = plan["source"]
         if source.get("repository") != SOURCE or not re.fullmatch(r"[0-9a-f]{40}", str(source.get("revision"))):
             raise ValueError("only an immutable commit of the fixed public QFS repository is allowed")
+        if plan.get("launch_contract") != "measurement-venv-v1":
+            raise ValueError("worker requires the sealed measurement launch contract")
         timeout = plan["hardware"]["timeout_seconds"]
         if type(timeout) is not int or not 0 < timeout <= 86400:
             raise ValueError("invalid runtime deadline")
@@ -136,20 +230,27 @@ def main(argv=None):
             raise ValueError("immutable checkout worker hash mismatch")
         if (CHECKOUT / "explorer/job_bootstrap.py").read_bytes() != Path(__file__).read_bytes():
             raise ValueError("bootstrap bytes do not match the immutable source revision")
-        # Validate the entire plan and read-only mounts before dependency installation.
+        environment_raw = (CHECKOUT / "explorer/job_environment.json").read_bytes()
+        environment = json.loads(environment_raw)
+        if (hashlib.sha256(environment_raw).hexdigest() != source.get("environment_sha256")
+                or environment.get("image") != plan["image"]
+                or environment.get("interpreter") != PYTHON
+                or environment.get("launch_contract") != plan["launch_contract"]):
+            raise ValueError("source-bound measurement image environment mismatch")
+        # Validate the entire plan and read-only mounts before loading tensor code.
         sys.path.insert(0, str(CHECKOUT / "explorer"))
         import job_worker
         job_worker.require_no_credentials()
         job_worker.validate_plan(plan, Path(args.out))
-        wheel_kind = "cpu" if device == "cpu" else "cu130"
-        run([sys.executable, "-m", "pip", "install", "--only-binary=:all:", "--index-url", "https://download.pytorch.org/whl/" + wheel_kind, "torch==2.11.0+" + wheel_kind], deadline, commands, step="install-torch")
-        run([sys.executable, "-m", "pip", "install", "--only-binary=:all:", "--index-url", "https://pypi.org/simple", "-r", str(CHECKOUT / "explorer/requirements-worker.txt")], deadline, commands, step="install-runtime")
-        from importlib.metadata import distributions
-        versions = {distribution.metadata["Name"]: distribution.version for distribution in distributions()}
+        run([PYTHON, str(Path(__file__)), "--plan", args.plan, "--out", args.out,
+             "--inspect-runtime", device], deadline, commands, step="verify-baked-runtime")
+        run([PYTHON, "-m", "pip", "check"], deadline, commands, step="verify-dependency-consistency")
+        observed = json.loads(RUNTIME.read_text())
+        RUNTIME.unlink()
         save(RECEIPT, {"schema": "qfs.hf-workflow-bootstrap.v1", "commands": commands,
-                       "python": sys.version, "installed_versions": dict(sorted(versions.items())),
-                       "source_revision": source["revision"], "worker_sha256": source["worker_sha256"],
-                       "requirements_sha256": hashlib.sha256((CHECKOUT / "explorer/requirements-worker.txt").read_bytes()).hexdigest()})
+                       **observed, "source_revision": source["revision"],
+                       "worker_sha256": source["worker_sha256"],
+                       "environment_sha256": source["environment_sha256"]})
         os.execve(sys.executable, [sys.executable, str(worker), "--plan", args.plan, "--out", args.out], os.environ)
     except BaseException as exc:
         output = Path(args.out)
