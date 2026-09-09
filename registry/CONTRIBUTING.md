@@ -11,6 +11,12 @@ measurement row carries derived fields (`comparability.key`, `scope_digest`) and
 five cross-references, and hand-writing those is how wrong numbers get in. Our
 tools generate the rows from your receipt.
 
+HF Jobs review intake gives each sealed submission its own measurement identity
+and binds pipeline identity to the submitted implementation and numerical backend.
+Repeating an artifact/panel does not replace an earlier result or borrow its
+pipeline. Historical accepted records remain unchanged; resubmitting an identical
+receipt does not establish another independent experiment.
+
 ---
 
 ## 0. Pick something that can actually be measured

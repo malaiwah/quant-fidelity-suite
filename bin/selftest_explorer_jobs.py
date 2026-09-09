@@ -1229,6 +1229,161 @@ def rung_bootstrap_no_install(root, bootstrap=None):
           and receipt["installed_versions"]["numpy"] == "2.5.2")
 
 
+def hf_intake_identity_regression(root):
+    """Repeated HF measurements retain old rows and their actual backend identities."""
+    import copy
+    sys.path.insert(0, str(ROOT / "registry/tools"))
+    import review_requests as intake
+    from fidelity import common, dscompare
+
+    C = intake.L.load_registry(os.path.join(root, "data"))
+    before = copy.deepcopy(C)
+    fixture = Path(root) / "protocol/review-requests" / (
+        "7717c50133ead6ca569dba9be4ca5fd775627c2750a58afe3f698cb7a131043d")
+    request = json.loads((fixture / "request.json").read_text())
+    publication = request["publication"]
+    docs = {role: json.loads((fixture / (role + ".json")).read_text())
+            for role in publication["files"]}
+    author = docs["submission"]["measurer"]["handle"]
+    first = intake.measurement_records(
+        docs, publication, author, C, "receipts/intake-first.json", True)
+    first_row = next(row for row in first if row["id"].startswith("measurement--"))
+    assert first_row["id"] not in C["measurements"]
+    for row in first:
+        intake.merge(C, row)
+
+    changed = copy.deepcopy(docs)
+    changed_publication = copy.deepcopy(publication)
+    comparison = changed["comparison"]
+    environment = comparison["comparator"]["replay_env"]
+    if comparison["comparator"]["replay_backend"].startswith("numpy:"):
+        environment["blas_threads"] = int(environment.get("blas_threads") or 1) + 1
+    else:
+        environment["device_name"] = "synthetic-other-device"
+    comparison = changed["comparison"] = common.seal(comparison)
+    submission = changed["submission"]
+    submission["estimator"] = dscompare._submission_estimator(comparison)
+    changed["submission"] = common.seal(submission)
+    for role in ("comparison", "submission"):
+        changed_publication["files"][role]["sha256"] = intake.sha(intake.canonical(changed[role]))
+    second = intake.measurement_records(
+        changed, changed_publication, author, C, "receipts/intake-second.json", True)
+    second_row = next(row for row in second if row["id"].startswith("measurement--"))
+    assert second_row["id"] != first_row["id"]
+    assert second_row["pipeline_ref"] != first_row["pipeline_ref"]
+    for row in second:
+        intake.merge(C, row)
+    assert all(C[collection][key] == record
+               for collection, records in before.items()
+               for key, record in records.items())
+
+
+def hf_root_version_regression(root):
+    """A pinned native root cannot reassign an unpinned historical model."""
+    import copy
+    sys.path.insert(0, str(ROOT / "registry/tools"))
+    import review_requests as intake
+    import community_fixtures as fixtures
+
+    fixture = Path(root) / "protocol/review-requests" / (
+        "ccab4f22762da93d7415f03842c4c7e325a987b90498f1e5f0e9ea20fae24b66")
+    request = json.loads((fixture / "request.json").read_text())
+    publication = request["publication"]
+    docs = {role: json.loads((fixture / (role + ".json")).read_text())
+            for role in publication["files"]}
+    accepted = json.loads((fixture / "records.json").read_text())["records"]
+    model = next(row for row in accepted if row["id"].startswith("model--"))
+    model_repo = docs["dataset"]["weights"]["repository"]
+    model_rev = docs["dataset"]["weights"]["revision"]
+    version_id = "model--" + fixtures.slug(model_repo.replace("/", ".")) + "." + model_rev[:12]
+    # Only the synthetic registry history changes; accepted evidence stays sealed.
+    old_ids = {row["id"]: row["id"] + ".legacy" for row in accepted
+               if row["id"].startswith(("artifact--", "reference--", "measurement--"))}
+
+    def historical(value):
+        if isinstance(value, dict):
+            return {key: historical(item) for key, item in value.items()}
+        if isinstance(value, list):
+            return [historical(item) for item in value]
+        return old_ids.get(value, value) if isinstance(value, str) else value
+
+    for legacy_revision in (None, "0" * 40):
+        C = {name: {} for name, _, _ in intake.L.COLLECTIONS}
+        for row in historical(accepted):
+            intake.merge(C, row)
+        legacy = C["models"][model["id"]]
+        legacy["huggingface"]["revision"] = legacy_revision
+        legacy["tokenizer"]["files_sha256"] = {"tokenizer.json": "0" * 64}
+        C["artifacts"][legacy["canonical_weights"]["artifact_ref"]]["huggingface"]["revision"] = legacy_revision
+        before = copy.deepcopy(C)
+        records = intake.root_records(docs, publication, request["requested_by"], C)
+        assert C == before, "Root intake mutated historical records before merge"
+        for row in records:
+            intake.merge(C, row)
+        assert all(C[collection][key] == row
+                   for collection, rows in before.items() for key, row in rows.items())
+        pinned = C["models"][version_id]
+        assert pinned["huggingface"]["revision"] == model_rev
+        assert pinned["tokenizer"]["files_sha256"] == model["tokenizer"]["files_sha256"]
+        native = C["artifacts"][pinned["canonical_weights"]["artifact_ref"]]
+        assert native["model_ref"] == version_id
+        reference = next(row for row in records if row["id"].startswith("reference--"))
+        assert reference["artifact_ref"] == native["id"]
+        assert C["panels"][reference["panel_ref"]]["model_scope"] == [version_id]
+        floor = next(row for row in records if row["id"].startswith("measurement--"))
+        assert floor["model_ref"] == version_id and floor["reference_ref"] == reference["id"]
+        assert floor["panel_ref"] == reference["panel_ref"]
+        # Exact pinned identities are reused, rather than allocating another model.
+        repeated = intake.root_records(docs, publication, request["requested_by"], C)
+        assert not any(row["id"].startswith(("model--", "artifact--", "panel--")) for row in repeated)
+        assert next(row for row in repeated if row["id"].startswith("reference--")) == reference
+        assert C["models"][model["id"]] == before["models"][model["id"]]
+
+        for target in ("tokenizer", "checkpoint", "config"):
+            conflict = copy.deepcopy(C)
+            if target == "tokenizer":
+                conflict["models"][version_id]["tokenizer"]["files_sha256"]["tokenizer.json"] = "0" * 64
+            elif target == "checkpoint":
+                hashes = conflict["artifacts"][native["id"]]["weights"]["shard_sha256"]
+                hashes[next(iter(hashes))] = "0" * 64
+            else:
+                conflict["artifacts"][native["id"]]["weights"]["config_sha256"] = "0" * 64
+            conflict_before = copy.deepcopy(conflict)
+            assert refuses(lambda: intake.root_records(
+                docs, publication, request["requested_by"], conflict)), target
+            assert conflict == conflict_before
+        for collection, identity in (("models", version_id), ("artifacts", native["id"])):
+            collision = copy.deepcopy(before)
+            row = copy.deepcopy(legacy if collection == "models" else native)
+            row["id"] = identity
+            row["huggingface"]["revision"] = "0" * 40
+            collision[collection][identity] = row
+            assert refuses(lambda: intake.root_records(
+                docs, publication, request["requested_by"], collision)), collection
+
+
+def rung_encoded_evidence_credential(root):
+    from unittest.mock import patch
+    from fidelity import dshub
+
+    member = root / "encoded-bootstrap.json"
+    encoded = "".join("\\u%04x" % ord(char) for char in TOKEN)
+    member.write_text('{"path":"/tmp/qfs-worker/evidence","secret":"' + encoded + '"}')
+
+    def forbidden_network(*args, **kwargs):
+        raise AssertionError("encoded credential reached publication preflight")
+
+    actor = ns(username="tester", client=lambda: ns(token=TOKEN, repo_exists=forbidden_network))
+    refused = False
+    with patch.dict(sys.modules, {"huggingface_hub": ns(CommitOperationAdd=object)}):
+        try:
+            jobs._upload_tree(actor, "tester/evidence", {"bootstrap.json": member},
+                              private=False, state={}, persist=forbidden_network)
+        except dshub.HubError:
+            refused = True
+    check("P2 encoded credentials refuse even when original worker paths are retained", refused)
+
+
 def main():
     with tempfile.TemporaryDirectory(prefix="qfs-selftest-explorer-") as td:
         root = Path(td)
@@ -1243,6 +1398,11 @@ def main():
             rung_stale_reconciliation(actor, root)
             rung_baked_runtime(actor, root)
             rung_bootstrap_no_install(root)
+            hf_intake_identity_regression(ROOT / "registry")
+            print("  PASS  I1 repeated HF intake preserves existing rows and backend identities")
+            hf_root_version_regression(ROOT / "registry")
+            print("  PASS  I2 native root versions preserve historical identities and refuse pin conflicts")
+            rung_encoded_evidence_credential(root)
         except AssertionError as exc:
             print("selftest_explorer_jobs: FAIL: %s" % exc)
             return 1

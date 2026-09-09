@@ -1451,8 +1451,13 @@ def _upload_tree(actor, repository, files, *, private, state, persist):
         _relative(name)
         if dsformat.looks_like_a_credential(name):
             raise JobsError("Credential/private filenames cannot be published.")
-        dshub._scan_publish_member(str(path), name, api.token,
-                                  textual=canonical_root and name not in third_party_receipts and dshub._textual_publish_member(name))
+        # Original worker evidence retains its sealed runtime paths. Decode
+        # textual credentials even where that path-preservation policy applies.
+        dshub._scan_publish_member(
+            str(path), name, api.token,
+            textual=(dshub._textual_publish_member(name) or name.endswith(".log")
+                     or name in third_party_receipts),
+            allow_private_paths=not canonical_root or name in third_party_receipts)
         if name in {"job.json", "qualification.json", "hf-execution.json", "review-harness.json", "receipts/root-qualification.json"}:
             dshub._scan_publish_member(str(path), name, api.token, textual=True)
         records.append({"path": name, "bytes": path.stat().st_size, "sha256": _file_sha(path)})

@@ -162,7 +162,32 @@ def measurement_records(docs, pub, author, C, receipt_path, provider_verified):
     # Self-measured is permitted only for an original owner-produced Job, never
     # merely because the reviewer owns the registry. Independent verification is false.
     own_run = provider_verified and author == L.MAINTAINER
-    row, extra = add.submission_to_records(sub, receipt_path, pub["files"]["submission"]["sha256"], C, maintainer_attribution=own_run)
+    # Legacy submission IDs name an author/tool or artifact/panel, not a run.
+    # Build this submission's pipeline rather than silently borrowing an older
+    # backend, then give new HF intake records content-bound identities.
+    row, extra = add.submission_to_records(
+        sub, receipt_path, pub["files"]["submission"]["sha256"],
+        dict(C, pipelines={}), maintainer_attribution=own_run)
+    legacy_pipeline = row["pipeline_ref"]
+    pipeline = next(record for record in extra if record["id"] == legacy_pipeline)
+    pipeline_identity = {key: pipeline[key]
+                         for key in ("lane", "implementation", "numerics", "hardware", "author")}
+    pipeline_identity["estimator"] = sub["estimator"]
+    pipeline["id"] = "pipeline--hf-jobs." + sha(canonical(pipeline_identity))[:24]
+    row["pipeline_ref"] = pipeline["id"]
+    prior_pipeline = C["pipelines"].get(pipeline["id"])
+    if prior_pipeline is not None:
+        require(all(prior_pipeline.get(key) == pipeline[key]
+                    for key in ("lane", "implementation", "numerics", "hardware", "author")),
+                "Existing HF pipeline identity conflicts with the submitted implementation")
+        extra.remove(pipeline)
+    for record in extra:
+        if record["id"] == row["artifact_ref"]:
+            identity = {key: sub["artifact"].get(key)
+                        for key in ("repository", "revision", "path", "scope_digest")}
+            record["id"] = "artifact--hf-jobs." + sha(canonical(identity))[:24]
+            row["artifact_ref"] = record["id"]
+    row["id"] = "measurement--hf-jobs." + sub["receipt_sha256"][:24]
     require(weights.get("model_ref") == row["model_ref"],
             "Measured candidate model differs from the registered reference model")
     model = docs["plan"]["inputs"].get("model")
@@ -276,25 +301,67 @@ def root_records(docs, pub, author, C):
     token_files = {f["name"]: f["sha256"] for f in token["files"] if "tokenizer" in f["name"] or f["name"] in ("vocab.json", "merges.txt", "special_tokens_map.json")}
     require(token.get("files_verified") is True and token_files, "Verified tokenizer identity is required")
     tokenizer = {"id": "tokenizer-" + sha(canonical(token_files))[:24], "repository": token["repository"], "revision": token["revision"], "vocab_size": token["vocab_size"]}
-    model_id = "model--" + F.slug(model_repo.replace("/", "."))
-    aid = "artifact--" + F.slug(model_repo.replace("/", ".")) + "." + model_rev[:12]
+    model_slug = F.slug(model_repo.replace("/", "."))
+    model_id = "model--" + model_slug + "." + model_rev[:12]
+    aid = "artifact--" + model_slug + "." + model_rev[:12]
     panel = d["panel"]
-    panel_id = "panel--native." + sha(canonical({"tokenizer": token_files, "tokens": panel["suite_token_hash_sha256"], "scoring_window": panel["scoring_window"]}))[:24]
     rid = "reference--native." + d["dataset_sha256"][:24]
     pid = "pipeline--hf-jobs." + h["harness_id"].split("--", 1)[1]
     mid = "measurement--native.floor." + c["receipt_sha256"][:24]
     records = []
-    existing_model = C["models"].get(model_id)
+    weights = {f["name"]: f for f in rt["weights"]["checkpoint_files"] if f["name"].endswith(".safetensors")}
+    require(weights, "Native checkpoint safetensor census is missing")
+    shard_hashes = {n: f["sha256"] for n, f in weights.items()}
+    # Unknown legacy identities stay separate. A known immutable-pin conflict
+    # is not a new version and must not be bypassed by choosing another ID.
+    for registered in C["artifacts"].values():
+        identity = registered["huggingface"]
+        if identity["repository"] != model_repo or identity["revision"] != model_rev:
+            continue
+        known_weights = registered["weights"]
+        for key in ("config_sha256", "index_sha256"):
+            known_hash, observed_hash = known_weights.get(key), d["weights"].get(key)
+            require(not known_hash or not observed_hash or known_hash == observed_hash,
+                    "Conflicting native " + key + " at the same immutable model pin")
+        require(all(name not in shard_hashes or digest == shard_hashes[name]
+                    for name, digest in known_weights.get("shard_sha256", {}).items()),
+                "Conflicting native checkpoint hash at the same immutable model pin")
+    model_matches = []
+    for registered in C["models"].values():
+        identity = registered["huggingface"]
+        if identity["repository"] != model_repo or identity["revision"] != model_rev:
+            continue
+        known_token = registered["tokenizer"]
+        require(all(name not in token_files or digest == token_files[name]
+                    for name, digest in known_token.get("files_sha256", {}).items()),
+                "Conflicting tokenizer hash at the same immutable model pin")
+        if (all(known_token.get(key) == tokenizer[key] for key in ("repository", "revision", "vocab_size"))
+                and known_token.get("files_sha256") == token_files):
+            canonical_art = C["artifacts"].get(registered["canonical_weights"]["artifact_ref"])
+            require(canonical_art is not None, "Registered model canonical artifact is missing")
+            if (canonical_art["model_ref"] == registered["id"]
+                    and canonical_art["huggingface"]["repository"] == model_repo
+                    and canonical_art["huggingface"]["revision"] == model_rev
+                    and canonical_art["weights"].get("shard_sha256") == shard_hashes
+                    and all(canonical_art["weights"].get(key) == d["weights"].get(key)
+                            for key in ("config_sha256", "index_sha256"))):
+                model_matches.append(registered)
+    require(len(model_matches) <= 1, "Ambiguous registered native model identity")
+    existing_model = model_matches[0] if model_matches else None
     if existing_model:
-        require(existing_model["huggingface"]["repository"] == model_repo and existing_model["huggingface"]["revision"] == model_rev and existing_model["tokenizer"].get("files_sha256") == token_files, "Existing model identity differs; request an explicit model-version registration instead of overwriting it")
+        model_id = existing_model["id"]
         tokenizer["id"] = existing_model["tokenizer"]["id"]
         aid = existing_model["canonical_weights"]["artifact_ref"]
-    matches = [p for p in C["panels"].values() if p["identity"]["panel_token_sha256"] == panel["suite_token_hash_sha256"] and p["tokenizer"]["id"] == tokenizer["id"] and p["structure"]["scoring_window"] == panel["scoring_window"]]
+    else:
+        require(model_id not in C["models"], "Native model-version ID collision")
+        require(aid not in C["artifacts"], "Native artifact-version ID collision")
+    panel_id = "panel--native." + sha(canonical({"model": model_id, "tokenizer": token_files, "tokens": panel["suite_token_hash_sha256"], "scoring_window": panel["scoring_window"]}))[:24]
+    matches = [p for p in C["panels"].values() if p["identity"]["panel_token_sha256"] == panel["suite_token_hash_sha256"] and p["tokenizer"]["id"] == tokenizer["id"] and p["structure"]["scoring_window"] == panel["scoring_window"] and model_id in p.get("model_scope", [])]
     require(len(matches) <= 1, "Ambiguous registered panel identity")
     if matches:
         panel_id = matches[0]["id"]
-        require(model_id in matches[0].get("model_scope", []), "Existing panel does not admit this model; request an explicit panel-scope extension first")
     else:
+        require(panel_id not in C["panels"], "Native panel-version ID collision")
         records.append({"schema_version": S.V, "id": panel_id, "name": meta["name"] + " qualified token panel", "author": panel_author, "model_scope": [model_id], "tokenizer": tokenizer,
                         "structure": {"contexts": panel["contexts"], "context_length": panel["context_length"], "positions_per_context": c["measurement_scope"]["positions_per_context"], "scored_positions_total": panel["scored_positions_total"], "scoring_window": panel["scoring_window"]},
                         "identity": {"hash_covers": "token_manifest", "panel_token_sha256": panel["suite_token_hash_sha256"], "panel_receipt_sha256": pub["files"]["panel_receipt"]["sha256"]},
@@ -305,10 +372,8 @@ def root_records(docs, pub, author, C):
     model = {"schema_version": S.V, "id": model_id, "name": meta["name"], "family": meta["family"], "publisher": publisher,
              "huggingface": S.hf(model_repo, model_rev, "reported_by_author"), "architecture": {"kind": cfg.get("model_type") or docs["config"]["model_type"], "total_parameters": None, "hidden_size": cfg.get("hidden_size"), "num_layers": cfg.get("num_hidden_layers"), "vocab_size": cfg.get("vocab_size"), "note": "Unique parameter count is not established by a serialized tensor-file census."},
              "tokenizer": dict(tokenizer, files_sha256=token_files), "canonical_weights": {"artifact_ref": aid, "precision": "bf16"}, "license": meta["model_license"], "sources": sources, "disclosures": disclosures}
-    weights = {f["name"]: f for f in rt["weights"]["checkpoint_files"] if f["name"].endswith(".safetensors")}
-    require(weights, "Native checkpoint safetensor census is missing")
     art = S.artifact(aid, model_id, meta["name"] + " native BF16", "base", model["huggingface"], "safetensors", "BF16", sum(f["size"] for f in weights.values()), S.codec("bf16", None), S._g53_dataset_scope(d), publisher, sources, disclosures,
-                     weights_extra={"size_basis": "repo_weight_files", "shard_count": len(weights), "shard_sha256": {n: f["sha256"] for n, f in weights.items()}, "config_sha256": d["weights"]["config_sha256"], "index_sha256": d["weights"].get("index_sha256")},
+                     weights_extra={"size_basis": "repo_weight_files", "shard_count": len(weights), "shard_sha256": shard_hashes, "config_sha256": d["weights"]["config_sha256"], "index_sha256": d["weights"].get("index_sha256")},
                      availability={"status": "public", "uri": F.url(model_repo, model_rev, dataset=False)})
     if existing_model:
         registered = C["artifacts"][aid]

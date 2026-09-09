@@ -1330,14 +1330,12 @@ def _resolve_probe(args: argparse.Namespace, plan: Dict[str, Any],
     return verdict
 
 
-def _race_trailing_files(args: argparse.Namespace, model_dir: str, plan) -> List[str]:
-    """Every published file that is NOT a shard the plan already covers.
+def _race_repo_files(args: argparse.Namespace) -> List[str]:
+    """Resolve the complete pinned inventory before scheduling any downloads.
 
-    Best effort by design: if the repo listing cannot be obtained the capture
-    still runs -- the shards are what the arithmetic needs -- and the log says
-    the sidecars were not enumerated rather than pretending they were absent.
+    A failed listing cannot mean an absent declaration: that would silently
+    change the decode contract depending on network or local-cache timing.
     """
-    shards = set(plan.needed_at)
     try:
         if getattr(args, "race_simulate_source", None):
             names = sorted(os.listdir(args.race_simulate_source))
@@ -1348,15 +1346,9 @@ def _race_trailing_files(args: argparse.Namespace, model_dir: str, plan) -> List
                 args.race_repo, revision=args.race_revision or args.model_revision,
                 token=os.environ.get("HF_TOKEN") or None)
     except Exception as exc:  # pragma: no cover - network/listing dependent
-        log(stage="race_sidecars_unlisted", reason="%s: %s" % (type(exc).__name__, exc))
-        return []
-    # A file `race_bootstrap` already pinned at this revision is not re-fetched:
-    # it is on disk, at the same revision, and in the simulate harness a
-    # re-fetch would also charge it the injected delay -- which would make the
-    # A/B compare two different file sets.
-    return [name for name in sorted(names)
-            if name not in shards and not name.startswith(".")
-            and not os.path.exists(os.path.join(model_dir, name))]
+        raise fail("--race-repo cannot enumerate the pinned repository files: %s: %s"
+                   % (type(exc).__name__, exc)) from None
+    return sorted(names)
 
 
 def _start_race_fetch(args: argparse.Namespace, model_dir: str):
@@ -1397,14 +1389,19 @@ def _start_race_fetch(args: argparse.Namespace, model_dir: str):
     else:
         download = race_fetch.hf_downloader(args.race_repo, revision, model_dir,
                                             token=os.environ.get("HF_TOKEN") or None)
-    # The whole repo, not just the shards: `fetch_target` pulls everything, and
-    # a race-mode tree that quietly lacked the release's own SHA256SUMS would
-    # skip a verification the ordinary path performs. They are queued AFTER every
-    # layer, so nothing ever waits on them.
-    trailing = _race_trailing_files(args, model_dir, plan)
+    names = _race_repo_files(args)
+    # Declarations precede shards, even when bootstrap already fetched them:
+    # the gate is authoritative about completed downloads. Everything else
+    # follows the layers so the final tree includes the release's own seals.
+    declarations = [name for name in names if name == "quantization_config.json"]
+    trailing = [name for name in names
+                if name not in plan.needed_at and name not in declarations
+                and not name.startswith(".")
+                and not os.path.exists(os.path.join(model_dir, name))]
     fetcher = race_fetch.RaceFetcher(plan, download, workers=args.race_workers,
                                      log=log, timeout=args.race_timeout_seconds,
-                                     trailing_files=trailing)
+                                     extra_files=declarations, trailing_files=trailing,
+                                     repository_files=names)
     # A file already on disk (the bootstrap fetch put config/index/tokenizer
     # there) is still enqueued: hf_hub_download is a no-op on an unchanged file
     # and returns immediately, and enqueueing it keeps the gate's record the

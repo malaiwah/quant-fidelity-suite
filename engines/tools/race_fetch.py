@@ -374,8 +374,13 @@ class RaceFetcher(object):
                  log: Optional[Callable[..., None]] = None,
                  sizes: Optional[Dict[str, int]] = None,
                  timeout: float = 7200.0,
-                 trailing_files: Sequence[str] = ()):
+                 trailing_files: Sequence[str] = (),
+                 repository_files: Optional[Sequence[str]] = None):
         self.plan = plan
+        # None is unknown, not an empty repository. Declaration-aware readers
+        # must refuse an unknown inventory rather than infer local absence.
+        self.repository_files = (frozenset(repository_files)
+                                 if repository_files is not None else None)
         self._download = download
         self._workers = max(1, int(workers))
         # The default every gate call uses, so the loader -- which knows nothing
@@ -483,6 +488,16 @@ class RaceFetcher(object):
         self._stop.set()
 
     # -- what the capture calls --------------------------------------------
+
+    def wait_for_declared_file(self, name: str) -> bool:
+        """Wait for a sidecar if the pinned repository declares it."""
+        if self.repository_files is None:
+            raise RaceFetchError("race mode: repository inventory is unavailable; "
+                                 "cannot determine whether %s is declared" % name)
+        if name not in self.repository_files:
+            return False
+        self.gate.wait_for([name], self.timeout, what="declaration files")
+        return True
 
     def wait_for_shards(self, names: Iterable[str],
                         timeout: Optional[float] = None) -> float:

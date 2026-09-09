@@ -853,9 +853,14 @@ def main():
             check("RP9h3 private absolute path in qualification refuses before mutation",
                   path_refused and not api.commits and not api.created)
 
-            qualification.write_bytes(
-                b'{"limitations":"Architecture-specific states, allocator/workspace/decode '
-                b'peaks and throughput are unqualified."}\n')
+            # Verbatim resources.limitations from the historical
+            # local/hf-jobs/qwen27-readiness/prepared-plan.json.
+            safe_resource = (
+                b'{"limitations":"Accounted planning floors with explicit margins, NOT '
+                b'a peak-memory bound or runtime/fit proof. Architecture-specific states, '
+                b'allocator/workspace/decode peaks and throughput are unqualified. '
+                b'Worker rechecks actual available resources before capture."}\n')
+            qualification.write_bytes(safe_resource)
             api = Api()
             sys.modules["huggingface_hub"] = _types.SimpleNamespace(
                 HfApi=lambda token=None, endpoint=None: api, CommitOperationAdd=Add)
@@ -863,36 +868,146 @@ def main():
                 str(root), "malaiwah/mm3-root-v1", str(qualification),
                 expected_head="a" * 40, token="different-secret")
             check("RP9h4 relative resource terminology does not block publication",
-                  bool(api.commits) and safe_disclosure["revision"] == "b" * 40)
+                  bool(api.commits) and safe_disclosure["revision"] == "b" * 40
+                  and qualification.read_bytes() == safe_resource)
 
-            for private_path in (
-                    b"/workspace/private/file", b"\\/home\\/user\\/file",
-                    b"C:\\Users\\owner\\file", b"C:\\\\Users\\\\owner\\\\file"):
-                qualification.write_bytes(b'{"path":"' + private_path + b'"}')
-                refused_path = False
+            def scan_refusal(body, *, token="", textual=True,
+                             relpath="qualification.json"):
+                qualification.write_bytes(body)
                 try:
                     real_dshub._scan_publish_member(
-                        str(qualification), "qualification.json", "", textual=True)
-                except real_dshub.HubError:
-                    refused_path = True
-                check("RP9h4 absolute and JSON-escaped private paths remain refused",
-                      refused_path)
+                        str(qualification), relpath, token, textual=textual)
+                except real_dshub.HubError as exc:
+                    return str(exc)
+                return ""
 
-            qualification.write_bytes(
-                b"x" * ((1024 * 1024) - 255 - len(b"allocator"))
-                + b"allocator/workspace/decode" + b"x" * 512)
-            real_dshub._scan_publish_member(
-                str(qualification), "qualification.json", "", textual=True)
-            qualification.write_bytes(
-                b"x" * ((1024 * 1024) - 3) + b' "/home/private/file"')
-            boundary_path_refused = False
+            escaped_paths = {
+                "absolute workspace": b'{"path":"/workspace/private/file"}',
+                "escaped slashes": br'{"path":"\/home\/user\/file"}',
+                "literal Windows": br'{"path":"C:\Users\owner\file"}',
+                "JSON Windows": br'{"path":"C:\\Users\\owner\\file"}',
+                "Unicode slash and letters":
+                    br'{"path":"\u002f\u0068ome\u002falice\u002fprivate"}',
+                "Unicode Windows":
+                    br'{"path":"trace\n\u0043:\u005c\u0055sers\u005cowner"}',
+                "escaped quote boundary": br'{"path":"trace\"/private/owner"}',
+                "escaped compound root": br'{"path":"\/var\/tmp\/private"}',
+                "escaped mounted Windows": br'{"path":"\/mnt\/c\/Users\/owner"}',
+                "encoded key": br'{"\u002f\u0068ome/alice/private":"safe"}',
+                "overwritten value":
+                    br'{"detail":"\u002f\u0068ome/alice/private","detail":"safe"}',
+                "encoded duplicate key":
+                    br'{"detail":"\u002f\u0068ome/alice/private","\u0064etail":"safe"}',
+                "nested JSONL value":
+                    b'{"detail":"safe"}\n' + br'{"detail":[{"x":"\u002froot/private"}]}',
+            }
+            for escape in (br"\n", br"\r", br"\t", br"\b", br"\f", br"\u0020"):
+                escaped_paths["whitespace " + escape.decode("ascii")] = (
+                    b'{"detail":"trace' + escape + b'/home/alice/private"}')
+            for label, body in escaped_paths.items():
+                check("RP9h4 refuses " + label,
+                      "private absolute path" in scan_refusal(body))
+
+            # Exercise the complete publication gate for the reported bypass,
+            # not just the scanner, and do not rewrite the immutable input.
+            escaped_receipt = br'{"detail":"trace\n/home/alice/private"}'
+            qualification.write_bytes(escaped_receipt)
+            api = Api()
+            escaped_refused = False
             try:
-                real_dshub._scan_publish_member(
-                    str(qualification), "qualification.json", "", textual=True)
-            except real_dshub.HubError:
-                boundary_path_refused = True
-            check("RP9h4 scan overlap preserves absolute-path boundary decisions",
-                  boundary_path_refused)
+                real_dshub.publish_dataset(
+                    str(root), "malaiwah/mm3-root-v1", str(qualification),
+                    expected_head="a" * 40, token="different-secret")
+            except real_dshub.HubError as exc:
+                escaped_refused = "private absolute path" in str(exc)
+            check("RP9h4 escaped path refuses before mutation and preserves bytes",
+                  escaped_refused and not api.commits and not api.created
+                  and qualification.read_bytes() == escaped_receipt)
+
+            # Put a relative term at the raw overlap's left edge and then at
+            # the decoded overlap's left edge in a multi-chunk JSON string.
+            raw_relative = (
+                b"x" * (1024 * 1024 - 255 - len(b"allocator"))
+                + b"allocator/workspace/decode" + b"x" * 512)
+            large_relative = (
+                b'{"detail":"' + b"x" * (2 * 1024 * 1024 - 260 - len(b'{"detail":"allocator'))
+                + br"allocator\u002fworkspace/decode" + b'x' * 512 + b'"}')
+            check("RP9h4 long decoded resource prose is streamed without a false path",
+                  not scan_refusal(raw_relative) and not scan_refusal(large_relative)
+                  and qualification.read_bytes() == large_relative)
+            check("RP9h4 raw scan overlap preserves path boundary decisions",
+                  "private absolute path" in scan_refusal(
+                      b"x" * ((1024 * 1024) - 3) + b' "/home/private/file"'))
+
+            # All escape components, surrogate pairs, quote state and decoded
+            # token/path prefixes must survive even one-byte short reads.
+            decoded_secrets = (
+                (br'{"note":"publish\u002dcredential"}', "publish-credential",
+                 "exact credential bytes"),
+                (br'{"note":"cl\u00e9\ud83d\udd11"}', "cl\u00e9\U0001f511",
+                 "exact credential bytes"),
+                (br'{"note":"\u0068f\u005fapparentcredential1234567890"}', "",
+                 "apparent Hugging Face token"),
+            )
+            safe_escapes = (
+                br'{"detail":"allocator\/workspace/decode"}',
+                br'{"detail":"allocator\u002fworkspace/decode"}',
+                br'{"detail":"trace\\n/home/is-relative-not-a-newline"}',
+                br'{"detail":"quoted \"allocator/workspace/decode\" prose"}',
+            )
+            original_read = real_dshub.os.read
+            read_sizes = []
+            try:
+                for read_limit in (1, 1024 * 1024):
+                    def short_read(fd, count):
+                        read_sizes.append(count)
+                        return original_read(fd, min(count, read_limit))
+                    real_dshub.os.read = short_read
+                    for label, body in escaped_paths.items():
+                        check("RP9h4 %s survives %d-byte reads" % (label, read_limit),
+                              "private absolute path" in scan_refusal(body))
+                    for body, secret, reason in decoded_secrets:
+                        check("RP9h4 decoded %s survives %d-byte reads"
+                              % (reason, read_limit),
+                              reason in scan_refusal(body, token=secret))
+                    for body in safe_escapes:
+                        check("RP9h4 relative escapes retain semantics across short reads",
+                              not scan_refusal(body)
+                              and qualification.read_bytes() == body)
+            finally:
+                real_dshub.os.read = original_read
+            check("RP9h4 scanner requests at most one MiB per read",
+                  read_sizes and max(read_sizes) <= 1024 * 1024)
+
+            # A path in an unfinished, much longer JSON string must refuse
+            # before EOF; neither the document nor a whole value is buffered.
+            long_escaped_path = (
+                b'{"detail":"' + b"x" * (1024 * 1024 - len(b'{"detail":"') - 3)
+                + br"\u000a\u002f\u0068ome/alice/private" + b"x" * (2 * 1024 * 1024)
+                + b'"}')
+            bytes_scanned = []
+            try:
+                def counted_read(fd, count):
+                    chunk = original_read(fd, count)
+                    bytes_scanned.append(len(chunk))
+                    return chunk
+                real_dshub.os.read = counted_read
+                streaming_refusal = scan_refusal(long_escaped_path)
+            finally:
+                real_dshub.os.read = original_read
+            check("RP9h4 escaped path crossing a chunk refuses before JSON string EOF",
+                  "private absolute path" in streaming_refusal
+                  and sum(bytes_scanned) < len(long_escaped_path))
+
+            for secret, reason in (
+                    (exact_token, "exact credential bytes"),
+                    ("hf_apparentcredential1234567890", "apparent Hugging Face token")):
+                binary_body = (b"\xff\x00" + b"x" * (1024 * 1024 - 8)
+                               + b" " + secret.encode("ascii") + b"\x00\xff")
+                check("RP9h4 binary payload retains streaming " + reason,
+                      reason in scan_refusal(
+                          binary_body, token=exact_token, textual=False,
+                          relpath="capture.safetensors"))
 
             # RP9h5: a producer-sealed UPSTREAM panel receipt copied verbatim
             # (brandonmusic's lists 667 artifacts under /workspace/... on HIS
@@ -975,19 +1090,24 @@ def main():
                   own_refused and not api.commits and not api.created)
 
             # The exemption is from the PATH scan only: a sealed upstream
-            # receipt that carries an apparent token still refuses.
+            # receipt that carries an encoded token still refuses, even when
+            # its filename has no text suffix.
             token_body = {"schema": _panel_contract.ARTIFACT_RECEIPT_SCHEMA,
                           "roles": ["final"], "artifacts": [],
                           "note": "hf_apparentcredential1234567890"}
             token_seal = _hashlib.sha256(json.dumps(
                 token_body, sort_keys=True, separators=(",", ":"),
                 ensure_ascii=False).encode("utf-8") + b"\n").hexdigest()
+            receipt_member = receipt_member.rename(root / "panel" / "encoded-receipt")
+            real_dshub.F.iter_dataset_files = lambda *a, **kw: [
+                real_dshub.F.MANIFEST_NAME, "panel/encoded-receipt"]
             receipt_member.write_bytes(json.dumps(
-                dict(token_body, receipt_sha256=token_seal), sort_keys=True).encode("utf-8"))
+                dict(token_body, receipt_sha256=token_seal), sort_keys=True).encode("utf-8")
+                .replace(b'"hf_', br'"\u0068f\u005f'))
             real_dshub.F.load_manifest = lambda *a, **kw: {
                 real_dshub.F.SEAL_FIELD: "d" * 64,
                 "dataset": {"structural_status": "sealed"},
-                "panel": {"panel_receipt_file": "panel/panel-receipt.json",
+                "panel": {"panel_receipt_file": "panel/encoded-receipt",
                           "panel_receipt_sha256": token_seal}}
             api = Api()
             sys.modules["huggingface_hub"] = _types.SimpleNamespace(
@@ -999,7 +1119,7 @@ def main():
                     expected_head="a" * 40, token="different-secret")
             except real_dshub.HubError as exc:
                 token_refused = "apparent Hugging Face token" in str(exc)
-            check("RP9h8 a sealed upstream receipt is still scanned for credentials",
+            check("RP9h8 a sealed upstream receipt is still scanned for decoded credentials",
                   token_refused and not api.commits and not api.created)
             real_dshub.F.iter_dataset_files = lambda *a, **kw: [
                 real_dshub.F.MANIFEST_NAME]

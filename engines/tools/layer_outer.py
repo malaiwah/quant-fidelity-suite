@@ -1280,8 +1280,13 @@ def trellis_checkpoint_plan(config, declared_keys: Sequence[str],
     storage_bits = None
     try:
         if model_dir is not None and tail is None:
-            path = os.path.join(model_dir, "quantization_config.json")
-            if os.path.isfile(path):
+            sidecar = "quantization_config.json"
+            path = os.path.join(model_dir, sidecar)
+            # The remote inventory, not whether a background download has
+            # happened to finish, decides whether this declaration exists.
+            present = (gate.wait_for_declared_file(sidecar) if gate is not None
+                       else os.path.isfile(path))
+            if present:
                 with open(path, "rb") as handle:
                     raw = handle.read(EXL3_QUANTIZATION_CONFIG_MAX_BYTES + 1)
                 qc, declaration_source = exl3_quantization_declaration(qc, raw)
@@ -1505,6 +1510,9 @@ def materialize_trellis_subset(subset: Dict[str, Any], plan: Dict[str, Any], tor
             for n in shape:
                 n_bytes *= n
             _check_exl3_stored_tensor(name, shape, dtype, n_bytes, declaration)
+    # Declarations describe stored bytes, not the model-shaped view after
+    # removing serving-kernel padding. Direct callers take the same checked path.
+    subset = truncate_zero_padded_rows(subset, expected_shape, stats)
     # Every key a group reads -- including a layer-shared rotation vector
     # several groups resolve to -- is consumed here and never reaches the
     # converter as a stray tensor.
@@ -2418,7 +2426,6 @@ def _materialized(subset: Dict[str, Any], fp8_plan, trellis_plan, trellis_fp8_pl
         composition = (trellis_plan.get("_observed") or {}).get("composition")
         if composition is None:
             composition = trellis_stats.get("composition")
-        subset = truncate_zero_padded_rows(subset, expected_shape, trellis_stats)
         return materialize_trellis_subset(
             subset, trellis_plan, torch_dtype, trellis_stats,
             fp8_plan=trellis_fp8_plan, fp8_stats=fp8_stats, device=device,

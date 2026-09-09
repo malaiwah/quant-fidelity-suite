@@ -35,7 +35,8 @@ unrecognised payload rather than loading trellis bytes as weights.
   [24] the controller mirror reads the same layout contract from the index
        names and refuses without them.
   [25] standalone tensor_storage binds mixed widths and refuses conflicting
-       declarations, incomplete EXL3 inventory and header/materialized mismatches.
+       declarations, incomplete EXL3 inventory and header/materialized mismatches;
+       native declarations bind stored padding before the exact-zero tail check.
 """
 from __future__ import annotations
 
@@ -114,6 +115,7 @@ def standalone_declaration_regression():
     import importlib.util
     import json
     import tempfile
+    from safetensors import safe_open
     from safetensors.torch import save_file
 
     spec = importlib.util.spec_from_file_location(
@@ -138,10 +140,12 @@ def standalone_declaration_regression():
                 for key, tensor in payload.items()},
         }
     native_name = "model.language_model.layers.0.linear_attn.in_proj_a"
-    native = torch.tensor([[0.1, -0.3]], dtype=torch.float16)
+    native = torch.zeros((640, 64), dtype=torch.bfloat16)
+    native[:576] = 0.5
     subset[native_name + ".weight"] = native
     storage[native_name] = {"stored_tensors": {
-        native_name + ".weight": {"shape": [1, 2], "dtype": "F16"}}}
+        native_name + ".weight": {"shape": [640, 64], "dtype": "BF16",
+                                 "n_bytes": native.numel() * native.element_size()}}}
     # tensor_storage does not enumerate every native tensor in the real artifact.
     subset["model.visual.norm.weight"] = torch.ones(4, dtype=torch.bfloat16)
     inline = {"quant_method": "exl3", "bits": 4.0, "head_bits": 6, "codebook": "mcg"}
@@ -194,6 +198,37 @@ def standalone_declaration_regression():
               controller == pod and pod["declared_tensor_storage_source"]["sha256"]
               == hashlib.sha256(raw).hexdigest()
               and pod["nonrouted_exl3"]["declared_bits"] == {"4": 1, "5": 1, "6": 2})
+
+        native_key = native_name + ".weight"
+        expected_shape = {native_key: (576, 64)}.get
+
+        def materialize_native(value, native_plan=admitted, native_stats=None):
+            return lo._materialized(
+                {native_key: value}, None, native_plan, None, torch.bfloat16, {},
+                native_stats if native_stats is not None else {},
+                expected_shape=expected_shape)
+
+        padding_stats = {}
+        with safe_open(str(Path(td, "model.safetensors")), framework="pt") as handle:
+            padded_out = materialize_native(handle.get_slice(native_key),
+                                            native_stats=padding_stats)
+        check("[25] declared raw BF16 padding reaches the converter only after zero-tail validation",
+              torch.equal(padded_out[native_key], native[:576])
+              and tuple(padded_out[native_key].shape) == (576, 64)
+              and padding_stats["zero_padded_rows_truncated"]["rows"] == 64)
+
+        trimmed_declaration = json.loads(json.dumps(admitted))
+        trimmed_declaration["_observed"]["tensor_storage"][native_key].update(
+            shape=[576, 64], n_bytes=576 * 64 * 2)
+        ok, detail = refuses(lambda: materialize_native(native, trimmed_declaration),
+                             "differs from tensor shape/dtype/bytes")
+        check("[25] a declaration of the truncated shape cannot conceal stored rows", ok, detail)
+        nonzero_tail = native.clone()
+        nonzero_tail[576, 0] = 1
+        ok, detail = refuses(lambda: materialize_native(nonzero_tail),
+                             "not padding, a different tensor")
+        check("[25] a declared native tensor with one nonzero tail element still refuses",
+              ok, detail)
 
         for label, doc, cfg, fragment in (
             ("inline scalar conflict", dict(declaration, bits=5), config, "conflict"),

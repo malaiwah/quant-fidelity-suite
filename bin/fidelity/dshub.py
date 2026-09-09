@@ -605,11 +605,73 @@ def _textual_publish_member(relpath: str) -> bool:
             or name.endswith(_TEXT_FILE_SUFFIXES))
 
 
+_JSON_STRING_MARKER = re.compile(rb'["\\]')
+_JSON_SCAN_ESCAPE = re.compile(
+    rb'\\(?:u[dD][89aAbB][0-9a-fA-F]{2}\\u[dD][c-fC-F][0-9a-fA-F]{2}'
+    rb'|u[0-9a-fA-F]{4}|["\\/bfnrt])')
+
+
+def _decode_json_scan_chunk(chunk: bytes, in_string: bool, *,
+                            final: bool) -> Tuple[bytes, bytes, bool]:
+    """Decode string escapes, retaining at most an 11-byte incomplete escape.
+
+    This is a lexical scan, not a document loader: every key and value remains
+    visible, including overwritten duplicate keys, without buffering a document
+    or even a whole string. JSON validity is the dataset validator's concern.
+    Quotes outside strings remain separators; escaped quotes never change the
+    lexer state. The stdlib decodes each bounded escape (including surrogate
+    pairs), while unescaped UTF-8 bytes pass through unchanged.
+    """
+    decoded = bytearray()
+    cursor = 0
+    while True:
+        marker = _JSON_STRING_MARKER.search(chunk, cursor)
+        if marker is None:
+            decoded.extend(chunk[cursor:])
+            return bytes(decoded), b"", in_string
+        start = marker.start()
+        decoded.extend(chunk[cursor:start])
+        if chunk[start] == ord('"'):
+            in_string = not in_string
+        elif in_string:
+            # A surrogate pair is the longest escape. Delay the short suffix
+            # rather than splitting a pair or guessing at a partial escape.
+            if len(chunk) - start < 12 and not final:
+                return bytes(decoded), chunk[start:], in_string
+            escape = _JSON_SCAN_ESCAPE.match(chunk, start)
+            if escape is not None:
+                decoded.extend(json.loads(b'"' + escape.group() + b'"').encode(
+                    "utf-8", "surrogatepass"))
+                cursor = escape.end()
+                continue
+        decoded.append(chunk[start])
+        cursor = start + 1
+
+
 def _scan_publish_member(path: str, relpath: str, token: str, *,
-                         textual: bool) -> None:
-    """Stream a prospective upload with overlap so secrets cannot straddle chunks."""
+                         textual: bool, allow_private_paths: bool = False) -> None:
+    """Stream raw bytes and decoded JSON strings without rewriting the upload."""
     token_bytes = token.encode("utf-8")
     overlap = max(len(token_bytes) - 1, 255)
+    # Callers retain original paths for verified upstream receipts or sealed
+    # worker evidence; that exception must never waive decoded credentials.
+
+    def scan(window: bytes, previously_scanned: int) -> None:
+        if token_bytes and token_bytes in window:
+            raise HubError(
+                "REFUSED to publish: exact credential bytes occur in %r"
+                % relpath)
+        if _OBVIOUS_HF_TOKEN.search(window):
+            raise HubError(
+                "REFUSED to publish: apparent Hugging Face token occurs in %r"
+                % relpath)
+        if textual and not allow_private_paths and any(
+                match.end() > previously_scanned
+                for match in _PRIVATE_ABSOLUTE_PATH_RE.finditer(window)):
+            raise HubError(
+                "REFUSED to publish: private absolute path occurs in %r"
+                % relpath)
+
     flags = os.O_RDONLY
     if not hasattr(os, "O_NOFOLLOW"):
         raise HubError("REFUSED to scan upload: O_NOFOLLOW is unavailable")
@@ -623,26 +685,23 @@ def _scan_publish_member(path: str, relpath: str, token: str, *,
         if not stat.S_ISREG(info.st_mode):
             raise HubError(
                 "REFUSED to publish non-regular member %r" % relpath)
-        carry = b""
+        carry = decoded_carry = pending = b""
+        in_string = False
         while True:
             chunk = os.read(fd, 1024 * 1024)
+            if chunk:
+                window = carry + chunk
+                scan(window, len(carry))
+                carry = window[-overlap:]
+            if textual:
+                decoded, pending, in_string = _decode_json_scan_chunk(
+                    pending + chunk, in_string, final=not chunk)
+                if decoded:
+                    window = decoded_carry + decoded
+                    scan(window, len(decoded_carry))
+                    decoded_carry = window[-overlap:]
             if not chunk:
                 break
-            window = carry + chunk
-            if token_bytes and token_bytes in window:
-                raise HubError(
-                    "REFUSED to publish: exact credential bytes occur in %r"
-                    % relpath)
-            if _OBVIOUS_HF_TOKEN.search(window):
-                raise HubError(
-                    "REFUSED to publish: apparent Hugging Face token occurs in %r"
-                    % relpath)
-            if textual and any(match.end() > len(carry)
-                               for match in _PRIVATE_ABSOLUTE_PATH_RE.finditer(window)):
-                raise HubError(
-                    "REFUSED to publish: private absolute path occurs in %r"
-                    % relpath)
-            carry = window[-overlap:]
     finally:
         os.close(fd)
 
@@ -733,7 +792,8 @@ def publish_dataset(root: str, repo: str, qualification_path: str, *,
         _scan_publish_member(
             source, relpath, token,
             textual=(_textual_publish_member(relpath)
-                     and relpath not in third_party_receipts))
+                     or relpath in third_party_receipts),
+            allow_private_paths=relpath in third_party_receipts)
         operations.append(CommitOperationAdd(
             path_in_repo=relpath, path_or_fileobj=source))
     qualification_absolute = os.path.realpath(qualification_path)

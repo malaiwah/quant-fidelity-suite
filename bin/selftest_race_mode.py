@@ -48,6 +48,9 @@ SCHEDULE, which a simulated link exercises exactly.
          comparison against the FINAL carries no such disclosure
     R16  preview and final are different dataset ids, i.e. different
          `reference_id` inputs to the comparability key, i.e. different tables
+    R17  a deferred standalone EXL3 sidecar yields the ordinary decode contract
+         and exact source digest; conflicts, invalid/missing declared sidecars
+         and an unavailable remote inventory refuse before planning can downgrade
 
 Fail-without-fix: R1-R3 and R6-R7 fail as an ImportError for
 `engines/tools/race_fetch.py`; R4/R5 as a TypeError on the `shards=` keyword; R8-R11
@@ -302,6 +305,135 @@ def slow_copy_downloader(source_dir, dest_dir, seconds_per_file, record=None):
 # ---------------------------------------------------------------------------
 
 
+def standalone_race_declaration_regression(work):
+    """Direct --race-repo planning with an inventory and a withheld real sidecar."""
+    import hashlib
+    from pathlib import Path
+    from types import SimpleNamespace
+    from unittest.mock import patch
+
+    import torch
+    from safetensors.torch import save_file
+    import exl3hf_surface
+    import hf_capture
+    import layer_outer
+    import race_fetch
+
+    module = "model.layers.0.mlp.experts.0.gate_proj"
+    subset = {
+        module + ".trellis": torch.zeros((8, 8, 64), dtype=torch.int16),
+        module + ".suh": torch.ones(128, dtype=torch.float16),
+        module + ".svh": torch.ones(128, dtype=torch.float16),
+        module + ".mcg": torch.tensor(exl3hf_surface.CODEBOOK_OBJECTS["mcg"],
+                                      dtype=torch.int32),
+    }
+    inline = {"quant_method": "exl3", "bits": 4, "codebook": "mcg"}
+    config = SimpleNamespace(quantization_config=inline)
+    declaration = dict(inline, tensor_storage={module: {
+        "quant_format": "exl3", "bits_per_weight": 4,
+        "stored_tensors": {
+            key: {"shape": list(value.shape), "dtype": str(value.dtype),
+                  "n_bytes": value.numel() * value.element_size()}
+            for key, value in subset.items()}}})
+    sidecar = "quantization_config.json"
+
+    def outcome(fn):
+        try:
+            return fn()
+        except (layer_outer.LayerOuterError, race_fetch.RaceFetchError) as exc:
+            return exc
+
+    def plans(raw, *, missing=False, warm=False, unlisted=False):
+        with tempfile.TemporaryDirectory(prefix="deferred-exl3-", dir=work) as td:
+            source, dest = Path(td, "source"), Path(td, "dest")
+            source.mkdir()
+            dest.mkdir()
+            save_file(subset, str(source / "model.safetensors"))
+            index = json.dumps({"weight_map": {
+                key: "model.safetensors" for key in subset}})
+            (source / "model.safetensors.index.json").write_text(index)
+            (dest / "model.safetensors.index.json").write_text(index)
+            if raw is not None:
+                (source / sidecar).write_bytes(raw)
+                if warm:
+                    (dest / sidecar).write_bytes(raw)
+            inventory = [path.name for path in source.iterdir()]
+            if missing:
+                inventory.append(sidecar)
+            ordinary = outcome(lambda: layer_outer.trellis_checkpoint_plan(
+                config, list(subset), model_dir=str(source)))
+            release = threading.Event()
+            copy = race_fetch.simulated_downloader(str(source), str(dest))
+
+            def download(name):
+                if name == sidecar and not release.wait(10.0):
+                    raise RuntimeError("fixture declaration was never released")
+                return copy(name)
+
+            args = SimpleNamespace(
+                race_repo="fixture/exl3", race_revision="a" * 40, model_revision=None,
+                schedule=layer_outer.SCHEDULE_LAYER_OUTER,
+                layer_residency=layer_outer.RESIDENCY_STREAM,
+                race_layer_key_regex=race_fetch.DEFAULT_LAYER_KEY_REGEX,
+                race_workers=1, race_timeout_seconds=10.0)
+            with patch("huggingface_hub.list_repo_files", return_value=inventory,
+                       side_effect=RuntimeError("fixture listing unavailable") if unlisted else None), \
+                    patch.object(race_fetch, "hf_downloader", return_value=download):
+                fetcher = hf_capture._start_race_fetch(args, str(dest))
+            wait_for = fetcher.gate.wait_for
+
+            def wait_and_release(names, timeout, what="shards"):
+                if sidecar in names:
+                    release.set()
+                return wait_for(names, timeout, what=what)
+
+            fetcher.gate.wait_for = wait_and_release
+            try:
+                # Only a real declaration wait releases the download. Without
+                # that wait planning deterministically sees no local sidecar.
+                raced = outcome(lambda: layer_outer.trellis_checkpoint_plan(
+                    config, list(subset), model_dir=str(dest), gate=fetcher))
+            finally:
+                release.set()
+                fetcher.stop()
+                fetcher.join(timeout=10.0)
+            return ordinary, raced
+
+    raw = json.dumps(declaration, indent=2).encode() + b"\n"
+    ordinary, raced = plans(raw)
+    check("R17 deferred standalone declarations bind the ordinary contract and exact bytes",
+          isinstance(ordinary, dict) and raced == ordinary
+          and raced.get("declared_tensor_storage_source") == {
+              "sidecar": sidecar, "bytes": len(raw),
+              "sha256": hashlib.sha256(raw).hexdigest()}, (ordinary, raced))
+    warm_ordinary, warm = plans(raw, warm=True)
+    check("R17 an already bootstrapped declaration has the same cold-race contract",
+          isinstance(warm, dict) and warm == warm_ordinary == raced, warm)
+    ordinary, raced = plans(json.dumps(dict(declaration, bits=5)).encode())
+    check("R17 a deferred inline/standalone conflict refuses just as ordinary loading does",
+          isinstance(ordinary, layer_outer.LayerOuterError)
+          and isinstance(raced, layer_outer.LayerOuterError)
+          and "conflict" in str(ordinary) and "conflict" in str(raced), raced)
+    ordinary, raced = plans(None)
+    check("R17 a remotely absent sidecar preserves the legacy inline contract",
+          isinstance(ordinary, dict) and raced == ordinary
+          and "declared_tensor_storage_source" not in raced, raced)
+    _, raced = plans(None, missing=True)
+    check("R17 a declared sidecar that cannot be downloaded refuses by name",
+          isinstance(raced, race_fetch.RaceFetchError) and sidecar in str(raced), raced)
+    ordinary, raced = plans(b'{"quant_method":"exl3","bits":4,"bits":5}')
+    check("R17 an invalid deferred sidecar cannot become an inline-only plan",
+          isinstance(ordinary, layer_outer.LayerOuterError)
+          and isinstance(raced, layer_outer.LayerOuterError)
+          and "duplicate JSON key" in str(raced), raced)
+    try:
+        plans(raw, unlisted=True)
+        refused = False
+    except SystemExit as exc:
+        refused = exc.code != 0
+    check("R17 an unavailable inventory is not interpreted as an absent sidecar", refused)
+
+
 def main():
     try:
         import torch  # noqa: F401
@@ -409,6 +541,8 @@ def _body(work):
         check("R4b late join does not inflate background fetch wall time",
               timestamp_fetcher.finished_monotonic == finished,
               (finished, timestamp_fetcher.finished_monotonic))
+
+        standalone_race_declaration_regression(work)
 
     # ------------------------------------------------------------------- R5
     import layer_outer
