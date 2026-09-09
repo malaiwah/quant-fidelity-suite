@@ -95,8 +95,8 @@
     "engines/tools/selftest_trellis_decode_offline.py": "4a1aad5a037d5811bf30103be3773113192350d463d981ab6a7872ea868bf7c2",
     "explorer/job_bootstrap.py": "ad04862b0d042f9753afa1451f3a5aafb335712210ea601935b44325cab89086",
     "explorer/job_ui.py": "e1616db74be6b25c697348f193bd5706804c010d0a957aeaecb6ab18cbb16061",
-    "explorer/job_worker.py": "665fdb82efd86e6cb1f7613a3d2a48a1e5245a4e6c253a48b458467ee8eb889e",
-    "explorer/jobs.py": "73f6a624d639de4b8ebb68214e5df79fd63ebedb44f46e1f7389a0c63476d8a0",
+    "explorer/job_worker.py": "32a303c38fe882b56898a34dab6466da543eec68fd3c498e58ed745aa5888483",
+    "explorer/jobs.py": "1b109ea79877f6f8c8fbc32bac32ceb2cf6fb397f9223469130f94a6572a6db4",
     "explorer/review.py": "8bf7d0d7e2aac76a00f459aa471538f5e89e2cd2e5cc27a38536d11052a3eba6",
     "explorer/transport.py": "fb144186ea7c6199100a5c741ae9449cb8a79ebcf5912e54958d9755110453c6",
     "port/tests/glm5_layer_parity.py": "2be96243efab77c6f45993576ec7981c7065dbd37b25c00a32f613e4748ffd6d",
@@ -138,15 +138,9 @@
       "models": [],
       "artifacts": [],
       "panels": [],
-      "references": [
-        "reference--native.0aa0a8e90588d45df4aa0dba"
-      ],
-      "pipelines": [
-        "pipeline--hf-jobs.82f5ace09945ce44"
-      ],
-      "measurements": [
-        "measurement--native.floor.a1aea9ef9bbe4bf33d21c007"
-      ]
+      "references": [],
+      "pipelines": [],
+      "measurements": []
     },
     "note": "New accepted records are replayed from immutable acceptance inputs. Historical scientific values and identities are unchanged."
   },
@@ -9533,7 +9527,7 @@
             "sha256": "4268ab6b8cf446f19c05534cf7a99002cfeb995d53f57300ec92e6b872a2fc9d"
           }
         ],
-        "checkout_sha256": "59dd2f27f8f8918f44abbdea4dd9f72b17425973d87f4debb4d23440f80a706d",
+        "checkout_sha256": "c64f3bf98122dc79c9cd78bfd49d5209065aa3270144c5f77a8c0771c982ec9f",
         "harness_id": "harness--d8cd719704083868"
       }
     },
@@ -9786,7 +9780,7 @@
             "sha256": "007aa9fb5e2d2e1ea6a46947188d98958d52a5b666341dac9446cb3fa8434ff3"
           }
         ],
-        "checkout_sha256": "665fdb82efd86e6cb1f7613a3d2a48a1e5245a4e6c253a48b458467ee8eb889e",
+        "checkout_sha256": "32a303c38fe882b56898a34dab6466da543eec68fd3c498e58ed745aa5888483",
         "harness_id": "harness--d8cd719704083868"
       }
     },
@@ -9809,7 +9803,7 @@
             "sha256": "46e256593e8bf7b6883c9b6969e57e736f145209d9c24b892eea11d0aa7fae6f"
           }
         ],
-        "checkout_sha256": "73f6a624d639de4b8ebb68214e5df79fd63ebedb44f46e1f7389a0c63476d8a0",
+        "checkout_sha256": "1b109ea79877f6f8c8fbc32bac32ceb2cf6fb397f9223469130f94a6572a6db4",
         "harness_id": "harness--d8cd719704083868"
       }
     },
@@ -9970,7 +9964,7 @@
             "sha256": "fa43ab6e1b0b4857b3175dd964743d172f0e593e8e34fc300c2be1246ff77026"
           }
         ],
-        "checkout_sha256": "59dd2f27f8f8918f44abbdea4dd9f72b17425973d87f4debb4d23440f80a706d",
+        "checkout_sha256": "c64f3bf98122dc79c9cd78bfd49d5209065aa3270144c5f77a8c0771c982ec9f",
         "harness_id": "harness--dac5848f3aa00e25"
       }
     },
@@ -10016,7 +10010,7 @@
             "sha256": "21ea0e9fcbd5ef814568f25cc43636f78f8ba58153289cd2039926d4a96a25c5"
           }
         ],
-        "checkout_sha256": "665fdb82efd86e6cb1f7613a3d2a48a1e5245a4e6c253a48b458467ee8eb889e",
+        "checkout_sha256": "32a303c38fe882b56898a34dab6466da543eec68fd3c498e58ed745aa5888483",
         "harness_id": "harness--dac5848f3aa00e25"
       }
     },
@@ -10039,7 +10033,7 @@
             "sha256": "e10c3726c991b2021bc69ced02e23f3a84e686ab7da54bc7950274bfb39bc5f2"
           }
         ],
-        "checkout_sha256": "73f6a624d639de4b8ebb68214e5df79fd63ebedb44f46e1f7389a0c63476d8a0",
+        "checkout_sha256": "1b109ea79877f6f8c8fbc32bac32ceb2cf6fb397f9223469130f94a6572a6db4",
         "harness_id": "harness--dac5848f3aa00e25"
       }
     },
@@ -11120,7 +11114,7 @@
             "sha256": "2cabdc0454fa3616dcb03bc94f966c26216a5c327e4f8c1ef5be57c285b847f5"
           }
         ],
-        "checkout_sha256": "665fdb82efd86e6cb1f7613a3d2a48a1e5245a4e6c253a48b458467ee8eb889e",
+        "checkout_sha256": "32a303c38fe882b56898a34dab6466da543eec68fd3c498e58ed745aa5888483",
         "harness_id": "harness--0120ab447b077c41"
       }
     },
@@ -11143,7 +11137,7 @@
             "sha256": "9f91abd9d8fd23ca9c4d202b86daee345238a5cbd08a89c0ae207982dba78aca"
           }
         ],
-        "checkout_sha256": "73f6a624d639de4b8ebb68214e5df79fd63ebedb44f46e1f7389a0c63476d8a0",
+        "checkout_sha256": "1b109ea79877f6f8c8fbc32bac32ceb2cf6fb397f9223469130f94a6572a6db4",
         "harness_id": "harness--0120ab447b077c41"
       }
     },
@@ -11580,7 +11574,7 @@
             "sha256": "e695e5617d0fa279b60abf19935b84e360f0ff34bfcc33d9f8a312fe5df841f5"
           }
         ],
-        "checkout_sha256": "59dd2f27f8f8918f44abbdea4dd9f72b17425973d87f4debb4d23440f80a706d",
+        "checkout_sha256": "c64f3bf98122dc79c9cd78bfd49d5209065aa3270144c5f77a8c0771c982ec9f",
         "harness_id": "harness--82f5ace09945ce44"
       }
     },
@@ -11810,7 +11804,7 @@
             "sha256": "007aa9fb5e2d2e1ea6a46947188d98958d52a5b666341dac9446cb3fa8434ff3"
           }
         ],
-        "checkout_sha256": "665fdb82efd86e6cb1f7613a3d2a48a1e5245a4e6c253a48b458467ee8eb889e",
+        "checkout_sha256": "32a303c38fe882b56898a34dab6466da543eec68fd3c498e58ed745aa5888483",
         "harness_id": "harness--82f5ace09945ce44"
       }
     },
@@ -11833,7 +11827,7 @@
             "sha256": "556af3df4cb6fa7d822dd49a87d98083e2b3202220139fe8cfbc9a3f308ff693"
           }
         ],
-        "checkout_sha256": "73f6a624d639de4b8ebb68214e5df79fd63ebedb44f46e1f7389a0c63476d8a0",
+        "checkout_sha256": "1b109ea79877f6f8c8fbc32bac32ceb2cf6fb397f9223469130f94a6572a6db4",
         "harness_id": "harness--82f5ace09945ce44"
       }
     },
@@ -12914,7 +12908,7 @@
             "sha256": "87b29777b6dbc75a0149953536c5a37b111b7be982ec43949b99db9363b79d0f"
           }
         ],
-        "checkout_sha256": "665fdb82efd86e6cb1f7613a3d2a48a1e5245a4e6c253a48b458467ee8eb889e",
+        "checkout_sha256": "32a303c38fe882b56898a34dab6466da543eec68fd3c498e58ed745aa5888483",
         "harness_id": "harness--03a35fcf2797fc88"
       }
     },
@@ -12937,7 +12931,7 @@
             "sha256": "500c673a5a3b8d987140ba6a18bbd8d922b58b772fba223411b7350a306162df"
           }
         ],
-        "checkout_sha256": "73f6a624d639de4b8ebb68214e5df79fd63ebedb44f46e1f7389a0c63476d8a0",
+        "checkout_sha256": "1b109ea79877f6f8c8fbc32bac32ceb2cf6fb397f9223469130f94a6572a6db4",
         "harness_id": "harness--03a35fcf2797fc88"
       }
     },
@@ -13538,23 +13532,23 @@
     "remote_base_revision": "16e38c663dde9725beb200385b33c8d0503e550b"
   },
   "previous_disposition_snapshot": {
-    "sha256": "81ec1473a797b56b2e13a8adc089a6b05ac695ba6868ca4e707689bb503d7188",
+    "sha256": "b41540d9f6380f77b16a37fb963ca09e0d8524ddcca38bec6c484e253692ec4e",
     "record_counts": {
       "models": 19,
       "artifacts": 95,
       "panels": 20,
-      "references": 32,
-      "pipelines": 34,
-      "measurements": 116
+      "references": 33,
+      "pipelines": 35,
+      "measurements": 117
     },
     "data_sha256": {
       "data/models.jsonl": "42302eb429e99bd184438ceee93394b1b5c7f11849d6877bc52c79aa1c08a1bf",
       "data/artifacts.jsonl": "99da280597e44cc55c8a43a7e89fae079e5a892536f63355bd805bd91d496ecb",
       "data/panels.jsonl": "539838836c3bcd0f2c2b52c0bf7fa2d69a3f5d5e307c72e7ea13fb8140408938",
-      "data/references.jsonl": "0b324883197a1a67941052f83948a4093d923c28a9bb8f9125ca193de14fd5f8",
-      "data/pipelines.jsonl": "18b82d95b7a0f4a57b66a3c9c7ec93abe1af25321ecb27d84f2cb588356791ca",
-      "data/measurements.jsonl": "41a68a5427814d1cc3d45bd4886258ad53ba035e6ee931ced49a389e676e2d1c",
-      "index.json": "bb34450d2d3fd3526c9131b8e54596638606cae7e36dc1486ef8a8796d332eef",
+      "data/references.jsonl": "76bce49c2f0a33e6f363b26e94ec309900ef7aafd9d7a7428c0c1efdfaab2b6a",
+      "data/pipelines.jsonl": "5f67e5a0c2d426c08d93e517cf5619b692c85dfeff86e5d89439c86c3844c7b0",
+      "data/measurements.jsonl": "42d1d008ecbca0e335d7b55ea4b5a1c09f515a2c8c84eb3d36be04a514a04a51",
+      "index.json": "2f232614b46eb0fa3bde6f129672410f765fc567c4a05bdf3c035289d8502466",
       "schema/invariants.json": "59a0432690968bcced4ddf2b4fa4b3be7c89bdcc3fe9efd0212bea7d5b7dca0f"
     },
     "reviewed_on": "2026-09-09"

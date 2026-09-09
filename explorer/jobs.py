@@ -345,13 +345,17 @@ def _model_metadata(actor, repo, revision, *, mode):
     index_sha = index_bytes = None
     metadata_files = []
     metadata_bytes = 0
+    unhashed_bytes = 0
     for row in files:
         if not row["path"].endswith((".safetensors", ".gguf", ".bin", ".pt", ".pth")):
             metadata_bytes += row["bytes"]
-            if row["bytes"] > MAX_JSON or metadata_bytes > 32 * 1024**2:
+            if row["bytes"] > MAX_JSON or metadata_bytes > 64 * 1024**2:
                 raise JobsError("Canonical model metadata exceeds the bounded staging allowance.")
             metadata_files.append(row)
         if not HEX.fullmatch(row.get("sha256") or ""):
+            unhashed_bytes += row["bytes"]
+            if row["bytes"] > MAX_JSON or unhashed_bytes > 32 * 1024**2:
+                raise JobsError("Unhashed non-weight metadata exceeds the planning limit.")
             row["sha256"] = _metadata_digest(actor, repo, revision, row)
     if any(f["path"] == "model.safetensors.index.json" for f in files):
         _, index_sha, index_bytes = _json_download(actor, repo, revision, "model.safetensors.index.json")

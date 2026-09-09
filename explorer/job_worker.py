@@ -577,7 +577,7 @@ def staged_metadata(descriptor, name):
         if metadata != {member: record for member, record in files.items() if not member.endswith(WEIGHT_SUFFIXES)}:
             raise ValueError("canonical metadata staging inventory is incomplete or extraneous")
         if (any(record["bytes"] > 16 * 1024**2 for record in metadata.values())
-                or sum(record["bytes"] for record in metadata.values()) > 32 * 1024**2):
+                or sum(record["bytes"] for record in metadata.values()) > 64 * 1024**2):
             raise ValueError("canonical checkpoint metadata exceeds its staging bound")
         if {path.relative_to(metadata_root).as_posix() for path in tree(metadata_root)} != set(metadata):
             raise ValueError("staged checkpoint metadata tree differs from its planned inventory")

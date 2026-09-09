@@ -285,12 +285,24 @@ def rung_model_metadata_staging(actor):
           and not _authenticated_reads(TOKEN))
 
     for label, sizes in (("per-file", [jobs.MAX_JSON + 1]),
-                         ("aggregate", [16 * 1024**2, 16 * 1024**2])):
+                         ("aggregate", [16 * 1024**2] * 4)):
         reset([ns(rfilename="assets/large-%d.svg" % i, size=size, lfs=ns(sha256="cd" * 32))
                for i, size in enumerate(sizes)])
         check("E7b %s metadata overflow refuses even when every large file has an LFS digest" % label,
               refuses(lambda: jobs._model_metadata(actor, "pub/model", REV, mode="root"), jobs.JobsError)
               and not _authenticated_reads(TOKEN))
+
+    reset([ns(rfilename="assets/bounded-%d.svg" % i, size=12 * 1024**2, lfs=ns(sha256="cd" * 32))
+           for i in range(3)])
+    bounded = jobs._model_metadata(actor, "pub/model", REV, mode="root")
+    check("E7d already-hashed metadata above the unhashed budget fits bounded canonical staging",
+          sum(row["bytes"] for row in bounded["metadata_files"]) == 36 * 1024**2 + sum(map(len, files.values())))
+    files["support.txt"] = b"x" * (16 * 1024**2)
+    reset([ns(rfilename="support.txt", size=len(files["support.txt"]), lfs=None),
+           ns(rfilename="support-extra.txt", size=16 * 1024**2, lfs=None)])
+    check("E7e canonical staging preserves the smaller unhashed-fetch allowance",
+          refuses(lambda: jobs._model_metadata(actor, "pub/model", REV, mode="root"), jobs.JobsError)
+          and not any(r["args"][1] == "support-extra.txt" for r in RECORD if r["method"] == "hf_hub_download"))
 
     reset([ns(rfilename="unhashed.pth", size=jobs.MAX_JSON + 1, lfs=None)])
     check("E7c unsupported unhashed weights refuse before downloading their payload",
