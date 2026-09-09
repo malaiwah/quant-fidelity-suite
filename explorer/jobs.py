@@ -961,7 +961,9 @@ def launch(actor, prepared, *, confirm_compute=False):
             job = api.run_job(image=plan["image"], command=_launch_command(plan["launch_contract"]),
                 flavor=plan["hardware"]["flavor"], timeout=plan["hardware"]["timeout_seconds"], namespace=actor.username,
                 env={"QFS_PLAN_SHA256": plan["plan_sha256"], "QFS_WORKFLOW_ID": wid}, secrets={},
-                labels={"qfs_app": "explorer", "qfs_workflow_id": wid, "qfs_source": plan["source"]["revision"], "qfs_space": hashlib.sha256(SPACE.encode()).hexdigest()[:32]}, volumes=volumes)
+                labels={"name": "qfs-" + plan["mode"] + "-" + wid[:12],
+                        "qfs_app": "explorer", "qfs_workflow_id": wid, "qfs_source": plan["source"]["revision"],
+                        "qfs_space": hashlib.sha256(SPACE.encode()).hexdigest()[:32]}, volumes=volumes)
         except Exception as exc:
             status = getattr(getattr(exc, "response", None), "status_code", None)
             if status in (400, 401, 402, 403, 422):

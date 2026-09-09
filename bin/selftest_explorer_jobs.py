@@ -813,7 +813,7 @@ def _launch_plan(actor, source, image, max_active_jobs=1):
 def rung_stale_reconciliation(actor, root):
     source_fixture = {"repository": jobs.SOURCE, "revision": "f" * 40,
                       "worker_sha256": "a" * 64, "bootstrap_sha256": "b" * 64}
-    image_fixture = "python@sha256:" + "c" * 64
+    image_fixture = json.loads((ROOT / "explorer/job_environment.json").read_text())["image"]
     real_identity = jobs._source_identity
     jobs._source_identity = lambda: (source_fixture, image_fixture)
     stale_run = {"state": "CREATING", "plan": {"workflow_id": STALE_WID},
@@ -826,6 +826,15 @@ def rung_stale_reconciliation(actor, root):
             if "qfs_workflow_id" in labels:
                 return workflow_query(labels["qfs_workflow_id"])
             return []
+        def run_job(token, **kwargs):
+            # HF rejects image-derived names over 100 characters before create.
+            # A digest-pinned measurement image must supply its own short name.
+            name = kwargs.get("labels", {}).get("name", kwargs["image"])
+            if not isinstance(name, str) or not 1 <= len(name) <= 100:
+                raise FakeHTTPError(400)
+            return ns(id="job_fixture01", url="https://huggingface.co/jobs/tester/job_fixture01",
+                      status=ns(stage="SCHEDULING", message=None), flavor="cpu-basic", created_at=None,
+                      labels={"qfs_app": "explorer", "qfs_workflow_id": kwargs["env"]["QFS_WORKFLOW_ID"]})
         paths, download = _serve({"ledger.json": _ledger_doc({STALE_WID: stale_run})})
         return {
             "list_jobs_hardware": lambda token, *a, **_: [{"name": "cpu-basic", "unit_label": "minute",
@@ -839,10 +848,7 @@ def rung_stale_reconciliation(actor, root):
             "create_bucket": lambda token, *a, **_: None,
             "bucket_info": lambda token, *a, **_: ns(private=True),
             "batch_bucket_files": lambda token, *a, **_: None,
-            "run_job": lambda token, **kwargs: ns(
-                id="job_fixture01", url="https://huggingface.co/jobs/tester/job_fixture01",
-                status=ns(stage="SCHEDULING", message=None), flavor="cpu-basic", created_at=None,
-                labels={"qfs_app": "explorer", "qfs_workflow_id": kwargs["env"]["QFS_WORKFLOW_ID"]}),
+            "run_job": run_job,
             "inspect_job": lambda token, **kwargs: ns(
                 id="job_fixture01", url="https://huggingface.co/jobs/tester/job_fixture01",
                 status=ns(stage="COMPLETED", message=None), flavor="cpu-basic", created_at=None,
