@@ -208,8 +208,15 @@ def _source_identity():
     image = environment.get("image", "")
     if not re.fullmatch(r"[A-Za-z0-9./:_-]+@sha256:[0-9a-f]{64}", image):
         raise JobsError("Worker image must be digest-pinned.")
-    if environment.get("launch_contract") != "measurement-venv-v1" or environment.get("interpreter") != "/opt/fidelity/venv/bin/python":
-        raise JobsError("Jobs require the reviewed baked measurement interpreter.")
+    if environment.get("launch_contract") != "measurement-cli-v1" or environment.get("interpreter") != "/opt/fidelity/venv/bin/python":
+        raise JobsError("New Jobs require the reviewed measurement-cli-v1 image and baked interpreter; deploy its pinned environment.")
+    if (environment.get("launcher_path") != "/usr/local/bin/qfs-job"
+            or not SHA.fullmatch(str(environment.get("launcher_source_revision", "")))
+            or any(not HEX.fullmatch(str(environment.get(key, "")))
+                   for key in ("launcher_manifest_sha256", "launcher_sha256", "build_sha256", "image_content_sha256"))
+            or not SHA.fullmatch(str(environment.get("baked_source_revision", "")))
+            or not re.fullmatch(r"[A-Za-z0-9./:_-]+@sha256:[0-9a-f]{64}", str(environment.get("base_image", "")))):
+        raise JobsError("Jobs require immutable launcher manifest, executable, source and base-image pins; redeploy the reviewed environment.")
     return {"repository": SOURCE, "revision": revision, **files}, image
 
 
@@ -591,7 +598,7 @@ def _prepare(actor, spec, registry=None):
                "scope_json", "codec", "declared_bits", "flavor", "timeout_seconds", "max_compute_usd", "output_repository",
                "review_metadata", "max_output_bytes", "replay_device", "max_active_jobs"}
     if set(spec) - allowed:
-        raise JobsError("Unknown workflow input field.")
+        raise JobsError("Unknown workflow input field. Select mode root, candidate or compare; the executable, action, paths and launch contract are fixed by the reviewed deployment.")
     _validate_review_metadata(spec.get("review_metadata", {}))
     preset = next((p for p in presets() if p["id"] == spec.get("preset")), None)
     if spec.get("preset") and preset is None:
@@ -715,7 +722,7 @@ def _prepare(actor, spec, registry=None):
         registry_input = _registry_metadata(actor, registered["registry_repository"], registered["registry_revision"])
     plan = {"schema": "qfs.hf-workflow-plan.v1", "workflow_id": workflow_id, "owner": actor.username, "mode": mode,
             "created_at": datetime.now(timezone.utc).isoformat(), "source": source, "image": image,
-            "launch_contract": "measurement-venv-v1",
+            "launch_contract": "measurement-cli-v1",
             "inputs": {"model": model, "panel": panel, "reference": reference, "candidate": candidate,
                        "tokenizer": tokenizer, "registry": registry_input},
             "output": {"dataset_repository": output_repo, "bucket": actor.username + "/qfs-explorer-results",
@@ -809,7 +816,12 @@ _BOOTSTRAP_FETCH = _HISTORICAL_BOOTSTRAP_FETCH.replace(
     "os.execv('/opt/fidelity/venv/bin/python',['/opt/fidelity/venv/bin/python',")
 
 
-def _launch_command(contract):
+def _launch_command(contract, mode=None):
+    if contract == "measurement-cli-v1":
+        action = {"root": "capture", "candidate": "measure", "compare": "compare"}.get(mode)
+        if action is None:
+            raise JobsError("The sealed workflow mode must be root, candidate or compare; no action alias is allowed.")
+        return ["/usr/local/bin/qfs-job", action, "--plan", "/inputs/plan/plan.json", "--out", "/outputs/result"]
     if contract == "measurement-venv-v1":
         return ["/opt/fidelity/venv/bin/python", "-c", _BOOTSTRAP_FETCH]
     if contract == "python-bootstrap-v1":
@@ -850,8 +862,9 @@ def launch(actor, prepared, *, confirm_compute=False):
     verify_seal(plan, "plan_sha256");_check_ticket(actor, plan, ticket)
     if "replay" not in plan.get("runtime", {}):
         raise JobsError("New launches require an explicit sealed replay policy; prepare again.")
-    if plan.get("launch_contract") != "measurement-venv-v1":
-        raise JobsError("New launches require the baked measurement runtime; prepare again.")
+    if plan.get("launch_contract") != "measurement-cli-v1":
+        raise JobsError("New launches require the baked action CLI; prepare again with the reviewed measurement-cli-v1 environment.")
+    _launch_command(plan["launch_contract"], plan.get("mode"))
     job_resources.resolve_replay(plan)
     max_active_jobs = job_resources.active_job_limit(plan["limits"].get("max_active_jobs", 1))
     if plan["owner"] != actor.username or time.time() - plan["hardware"]["quote_time"] > 600:
@@ -958,7 +971,7 @@ def launch(actor, prepared, *, confirm_compute=False):
             if isinstance(exc, JobsError):raise
             raise _api_error(exc, "Private input/output preparation") from None
         try:
-            job = api.run_job(image=plan["image"], command=_launch_command(plan["launch_contract"]),
+            job = api.run_job(image=plan["image"], command=_launch_command(plan["launch_contract"], plan["mode"]),
                 flavor=plan["hardware"]["flavor"], timeout=plan["hardware"]["timeout_seconds"], namespace=actor.username,
                 env={"QFS_PLAN_SHA256": plan["plan_sha256"], "QFS_WORKFLOW_ID": wid}, secrets={},
                 labels={"name": "qfs-" + plan["mode"] + "-" + wid[:12],
@@ -1178,8 +1191,8 @@ def _reviewed_job_sources():
                     or not re.fullmatch(r"[A-Za-z0-9./:_-]+@sha256:[0-9a-f]{64}", str(pin.get("image")))):
                 raise JobsError("Invalid explicitly reviewed recovery source pin.")
             contract = pin.get("launch_contract", "python-bootstrap-v1")
-            _launch_command(contract)
-            if contract == "measurement-venv-v1" and not HEX.fullmatch(str(pin.get("environment_sha256", ""))):
+            _launch_command(contract, "compare")
+            if contract in ("measurement-venv-v1", "measurement-cli-v1") and not HEX.fullmatch(str(pin.get("environment_sha256", ""))):
                 raise JobsError("Reviewed measurement runtime requires its source environment hash.")
             if revision in approved and approved[revision] != pin:
                 raise JobsError("Conflicting explicitly reviewed recovery source pins.")
@@ -1206,11 +1219,11 @@ def _verify_provider(actor, job, plan):
             raise JobsError("This Job source/image is not in the explicitly reviewed recovery pins.")
         if "replay" not in plan.get("runtime", {}):
             raise JobsError("Historical CPU recovery requires an explicitly reviewed source pin.")
-        contract = "measurement-venv-v1"
+        contract = "measurement-cli-v1"
         if plan.get("launch_contract") != contract:
             raise JobsError("Current Jobs require the sealed measurement launch contract.")
     job_resources.resolve_replay(plan)
-    if (plan.get("owner") != actor.username or job.command != _launch_command(contract)
+    if (plan.get("owner") != actor.username or job.command != _launch_command(contract, plan.get("mode"))
             or job.docker_image != plan["image"]
             or job.arguments or job.secrets or job.space_id
             or job.environment != {"QFS_PLAN_SHA256": plan["plan_sha256"], "QFS_WORKFLOW_ID": plan["workflow_id"]}

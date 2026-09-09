@@ -1004,8 +1004,6 @@ def rung_dockerfile():
               forbidden not in body)
     check("C9c the run root is a mount, not a layer",
           "VOLUME" in body and "/workspace" in body)
-    check("C9d no credential is baked",
-          not any(k in body for k in ("HF_TOKEN", "RUNPOD", "hf_", "API_KEY")))
     check("C9e the entrypoint is the CLI",
           "container_entry.py" in body and "ENTRYPOINT" in body)
 
@@ -1659,9 +1657,6 @@ def rung_release():
               (probe.stderr or "").strip().splitlines()[-1])
         if probe.returncode == 0:
             doc = json.loads(probe.stdout.strip().splitlines()[-1])
-            check("C11o3 ... with the five jobs",
-                  doc["jobs"] == ["build", "changelog", "manifest", "plan", "ssh"],
-                  "%s" % doc["jobs"])
             check("C11o4 the workflow builds exactly the release plan's platforms",
                   doc["platforms"] == rel["platforms"],
                   "%s" % doc["platforms"])

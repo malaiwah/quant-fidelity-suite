@@ -350,6 +350,8 @@ t "explorer HF-Jobs safety: anonymous-first, canonical views, attribution labels
                                            0 python3 bin/selftest_explorer_jobs.py
 t "HF Jobs large-capture resource admission and recovery limits" \
                                            0 python3 bin/selftest_jobs_resources.py
+t "baked HF Job CLI: action, sealed plan and verified bootstrap handoff" \
+                                           0 python3 bin/selftest_hf_job_entry.py
 if have_module "$VPY" numpy; then
   t "v5 panel transport: pinned histories, tokenizer and artifact seals" \
                                            0 "$VPY" engines/tools/selftest_v5_panel_transport.py

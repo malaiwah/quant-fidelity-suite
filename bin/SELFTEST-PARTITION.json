@@ -27,6 +27,13 @@
     "bin/selftest_all.sh": "The battery itself, not a rung: it RUNS most of the files below plus networked CLI rungs, so putting it in a push job would both duplicate every hermetic rung and drag the network into the gate. It stays the local command of record (AGENTS.md, \"Commands that define done\") and Main owns it."
   },
   "selftests": {
+    "bin/selftest_hf_job_entry.py": {
+      "tier": "hermetic",
+      "job": "fast",
+      "seconds_xeon_x5570": 0.917,
+      "assertions_measured": 11,
+      "note": "Eleven unittest cases under python3 -S; real subprocess action handoff and bounded identity/network/exec refusals, no installed tensor packages or spend."
+    },
     "bin/selftest_jobs_resources.py": {
       "tier": "hermetic",
       "job": "fast",

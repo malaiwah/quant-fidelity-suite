@@ -28,6 +28,9 @@
 # /opt/fidelity/BUILD.json.  An image that silently moved its torch version
 # would silently change the arithmetic -- and we have measured that even the
 # GPU MODEL shifts the result (docs/ARCHITECTURE-DETERMINISM.md).
+# Independent overlay target: BuildKit can reuse this published numerical stack
+# without evaluating the base/ssh build stages.
+ARG HF_JOBS_BASE_IMAGE=ghcr.io/malaiwah/quant-fidelity-measure@sha256:b587227adb3dc56ca2f6fcbd6ecabb143fed04d3d7fabd2d76cbf9bf92bb8006
 FROM ubuntu:24.04 AS base
 
 ARG SUITE_REVISION=""
@@ -153,6 +156,25 @@ WORKDIR /workspace
 
 ENTRYPOINT ["python3.12", "/opt/fidelity/suite/bin/container_entry.py"]
 CMD ["doctor"]
+
+# HF Jobs consumes a sealed workflow plan, not container_entry's local stage
+# plan. Keep the base BUILD.json truthful; JOBS.json identifies only this overlay.
+FROM ${HF_JOBS_BASE_IMAGE} AS hf-jobs
+ARG HF_JOBS_BASE_IMAGE
+ARG SUITE_REVISION=""
+ARG IMAGE_REFERENCE=""
+COPY --chmod=0755 bin/hf_job_entry.py /usr/local/bin/qfs-job
+COPY bin/hf_job_manifest.py /tmp/hf_job_manifest.py
+RUN /opt/fidelity/venv/bin/python /tmp/hf_job_manifest.py \
+        --suite-revision "$SUITE_REVISION" \
+        --base-image "$HF_JOBS_BASE_IMAGE" \
+ && rm /tmp/hf_job_manifest.py
+LABEL org.opencontainers.image.title="quant-fidelity HF Jobs launcher" \
+      org.opencontainers.image.description="Sealed capture, measure and compare CLI over the unchanged reviewed measurement runtime." \
+      org.opencontainers.image.revision="${SUITE_REVISION}" \
+      org.opencontainers.image.ref.name="${IMAGE_REFERENCE}"
+ENTRYPOINT ["/usr/local/bin/qfs-job"]
+CMD ["--help"]
 
 # ---------------------------------------------------------------------------
 # `ssh`: the same image, driven by the safe RunPod SSH controller.

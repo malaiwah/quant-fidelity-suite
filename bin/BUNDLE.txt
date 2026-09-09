@@ -29,6 +29,8 @@ bin/invoke_engine.py
 # identity, and resultsink verifies the archive again after the one download.
 bin/result_archive.py
 bin/container_entry.py
+bin/hf_job_entry.py
+bin/hf_job_manifest.py
 # The scorer stage: stream_score CAPTURES logits, kld_report turns them into
 # the divergence. Without this the seal stage has nothing to seal.
 bin/invoke_scorer.py

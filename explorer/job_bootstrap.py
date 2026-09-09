@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -56,6 +57,34 @@ def verify_image(environment, *, image_root=IMAGE_ROOT):
     return build, freeze
 
 
+def verify_launcher(environment, *, image_root=IMAGE_ROOT, launcher_path=Path("/usr/local/bin/qfs-job")):
+    """Verify the Jobs overlay separately from the unchanged base BUILD identity."""
+    if (environment.get("launch_contract") != "measurement-cli-v1"
+            or environment.get("interpreter") != PYTHON
+            or environment.get("launcher_path") != "/usr/local/bin/qfs-job"
+            or not re.fullmatch(r"[0-9a-f]{40}", str(environment.get("launcher_source_revision", "")))
+            or not re.fullmatch(r"[A-Za-z0-9./:_-]+@sha256:[0-9a-f]{64}", str(environment.get("image", "")))
+            or not re.fullmatch(r"[A-Za-z0-9./:_-]+@sha256:[0-9a-f]{64}", str(environment.get("base_image", "")))
+            or any(not re.fullmatch(r"[0-9a-f]{64}", str(environment.get(key, "")))
+                   for key in ("launcher_manifest_sha256", "launcher_sha256"))):
+        raise ValueError("source-bound Jobs launcher configuration is not the fixed reviewed contract")
+    manifest_path = image_root / "JOBS.json"
+    if manifest_path.is_symlink() or launcher_path.is_symlink():
+        raise ValueError("Jobs launcher and manifest must be regular baked files")
+    raw = manifest_path.read_bytes()
+    if hashlib.sha256(raw).hexdigest() != environment["launcher_manifest_sha256"]:
+        raise ValueError("Jobs launcher manifest hash mismatch")
+    launcher = json.loads(raw)
+    if (launcher.get("schema") != "qfs.hf-job-launcher.v1"
+            or any(launcher.get(key) != environment.get(key)
+                   for key in ("launch_contract", "launcher_path", "launcher_sha256", "launcher_source_revision",
+                               "base_image", "build_sha256", "image_content_sha256", "baked_source_revision"))
+            or hashlib.sha256(launcher_path.read_bytes()).hexdigest() != environment["launcher_sha256"]):
+        raise ValueError("Jobs launcher executable/source/base image identity mismatch")
+    return {key: environment[key] for key in ("launcher_manifest_sha256", "launcher_sha256",
+                                              "launcher_path", "launcher_source_revision", "base_image")}
+
+
 def verify_runtime(environment, build, freeze, device):
     from importlib import import_module
     from importlib.metadata import distributions
@@ -101,9 +130,10 @@ def verify_runtime(environment, build, freeze, device):
 
 def inspect_runtime(device):
     environment = json.loads((CHECKOUT / "explorer/job_environment.json").read_text())
+    launcher = verify_launcher(environment)
     build, freeze = verify_image(environment)
     observed = verify_runtime(environment, build, freeze, device)
-    save(RUNTIME, {**observed, "image": environment["image"],
+    save(RUNTIME, {**observed, **launcher, "image": environment["image"],
                    "build_sha256": environment["build_sha256"],
                    "image_content_sha256": build["image_content_sha256"],
                    "baked_source_revision": build["suite_revision"],
@@ -188,6 +218,10 @@ def main(argv=None):
     started = time.time()
     plan, commands = {}, []
     try:
+        launch_started = float(os.environ.get("QFS_WORKFLOW_STARTED", "nan"))
+        if not math.isfinite(launch_started) or not 0 < launch_started <= started:
+            raise ValueError("baked launcher start time is missing or invalid")
+        started = launch_started
         if sys.executable != PYTHON or sys.prefix != str(IMAGE_ROOT / "venv") or sys.version_info[:2] != (3, 12):
             raise ValueError("worker requires the baked Python 3.12 venv; no fallback")
         forbidden = ("HF_TOKEN", "HF_TOKEN_PATH", "HUGGING_FACE_HUB_TOKEN", "HUGGINGFACEHUB_API_TOKEN", "HF_API_TOKEN", "OAUTH_TOKEN")
@@ -206,8 +240,8 @@ def main(argv=None):
         source = plan["source"]
         if source.get("repository") != SOURCE or not re.fullmatch(r"[0-9a-f]{40}", str(source.get("revision"))):
             raise ValueError("only an immutable commit of the fixed public QFS repository is allowed")
-        if plan.get("launch_contract") != "measurement-venv-v1":
-            raise ValueError("worker requires the sealed measurement launch contract")
+        if plan.get("launch_contract") != "measurement-cli-v1":
+            raise ValueError("worker requires the sealed measurement-cli-v1 launch contract")
         timeout = plan["hardware"]["timeout_seconds"]
         if type(timeout) is not int or not 0 < timeout <= 86400:
             raise ValueError("invalid runtime deadline")

@@ -797,7 +797,7 @@ def _ledger_doc(runs):
 def _launch_plan(actor, source, image, max_active_jobs=1):
     plan = {"schema": "qfs.hf-workflow-plan.v1", "workflow_id": secrets.token_hex(16),
             "owner": actor.username, "mode": "compare", "created_at": "2026-09-08T00:00:00+00:00",
-            "source": source, "image": image, "launch_contract": "measurement-venv-v1",
+            "source": source, "image": image, "launch_contract": "measurement-cli-v1",
             "runtime": {"replay": jobs.job_resources.replay_policy({"device": "cpu"})},
             "limits": {"max_active_jobs": max_active_jobs},
             "inputs": {"model": None, "panel": None, "reference": None, "candidate": None, "tokenizer": None},
@@ -866,6 +866,42 @@ def rung_stale_reconciliation(actor, root):
         check("S1b the reconciled ledger records RECONCILED_ABSENT, not a silent delete",
               saved_ledgers and saved_ledgers[-1]["runs"][STALE_WID]["state"] == "RECONCILED_ABSENT"
               and saved_ledgers[-1]["runs"][wid]["job_id"] == "job_fixture01")
+
+        for mode, action in (("root", "capture"), ("candidate", "measure"), ("compare", "compare")):
+            _reset(**ledger_responses(lambda wid: []))
+            prepared = _launch_plan(actor, source_fixture, image_fixture)
+            plan = prepared["plan"]
+            plan["mode"] = mode
+            plan["output"]["prefix"] = "runs/" + plan["workflow_id"]
+            plan = jobs.seal(plan, "plan_sha256")
+            jobs.launch(actor, {"plan": plan, "ticket": jobs._ticket(plan)}, confirm_compute=True)
+            invocation = next(row["kwargs"] for row in RECORD if row["method"] == "run_job")
+            check("S1 action command reaches provider for " + mode,
+                  invocation["command"] == ["/usr/local/bin/qfs-job", action, "--plan",
+                                             "/inputs/plan/plan.json", "--out", "/outputs/result"])
+            job = ns(command=invocation["command"], arguments=[], secrets={}, space_id=None,
+                     docker_image=invocation["image"], environment=invocation["env"],
+                     labels=invocation["labels"], volumes=invocation["volumes"])
+            jobs._verify_provider(actor, job, plan)
+            for index, wrong in ((0, "/tmp/qfs-job"), (1, "root"), (3, "/tmp/plan.json"),
+                                 (5, "/outputs/elsewhere")):
+                job.command = list(invocation["command"])
+                job.command[index] = wrong
+                check("S1 provider refuses changed command field %d for %s" % (index, mode),
+                      refuses(lambda: jobs._verify_provider(actor, job, plan), jobs.JobsError))
+            job.command = invocation["command"]
+            job.docker_image = "python@sha256:" + "0" * 64
+            check("S1 CLI recovery refuses changed image",
+                  refuses(lambda: jobs._verify_provider(actor, job, plan), jobs.JobsError))
+        for contract in ("python-bootstrap-v1", "measurement-venv-v1", "capture"):
+            _reset(**ledger_responses(lambda wid: []))
+            plan = _launch_plan(actor, source_fixture, image_fixture)["plan"]
+            plan["launch_contract"] = contract
+            plan = jobs.seal(plan, "plan_sha256")
+            check("S1 new launch refuses legacy or alias contract " + contract,
+                  refuses(lambda: jobs.launch(actor, {"plan": plan, "ticket": jobs._ticket(plan)},
+                                              confirm_compute=True), jobs.JobsError)
+                  and not [row for row in RECORD if row["method"] == "run_job"])
 
         # Default single-job admission, explicitly bounded two-job race, and a
         # third Job refused. No provider resource is created by this fixture.
@@ -972,6 +1008,67 @@ def rung_baked_runtime(actor, root):
     observed, closure = bootstrap.verify_image(environment, image_root=image_root)
     check("B1 verified baked provenance remains independent of worker checkout",
           observed["suite_revision"] == "1" * 40 and closure == freeze)
+
+    launcher_path = image_root / "qfs-job"
+    launcher_path.write_bytes(b"#!/opt/fidelity/venv/bin/python\n")
+    launcher = {"schema": "qfs.hf-job-launcher.v1", "launch_contract": "measurement-cli-v1",
+                "launcher_path": "/usr/local/bin/qfs-job",
+                "launcher_sha256": hashlib.sha256(launcher_path.read_bytes()).hexdigest(),
+                "launcher_source_revision": "2" * 40,
+                "base_image": "ghcr.io/malaiwah/quant-fidelity-measure@sha256:" + "3" * 64,
+                **{key: environment[key] for key in ("build_sha256", "image_content_sha256", "baked_source_revision")}}
+    launcher_raw = jobs.canonical(launcher)
+    (image_root / "JOBS.json").write_bytes(launcher_raw)
+    cli_environment = {**environment, **launcher, "schema": "qfs.hf-job-environment.v1",
+                       "interpreter": bootstrap.PYTHON,
+                       "image": "ghcr.io/malaiwah/quant-fidelity-measure@sha256:" + "4" * 64,
+                       "launcher_manifest_sha256": hashlib.sha256(launcher_raw).hexdigest()}
+    verified = bootstrap.verify_launcher(cli_environment, image_root=image_root, launcher_path=launcher_path)
+    check("B2 Jobs overlay source is distinct from unchanged baked source",
+          verified["launcher_source_revision"] == "2" * 40 and build["suite_revision"] == "1" * 40)
+    for field, value in (("launcher_sha256", "0" * 64), ("launcher_manifest_sha256", "0" * 64),
+                         ("launcher_source_revision", "0" * 40), ("base_image", "other@sha256:" + "0" * 64),
+                         ("build_sha256", "0" * 64), ("launcher_path", "/tmp/qfs-job"),
+                         ("interpreter", "/usr/bin/python"), ("launch_contract", "capture")):
+        check("B2 launcher refuses changed " + field,
+              refuses(lambda: bootstrap.verify_launcher(dict(cli_environment, **{field: value}),
+                                                         image_root=image_root, launcher_path=launcher_path), ValueError))
+    launcher_path.write_bytes(b"modified launcher")
+    check("B2 actual executable tampering refuses",
+          refuses(lambda: bootstrap.verify_launcher(cli_environment, image_root=image_root,
+                                                     launcher_path=launcher_path), ValueError))
+    launcher_path.write_bytes(b"#!/opt/fidelity/venv/bin/python\n")
+    (image_root / "JOBS.json").write_bytes(launcher_raw + b" ")
+    check("B2 actual manifest tampering refuses",
+          refuses(lambda: bootstrap.verify_launcher(cli_environment, image_root=image_root,
+                                                     launcher_path=launcher_path), ValueError))
+    (image_root / "JOBS.json").write_bytes(launcher_raw)
+
+    deployment_root = root / "cli-deployment"
+    deployed = deployment_root / "explorer"
+    deployed.mkdir(parents=True)
+    for name in ("job_worker.py", "job_bootstrap.py"):
+        (deployed / name).write_bytes((ROOT / "explorer" / name).read_bytes())
+    (deployed / "job_environment.json").write_bytes(jobs.canonical(cli_environment))
+    deployment = {"source_revision": "5" * 40, **{
+        field: hashlib.sha256((deployed / name).read_bytes()).hexdigest()
+        for name, field in (("job_worker.py", "worker_sha256"), ("job_bootstrap.py", "bootstrap_sha256"),
+                            ("job_environment.json", "environment_sha256"))}}
+    (deployed / "deployment.json").write_bytes(jobs.canonical(deployment))
+    with patch.object(jobs, "ROOT", deployment_root):
+        identity, image = jobs._source_identity()
+        check("B2 source identity binds the complete CLI environment",
+              image == cli_environment["image"] and identity["environment_sha256"] == deployment["environment_sha256"])
+        (deployed / "job_environment.json").write_bytes(jobs.canonical(dict(cli_environment, launcher_sha256="0" * 64)))
+        check("B2 environment launcher pin mutation invalidates deployed source identity",
+              refuses(jobs._source_identity, jobs.JobsError))
+        for field, value in (("launch_contract", "measurement-venv-v1"), ("launcher_path", "/tmp/qfs-job"),
+                             ("interpreter", "/usr/bin/python"), ("launcher_manifest_sha256", ""),
+                             ("launcher_source_revision", "main"), ("base_image", "image:latest")):
+            (deployed / "job_environment.json").write_bytes(jobs.canonical(dict(cli_environment, **{field: value})))
+            deployment["environment_sha256"] = hashlib.sha256((deployed / "job_environment.json").read_bytes()).hexdigest()
+            (deployed / "deployment.json").write_bytes(jobs.canonical(deployment))
+            check("B2 deployment refuses unreviewed " + field, refuses(jobs._source_identity, jobs.JobsError))
     for name, replacement in (("BUILD.json", raw + b" "), ("image-pin.txt", b"0" * 64),
                               ("pip-freeze.txt", freeze.replace(b"2.5.2", b"2.5.3")),
                               ("suite/source.py", b"changed baked code"),
@@ -1027,9 +1124,11 @@ def rung_baked_runtime(actor, root):
         contract = pin.get("launch_contract", "python-bootstrap-v1")
         if contract == "python-bootstrap-v1":
             plan.pop("launch_contract")
+        else:
+            plan["launch_contract"] = contract
         plan["output"]["prefix"] = "runs/" + plan["workflow_id"]
         plan = jobs.seal(plan, "plan_sha256")
-        job = ns(command=jobs._launch_command(contract), arguments=[], secrets={}, space_id=None,
+        job = ns(command=jobs._launch_command(contract, plan["mode"]), arguments=[], secrets={}, space_id=None,
                  docker_image=pin["image"],
                  environment={"QFS_PLAN_SHA256": plan["plan_sha256"], "QFS_WORKFLOW_ID": plan["workflow_id"]},
                  labels={"qfs_source": revision, "qfs_workflow_id": plan["workflow_id"]},
@@ -1041,7 +1140,7 @@ def rung_baked_runtime(actor, root):
         job.command = ["/tmp/arbitrary-python", "-c", jobs._BOOTSTRAP_FETCH]
         check("B8 recovery refuses an arbitrary interpreter for " + revision[:7],
               refuses(lambda: jobs._verify_provider(actor, job, plan), jobs.JobsError))
-        job.command = jobs._launch_command(contract)
+        job.command = jobs._launch_command(contract, plan["mode"])
         job.docker_image = "python@sha256:" + "0" * 64
         check("B9 recovery refuses a different provider image for " + revision[:7],
               refuses(lambda: jobs._verify_provider(actor, job, plan), jobs.JobsError))
@@ -1057,10 +1156,11 @@ def rung_bootstrap_no_install(root, bootstrap=None):
     outputs.mkdir(parents=True)
     checkout = base / "checkout"
     plan_path = base / "plan.json"
-    environment_raw = (ROOT / "explorer/job_environment.json").read_bytes()
-    environment = json.loads(environment_raw)
+    environment = json.loads((ROOT / "explorer/job_environment.json").read_bytes())
+    environment["launch_contract"] = "measurement-cli-v1"
+    environment_raw = jobs.canonical(environment)
     worker_raw = b"# immutable worker fixture\n"
-    plan = jobs.seal({"schema": "qfs.hf-workflow-plan.v1", "launch_contract": "measurement-venv-v1",
+    plan = jobs.seal({"schema": "qfs.hf-workflow-plan.v1", "launch_contract": "measurement-cli-v1",
                      "image": environment["image"], "hardware": {"timeout_seconds": 60, "device": "cpu"},
                      "source": {"repository": jobs.SOURCE, "revision": "a" * 40,
                                 "worker_sha256": hashlib.sha256(worker_raw).hexdigest(),
@@ -1068,6 +1168,7 @@ def rung_bootstrap_no_install(root, bootstrap=None):
     plan_path.write_bytes(jobs.canonical(plan))
     launched = []
     attempted_installs = []
+    remaining_budgets = []
     runtime = {"baked_source_revision": environment["baked_source_revision"],
                "image_content_sha256": environment["image_content_sha256"],
                "installed_versions": {"numpy": "2.5.2", "torch": "2.11.0+cu130"}}
@@ -1081,6 +1182,7 @@ def rung_bootstrap_no_install(root, bootstrap=None):
 
     def execute(command, deadline, commands, *, step):
         commands.append({"step": step, "argv": command, "returncode": 0})
+        remaining_budgets.append(deadline - time.monotonic())
         if command[1:4] == ["-m", "pip", "install"]:
             attempted_installs.append(command)
             raise RuntimeError("package installation is forbidden in measurement Jobs")
@@ -1102,7 +1204,7 @@ def rung_bootstrap_no_install(root, bootstrap=None):
         stack.enter_context(patch.object(sys, "prefix", "/opt/fidelity/venv"))
         stack.enter_context(patch.object(sys, "version_info", (3, 12, 3)))
         stack.enter_context(patch.object(sys, "path", list(sys.path)))
-        stack.enter_context(patch.dict(os.environ, {}, clear=True))
+        stack.enter_context(patch.dict(os.environ, {"QFS_WORKFLOW_STARTED": str(time.time() - 3)}, clear=True))
         stack.enter_context(patch.dict(sys.modules, {"job_worker": ns(require_no_credentials=lambda: None,
                                                                     validate_plan=lambda *args: None)}))
         stack.enter_context(patch.object(os, "sync", lambda: None))
@@ -1110,6 +1212,8 @@ def rung_bootstrap_no_install(root, bootstrap=None):
         bootstrap.main(["--plan", "/inputs/plan/plan.json", "--out", "/outputs/result"])
     check("B10 immutable worker handoff succeeds without per-Job installs",
           not attempted_installs and launched and launched[0][0] == "/opt/fidelity/venv/bin/python")
+    check("B10 launcher fetch time remains charged to the bootstrap deadline",
+          remaining_budgets and all(0 < remaining <= 57 for remaining in remaining_budgets))
     receipt = json.loads((outputs / "bootstrap.json").read_text())
     check("B11 final bootstrap evidence separates installed image runtime and worker source",
           receipt["baked_source_revision"] == environment["baked_source_revision"]

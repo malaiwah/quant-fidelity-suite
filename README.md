@@ -143,8 +143,10 @@ lane: this preset prepares a new root, not an automatic cross-lane comparison.
 Worker code and container images are immutable pins. Model code receives
 read-only input mounts and a private output volume, never caller credentials.
 New Jobs use the published `quant-fidelity-measure` linux/amd64 image at the
-digest in `explorer/job_environment.json`, launching its baked
-`/opt/fidelity/venv/bin/python`. Startup verifies the image BUILD/content and
+digest in `explorer/job_environment.json`, through its baked `qfs-job`
+`capture`, `measure` or `compare` action and explicit `--plan`/`--out` options.
+The command uses the baked venv internally; no inline Python appears in the
+HF Job command. Startup verifies the image BUILD/content, launcher provenance and
 installed dependency closure instead of running per-Job package installations.
 The baked image's source revision and the independently pinned current worker
 checkout are both recorded; they are not claimed to be the same revision.
