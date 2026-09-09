@@ -661,7 +661,9 @@ def _scan_publish_member(path: str, relpath: str, token: str, *,
             raise HubError(
                 "REFUSED to publish: exact credential bytes occur in %r"
                 % relpath)
-        if _OBVIOUS_HF_TOKEN.search(window):
+        # Every match requires this literal prefix; avoid a regex walk over
+        # multi-GiB tensor payloads that cannot contain a matching credential.
+        if b"hf_" in window and _OBVIOUS_HF_TOKEN.search(window):
             raise HubError(
                 "REFUSED to publish: apparent Hugging Face token occurs in %r"
                 % relpath)
