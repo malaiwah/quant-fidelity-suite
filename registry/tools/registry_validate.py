@@ -667,6 +667,15 @@ def check_source_uris(C, rep):
             walk(row, rid, "")
 
 
+def _same_party(left, right):
+    """Known account handles identify a party before human-readable aliases."""
+    for key in ("handle", "name"):
+        a, b = (left or {}).get(key), (right or {}).get(key)
+        if isinstance(a, str) and isinstance(b, str) and a.strip() and b.strip():
+            return a.strip().casefold() == b.strip().casefold()
+    return False
+
+
 def check_provenance(C, rep):
     for mid, m in C["measurements"].items():
         pv = m.get("provenance") or {}
@@ -730,7 +739,7 @@ def check_provenance(C, rep):
                 rep.err("PROV-003", "%s claims independent verification with no verification block" % mid, mid)
             else:
                 vb = ver.get("verified_by") or {}
-                if vb.get("name") == measurer.get("name"):
+                if _same_party(vb, measurer):
                     rep.err("PROV-003", "%s: the verifier (%s) is the same party as the measurer. "
                                          "Verification means somebody else reproduced it."
                             % (mid, vb.get("name")), mid)
@@ -742,8 +751,9 @@ def check_provenance(C, rep):
                                  "disclosure. Somebody else's measurement cannot be relabelled as ours."
                     % mid, mid)
         pl = C["pipelines"].get(m.get("pipeline_ref")) or {}
-        pl_author = (pl.get("author") or {}).get("name")
-        if by == "self-measured" and pl_author and pl_author != measurer.get("name"):
+        pl_identity = pl.get("author") or {}
+        pl_author = pl_identity.get("name")
+        if by == "self-measured" and pl_author and not _same_party(pl_identity, measurer):
             rep.err("PROV-008", "%s is self-measured but ran on pipeline %s, which is authored by %s. "
                                  "A row we measured is a row that ran on our stack."
                     % (mid, m.get("pipeline_ref"), pl_author), mid)

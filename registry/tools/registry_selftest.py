@@ -652,6 +652,35 @@ def secondary_and_bias_regressions(root):
     assert any(f["check"] == "BIAS-006" for f in rep.errors)
 
 
+def provenance_party_regressions(root):
+    """Account identity survives aliases and cannot be replaced by a display name."""
+    C = L.load_registry(os.path.join(root, "data"))
+    mid = "measurement--glm53.k6-6bpw.brandonmusic-final25"
+    row = C["measurements"][mid]
+    C["measurements"] = {mid: row}
+    measurer = row["provenance"]["measurer"]
+    measurer.update(name="malaiwah", handle=L.MAINTAINER)
+    author = C["pipelines"][row["pipeline_ref"]]["author"]
+    author.update(name="Michel Belleau", handle=L.MAINTAINER)
+    rep = RV.Report()
+    RV.check_provenance(C, rep)
+    assert not any(f["check"] == "PROV-008" for f in rep.errors)
+
+    author.update(name=measurer["name"], handle="different-account")
+    rep = RV.Report()
+    RV.check_provenance(C, rep)
+    assert any(f["check"] == "PROV-008" for f in rep.errors)
+
+    author.update(name=measurer["name"], handle=L.MAINTAINER)
+    row["provenance"]["independently_verified"] = True
+    row["provenance"]["verification"] = {
+        "verified_by": {"name": "Another display alias", "handle": L.MAINTAINER},
+        "method": "independent_rerun", "verification_measurement_ref": None}
+    rep = RV.Report()
+    RV.check_provenance(C, rep)
+    assert any(f["check"] == "PROV-003" for f in rep.errors)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -681,6 +710,14 @@ def main():
         passed += 1
     except AssertionError as exc:
         print("  secondary evidence, unknown bias, and cancellation       FAIL: %s" % exc)
+        failed += 1
+
+    try:
+        provenance_party_regressions(args.root)
+        print("  provenance handles preserve aliases and reject self-verification PASS")
+        passed += 1
+    except AssertionError as exc:
+        print("  provenance account identity regression FAIL: %s" % exc)
         failed += 1
 
 
