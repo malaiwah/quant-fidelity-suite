@@ -139,20 +139,26 @@ def _anonymous_client():
     return HfApi(endpoint="https://huggingface.co", token=False)
 
 
-def _json_download(actor, repo, revision, name, *, repo_type="model", limit=MAX_JSON, save_to=None, parse_json=True, anonymous=True):
+def _json_download(actor, repo, revision, name, *, repo_type="model", limit=MAX_JSON, save_to=None, parse_json=True, anonymous=True, expected_size=None):
     """Anonymous-first read (CLI-22/SEC-03): only a 401/403 escalates to the
-    caller's token, so a 404 or a network fault never sends a credential anywhere."""
+    caller's token, so a 404 or a network fault never sends a credential anywhere.
+    Pinned inventories or sealed plans may supply size; byte limits still apply."""
     from huggingface_hub import hf_hub_download
     _identity(repo, revision); _relative(name)
 
     def attempt(api, token):
-        infos = api.get_paths_info(repo, [name], repo_type=repo_type, revision=revision)
-        if len(infos) != 1 or type(getattr(infos[0], "size", None)) is not int or not 0 <= infos[0].size <= limit:
+        file_size = expected_size
+        if file_size is None:
+            infos = api.get_paths_info(repo, [name], repo_type=repo_type, revision=revision)
+            if len(infos) != 1:
+                raise JobsError("Metadata is missing or exceeds this workspace's safe read limit.")
+            file_size = getattr(infos[0], "size", None)
+        if type(file_size) is not int or not 0 <= file_size <= limit:
             raise JobsError("Metadata is missing or exceeds this workspace's safe read limit.")
         with tempfile.TemporaryDirectory(prefix="qfs-metadata-") as td:
             path = Path(hf_hub_download(repo, name, repo_type=repo_type, revision=revision,
                                        token=token, cache_dir=td)).resolve()
-            if path.stat().st_size != infos[0].size:
+            if path.stat().st_size != file_size:
                 raise JobsError("Metadata bytes differ from the pinned Hub tree.")
             raw = path.read_bytes()
             value = _read_json(path, limit=limit) if parse_json else raw
@@ -381,20 +387,8 @@ def _dataset_metadata(actor, repo, revision, mount_path):
     if checksum_sha != descriptor["seal"]["checksums_sha256"]:
         raise JobsError("Dataset checksum inventory differs from its sealed descriptor.")
     inventory = F.parse_checksums(checksum_bytes.decode("utf-8"))
-    metadata = []
-    total = 0
-    for name in sorted(set(inventory) | {F.CHECKSUMS_NAME, F.MANIFEST_NAME}):
-        if name.endswith((".safetensors", ".npy")):
-            continue
-        _, file_sha, file_bytes = _json_download(actor, repo, revision, name, repo_type="dataset", parse_json=False)
-        expected_sha = sha if name == F.MANIFEST_NAME else checksum_sha if name == F.CHECKSUMS_NAME else inventory[name]
-        if file_sha != expected_sha:
-            raise JobsError("Dataset metadata differs from its sealed inventory: " + name)
-        total += file_bytes
-        if total > 64 * 1024**2 or len(metadata) >= MAX_FILES:
-            raise JobsError("Dataset metadata exceeds the bounded private staging allowance.")
-        metadata.append({"path": name, "sha256": file_sha, "bytes": file_bytes})
     artifact_bytes = 0
+    metadata_sizes = {}
     names = sorted(set(inventory) | {F.CHECKSUMS_NAME, F.MANIFEST_NAME})
     for start in range(0, len(names), 100):
         batch = names[start:start + 100]
@@ -404,12 +398,29 @@ def _dataset_metadata(actor, repo, revision, mount_path):
             if _hf_status(exc) not in (401, 403):
                 raise _api_error(exc, "Dataset size lookup") from None
             rows = actor.client().get_paths_info(repo, batch, repo_type="dataset", revision=revision)
-        if {row.path for row in rows} != set(batch):
+        if len(rows) != len(batch) or {row.path for row in rows} != set(batch):
             raise JobsError("Canonical dataset inventory is missing on the pinned Hub tree.")
         for row in rows:
             if type(getattr(row, "size", None)) is not int or row.size < 0:
                 raise JobsError("Canonical dataset file has no recorded byte size.")
             artifact_bytes += row.size
+            if not row.path.endswith((".safetensors", ".npy")):
+                metadata_sizes[row.path] = row.size
+    metadata = []
+    total = 0
+    for name in names:
+        if name.endswith((".safetensors", ".npy")):
+            continue
+        _, file_sha, file_bytes = _json_download(
+            actor, repo, revision, name, repo_type="dataset", parse_json=False,
+            expected_size=metadata_sizes[name])
+        expected_sha = sha if name == F.MANIFEST_NAME else checksum_sha if name == F.CHECKSUMS_NAME else inventory[name]
+        if file_sha != expected_sha:
+            raise JobsError("Dataset metadata differs from its sealed inventory: " + name)
+        total += file_bytes
+        if total > 64 * 1024**2 or len(metadata) >= MAX_FILES:
+            raise JobsError("Dataset metadata exceeds the bounded private staging allowance.")
+        metadata.append({"path": name, "sha256": file_sha, "bytes": file_bytes})
     return {"repository": repo, "revision": revision, "mount_path": mount_path,
             "dataset_sha256": descriptor["dataset_sha256"], "manifest_sha256": sha,
             "manifest_bytes": size, "descriptor": descriptor, "metadata_files": metadata, "artifact_bytes": artifact_bytes}
@@ -576,7 +587,7 @@ def _resolve_planning_panel(actor, panel, tokenizer_model):
                 target = raw_panel / name
                 target.parent.mkdir(parents=True, exist_ok=True)
                 _json_download(actor, panel["repository"], panel["revision"], row.path, repo_type="dataset",
-                               limit=128 * 1024**2, save_to=target, parse_json=False)
+                               limit=128 * 1024**2, save_to=target, parse_json=False, expected_size=row.size)
         unresolved = panel_api.resolve_panel(raw_panel, role="final").to_dict()
         tokenizer_root = staging / "tokenizer"
         tokenizer_root.mkdir()
@@ -593,7 +604,7 @@ def _resolve_planning_panel(actor, panel, tokenizer_model):
             target = tokenizer_root / name
             target.parent.mkdir(parents=True, exist_ok=True)
             _json_download(actor, tokenizer_model["repository"], tokenizer_model["revision"], name,
-                           limit=128 * 1024**2, save_to=target, parse_json=False)
+                           limit=128 * 1024**2, save_to=target, parse_json=False, expected_size=source["bytes"])
         binding = panel_api.resolve_panel(raw_panel, role="final", tokenizer_root=tokenizer_root).to_dict()
         if not binding["tokenizer"]["files_verified"]:
             raise JobsError("Panel tokenizer could not be verified before spending.")
@@ -962,7 +973,7 @@ def launch(actor, prepared, *, confirm_compute=False):
                 for record in descriptor["metadata_files"]:
                     raw, sha, size = _json_download(
                         actor, descriptor["repository"], descriptor["revision"], record["path"],
-                        repo_type="dataset", parse_json=False)
+                        repo_type="dataset", parse_json=False, expected_size=record["bytes"])
                     if sha != record["sha256"] or size != record["bytes"]:
                         raise JobsError("Pinned dataset metadata changed after planning.")
                     additions.append((raw, prefix + "/inputs/datasets/" + name + "/" + record["path"]))

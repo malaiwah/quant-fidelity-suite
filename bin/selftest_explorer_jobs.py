@@ -260,6 +260,106 @@ def rung_anonymous_first(actor):
     check("E4d a public model metadata read sends no token", not _authenticated_reads(TOKEN))
 
 
+def rung_batched_dataset_metadata(actor):
+    """A sealed full-panel inventory must fit a 500-request tree API quota."""
+    from fidelity import dsformat as F, dsmanifest
+
+    files = {"panel/tokens/context-%04d.json" % i: _canonical({"index": i, "tokens": [i, i + 1]})
+             for i in range(520)}
+    # Opaque tensor bytes belong in the size inventory, never metadata staging.
+    binary = {"capture/hidden_0000.safetensors": b"\x00synthetic hidden tensor\x01",
+              "panel/masks/context-0000.npy": b"\x93NUMPY synthetic mask\x00"}
+    files.update(binary)
+    checksums = F.format_checksums([(name, hashlib.sha256(raw).hexdigest())
+                                   for name, raw in files.items()]).encode()
+    descriptor = F.seal_manifest({
+        "schema": F.DATASET_SCHEMA, "format_version": F.FORMAT_VERSION,
+        "weights": {"repository": "pub/tiny-ref", "revision": REV},
+        "panel": {"suite_token_hash_sha256": "e" * 64},
+        "capture": {"capture_content_digest": "c" * 64},
+        "seal": dsmanifest.seal_block(hashlib.sha256(checksums).hexdigest()),
+    })
+    files.update({F.CHECKSUMS_NAME: checksums, F.MANIFEST_NAME: _canonical(descriptor)})
+    paths, download = _serve(files)
+    requests = 0
+
+    def quota_paths(token, repo, names, **kwargs):
+        nonlocal requests
+        requests += 1
+        if requests > 500:
+            raise FakeHTTPError(429)
+        return paths(token, repo, names, **kwargs)
+
+    def reset(tree=quota_paths):
+        nonlocal requests
+        requests = 0
+        _reset(dataset_info=lambda token, repo, **_: ns(sha=REV),
+               get_paths_info=tree, hf_hub_download=download)
+
+    reset()
+    metadata = jobs._dataset_metadata(actor, "pub/full-panel", REV, "/inputs/reference")
+    expected = {name: {"path": name, "bytes": len(raw), "sha256": hashlib.sha256(raw).hexdigest()}
+                for name, raw in files.items() if name not in binary}
+    check("E5a full-panel metadata plans within the tree quota with every byte/hash identity",
+          {row["path"]: row for row in metadata["metadata_files"]} == expected
+          and len(metadata["metadata_files"]) == len(expected)
+          and metadata["descriptor"] == descriptor
+          and metadata["dataset_sha256"] == descriptor["dataset_sha256"]
+          and metadata["manifest_sha256"] == expected[F.MANIFEST_NAME]["sha256"]
+          and metadata["manifest_bytes"] == expected[F.MANIFEST_NAME]["bytes"]
+          and metadata["artifact_bytes"] == sum(map(len, files.values())))
+    check("E5b public planning downloads all metadata, not tensor payloads, without credentials",
+          {r["args"][1] for r in RECORD if r["method"] == "hf_hub_download"} == set(expected)
+          and not _authenticated_reads(TOKEN))
+
+    def missing_tensor(token, repo, names, **kwargs):
+        return [row for row in quota_paths(token, repo, names, **kwargs)
+                if row.path != "capture/hidden_0000.safetensors"]
+
+    reset(missing_tensor)
+    check("E5c a missing non-metadata inventory member refuses the plan",
+          refuses(lambda: jobs._dataset_metadata(actor, "pub/full-panel", REV, "/inputs/reference"),
+                  jobs.JobsError))
+    last = "panel/tokens/context-0519.json"
+    files[last] = files[last].replace(b"519", b"518")  # same size, different sealed content
+    reset()
+    check("E5d same-size corruption of the final metadata member refuses the plan",
+          refuses(lambda: jobs._dataset_metadata(actor, "pub/full-panel", REV, "/inputs/reference"),
+                  jobs.JobsError))
+
+
+def rung_prefetched_metadata_reads(actor):
+    paths, download = _serve({"config.json": PAYLOAD})
+    for size in (len(PAYLOAD) - 1, len(PAYLOAD) + 1, jobs.MAX_JSON + 1, -1):
+        _reset(get_paths_info=paths, hf_hub_download=download)
+        check("E6a prefetched size %s refuses mismatched or out-of-bounds bytes" % size,
+              refuses(lambda: jobs._json_download(actor, "pub/model", REV, "config.json",
+                                                   expected_size=size), jobs.JobsError))
+
+    for status in (404, 429):
+        def unavailable(token, repo, filename, **_):
+            raise FakeHTTPError(status)
+
+        _reset(get_paths_info=paths, hf_hub_download=unavailable)
+        check("E6b prefetched anonymous HTTP %s refuses without credential escalation" % status,
+              refuses(lambda: jobs._json_download(actor, "pub/model", REV, "config.json",
+                                                   expected_size=len(PAYLOAD)), jobs.JobsError)
+              and not _authenticated_reads(TOKEN))
+
+    def gated(token, repo, filename, **_):
+        if not token:
+            raise FakeHTTPError(401)
+        return PAYLOAD
+
+    _reset(get_paths_info=paths, hf_hub_download=gated)
+    value, sha, size = jobs._json_download(actor, "priv/model", REV, "config.json",
+                                          expected_size=len(PAYLOAD))
+    check("E6c prefetched private metadata escalates only after anonymous 401 and preserves identity",
+          value == json.loads(PAYLOAD) and sha == hashlib.sha256(PAYLOAD).hexdigest()
+          and size == len(PAYLOAD)
+          and [r["token"] for r in RECORD if r["method"] == "hf_hub_download"] == [False, TOKEN])
+
+
 # ---------------------------------------------------------------------------
 # EXP-02: required-public review evidence is anonymous only (review.py).
 # ---------------------------------------------------------------------------
@@ -1454,6 +1554,8 @@ def main():
         actor = Actor("tester", TOKEN)
         try:
             rung_anonymous_first(actor)
+            rung_batched_dataset_metadata(actor)
+            rung_prefetched_metadata_reads(actor)
             rung_public_evidence(actor)
             rung_worker_canonical_views(root)
             rung_worker_result_inventory(root)

@@ -7,8 +7,8 @@
     "command": "python3 registry/tools/registry_validate.py --strict --json",
     "context": "Canonical full-suite checkout after recovery of all public accepted records. HARN-005 compares measurement-time source identities with checkout_sha256; standalone HF dataset validation need not have those suite sources.",
     "errors": 0,
-    "warnings": 482,
-    "comparability_keys": 37,
+    "warnings": 491,
+    "comparability_keys": 38,
     "strict_warning_free_release_gate_passed": false,
     "strict_gate_policy": "Unchanged: make check-release fails when warnings remain.",
     "filters": {
@@ -20,40 +20,40 @@
     "models": 19,
     "artifacts": 95,
     "panels": 20,
-    "references": 31,
-    "pipelines": 33,
-    "measurements": 115
+    "references": 32,
+    "pipelines": 34,
+    "measurements": 116
   },
   "warning_counts_by_check": {
-    "CMP-005": 17,
+    "CMP-005": 18,
     "DET-006": 4,
     "FLOOR-003": 11,
-    "HARN-005": 427,
+    "HARN-005": 435,
     "PANEL-006": 5,
     "PROV-006": 7,
     "STAT-005": 11
   },
   "disposition_counts": {
     "missing-evidence-retained": 27,
-    "retained-and-disclosed": 455
+    "retained-and-disclosed": 464
   },
   "category_counts": {
     "contamination-evidence-missing": 5,
     "frozen-single-comparison-limitation": 4,
-    "historical-source-version-drift": 427,
+    "historical-source-version-drift": 435,
     "panel-attribution-reviewed": 7,
     "same-group-control-missing": 11,
     "same-scope-top1-not-published": 11,
-    "singleton-descriptive-observation": 17
+    "singleton-descriptive-observation": 18
   },
   "data_sha256": {
     "data/models.jsonl": "42302eb429e99bd184438ceee93394b1b5c7f11849d6877bc52c79aa1c08a1bf",
     "data/artifacts.jsonl": "99da280597e44cc55c8a43a7e89fae079e5a892536f63355bd805bd91d496ecb",
     "data/panels.jsonl": "539838836c3bcd0f2c2b52c0bf7fa2d69a3f5d5e307c72e7ea13fb8140408938",
-    "data/references.jsonl": "231bfcacf6abfc3e64d9199fb33ed96a7a59be51fc893fdf0e4d37438c0cd6e2",
-    "data/pipelines.jsonl": "4ecee36bb6005d9c099e020cd5cb158f4c24377f71b935fbc7a867571ab23224",
-    "data/measurements.jsonl": "4330e1a106fc4a0a83a3e3798d932a9068e2844d2990e90a0789946d5ba3d352",
-    "index.json": "df3def7cb2c84fd1b9c62f93cf1b2ebd5fc4f7aa334e40f23785cbd68db87033",
+    "data/references.jsonl": "0b324883197a1a67941052f83948a4093d923c28a9bb8f9125ca193de14fd5f8",
+    "data/pipelines.jsonl": "18b82d95b7a0f4a57b66a3c9c7ec93abe1af25321ecb27d84f2cb588356791ca",
+    "data/measurements.jsonl": "41a68a5427814d1cc3d45bd4886258ad53ba035e6ee931ced49a389e676e2d1c",
+    "index.json": "bb34450d2d3fd3526c9131b8e54596638606cae7e36dc1486ef8a8796d332eef",
     "schema/invariants.json": "59a0432690968bcced4ddf2b4fa4b3be7c89bdcc3fe9efd0212bea7d5b7dca0f"
   },
   "checkout_sha256": {
@@ -96,7 +96,7 @@
     "explorer/job_bootstrap.py": "ad04862b0d042f9753afa1451f3a5aafb335712210ea601935b44325cab89086",
     "explorer/job_ui.py": "e1616db74be6b25c697348f193bd5706804c010d0a957aeaecb6ab18cbb16061",
     "explorer/job_worker.py": "21ea0e9fcbd5ef814568f25cc43636f78f8ba58153289cd2039926d4a96a25c5",
-    "explorer/jobs.py": "e10c3726c991b2021bc69ced02e23f3a84e686ab7da54bc7950274bfb39bc5f2",
+    "explorer/jobs.py": "039a32ae1a82d1d44d09033b812d86fadd97a1007e492b059f0874e23f6662fc",
     "explorer/review.py": "8bf7d0d7e2aac76a00f459aa471538f5e89e2cd2e5cc27a38536d11052a3eba6",
     "explorer/transport.py": "fb144186ea7c6199100a5c741ae9449cb8a79ebcf5912e54958d9755110453c6",
     "port/tests/glm5_layer_parity.py": "2be96243efab77c6f45993576ec7981c7065dbd37b25c00a32f613e4748ffd6d",
@@ -135,25 +135,17 @@
     "sealed_receipts_and_accepted_inputs_unchanged": true,
     "model_forwards_run_by_regeneration": false,
     "new_record_ids": {
-      "models": [
-        "model--qwen.qwen3.8-27b.1d4bf0f2ff60"
-      ],
-      "artifacts": [
-        "artifact--qwen.qwen3.8-27b.1d4bf0f2ff60"
-      ],
-      "panels": [
-        "panel--native.f8c1aa7198f74a0e10289d94"
-      ],
+      "models": [],
+      "artifacts": [],
+      "panels": [],
       "references": [
-        "reference--native.2fbdd19bd60d2e21bbe06439"
+        "reference--native.1506812c94bcb0d15f357def"
       ],
       "pipelines": [
-        "pipeline--hf-jobs.16cbf11a7e55b4b4a0f3b2bb",
-        "pipeline--hf-jobs.d8cd719704083868"
+        "pipeline--hf-jobs.dac5848f3aa00e25"
       ],
       "measurements": [
-        "measurement--hf-jobs.66689a94ce665241d82b0a5e",
-        "measurement--native.floor.2021be898fe73f7bc498073a"
+        "measurement--native.floor.72915a75f9da017af5fe925e"
       ]
     },
     "note": "New accepted records are replayed from immutable acceptance inputs. Historical scientific values and identities are unchanged."
@@ -720,6 +712,103 @@
           "subset_detail": null
         },
         "classification": "advisory"
+      }
+    },
+    {
+      "check": "CMP-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.72915a75f9da017af5fe925e",
+      "message": "comparability key cmp--1fbe8e6cfada33f4 has a single member (measurement--native.floor.72915a75f9da017af5fe925e): a number with nothing to compare against. Present it as a stated fact, not a ranking.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "singleton-descriptive-observation",
+      "rationale": "One observation occupies this exact key. Retain it descriptively; a native zero control is conditional reproduction evidence, not model quality or permission to merge foreign scopes.",
+      "evidence": {
+        "comparability_key": "cmp--1fbe8e6cfada33f4",
+        "key_inputs": {
+          "accumulation_dtype": "float64",
+          "direction": "reference_to_candidate",
+          "head_policy": "native_head",
+          "metric_name": "mean_tokenwise_kld",
+          "panel_id": "panel--native.f8c1aa7198f74a0e10289d94",
+          "reference_id": "reference--native.1506812c94bcb0d15f357def",
+          "stack_relation": "same_stack"
+        },
+        "measurement_scope": {
+          "contexts": 512,
+          "covers_full_panel": true,
+          "position_filter": "all",
+          "positions_per_context": 2047,
+          "scored_positions": 1048064,
+          "subset_detail": null
+        },
+        "sources": [
+          {
+            "kind": "hf_file",
+            "sha256": "946aa80f407c05bbaf7290807c25affc4737b8bc0c3f25c801b1589cd9625271",
+            "uri": "https://huggingface.co/datasets/malaiwah/qfs-evidence-02e41a4b6bc63a9c8a9ffb68124ae5f7-public/resolve/cd958bfe924437581866ff5fbd8c0bf6a022017a/first/capture/manifest.json"
+          },
+          {
+            "kind": "hf_file",
+            "sha256": "0222e505228241d05f37391550be69014abd4c6aad49b8f3369b3d2f4465bbad",
+            "uri": "https://huggingface.co/datasets/malaiwah/qfs-evidence-02e41a4b6bc63a9c8a9ffb68124ae5f7-public/resolve/cd958bfe924437581866ff5fbd8c0bf6a022017a/reproduction/comparison-receipt.json"
+          },
+          {
+            "kind": "hf_file",
+            "sha256": "191e0af232104ed8b65258cf3fb2b842e288008baca7633c11b82a1ac7203aab",
+            "uri": "https://huggingface.co/datasets/malaiwah/qfs-evidence-02e41a4b6bc63a9c8a9ffb68124ae5f7-public/resolve/cd958bfe924437581866ff5fbd8c0bf6a022017a/original-config.json"
+          },
+          {
+            "kind": "hf_file",
+            "sha256": "450d2b0108c0ad7431f60bab8981ee8b9877e457221a3d32285f5b12444a6dda",
+            "uri": "https://huggingface.co/datasets/malaiwah/qfs-evidence-02e41a4b6bc63a9c8a9ffb68124ae5f7-public/resolve/cd958bfe924437581866ff5fbd8c0bf6a022017a/first/fidelity-dataset.json"
+          },
+          {
+            "kind": "hf_file",
+            "sha256": "61cc06b1039183158ad9e51f89698b00097900c2bf1a2e11a8dbff7f4f5510e1",
+            "uri": "https://huggingface.co/datasets/malaiwah/qfs-evidence-02e41a4b6bc63a9c8a9ffb68124ae5f7-public/resolve/cd958bfe924437581866ff5fbd8c0bf6a022017a/hf-execution.json"
+          },
+          {
+            "kind": "hf_file",
+            "sha256": "57509c753f2392eb8283030db9c8f7326e0313792109b443f8803547ebfa1d43",
+            "uri": "https://huggingface.co/datasets/malaiwah/qfs-evidence-02e41a4b6bc63a9c8a9ffb68124ae5f7-public/resolve/cd958bfe924437581866ff5fbd8c0bf6a022017a/review-harness.json"
+          },
+          {
+            "kind": "hf_file",
+            "sha256": "92632837174055742cf10f331d68d1b0d2e2a1e58f7c1b60556c1c3485373dd1",
+            "uri": "https://huggingface.co/datasets/malaiwah/qfs-evidence-02e41a4b6bc63a9c8a9ffb68124ae5f7-public/resolve/cd958bfe924437581866ff5fbd8c0bf6a022017a/job.json"
+          },
+          {
+            "kind": "hf_file",
+            "sha256": "0397a4fb29f4ab3bc6110d984545855cc8b5980cde75562e73d928e486011273",
+            "uri": "https://huggingface.co/datasets/malaiwah/qfs-evidence-02e41a4b6bc63a9c8a9ffb68124ae5f7-public/resolve/cd958bfe924437581866ff5fbd8c0bf6a022017a/first/panel/panel.json"
+          },
+          {
+            "kind": "hf_file",
+            "sha256": "1f2cf9732c1ea94f64685f98e743e90b178494952cb560c0e405039e20591a98",
+            "uri": "https://huggingface.co/datasets/malaiwah/qfs-evidence-02e41a4b6bc63a9c8a9ffb68124ae5f7-public/resolve/cd958bfe924437581866ff5fbd8c0bf6a022017a/first/panel/panel-receipt.json"
+          },
+          {
+            "kind": "hf_file",
+            "sha256": "152694939dc9d1525db5ad004d6506edf06bebff95e93f2f1d3c8ce7af7ae09d",
+            "uri": "https://huggingface.co/datasets/malaiwah/qfs-evidence-02e41a4b6bc63a9c8a9ffb68124ae5f7-public/resolve/cd958bfe924437581866ff5fbd8c0bf6a022017a/plan.json"
+          },
+          {
+            "kind": "hf_file",
+            "sha256": "e2024f4612a9acc4ee14d0e58477ed4ad449e449a6dda6af781d0d05eb828c63",
+            "uri": "https://huggingface.co/datasets/malaiwah/qfs-evidence-02e41a4b6bc63a9c8a9ffb68124ae5f7-public/resolve/cd958bfe924437581866ff5fbd8c0bf6a022017a/qualification.json"
+          },
+          {
+            "kind": "hf_file",
+            "sha256": "2e7048d946f79948bd109cd62f213178f83a592b991e3e3754c589d715a1bcdb",
+            "uri": "https://huggingface.co/datasets/malaiwah/qfs-evidence-02e41a4b6bc63a9c8a9ffb68124ae5f7-public/resolve/cd958bfe924437581866ff5fbd8c0bf6a022017a/result.json"
+          },
+          {
+            "kind": "hf_file",
+            "sha256": "a3a831127306076517f66525da85afc9d95146664a804f2b2e3520e4cf4230c0",
+            "uri": "https://huggingface.co/datasets/malaiwah/qfs-evidence-02e41a4b6bc63a9c8a9ffb68124ae5f7-public/resolve/cd958bfe924437581866ff5fbd8c0bf6a022017a/first/runtime/capture-runtime.json"
+          }
+        ]
       }
     },
     {
@@ -9232,7 +9321,7 @@
             "sha256": "2c85716212f479d197f332395ffd18ec6afcfca2fef43be930d146e0b9a98317"
           }
         ],
-        "checkout_sha256": "f94c3e4c2dd48393205b9cfefbc09db26256397f7246ec7b188fb4581721daa8",
+        "checkout_sha256": "6b8f71c4ba173b2af0c2c103e4a63f06bcb0c567be509755ce89bbbaa4d9a6c3",
         "harness_id": "harness--d8cd719704083868"
       }
     },
@@ -9347,7 +9436,7 @@
             "sha256": "4268ab6b8cf446f19c05534cf7a99002cfeb995d53f57300ec92e6b872a2fc9d"
           }
         ],
-        "checkout_sha256": "25789af3e089e36eaf6341ff263936f2489a09d773ca45ca3b70cd8e288430fb",
+        "checkout_sha256": "ceef8c9cdeaf0742a7803251133a6f7e437eeb33ccbb604df96d80bfd4b51465",
         "harness_id": "harness--d8cd719704083868"
       }
     },
@@ -9623,7 +9712,7 @@
             "sha256": "46e256593e8bf7b6883c9b6969e57e736f145209d9c24b892eea11d0aa7fae6f"
           }
         ],
-        "checkout_sha256": "e10c3726c991b2021bc69ced02e23f3a84e686ab7da54bc7950274bfb39bc5f2",
+        "checkout_sha256": "039a32ae1a82d1d44d09033b812d86fadd97a1007e492b059f0874e23f6662fc",
         "harness_id": "harness--d8cd719704083868"
       }
     },
@@ -9745,6 +9834,190 @@
     {
       "check": "HARN-005",
       "severity": "warn",
+      "id": "measurement--native.floor.72915a75f9da017af5fe925e",
+      "message": "measurement--native.floor.72915a75f9da017af5fe925e was produced by a version of bin/fidelity/dshub.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "bin/fidelity/dshub.py",
+        "recorded_entries": [
+          {
+            "path": "bin/fidelity/dshub.py",
+            "role": "source_0024",
+            "sha256": "f94c3e4c2dd48393205b9cfefbc09db26256397f7246ec7b188fb4581721daa8"
+          }
+        ],
+        "checkout_sha256": "6b8f71c4ba173b2af0c2c103e4a63f06bcb0c567be509755ce89bbbaa4d9a6c3",
+        "harness_id": "harness--dac5848f3aa00e25"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.72915a75f9da017af5fe925e",
+      "message": "measurement--native.floor.72915a75f9da017af5fe925e was produced by a version of bin/selftest_explorer_jobs.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "bin/selftest_explorer_jobs.py",
+        "recorded_entries": [
+          {
+            "path": "bin/selftest_explorer_jobs.py",
+            "role": "source_0095",
+            "sha256": "fa43ab6e1b0b4857b3175dd964743d172f0e593e8e34fc300c2be1246ff77026"
+          }
+        ],
+        "checkout_sha256": "ceef8c9cdeaf0742a7803251133a6f7e437eeb33ccbb604df96d80bfd4b51465",
+        "harness_id": "harness--dac5848f3aa00e25"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.72915a75f9da017af5fe925e",
+      "message": "measurement--native.floor.72915a75f9da017af5fe925e was produced by a version of explorer/contribute.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "explorer/contribute.py",
+        "recorded_entries": [
+          {
+            "path": "explorer/contribute.py",
+            "role": "source_0325",
+            "sha256": "3a327220c9e5e8b8540a10e1fb6c85220771be026142a049aa297a07172616c5"
+          }
+        ],
+        "checkout_sha256": "2c98f1bb933125903e4475396c1e008ad3b38ff9db8a28b029a0702326fa187c",
+        "harness_id": "harness--dac5848f3aa00e25"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.72915a75f9da017af5fe925e",
+      "message": "measurement--native.floor.72915a75f9da017af5fe925e was produced by a version of explorer/jobs.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "explorer/jobs.py",
+        "recorded_entries": [
+          {
+            "path": "explorer/jobs.py",
+            "role": "source_0332",
+            "sha256": "e10c3726c991b2021bc69ced02e23f3a84e686ab7da54bc7950274bfb39bc5f2"
+          }
+        ],
+        "checkout_sha256": "039a32ae1a82d1d44d09033b812d86fadd97a1007e492b059f0874e23f6662fc",
+        "harness_id": "harness--dac5848f3aa00e25"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.72915a75f9da017af5fe925e",
+      "message": "measurement--native.floor.72915a75f9da017af5fe925e was produced by a version of explorer/review.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "explorer/review.py",
+        "recorded_entries": [
+          {
+            "path": "explorer/review.py",
+            "role": "source_0338",
+            "sha256": "7acdb42f33d8434a9dbb155a9cbf31b6880bdffc5ad97ed687d7b6fa8f117768"
+          }
+        ],
+        "checkout_sha256": "8bf7d0d7e2aac76a00f459aa471538f5e89e2cd2e5cc27a38536d11052a3eba6",
+        "harness_id": "harness--dac5848f3aa00e25"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.72915a75f9da017af5fe925e",
+      "message": "measurement--native.floor.72915a75f9da017af5fe925e was produced by a version of registry/tools/registry_selftest.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "registry/tools/registry_selftest.py",
+        "recorded_entries": [
+          {
+            "path": "registry/tools/registry_selftest.py",
+            "role": "source_0355",
+            "sha256": "f45fb335495ac0aa050f16260b478910af7bf329e5ee131dffb4161afec78b67"
+          }
+        ],
+        "checkout_sha256": "34a2aba5fa6166c91e9cba694e15375566546692d0e855a212fb95c3ad03b096",
+        "harness_id": "harness--dac5848f3aa00e25"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.72915a75f9da017af5fe925e",
+      "message": "measurement--native.floor.72915a75f9da017af5fe925e was produced by a version of registry/tools/registry_validate.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "registry/tools/registry_validate.py",
+        "recorded_entries": [
+          {
+            "path": "registry/tools/registry_validate.py",
+            "role": "source_0356",
+            "sha256": "52dfef11c60979f6b5675812a35e73423d8ce36672c0fe5b17c943084a43655c"
+          }
+        ],
+        "checkout_sha256": "8374eb6b5b23c25726a68c4d991358bad33f8c1261de9e08c556098c885deb44",
+        "harness_id": "harness--dac5848f3aa00e25"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.72915a75f9da017af5fe925e",
+      "message": "measurement--native.floor.72915a75f9da017af5fe925e was produced by a version of registry/tools/review_requests.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "registry/tools/review_requests.py",
+        "recorded_entries": [
+          {
+            "path": "registry/tools/review_requests.py",
+            "role": "source_0358",
+            "sha256": "fa619eb3801c5c2ed31aba2a98c04ac9affbebf79df11df7fae59e9a68748fbe"
+          }
+        ],
+        "checkout_sha256": "80804b72f057d333c91e9cc6792e756af59d6bae16e3bdd6fef199a99998db79",
+        "harness_id": "harness--dac5848f3aa00e25"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
       "id": "measurement--native.floor.827fb81ed36b5dd9ff6e12ae",
       "message": "measurement--native.floor.827fb81ed36b5dd9ff6e12ae was produced by a version of app.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
       "remedy": null,
@@ -9830,7 +10103,7 @@
             "sha256": "2c85716212f479d197f332395ffd18ec6afcfca2fef43be930d146e0b9a98317"
           }
         ],
-        "checkout_sha256": "f94c3e4c2dd48393205b9cfefbc09db26256397f7246ec7b188fb4581721daa8",
+        "checkout_sha256": "6b8f71c4ba173b2af0c2c103e4a63f06bcb0c567be509755ce89bbbaa4d9a6c3",
         "harness_id": "harness--0120ab447b077c41"
       }
     },
@@ -10750,7 +11023,7 @@
             "sha256": "9f91abd9d8fd23ca9c4d202b86daee345238a5cbd08a89c0ae207982dba78aca"
           }
         ],
-        "checkout_sha256": "e10c3726c991b2021bc69ced02e23f3a84e686ab7da54bc7950274bfb39bc5f2",
+        "checkout_sha256": "039a32ae1a82d1d44d09033b812d86fadd97a1007e492b059f0874e23f6662fc",
         "harness_id": "harness--0120ab447b077c41"
       }
     },
@@ -11164,7 +11437,7 @@
             "sha256": "2c85716212f479d197f332395ffd18ec6afcfca2fef43be930d146e0b9a98317"
           }
         ],
-        "checkout_sha256": "f94c3e4c2dd48393205b9cfefbc09db26256397f7246ec7b188fb4581721daa8",
+        "checkout_sha256": "6b8f71c4ba173b2af0c2c103e4a63f06bcb0c567be509755ce89bbbaa4d9a6c3",
         "harness_id": "harness--03a35fcf2797fc88"
       }
     },
@@ -12084,7 +12357,7 @@
             "sha256": "500c673a5a3b8d987140ba6a18bbd8d922b58b772fba223411b7350a306162df"
           }
         ],
-        "checkout_sha256": "e10c3726c991b2021bc69ced02e23f3a84e686ab7da54bc7950274bfb39bc5f2",
+        "checkout_sha256": "039a32ae1a82d1d44d09033b812d86fadd97a1007e492b059f0874e23f6662fc",
         "harness_id": "harness--03a35fcf2797fc88"
       }
     },
@@ -12643,8 +12916,8 @@
   ],
   "data_snapshot": {
     "repository": "malaiwah/quant-fidelity-registry",
-    "recovered_from_revision": "f298789412ac1f2254a5cb229fa56a42a20303f3",
-    "context": "Canonical full-suite snapshot including the accepted tiny candidate and separately versioned native Qwen reference."
+    "recovered_from_revision": "b8d5461e42ce3928bf5a4065accd055043e7b429",
+    "context": "Canonical full-suite snapshot including the accepted tiny candidate and original and baked native Qwen references."
   },
   "source_provenance": {
     "suite_repository": "https://github.com/malaiwah/quant-fidelity-suite",
@@ -12685,25 +12958,25 @@
     "remote_base_revision": "16e38c663dde9725beb200385b33c8d0503e550b"
   },
   "previous_disposition_snapshot": {
-    "sha256": "d32eafe17b29778a5292bdad190d5a96436c64b05c9814c11d3ec742333a76d7",
+    "sha256": "f15208b4e41f6ebb5cd764023effb352df6de1263708bbb7dc137e2c3297d4f7",
     "record_counts": {
-      "models": 18,
-      "artifacts": 94,
-      "panels": 19,
-      "references": 30,
-      "pipelines": 31,
-      "measurements": 113
+      "models": 19,
+      "artifacts": 95,
+      "panels": 20,
+      "references": 31,
+      "pipelines": 33,
+      "measurements": 115
     },
     "data_sha256": {
-      "data/models.jsonl": "72fb8b08822d4852ed13b7c0ead301cfe61fd6c60741f67e23f3049bf9b187f2",
-      "data/artifacts.jsonl": "5d426f3240ce1721b3cc3e27128f2a5ef1d3d1c250862f723acfc9664ee3fb58",
-      "data/panels.jsonl": "bb82e6d996e419aafd675da074b858d57df55e2d5bdab5570f06b785ec74c28d",
-      "data/references.jsonl": "a22aa0a2c4b273fd940b1683f3860253d91d7733337f66f15dc76a3ca191b6f0",
-      "data/pipelines.jsonl": "21634867ea6ac1fdcc21f48cf2dbf01fff5877ecd1a74e03791ae6faa14516f4",
-      "data/measurements.jsonl": "78b159baae45502d5429a13583a5ab6e6fcbc782f624d40f0ba7cf9a581c8647",
-      "index.json": "feaa6ce6c64ff175eb32450480b9d20561eba8e8038e556c223d05e25e9e522a",
+      "data/models.jsonl": "42302eb429e99bd184438ceee93394b1b5c7f11849d6877bc52c79aa1c08a1bf",
+      "data/artifacts.jsonl": "99da280597e44cc55c8a43a7e89fae079e5a892536f63355bd805bd91d496ecb",
+      "data/panels.jsonl": "539838836c3bcd0f2c2b52c0bf7fa2d69a3f5d5e307c72e7ea13fb8140408938",
+      "data/references.jsonl": "231bfcacf6abfc3e64d9199fb33ed96a7a59be51fc893fdf0e4d37438c0cd6e2",
+      "data/pipelines.jsonl": "4ecee36bb6005d9c099e020cd5cb158f4c24377f71b935fbc7a867571ab23224",
+      "data/measurements.jsonl": "4330e1a106fc4a0a83a3e3798d932a9068e2844d2990e90a0789946d5ba3d352",
+      "index.json": "df3def7cb2c84fd1b9c62f93cf1b2ebd5fc4f7aa334e40f23785cbd68db87033",
       "schema/invariants.json": "59a0432690968bcced4ddf2b4fa4b3be7c89bdcc3fe9efd0212bea7d5b7dca0f"
     },
-    "reviewed_on": "2026-09-08"
+    "reviewed_on": "2026-09-09"
   }
 }
