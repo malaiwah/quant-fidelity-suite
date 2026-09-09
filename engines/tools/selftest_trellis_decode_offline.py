@@ -34,6 +34,8 @@ unrecognised payload rather than loading trellis bytes as weights.
   [23] a declared online mxfp8 overlay is the contract's activation_scheme.
   [24] the controller mirror reads the same layout contract from the index
        names and refuses without them.
+  [25] standalone tensor_storage binds mixed widths and refuses conflicting
+       declarations, incomplete EXL3 inventory and header/materialized mismatches.
 """
 from __future__ import annotations
 
@@ -106,6 +108,128 @@ def _subset(module, payload, codebook):
     }
 
 
+def standalone_declaration_regression():
+    """The hydrated per-module declaration path, using real tiny safetensors."""
+    import hashlib
+    import importlib.util
+    import json
+    import tempfile
+    from safetensors.torch import save_file
+
+    spec = importlib.util.spec_from_file_location(
+        "measure_cloud_standalone", str(TOOLS.parents[1] / "bin" / "measure_cloud.py"))
+    mc = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mc)
+    modules = {
+        "model.language_model.layers.0.mlp.gate_proj": 5,
+        "model.language_model.layers.0.mlp.down_proj": 6,
+        "lm_head": 6, "mtp.fc": 4,
+    }
+    subset = {}
+    storage = {}
+    for i, (module, bits) in enumerate(modules.items()):
+        payload = _subset(module, _payload(bits=bits, seed=30 + i), "mcg")
+        subset.update(payload)
+        storage[module] = {
+            "quant_format": "exl3", "bits_per_weight": bits,
+            "stored_tensors": {
+                key: {"shape": list(tensor.shape), "dtype": str(tensor.dtype),
+                      "n_bytes": tensor.numel() * tensor.element_size()}
+                for key, tensor in payload.items()},
+        }
+    native_name = "model.language_model.layers.0.linear_attn.in_proj_a"
+    native = torch.tensor([[0.1, -0.3]], dtype=torch.float16)
+    subset[native_name + ".weight"] = native
+    storage[native_name] = {"stored_tensors": {
+        native_name + ".weight": {"shape": [1, 2], "dtype": "F16"}}}
+    # tensor_storage does not enumerate every native tensor in the real artifact.
+    subset["model.visual.norm.weight"] = torch.ones(4, dtype=torch.bfloat16)
+    inline = {"quant_method": "exl3", "bits": 4.0, "head_bits": 6, "codebook": "mcg"}
+    declaration = dict(inline, tensor_storage=storage)
+    config = _Config(inline)
+    with tempfile.TemporaryDirectory(prefix="exl3-standalone-") as td:
+        path = Path(td, "quantization_config.json")
+        save_file(subset, str(Path(td, "model.safetensors")))
+        Path(td, "model.safetensors.index.json").write_text(json.dumps(
+            {"weight_map": {key: "model.safetensors" for key in subset}}))
+
+        def plan(doc=declaration, cfg=config):
+            path.write_text(json.dumps(doc))
+            return lo.trellis_checkpoint_plan(cfg, list(subset), model_dir=td)
+
+        # First check deliberately reproduces the pre-fix silent admission:
+        # a self-consistent K4 declaration lies about a real K5 tensor header.
+        mismatch = json.loads(json.dumps(declaration))
+        gate = next(iter(modules))
+        entry = mismatch["tensor_storage"][gate]
+        entry["bits_per_weight"] = 4
+        entry["stored_tensors"][gate + ".trellis"]["shape"][-1] = 64
+        entry["stored_tensors"][gate + ".trellis"]["n_bytes"] = 8 * 8 * 64 * 2
+        ok, detail = refuses(lambda: plan(mismatch), "differs from tensor shape/dtype/bytes")
+        check("[25] standalone width disagreement with a real header is refused", ok, detail)
+
+        admitted = plan()
+        stats = {"decoded_modules": 0, "trellis_bits": 0}
+        out = lo.materialize_trellis_subset(subset, admitted, torch.bfloat16, stats)
+        check("[25] mixed K4/K5/K6 groups decode despite nominal global bits=4",
+              stats["k_histogram"] == {"4": 1, "5": 1, "6": 2}
+              and set(out) == {name + ".weight" for name in modules}
+              | {native_name + ".weight", "model.visual.norm.weight"})
+        check("[25] each mixed module reaches the converter with its own decoded weight",
+              all(torch.equal(out[name + ".weight"], xs.decode_payload_hf(
+                  subset[name + ".trellis"], subset[name + ".suh"], subset[name + ".svh"],
+                  codebook="mcg").to(torch.bfloat16)) for name in modules)
+              and torch.equal(out[native_name + ".weight"].to(torch.bfloat16),
+                              native.to(torch.bfloat16)))
+        streamer = type("Streamer", (), {"trellis_plan": admitted, "trellis_stats": stats})()
+        check("[25] the mixed artifact retains its own quantized K6 head",
+              lo.head_decode_identity(streamer)["bits"] == 6
+              and lo.head_decode_identity(streamer)["source"] == "artifact_dequantized")
+        raw = path.read_bytes()
+        controller = mc._candidate_decode_plan(
+            inline, {"quantization_config": inline}, index_keys=list(subset),
+            standalone_quantization=raw)["quantization_config"]
+        pod = {key: value for key, value in admitted.items() if key != "_observed"}
+        check("[25] controller and pod bind the same exact standalone bytes and mixed contract",
+              controller == pod and pod["declared_tensor_storage_source"]["sha256"]
+              == hashlib.sha256(raw).hexdigest()
+              and pod["nonrouted_exl3"]["declared_bits"] == {"4": 1, "5": 1, "6": 2})
+
+        for label, doc, cfg, fragment in (
+            ("inline scalar conflict", dict(declaration, bits=5), config, "conflict"),
+            ("inline module conflict", declaration,
+             _Config(dict(inline, tensor_storage={gate: {"bits_per_weight": 4}})), "conflict"),
+            ("missing module", dict(declaration, tensor_storage={
+                name: value for name, value in storage.items() if name != gate}),
+             config, "module inventory"),
+            ("absent module", dict(declaration, tensor_storage=dict(
+                storage, absent={"quant_format": "exl3", "bits_per_weight": 5})),
+             config, "module inventory"),
+        ):
+            ok, detail = refuses(lambda doc=doc, cfg=cfg: plan(doc, cfg), fragment)
+            check("[25] %s refuses on the pod" % label, ok, detail)
+            try:
+                mc._candidate_decode_plan(
+                    cfg.quantization_config, index_keys=list(subset),
+                    standalone_quantization=json.dumps(doc).encode())
+                ok = False
+            except mc.Refusal:
+                ok = True
+            check("[25] %s also refuses before controller admission" % label, ok)
+
+        changed_payload = dict(subset)
+        changed_payload[gate + ".trellis"] = _payload(bits=6)["trellis"]
+        ok, detail = refuses(lambda: lo.materialize_trellis_subset(
+            changed_payload, admitted, torch.bfloat16,
+            {"decoded_modules": 0, "trellis_bits": 0}), "differs from tensor shape/dtype/bytes")
+        check("[25] materialized payload width cannot bypass the declaration", ok, detail)
+        path.write_text('{"quant_method":"exl3","bits":4,"bits":5}')
+        ok, detail = refuses(lambda: lo.trellis_checkpoint_plan(
+            config, list(subset), model_dir=td), "duplicate JSON key")
+        check("[25] duplicate standalone declarations refuse rather than choosing a value",
+              ok, detail)
+
+
 def main() -> int:
     module_a = "model.layers.3.mlp.experts.0.gate_proj"
     module_b = "model.layers.4.mlp.experts.1.down_proj"
@@ -129,17 +253,6 @@ def main() -> int:
           plan["_observed"]["quantized_module_count"] == 2
           and plan["_observed"]["codebook_histogram"] == {"mcg": 1, "mul1": 1},
           repr(plan["_observed"]))
-    # The CONTRACT half of the plan must mirror the controller's candidate
-    # block exactly: qualify_root compares them for equality, and a mismatch
-    # refuses only AFTER both cold runs and the self-compare have passed.
-    import importlib.util
-    spec = importlib.util.spec_from_file_location("mc", "bin/measure_cloud.py")
-    contract_keys = {"quant_method", "codebook", "bits", "head_bits",
-                     "modules_to_not_convert", "rotation_layout", "shared_vectors",
-                     "nonrouted_exl3", "activation_scheme"}
-    check("[2] the plan's contract keys mirror measure_cloud's candidate block",
-          set(plan) - {"_observed"} == contract_keys,
-          repr(sorted(set(plan) - {"_observed"})))
 
     stats = {"decoded_modules": 0, "trellis_bits": 0}
     out = lo.materialize_trellis_subset(subset, plan, torch.bfloat16, stats)
@@ -1010,6 +1123,7 @@ def main() -> int:
         ok, detail = "requires 'shared_h_v1'" in str(exc), str(exc)[:160]
     check("[24] the controller refuses an undeclared shared_h layout at $0, as the pod would",
           ok, detail)
+    standalone_declaration_regression()
 
     passed = sum(1 for _, ok, _ in RESULTS if ok)
     print("\nselftest_trellis_decode_offline: %d passed, %d failed, %d skipped"

@@ -853,6 +853,47 @@ def main():
             check("RP9h3 private absolute path in qualification refuses before mutation",
                   path_refused and not api.commits and not api.created)
 
+            qualification.write_bytes(
+                b'{"limitations":"Architecture-specific states, allocator/workspace/decode '
+                b'peaks and throughput are unqualified."}\n')
+            api = Api()
+            sys.modules["huggingface_hub"] = _types.SimpleNamespace(
+                HfApi=lambda token=None, endpoint=None: api, CommitOperationAdd=Add)
+            safe_disclosure = real_dshub.publish_dataset(
+                str(root), "malaiwah/mm3-root-v1", str(qualification),
+                expected_head="a" * 40, token="different-secret")
+            check("RP9h4 relative resource terminology does not block publication",
+                  bool(api.commits) and safe_disclosure["revision"] == "b" * 40)
+
+            for private_path in (
+                    b"/workspace/private/file", b"\\/home\\/user\\/file",
+                    b"C:\\Users\\owner\\file", b"C:\\\\Users\\\\owner\\\\file"):
+                qualification.write_bytes(b'{"path":"' + private_path + b'"}')
+                refused_path = False
+                try:
+                    real_dshub._scan_publish_member(
+                        str(qualification), "qualification.json", "", textual=True)
+                except real_dshub.HubError:
+                    refused_path = True
+                check("RP9h4 absolute and JSON-escaped private paths remain refused",
+                      refused_path)
+
+            qualification.write_bytes(
+                b"x" * ((1024 * 1024) - 255 - len(b"allocator"))
+                + b"allocator/workspace/decode" + b"x" * 512)
+            real_dshub._scan_publish_member(
+                str(qualification), "qualification.json", "", textual=True)
+            qualification.write_bytes(
+                b"x" * ((1024 * 1024) - 3) + b' "/home/private/file"')
+            boundary_path_refused = False
+            try:
+                real_dshub._scan_publish_member(
+                    str(qualification), "qualification.json", "", textual=True)
+            except real_dshub.HubError:
+                boundary_path_refused = True
+            check("RP9h4 scan overlap preserves absolute-path boundary decisions",
+                  boundary_path_refused)
+
             # RP9h5: a producer-sealed UPSTREAM panel receipt copied verbatim
             # (brandonmusic's lists 667 artifacts under /workspace/... on HIS
             # machine; the seal covers those strings) is public third-party

@@ -73,7 +73,9 @@ from fidelity.engines import (EngineProfileRefused, EngineUnpinned,
                               require_supported_profile, resolve_profile_timing,
                               resolve_root_timing)                    # noqa: E402
 from fidelity.hfmeta import (                          # noqa: E402
-    HF_ENDPOINT, HFError, RepoMeta, exl3_layout_contract, fetch_file, fetch_json,
+    EXL3_QUANTIZATION_CONFIG_MAX_BYTES, HF_ENDPOINT, HFError, RepoMeta,
+    exl3_layout_contract, exl3_quantization_declaration, exl3_rotation_groups,
+    exl3_storage_inventory, fetch_file, fetch_json,
     hf_token, load_panel_descriptor, repo_meta, safetensors_header, sniff_surface,
     tr3_tail_declared_bits,
 )
@@ -1731,7 +1733,7 @@ def _exl3_layout_block(index_keys, qc, tail) -> Dict[str, Any]:
 
 
 def _candidate_decode_plan(qc, cfg=None, index_keys=None,
-                          sidecar_loader=None) -> Dict[str, Any]:
+                          sidecar_loader=None, standalone_quantization=None) -> Dict[str, Any]:
     """The decode the streaming loader will apply, from the config and the index names.
 
     Mirrors `engines/tools/layer_outer.fp8_checkpoint_plan` /
@@ -1748,6 +1750,17 @@ def _candidate_decode_plan(qc, cfg=None, index_keys=None,
             "--candidate-scope, but this checkpoint publishes no quantization_config: "
             "it is an unquantized release; capture it as a root", [])
     qc = qc if isinstance(qc, dict) else {}
+    declaration_source = None
+    if tail is None and qc.get("quant_method") == "exl3" and standalone_quantization is not None:
+        try:
+            qc, declaration_source = exl3_quantization_declaration(qc, standalone_quantization)
+            if "tensor_storage" in qc:
+                if index_keys is None:
+                    raise ValueError("standalone tensor_storage requires the index inventory")
+                groups, _ = exl3_rotation_groups(index_keys)
+                exl3_storage_inventory(qc, index_keys, groups)
+        except ValueError as exc:
+            raise Refusal("exl3 candidate: %s" % exc, []) from None
     method, fmt, block = qc.get("quant_method"), qc.get("fmt"), qc.get("weight_block_size")
     activation = qc.get("activation_scheme")
     if tail is not None:
@@ -1822,6 +1835,8 @@ def _candidate_decode_plan(qc, cfg=None, index_keys=None,
                 str(m) for m in (qc.get("modules_to_not_convert") or [])),
         }
         contract.update({k: v for k, v in layout.items() if not k.startswith("_")})
+        if declaration_source is not None:
+            contract["declared_tensor_storage_source"] = declaration_source
         return {
             "method": CANDIDATE_DECODE_METHOD_TRELLIS,
             "quantization_config": contract,
@@ -2170,8 +2185,20 @@ def _refuse_quantized_root(con: Console, target, surface, plan: Dict[str, Any],
         def _controller_sidecar_loader(sfile):
             sraw = fetch_file(target.repo_id, sfile, revision=target.revision)
             return json.loads(sraw), hashlib.sha256(sraw).hexdigest()
+        standalone_quantization = None
+        if (isinstance(qc, dict) and qc.get("quant_method") == "exl3"
+                and not (isinstance(tail, dict) and tail.get("format") == "exl3-trellis")
+                and any(name == "quantization_config.json" for name, _ in target.files)):
+            try:
+                standalone_quantization = fetch_file(
+                    target.repo_id, "quantization_config.json", revision=target.revision,
+                    max_bytes=EXL3_QUANTIZATION_CONFIG_MAX_BYTES)
+            except HFError as exc:
+                raise Refusal("exl3 candidate: standalone declaration could not be read (%s)"
+                              % redact(str(exc)), []) from None
         decode = _candidate_decode_plan(
-            qc, cfg, index_keys=index_keys, sidecar_loader=_controller_sidecar_loader)
+            qc, cfg, index_keys=index_keys, sidecar_loader=_controller_sidecar_loader,
+            standalone_quantization=standalone_quantization)
         declaration = decode.pop("_declaration", None)
         qcfg = decode["quantization_config"]
         if qcfg["quant_method"] == "exl3":

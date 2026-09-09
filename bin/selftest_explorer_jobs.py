@@ -1116,8 +1116,16 @@ def rung_baked_runtime(actor, root):
             check("B7 native import exceptions are failures, not skips",
                   refuses(lambda: bootstrap.verify_runtime(environment, build, freeze, "cpu"), RuntimeError))
 
-    # Recovery authenticates the provider's historical command, not today's venv.
-    for revision, pin in jobs._reviewed_job_sources().items():
+    # Recovery authenticates historical provider evidence, even after worker edits.
+    # Keep the actual measurement-cli canary as an input independent of the map:
+    # deleting its reviewed pin must not silently remove this recovery regression.
+    sources = {**jobs._reviewed_job_sources(), "4ba2f4d9bfe52249dc7190ac068abeb4950b9b72": {
+        "worker_sha256": "007aa9fb5e2d2e1ea6a46947188d98958d52a5b666341dac9446cb3fa8434ff3",
+        "bootstrap_sha256": "ad04862b0d042f9753afa1451f3a5aafb335712210ea601935b44325cab89086",
+        "environment_sha256": "79d103191da67a0d344f351eecb9792aa5d7f06635c362df143489e724cc360c",
+        "image": "ghcr.io/malaiwah/quant-fidelity-measure@sha256:e03ccb8c67a54fc206ada6092cac426867fc9c2b26554a8887beb48fcf1e0683",
+        "launch_contract": "measurement-cli-v1"}}
+    for revision, pin in sources.items():
         source = {"repository": jobs.SOURCE, "revision": revision,
                   **{key: pin[key] for key in ("worker_sha256", "bootstrap_sha256", "environment_sha256") if key in pin}}
         plan = _launch_plan(actor, source, pin["image"])["plan"]

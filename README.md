@@ -140,6 +140,16 @@ text capture does not establish vision/MTP or native-serving fidelity.
 An existing `local-cuda-budget` reference is not relabeled as this worker's
 lane: this preset prepares a new root, not an automatic cross-lane comparison.
 
+The `candidate:qwen38-27b-k5k6-hydrated` preset binds the reviewed hydrated
+artifact, mixed scope and candidate-specific MTP inventory. Supply an actually
+published reference dataset and immutable revision; no reference is assumed.
+Standalone EXL3 storage declarations are hash-bound and checked against the
+quantized module inventory and shard headers, rather than treating the author's
+global nominal bit count as every module's precision. The measurement uses
+BF16 reconstructed weights and the candidate's own reconstructed head, not
+native EXL3 serving arithmetic. Header consistency and offline checks alone
+do not qualify the full model forward or runtime fit.
+
 Worker code and container images are immutable pins. Model code receives
 read-only input mounts and a private output volume, never caller credentials.
 New Jobs use the published `quant-fidelity-measure` linux/amd64 image at the

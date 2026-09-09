@@ -330,6 +330,7 @@ def vetted_unexpected_inventory(allowlist, model):
         "engines/tools/layer-outer-evidence/fruit-unexpected-keys.json",
         "engines/tools/layer-outer-evidence/fruit-fp8-unexpected-keys.json",
         "engines/tools/layer-outer-evidence/qwen38-27b-unexpected-keys.json",
+        "engines/tools/layer-outer-evidence/qwen38-27b-k5k6-hydrated-unexpected-keys.json",
     }
     if name not in vetted:
         raise ValueError("unexpected tensor inventory is not an authored vetted artifact")

@@ -583,6 +583,16 @@ _PRIVATE_ABSOLUTE_PATHS = (
     b"\\/home\\/", b"\\/root\\/", b"\\/Users\\/", b"\\/private\\/",
     b"\\/tmp\\/", b"\\/workspace\\/",
 )
+# Match an absolute path token, not a slash-separated term such as
+# "allocator/workspace/decode" in an immutable resource disclosure.
+_PRIVATE_ABSOLUTE_PATH_RE = re.compile(
+    rb"(?<![A-Za-z0-9_./\\%~-])(?:"
+    + b"|".join(
+        (rb"[A-Za-z]" if prefix.startswith(b":") else b"") + re.escape(prefix)
+        for prefix in _PRIVATE_ABSOLUTE_PATHS
+    )
+    + rb")"
+)
 _TEXT_FILE_SUFFIXES = (
     ".json", ".jsonl", ".txt", ".md", ".yaml", ".yml", ".csv", ".tsv",
     ".toml", ".ini", ".cfg", ".receipt",
@@ -627,8 +637,8 @@ def _scan_publish_member(path: str, relpath: str, token: str, *,
                 raise HubError(
                     "REFUSED to publish: apparent Hugging Face token occurs in %r"
                     % relpath)
-            if textual and any(pattern in window
-                               for pattern in _PRIVATE_ABSOLUTE_PATHS):
+            if textual and any(match.end() > len(carry)
+                               for match in _PRIVATE_ABSOLUTE_PATH_RE.finditer(window)):
                 raise HubError(
                     "REFUSED to publish: private absolute path occurs in %r"
                     % relpath)

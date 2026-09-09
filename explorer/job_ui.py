@@ -83,6 +83,8 @@ def build_jobs_ui():
                         candidate_repository=cand_repo, candidate_revision=cand_rev,
                         panel_repository=panel_repo, panel_revision=panel_rev, panel_path=panel_path,
                         scope_json=scope, codec=codec, declared_bits=bits)
+        elif any(p["id"] == preset and p["mode"] == "candidate" for p in options):
+            spec.update(reference_repository=ref_repo, reference_revision=ref_rev)
         if output_repo:spec["output_repository"] = output_repo
         return {k: v for k, v in spec.items() if v not in (None, "")}
 
@@ -226,12 +228,13 @@ def build_jobs_ui():
         recommendation = gr.Markdown(recommend(default))
         apply_recommendation_button = gr.Button("Apply suggested hardware, deadline and output cap — keep my cost ceiling")
         gr.Markdown("**Cost boundary:** HF bills starting/running time by the minute. The preview includes the deadline plus two startup minutes; it is not an account-wide hard-dollar cap. Storage and other HF services are separate. CPU Basic Jobs are paid, unlike CPU Basic Space hosting. **Observed example, not a runtime guarantee:** Fruit (~10 GB weights) completed two captures and reproduction in 693 seconds on CPU Performance with a 1200-second deadline and $0.75 estimate ceiling. Tiny fixtures use CPU Basic.")
+        with gr.Row(visible=False) as reference_inputs:
+            ref_repo=gr.Textbox(label="Reference dataset repository", info="Required for candidate presets without a published reference; otherwise blank keeps the preset reference.")
+            ref_rev=gr.Textbox(label="Reference dataset commit (40 hex)", info="Use the immutable revision of an actually published sealed fidelity dataset.")
         with gr.Accordion("Custom immutable inputs and actual intervention scope", open=False, visible=False) as custom_inputs:
             mode = gr.Radio([("Native root: two captures + control", "root"), ("Candidate: two captures + reference measurement", "candidate"), ("Compare existing fidelity datasets", "compare")], value="root", label="Custom workflow")
             with gr.Row():
                 model_repo=gr.Textbox(label="Model repository");model_rev=gr.Textbox(label="Model commit (40 hex)")
-            with gr.Row():
-                ref_repo=gr.Textbox(label="Reference dataset repository");ref_rev=gr.Textbox(label="Reference dataset commit")
             with gr.Row():
                 cand_repo=gr.Textbox(label="Candidate dataset (compare-only)");cand_rev=gr.Textbox(label="Candidate dataset commit")
             with gr.Row():
@@ -289,6 +292,7 @@ def build_jobs_ui():
         for control in controls:
             control.input(lambda: (None, False, "Inputs changed. Preview again; Run uses the current inputs and ceiling.", {}), outputs=[prepared_state,consent,status,plan_json], api_name=False, queue=False)
         preset.change(lambda selected: gr.Accordion(visible=selected=="custom"), [preset], [custom_inputs], api_name=False, queue=False)
+        preset.change(lambda selected: gr.Row(visible=selected=="custom" or any(p["id"] == selected and p["mode"] == "candidate" for p in options)), [preset], [reference_inputs], api_name=False, queue=False)
         preset.change(recommend,[preset],[recommendation],api_name=False,queue=False)
         apply_recommendation_button.click(apply_recommendation,[preset],[flavor,seconds,output_gib,prepared_state,consent,status,plan_json],api_name=False,queue=False)
         run_button.click(one_click,controls+[consent],[prepared_state,job_id,status,plan_json],api_name=False,concurrency_limit=1)

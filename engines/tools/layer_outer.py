@@ -1083,8 +1083,180 @@ def exl3_layout_contract(keys, qc, tail):
     return contract, detail
 
 
+EXL3_QUANTIZATION_CONFIG_MAX_BYTES = 64 * 1024 * 1024
+_EXL3_STORAGE_DTYPES = {
+    "torch.float16": "F16", "torch.bfloat16": "BF16", "torch.float32": "F32",
+    "torch.float64": "F64", "torch.int8": "I8", "torch.uint8": "U8",
+    "torch.int16": "I16", "torch.int32": "I32", "torch.int64": "I64",
+    "torch.bool": "BOOL",
+}
+_EXL3_STORAGE_ITEMSIZE = {
+    "F16": 2, "BF16": 2, "F32": 4, "F64": 8, "I8": 1, "U8": 1,
+    "I16": 2, "I32": 4, "I64": 8, "BOOL": 1,
+}
+
+
+def exl3_quantization_declaration(qc, raw):
+    """Merge a bounded standalone EXL3 declaration, never overriding inline facts.
+
+    Mirrored in fidelity.hfmeta for the controller. The digest binds the exact
+    sidecar bytes in weights_decode; the original config/shard identity stays
+    unchanged, including for historical captures without this sidecar.
+    """
+    import hashlib
+
+    def unique_pairs(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("duplicate JSON key %r" % key)
+            result[key] = value
+        return result
+
+    def invalid_constant(value):
+        raise ValueError("non-finite JSON constant %s" % value)
+
+    if len(raw) > EXL3_QUANTIZATION_CONFIG_MAX_BYTES:
+        raise ValueError("quantization_config.json exceeds the 64 MiB declaration limit")
+    try:
+        standalone = json.loads(raw, object_pairs_hook=unique_pairs,
+                                parse_constant=invalid_constant)
+    except (ValueError, UnicodeError, RecursionError) as exc:
+        raise ValueError("quantization_config.json is not strict JSON: %s" % exc) from None
+    if not isinstance(standalone, dict) or standalone.get("quant_method") != "exl3":
+        raise ValueError("quantization_config.json must declare quant_method exl3")
+    merged = dict(qc)
+    for key, value in standalone.items():
+        if key == "tensor_storage" and key in merged:
+            inline = merged[key]
+            if not isinstance(inline, dict) or not isinstance(value, dict):
+                raise ValueError("tensor_storage must be an object")
+            conflicts = [name for name in inline.keys() & value.keys()
+                         if inline[name] != value[name]]
+            if conflicts:
+                raise ValueError("inline/standalone tensor_storage conflict for %s"
+                                 % sorted(conflicts)[0])
+            merged[key] = dict(inline, **value)
+        elif key in merged and merged[key] != value:
+            raise ValueError("inline/standalone quantization_config conflict for %s" % key)
+        else:
+            merged[key] = value
+    source = {"sidecar": "quantization_config.json", "bytes": len(raw),
+              "sha256": hashlib.sha256(raw).hexdigest()}
+    return merged, source
+
+
+def exl3_storage_inventory(qc, keys, groups):
+    """Validate every declared tensor and exhaustively cover quantized modules.
+
+    tensor_storage is NOT a complete native inventory: the hydrated artifact
+    omits vision and some small native tensors. All declarations it does carry
+    must resolve, and every EXL3 group must have an exact width and object set.
+    Legacy inline-only partial policies retain their existing contract.
+    """
+    storage = qc.get("tensor_storage")
+    if not isinstance(storage, dict) or not storage:
+        raise ValueError("standalone tensor_storage must be a nonempty object")
+    declared_groups = {name for name, entry in storage.items()
+                       if isinstance(entry, dict) and entry.get("quant_format") == "exl3"}
+    if declared_groups != set(groups):
+        raise ValueError("tensor_storage EXL3 module inventory differs from the index: "
+                         "%d undeclared, %d absent"
+                         % (len(set(groups) - declared_groups),
+                            len(declared_groups - set(groups))))
+    keys = set(keys)
+    tensors = {}
+    module_bits = {}
+    for module, entry in storage.items():
+        stored = entry.get("stored_tensors") if isinstance(entry, dict) else None
+        if not isinstance(stored, dict) or not stored:
+            raise ValueError("tensor_storage %s has no stored_tensors object" % module)
+        if entry.get("quant_format") not in (None, "exl3"):
+            raise ValueError("tensor_storage %s declares an unsupported quant_format" % module)
+        for name, desc in stored.items():
+            if name not in keys or name in tensors or not name.startswith(module + "."):
+                raise ValueError("tensor_storage tensor %s is absent, duplicated or misassigned"
+                                 % name)
+            shape = desc.get("shape") if isinstance(desc, dict) else None
+            dtype = desc.get("dtype") if isinstance(desc, dict) else None
+            dtype = _EXL3_STORAGE_DTYPES.get(str(dtype), str(dtype))
+            if (not isinstance(shape, list) or any(type(n) is not int or n < 0 for n in shape)
+                    or dtype not in _EXL3_STORAGE_ITEMSIZE):
+                raise ValueError("tensor_storage %s has invalid shape/dtype" % name)
+            n_bytes = _EXL3_STORAGE_ITEMSIZE[dtype]
+            for n in shape:
+                n_bytes *= n
+            if "n_bytes" in desc and (type(desc["n_bytes"]) is not int
+                                      or desc["n_bytes"] != n_bytes):
+                raise ValueError("tensor_storage %s n_bytes disagrees with shape/dtype" % name)
+            tensors[name] = {"shape": shape, "dtype": dtype, "n_bytes": n_bytes}
+        if module not in groups:
+            if "bits_per_weight" in entry:
+                raise ValueError("tensor_storage %s declares bits without EXL3 storage" % module)
+            continue
+        objects = groups[module]
+        expected = {objects[field] for field in ("trellis", "suh", "svh", "marker")}
+        if set(stored) != expected or module + ".weight" in keys:
+            raise ValueError("tensor_storage %s disagrees with its EXL3 object inventory" % module)
+        bits = entry.get("bits_per_weight")
+        if isinstance(bits, bool) or not isinstance(bits, (int, float)) or bits not in range(1, 9):
+            raise ValueError("tensor_storage %s needs integer bits_per_weight in 1..8" % module)
+        module_bits[module] = int(bits)
+        trellis = tensors[objects["trellis"]]
+        shape = trellis["shape"]
+        if (trellis["dtype"] != "I16" or len(shape) != 3 or shape[-1] != bits * 16
+                or any(n <= 0 or n % 8 for n in shape[:2])):
+            raise ValueError("tensor_storage %s trellis shape/dtype disagrees with declared bits"
+                             % module)
+        for field, size in (("suh", shape[0] * 16), ("svh", shape[1] * 16)):
+            desc = tensors[objects[field]]
+            if desc["shape"] != [size] or desc["dtype"] != "F16":
+                raise ValueError("tensor_storage %s %s shape/dtype disagrees with trellis"
+                                 % (module, field))
+        marker = tensors[objects["marker"]]
+        if marker["shape"] != [] or marker["dtype"] != "I32":
+            raise ValueError("tensor_storage %s codebook marker must be scalar I32" % module)
+        multiplier = entry.get("mcg_multiplier")
+        if multiplier is not None and (objects["codebook"] != "mcg"
+                or type(multiplier) is not int or multiplier not in (3417055213, -877912083)):
+            raise ValueError("tensor_storage %s declares the wrong mcg_multiplier" % module)
+        if module == "lm_head" and qc.get("head_bits") is not None and qc["head_bits"] != bits:
+            raise ValueError("tensor_storage lm_head bits conflict with head_bits")
+    return tensors, module_bits
+
+
+def _check_exl3_stored_tensor(name, shape, dtype, n_bytes, declaration):
+    dtype = _EXL3_STORAGE_DTYPES.get(str(dtype), str(dtype))
+    if (list(shape) != declaration["shape"] or dtype != declaration["dtype"]
+            or n_bytes != declaration["n_bytes"]):
+        raise LayerOuterError(
+            "REFUSED: tensor_storage %s declaration differs from tensor shape/dtype/bytes"
+            % name)
+
+
+def _check_exl3_storage_headers(model_dir, tensors):
+    weight_map = _index_weight_map(model_dir)
+    by_shard = {}
+    for name in tensors:
+        if name not in weight_map:
+            raise LayerOuterError("REFUSED: tensor_storage %s is absent from the index" % name)
+        by_shard.setdefault(weight_map[name], []).append(name)
+    for shard, names in by_shard.items():
+        header, _ = _safetensors_header(os.path.join(model_dir, shard))
+        for name in names:
+            entry = header.get(name)
+            if not isinstance(entry, dict):
+                raise LayerOuterError("REFUSED: tensor_storage %s is absent from shard %s"
+                                      % (name, shard))
+            offsets = entry.get("data_offsets", [])
+            if len(offsets) != 2:
+                raise LayerOuterError("REFUSED: tensor_storage %s has invalid data offsets" % name)
+            _check_exl3_stored_tensor(name, entry.get("shape", []), entry.get("dtype"),
+                                     offsets[1] - offsets[0], tensors[name])
+
+
 def trellis_checkpoint_plan(config, declared_keys: Sequence[str],
-                                model_dir: Optional[str] = None) -> Optional[Dict[str, Any]]:
+                                model_dir: Optional[str] = None, gate=None) -> Optional[Dict[str, Any]]:
     """The exact EXL3 trellis form this schedule decodes, or None.
 
     Accepts `quant_method: exl3` whose payload groups are the stock
@@ -1103,9 +1275,23 @@ def trellis_checkpoint_plan(config, declared_keys: Sequence[str],
     declared_method = qc.get("quant_method")
     if declared_method != "exl3" and tail is None:
         return None
+    declaration_source = None
+    storage_tensors = None
+    storage_bits = None
     try:
+        if model_dir is not None and tail is None:
+            path = os.path.join(model_dir, "quantization_config.json")
+            if os.path.isfile(path):
+                with open(path, "rb") as handle:
+                    raw = handle.read(EXL3_QUANTIZATION_CONFIG_MAX_BYTES + 1)
+                qc, declaration_source = exl3_quantization_declaration(qc, raw)
         layout, detail = exl3_layout_contract(declared_keys, qc, tail)
-    except ValueError as exc:
+        if declaration_source is not None and "tensor_storage" in qc:
+            storage_tensors, storage_bits = exl3_storage_inventory(
+                qc, declared_keys, detail["groups"])
+            if gate is None:
+                _check_exl3_storage_headers(model_dir, storage_tensors)
+    except (OSError, ValueError) as exc:
         raise LayerOuterError("REFUSED: %s" % exc) from None
     groups = detail["groups"]
     if not groups:
@@ -1208,6 +1394,8 @@ def trellis_checkpoint_plan(config, declared_keys: Sequence[str],
     # the declared activation overlay are CONTRACT: read from the index names
     # on both sides by the byte-identical `exl3_layout_contract`.
     contract.update(layout)
+    if declaration_source is not None:
+        contract["declared_tensor_storage_source"] = declaration_source
     contract["_observed"] = {
         "quantized_module_count": len(groups),
         "codebook_histogram": dict(sorted(codebooks.items())),
@@ -1224,6 +1412,9 @@ def trellis_checkpoint_plan(config, declared_keys: Sequence[str],
         "module_bits_policy": {"nonrouted": detail["nonrouted_bits"],
                                "r7_k_values": detail["r7_k_values"]},
     }
+    if storage_tensors is not None:
+        contract["_observed"]["tensor_storage"] = storage_tensors
+        contract["_observed"]["module_bits_policy"]["declared_modules"] = storage_bits
     return contract
 
 
@@ -1297,13 +1488,30 @@ def materialize_trellis_subset(subset: Dict[str, Any], plan: Dict[str, Any], tor
     """
     surface = _exl3hf()
     groups = trellis_payload_groups(subset)
+    observed_plan = plan.get("_observed") or {}
+    storage = stats.get("tensor_storage") or observed_plan.get("tensor_storage") or {}
+    if storage:
+        for name, value in subset.items():
+            declaration = storage.get(name)
+            if declaration is None:
+                if name.endswith(tuple("." + field for field in
+                                       TRELLIS_PAYLOAD_OBJECTS + TRELLIS_CODEBOOKS)):
+                    raise LayerOuterError("REFUSED: tensor_storage does not declare %s" % name)
+                continue
+            shape = value.shape if hasattr(value, "shape") else value.get_shape()
+            dtype = value.dtype if hasattr(value, "dtype") else value.get_dtype()
+            canonical_dtype = _EXL3_STORAGE_DTYPES.get(str(dtype), str(dtype))
+            n_bytes = _EXL3_STORAGE_ITEMSIZE.get(canonical_dtype, 0)
+            for n in shape:
+                n_bytes *= n
+            _check_exl3_stored_tensor(name, shape, dtype, n_bytes, declaration)
     # Every key a group reads -- including a layer-shared rotation vector
     # several groups resolve to -- is consumed here and never reaches the
     # converter as a stray tensor.
     consumed = {key for objects in groups.values()
                 for name, key in objects.items() if name not in ("codebook", "shared")}
     passthrough = {key: value for key, value in subset.items() if key not in consumed}
-    policy = stats.get("module_bits_policy") or {}
+    policy = stats.get("module_bits_policy") or observed_plan.get("module_bits_policy") or {}
     # The FP8 half counts into ITS OWN counter dict: the two decoders keep
     # separate stats and the log line reads both by name, so handing the
     # trellis dict to the FP8 decoder is a KeyError on the first dequantized
@@ -1344,6 +1552,11 @@ def materialize_trellis_subset(subset: Dict[str, Any], plan: Dict[str, Any], tor
         for name in TRELLIS_PAYLOAD_OBJECTS:
             payload[name] = _eager(subset[objects[name]])
         marker = _eager(subset[objects["marker"]])
+        if storage:
+            for field, tensor in list(payload.items()) + [("marker", marker)]:
+                _check_exl3_stored_tensor(
+                    objects[field], tensor.shape, tensor.dtype,
+                    tensor.numel() * tensor.element_size(), storage[objects[field]])
         expected = surface.CODEBOOK_OBJECTS[objects["codebook"]]
         observed = int(marker.reshape(-1)[0])
         if observed != expected:
@@ -1351,22 +1564,22 @@ def materialize_trellis_subset(subset: Dict[str, Any], plan: Dict[str, Any], tor
                 "REFUSED: %s carries a %s marker of %d, not the codebook's own "
                 "multiplier %d; the payload was not written by the codebook it names"
                 % (module, objects["codebook"], observed, expected))
+        bits = int(payload["trellis"].shape[-1]) // 16
+        shared = objects.get("shared")
+        layout = shared[2] if shared is not None else "per_module"
+        _check_declared_bits(module, bits, plan, composition, policy=policy,
+                             layout=layout, shared=shared is not None)
         decoded = surface.decode_payload_hf(
             payload["trellis"].to(device), payload["suh"].to(device),
             payload["svh"].to(device), codebook=objects["codebook"]).to(torch_dtype)
         stats["decoded_modules"] += 1
-        bits = int(payload["trellis"].shape[-1]) // 16
         stats["trellis_bits"] += bits
         histogram = stats.setdefault("k_histogram", {})
         histogram[str(bits)] = histogram.get(str(bits), 0) + 1
-        shared = objects.get("shared")
         layouts = stats.setdefault("modules_per_layout", {})
-        layout = shared[2] if shared is not None else "per_module"
         layouts[layout] = layouts.get(layout, 0) + 1
         if shared is not None:
             stats["shared_vectors_applied"] = stats.get("shared_vectors_applied", 0) + 1
-        _check_declared_bits(module, bits, plan, composition, policy=policy,
-                             layout=layout, shared=shared is not None)
         ranked = TRELLIS_RANK_RE.match(module)
         weight_key = "%s.weight" % (ranked.group("module") if ranked else module)
         if weight_key in subset:
@@ -1429,6 +1642,13 @@ def _check_declared_bits(module: str, bits: int, plan: Dict[str, Any],
     -- the tail's k_values describe only the rank-sharded layer it covers.
     """
     policy = policy or {}
+    declared_modules = policy.get("declared_modules")
+    if declared_modules is not None:
+        if module not in declared_modules or declared_modules[module] != bits:
+            raise LayerOuterError(
+                "REFUSED: %s is a K%d payload but tensor_storage declares %r bits"
+                % (module, bits, declared_modules.get(module)))
+        return
     name = _EXL3_RANK_SUFFIX_RE.sub("", module)
     nonrouted = policy.get("nonrouted") or {}
     if name in nonrouted:
@@ -2677,11 +2897,12 @@ def checkpoint_decode_plans(config, model_dir: str, log: Callable[..., None], ga
                 "REFUSED: NVIDIA_TF32_OVERRIDE=1 forces TF32 in cuBLAS regardless of the "
                 "torch flags; the trellis decode's fp32 GEMMs would not be fp32. Unset it.")
         keys = list(_index_weight_map(model_dir))
-        trellis_plan = trellis_checkpoint_plan(config, keys, model_dir=model_dir)
+        trellis_plan = trellis_checkpoint_plan(config, keys, model_dir=model_dir, gate=gate)
         if any(key.endswith(FP8_SCALE_SUFFIX) for key in keys):
             trellis_fp8_plan = fp8_checkpoint_plan_for_mixed(config)
     if trellis_plan is not None:
         observed = trellis_plan.pop("_observed", {})
+        trellis_stats["tensor_storage"] = observed.pop("tensor_storage", None)
         trellis_stats["composition"] = observed.get("composition")
         trellis_stats["quant_method_declared"] = observed.get("quant_method_declared")
         trellis_stats["declared_by"] = observed.get("declared_by")

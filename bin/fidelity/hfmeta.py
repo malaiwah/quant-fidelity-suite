@@ -495,7 +495,8 @@ def repo_meta(repo_id: str, repo_type: str = "model",
 
 def fetch_file(repo_id: str, path: str, *, repo_type: str = "model",
                revision: str = "main", timeout: float = 60.0,
-               byte_range: Optional[Tuple[int, int]] = None) -> bytes:
+               byte_range: Optional[Tuple[int, int]] = None,
+               max_bytes: Optional[int] = None) -> bytes:
     kind = "datasets/" if repo_type == "dataset" else ""
     url = "%s/%s%s/resolve/%s/%s" % (
         HF_ENDPOINT, kind, repo_id, revision, urllib.parse.quote(path)
@@ -520,7 +521,10 @@ def fetch_file(repo_id: str, path: str, *, repo_type: str = "model",
         attempt += 1
         try:
             with safe_urlopen(req, timeout=timeout) as resp:
-                return resp.read()
+                raw = resp.read() if max_bytes is None else resp.read(max_bytes + 1)
+                if max_bytes is not None and len(raw) > max_bytes:
+                    raise HFError("%s exceeds the %d-byte fetch limit" % (path, max_bytes))
+                return raw
         except urllib.error.HTTPError as exc:
             delay = _retry_delay(exc, attempt, spent)
             if delay is None:
@@ -923,6 +927,149 @@ def exl3_layout_contract(keys, qc, tail):
                                                           "loader_implementation_status")}
                                  if isinstance(r7, dict) else None)}
     return contract, detail
+
+
+EXL3_QUANTIZATION_CONFIG_MAX_BYTES = 64 * 1024 * 1024
+_EXL3_STORAGE_DTYPES = {
+    "torch.float16": "F16", "torch.bfloat16": "BF16", "torch.float32": "F32",
+    "torch.float64": "F64", "torch.int8": "I8", "torch.uint8": "U8",
+    "torch.int16": "I16", "torch.int32": "I32", "torch.int64": "I64",
+    "torch.bool": "BOOL",
+}
+_EXL3_STORAGE_ITEMSIZE = {
+    "F16": 2, "BF16": 2, "F32": 4, "F64": 8, "I8": 1, "U8": 1,
+    "I16": 2, "I32": 4, "I64": 8, "BOOL": 1,
+}
+
+
+def exl3_quantization_declaration(qc, raw):
+    """Merge a bounded standalone EXL3 declaration, never overriding inline facts.
+
+    Mirrored in fidelity.hfmeta for the controller. The digest binds the exact
+    sidecar bytes in weights_decode; the original config/shard identity stays
+    unchanged, including for historical captures without this sidecar.
+    """
+    import hashlib
+
+    def unique_pairs(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("duplicate JSON key %r" % key)
+            result[key] = value
+        return result
+
+    def invalid_constant(value):
+        raise ValueError("non-finite JSON constant %s" % value)
+
+    if len(raw) > EXL3_QUANTIZATION_CONFIG_MAX_BYTES:
+        raise ValueError("quantization_config.json exceeds the 64 MiB declaration limit")
+    try:
+        standalone = json.loads(raw, object_pairs_hook=unique_pairs,
+                                parse_constant=invalid_constant)
+    except (ValueError, UnicodeError, RecursionError) as exc:
+        raise ValueError("quantization_config.json is not strict JSON: %s" % exc) from None
+    if not isinstance(standalone, dict) or standalone.get("quant_method") != "exl3":
+        raise ValueError("quantization_config.json must declare quant_method exl3")
+    merged = dict(qc)
+    for key, value in standalone.items():
+        if key == "tensor_storage" and key in merged:
+            inline = merged[key]
+            if not isinstance(inline, dict) or not isinstance(value, dict):
+                raise ValueError("tensor_storage must be an object")
+            conflicts = [name for name in inline.keys() & value.keys()
+                         if inline[name] != value[name]]
+            if conflicts:
+                raise ValueError("inline/standalone tensor_storage conflict for %s"
+                                 % sorted(conflicts)[0])
+            merged[key] = dict(inline, **value)
+        elif key in merged and merged[key] != value:
+            raise ValueError("inline/standalone quantization_config conflict for %s" % key)
+        else:
+            merged[key] = value
+    source = {"sidecar": "quantization_config.json", "bytes": len(raw),
+              "sha256": hashlib.sha256(raw).hexdigest()}
+    return merged, source
+
+
+def exl3_storage_inventory(qc, keys, groups):
+    """Validate every declared tensor and exhaustively cover quantized modules.
+
+    tensor_storage is NOT a complete native inventory: the hydrated artifact
+    omits vision and some small native tensors. All declarations it does carry
+    must resolve, and every EXL3 group must have an exact width and object set.
+    Legacy inline-only partial policies retain their existing contract.
+    """
+    storage = qc.get("tensor_storage")
+    if not isinstance(storage, dict) or not storage:
+        raise ValueError("standalone tensor_storage must be a nonempty object")
+    declared_groups = {name for name, entry in storage.items()
+                       if isinstance(entry, dict) and entry.get("quant_format") == "exl3"}
+    if declared_groups != set(groups):
+        raise ValueError("tensor_storage EXL3 module inventory differs from the index: "
+                         "%d undeclared, %d absent"
+                         % (len(set(groups) - declared_groups),
+                            len(declared_groups - set(groups))))
+    keys = set(keys)
+    tensors = {}
+    module_bits = {}
+    for module, entry in storage.items():
+        stored = entry.get("stored_tensors") if isinstance(entry, dict) else None
+        if not isinstance(stored, dict) or not stored:
+            raise ValueError("tensor_storage %s has no stored_tensors object" % module)
+        if entry.get("quant_format") not in (None, "exl3"):
+            raise ValueError("tensor_storage %s declares an unsupported quant_format" % module)
+        for name, desc in stored.items():
+            if name not in keys or name in tensors or not name.startswith(module + "."):
+                raise ValueError("tensor_storage tensor %s is absent, duplicated or misassigned"
+                                 % name)
+            shape = desc.get("shape") if isinstance(desc, dict) else None
+            dtype = desc.get("dtype") if isinstance(desc, dict) else None
+            dtype = _EXL3_STORAGE_DTYPES.get(str(dtype), str(dtype))
+            if (not isinstance(shape, list) or any(type(n) is not int or n < 0 for n in shape)
+                    or dtype not in _EXL3_STORAGE_ITEMSIZE):
+                raise ValueError("tensor_storage %s has invalid shape/dtype" % name)
+            n_bytes = _EXL3_STORAGE_ITEMSIZE[dtype]
+            for n in shape:
+                n_bytes *= n
+            if "n_bytes" in desc and (type(desc["n_bytes"]) is not int
+                                      or desc["n_bytes"] != n_bytes):
+                raise ValueError("tensor_storage %s n_bytes disagrees with shape/dtype" % name)
+            tensors[name] = {"shape": shape, "dtype": dtype, "n_bytes": n_bytes}
+        if module not in groups:
+            if "bits_per_weight" in entry:
+                raise ValueError("tensor_storage %s declares bits without EXL3 storage" % module)
+            continue
+        objects = groups[module]
+        expected = {objects[field] for field in ("trellis", "suh", "svh", "marker")}
+        if set(stored) != expected or module + ".weight" in keys:
+            raise ValueError("tensor_storage %s disagrees with its EXL3 object inventory" % module)
+        bits = entry.get("bits_per_weight")
+        if isinstance(bits, bool) or not isinstance(bits, (int, float)) or bits not in range(1, 9):
+            raise ValueError("tensor_storage %s needs integer bits_per_weight in 1..8" % module)
+        module_bits[module] = int(bits)
+        trellis = tensors[objects["trellis"]]
+        shape = trellis["shape"]
+        if (trellis["dtype"] != "I16" or len(shape) != 3 or shape[-1] != bits * 16
+                or any(n <= 0 or n % 8 for n in shape[:2])):
+            raise ValueError("tensor_storage %s trellis shape/dtype disagrees with declared bits"
+                             % module)
+        for field, size in (("suh", shape[0] * 16), ("svh", shape[1] * 16)):
+            desc = tensors[objects[field]]
+            if desc["shape"] != [size] or desc["dtype"] != "F16":
+                raise ValueError("tensor_storage %s %s shape/dtype disagrees with trellis"
+                                 % (module, field))
+        marker = tensors[objects["marker"]]
+        if marker["shape"] != [] or marker["dtype"] != "I32":
+            raise ValueError("tensor_storage %s codebook marker must be scalar I32" % module)
+        multiplier = entry.get("mcg_multiplier")
+        if multiplier is not None and (objects["codebook"] != "mcg"
+                or type(multiplier) is not int or multiplier not in (3417055213, -877912083)):
+            raise ValueError("tensor_storage %s declares the wrong mcg_multiplier" % module)
+        if module == "lm_head" and qc.get("head_bits") is not None and qc["head_bits"] != bits:
+            raise ValueError("tensor_storage lm_head bits conflict with head_bits")
+    return tensors, module_bits
+
 
 
 def normalize_codec(quant_method: Optional[str],

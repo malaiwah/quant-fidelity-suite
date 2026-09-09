@@ -258,6 +258,16 @@ def presets():
                     "recommended_max_output_bytes": 32 * 1024**3,
                     "recommendation_basis": "Unqualified runtime proposal, not measured fit or throughput. No existing same-lane root: first create a new BF16 root with two cold captures and reproduction.",
                     "scope_note": "Full 512 original 2048-token contexts, score_from=0; no subset. Text-only forward; vision behavior not measured, exact 15 MTP draft tensors explicitly omitted."})
+    entries.append({"id": "candidate:qwen38-27b-k5k6-hydrated", "label": "Qwen3.8-27B EXL3 K5/K6 hydrated · BF16 reference-forward", "mode": "candidate",
+                    "model_repository": "malaiwah/Qwen3.8-27B-EXL3-K5K6-hydrated", "model_revision": "853acef0b24961b269cdcf32b1ebb405649b545b",
+                    "panel": {"kind": "bundled", "path": "engines/panels/panel--qwen38.malaiwah.suite-v5-shard0-1m", "role": "final"},
+                    "unexpected_allowlist": "engines/tools/layer-outer-evidence/qwen38-27b-k5k6-hydrated-unexpected-keys.json",
+                    "scope_json": (ROOT / "engines/tools/layer-outer-evidence/qwen38-27b-k5k6-hydrated-scope.json").read_text(),
+                    "codec": "exl3-mcg", "declared_bits": 4.0,
+                    "recommended_flavor": "a100-large", "recommended_timeout_seconds": 7200,
+                    "recommended_max_output_bytes": 32 * 1024**3,
+                    "recommendation_basis": "Unexercised exact-artifact forward and unqualified runtime proposal, not measured fit or throughput. Supply the repository and immutable revision of an actually published sealed reference dataset; no reference is assumed.",
+                    "scope_note": "Full 512 original 2048-token contexts, score_from=0; no subset. Declared 4 bits retains the artifact author's global nominal metadata for loader compatibility; it is not observed, effective or average precision. Exact byte-derived per-class assignments govern this mixed scope: MLP gate/up K5, down K6; text attention/head K6, with F16/BF16 retained tensors. Stored MTP is 1 K4 + 2 K5 + 5 K6 modules and 7 BF16 tensors, not executed; its exact 15 omitted logical names are inferred from 39 physical components until the runtime load report confirms them. Vision behavior is not measured. EXL3 reconstruction and F16 passthrough weights are rounded to BF16 for Transformers text forward with the artifact's own reconstructed head; no native-serving parity claim."})
     return entries
 
 

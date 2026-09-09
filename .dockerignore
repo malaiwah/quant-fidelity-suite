@@ -38,6 +38,9 @@ engines/tools/layer-outer-evidence/*
 !engines/tools/layer-outer-evidence/fruit-unexpected-keys.json
 !engines/tools/layer-outer-evidence/qwen38-27b-unexpected-keys.json
 !engines/tools/layer-outer-evidence/qwen38-27b-unexpected-keys.json.provenance.json
+!engines/tools/layer-outer-evidence/qwen38-27b-k5k6-hydrated-scope.json
+!engines/tools/layer-outer-evidence/qwen38-27b-k5k6-hydrated-unexpected-keys.json
+!engines/tools/layer-outer-evidence/qwen38-27b-k5k6-hydrated-unexpected-keys.json.provenance.json
 !engines/tools/layer-outer-evidence/glm53-layer78-unexpected-keys.json
 !engines/tools/layer-outer-evidence/fruit-fp8-unexpected-keys.json
 !engines/tools/layer-outer-evidence/glm53-fp8-layer78-unexpected-keys.json

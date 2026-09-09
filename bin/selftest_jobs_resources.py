@@ -142,6 +142,58 @@ def main():
         api.return_value.run_job.assert_not_called()
         api.return_value.create_bucket.assert_not_called()
         api.return_value.batch_bucket_files.assert_not_called()
+        hydrated_preset = next(p for p in jobs.presets() if p["id"] == "candidate:qwen38-27b-k5k6-hydrated")
+        hydrated_provenance = json.loads((ROOT / (hydrated_preset["unexpected_allowlist"] + ".provenance.json")).read_text())
+        hydrated = dict(native, **{field: hydrated_provenance[field]
+                                  for field in ("repository", "revision", "config_sha256", "index_sha256")},
+                        config={"hidden_size": 5120, "vocab_size": 248320,
+                                "quantization_config": {"quant_method": "exl3", "bits": 4.0, "head_bits": 6}})
+        def candidate_metadata(actor, repository, revision, *, mode):
+            return dict(hydrated if mode == "candidate" else native, repository=repository, revision=revision)
+        def reference_metadata(actor, repository, revision, mount_path):
+            jobs._identity(repository, revision)
+            return {"repository": repository, "revision": revision, "mount_path": mount_path,
+                    "artifact_bytes": 10 * R.GIB,
+                    "descriptor": {"weights": {"repository": native["repository"], "revision": native["revision"]}}}
+        hydrated_inputs = dict(inputs, preset=hydrated_preset["id"],
+                               reference_repository="caller/actual-sealed-reference", reference_revision="b" * 40)
+        with patch.object(jobs, "_model_metadata", side_effect=candidate_metadata), \
+             patch.object(jobs, "_dataset_metadata", side_effect=reference_metadata), \
+             patch.object(jobs, "_registered", return_value=None):
+            candidate_plan = jobs.prepare(actor, hydrated_inputs, registry=object())["plan"]
+            jobs.verify_seal(candidate_plan, "plan_sha256")
+            assert candidate_plan["codec"] == "exl3-mcg" and candidate_plan["declared_bits"] == 4.0
+            assert candidate_plan["scope"]["policy"] == "mixed" and candidate_plan["scope"]["head_policy"] == "quantized"
+            assignments = {entry["tensor_class"]: entry for entry in candidate_plan["scope"]["assignments"]}
+            assert {name: assignments[name]["bits_per_weight"] for name in
+                    ("mlp.gate", "mlp.up", "mlp.down", "attn.qkv", "attn.o", "lm_head")} == {
+                        "mlp.gate": 5, "mlp.up": 5, "mlp.down": 6, "attn.qkv": 6, "attn.o": 6, "lm_head": 6}
+            assert assignments["mtp"]["treatment"] == "quantized" and candidate_plan["scope"]["mtp_included"] is True
+            assert candidate_plan["inputs"]["panel"]["path"] == prepared["plan"]["inputs"]["panel"]["path"]
+            assert candidate_plan["inputs"]["reference"]["repository"] == hydrated_inputs["reference_repository"]
+            assert candidate_plan["inputs"]["reference"]["revision"] == hydrated_inputs["reference_revision"]
+            assert candidate_plan["inputs"]["model"]["repository"] == "malaiwah/Qwen3.8-27B-EXL3-K5K6-hydrated"
+            assert candidate_plan["inputs"]["model"]["revision"] == "853acef0b24961b269cdcf32b1ebb405649b545b"
+            unbound_reference = dict(hydrated_inputs)
+            unbound_reference.pop("reference_repository");unbound_reference.pop("reference_revision")
+            refuses(lambda: jobs.prepare(actor, unbound_reference, registry=object()), "immutable")
+            for field, value in (("model_repository", native["repository"]), ("model_revision", native["revision"])):
+                refuses(lambda field=field, value=value: jobs.prepare(
+                    actor, dict(hydrated_inputs, **{field: value}), registry=object()), "binding mismatch")
+        candidate_allow = candidate_plan["runtime"]["unexpected_allowlist"]
+        root_allow = prepared["plan"]["runtime"]["unexpected_allowlist"]
+        assert candidate_allow["path"] != root_allow["path"]
+        # Equal logical names do not authorize the BF16 inventory's foreign provenance.
+        assert candidate_allow["canonical_sorted_names_sha256"] == root_allow["canonical_sorted_names_sha256"]
+        refuses(lambda: job_worker.vetted_unexpected_inventory(root_allow, hydrated), "binding mismatch")
+        refuses(lambda: job_worker.vetted_unexpected_inventory(candidate_allow, native), "binding mismatch")
+        for field in ("repository", "revision", "config_sha256", "index_sha256"):
+            wrong = dict(hydrated, **{field: "foreign"})
+            refuses(lambda wrong=wrong: job_worker.vetted_unexpected_inventory(candidate_allow, wrong), "binding mismatch")
+        api.return_value.run_job.assert_not_called()
+        api.return_value.create_bucket.assert_not_called()
+        api.return_value.batch_bucket_files.assert_not_called()
+    print("PASS hydrated candidate keeps mixed scope, requires caller reference, and refuses foreign inventory provenance")
     print("PASS larger explicit cap prepares sealed no-spend plan; omitted cap refuses large payload")
 
     # A fresh process retains no controller global/config override. Recovery must

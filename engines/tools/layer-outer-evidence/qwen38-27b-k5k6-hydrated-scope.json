@@ -1,0 +1,92 @@
+{
+  "policy": "mixed",
+  "assignments": [
+    {
+      "tensor_class": "embed_tokens",
+      "treatment": "native",
+      "format": "bf16",
+      "bits_per_weight": 16,
+      "note": "One BF16 text embedding tensor retained in the artifact. Scope derives from malaiwah/Qwen3.8-27B-EXL3-K5K6-hydrated@853acef0b24961b269cdcf32b1ebb405649b545b quantization_manifest.json (sha256 db9b03fb2bb8fa9219e266a825ee028f6ed1420f4de2617d752143dee9ed4c4d), quantization_config.json tensor_storage (sha256 bdf00572254e104c61474e8006054e8666f03c24be523e4ddfb52766fefeffee), and model.safetensors.index.json (sha256 ea6e0e1064efbb72d89b4a6f9e0ee76c909a94b3f25047487a2ffb282896a26c). Metadata evidence, not a completed forward. Declared 4 bits retains the artifact author's global nominal metadata for loader compatibility, not observed, effective or average precision; these exact byte-derived per-class assignments govern the mixed scope."
+    },
+    {
+      "tensor_class": "attn.qkv",
+      "treatment": "quantized",
+      "format": "exl3-mcg",
+      "bits_per_weight": 6,
+      "layer_range": "0-63",
+      "note": "96 K6 modules: 48 linear_attn.in_proj_qkv and 16 each of self_attn.q_proj, k_proj and v_proj. Stored EXL3 weights reconstructed and rounded to BF16 for the text reference-forward; no native activation/kernel parity is asserted."
+    },
+    {
+      "tensor_class": "attn.o",
+      "treatment": "quantized",
+      "format": "exl3-mcg",
+      "bits_per_weight": 6,
+      "layer_range": "0-63",
+      "note": "64 K6 modules: 48 linear_attn.out_proj and 16 self_attn.o_proj. Reconstructed to BF16 for text forward."
+    },
+    {
+      "tensor_class": "attn.other",
+      "treatment": "quantized",
+      "format": "mixed",
+      "bits_per_weight": null,
+      "layer_range": "0-63",
+      "note": "48 x quantized:exl3-mcg@6 (linear_attn.in_proj_z); 96 x native:fp16@16 (linear_attn.in_proj_a.weight and in_proj_b.weight); 192 x native:bf16@16 (linear_attn.A_log, conv1d.weight, dt_bias and norm.weight); 32 x native:bf16@16 (self_attn.k_norm.weight and q_norm.weight). The artifact retains these native F16/BF16 tensors; F16 passthrough weights are converted to BF16 for this forward, an additional disclosed precision conversion."
+    },
+    {
+      "tensor_class": "mlp.gate",
+      "treatment": "quantized",
+      "format": "exl3-mcg",
+      "bits_per_weight": 5,
+      "layer_range": "0-63",
+      "note": "64 text MLP gate_proj K5 modules, reconstructed to BF16."
+    },
+    {
+      "tensor_class": "mlp.up",
+      "treatment": "quantized",
+      "format": "exl3-mcg",
+      "bits_per_weight": 5,
+      "layer_range": "0-63",
+      "note": "64 text MLP up_proj K5 modules, reconstructed to BF16."
+    },
+    {
+      "tensor_class": "mlp.down",
+      "treatment": "quantized",
+      "format": "exl3-mcg",
+      "bits_per_weight": 6,
+      "layer_range": "0-63",
+      "note": "64 text MLP down_proj K6 modules, reconstructed to BF16."
+    },
+    {
+      "tensor_class": "norm",
+      "treatment": "native",
+      "format": "bf16",
+      "bits_per_weight": 16,
+      "note": "129 BF16 text layer/final norm tensors; attention and MTP companions are counted separately in their own classes."
+    },
+    {
+      "tensor_class": "lm_head",
+      "treatment": "quantized",
+      "format": "exl3-mcg",
+      "bits_per_weight": 6,
+      "note": "One K6/mcg lm_head reconstructed to BF16 and sealed as this artifact's own head; not shared with the reference. Head replay uses the declared Jobs replay precision/backend."
+    },
+    {
+      "tensor_class": "mtp",
+      "treatment": "quantized",
+      "format": "mixed",
+      "bits_per_weight": null,
+      "note": "Stored, not removed: 1 x quantized:exl3-mcg@4 (mtp.fc); 2 x quantized:exl3-mcg@5 (mtp.layers.0.mlp.gate_proj and up_proj); 5 x quantized:exl3-mcg@6 (mtp.layers.0.mlp.down_proj and self_attn.k_proj, o_proj, q_proj, v_proj); 7 x native:bf16@16 (mtp.layers.0.input_layernorm.weight, post_attention_layernorm.weight, self_attn.k_norm.weight, self_attn.q_norm.weight, mtp.norm.weight, mtp.pre_fc_norm_embedding.weight, mtp.pre_fc_norm_hidden.weight). These 39 physical components map to 15 expected omitted logical names in the candidate-bound inventory. This mapping is inferred from pinned metadata and loader routing, not an observed exact-artifact runtime load report. Text capture does not execute MTP; any unexpected-name mismatch must refuse."
+    },
+    {
+      "tensor_class": "other",
+      "treatment": "native",
+      "format": "bf16",
+      "bits_per_weight": 16,
+      "note": "333 BF16 vision-tower tensors retained in the artifact, including 27 vision blocks. Text-only capture does not measure vision behavior."
+    }
+  ],
+  "head_policy": "quantized",
+  "kv_cache_dtype": "not_applicable",
+  "activation_quantization": null,
+  "mtp_included": true
+}
