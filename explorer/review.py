@@ -361,7 +361,7 @@ def accept_request(actor, ticket, *, confirm_accept):
         _require(digest == state["digest"], "The request changed after inspection; inspect it again.")
         head = api.repo_info(REGISTRY_REPOSITORY, repo_type="dataset").sha
         _require(head == state["head"], "Registry HEAD changed after inspection; inspect against the new HEAD.")
-        _public(api, REGISTRY_REPOSITORY, head)
+        _public(REGISTRY_REPOSITORY, head)
         from huggingface_hub import CommitOperationAdd
         stage = Path(state["directory"]) / "registry"
         operations = []

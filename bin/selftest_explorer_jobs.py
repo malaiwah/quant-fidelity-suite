@@ -1386,6 +1386,44 @@ def rung_encoded_evidence_credential(root):
     check("P2 encoded credentials refuse even when original worker paths are retained", refused)
 
 
+def rung_owner_acceptance_public_check(root):
+    from unittest.mock import patch
+    from explorer import review
+
+    for private in (False, True):
+        directory = root / ("owner-accept-private" if private else "owner-accept-public")
+        stage = directory / "registry"
+        stage.mkdir(parents=True)
+        raw = b'{}\n'
+        (stage / "staged.json").write_bytes(raw)
+        commits = []
+        api = ns(repo_info=lambda *a, **k: ns(sha=REV),
+                 create_commit=lambda *a, **k: (commits.append(k) or ns(oid="b" * 40, commit_url="https://example.invalid/commit")),
+                 change_discussion_status=lambda *a, **k: None)
+        actor = ns(username="malaiwah")
+        ticket = "a" * 32
+        state = {"actor": actor.username, "expires_at": time.time() + 300,
+                 "discussion_id": 1, "digest": "c" * 64, "head": REV,
+                 "directory": str(directory), "changes": {"staged.json": review._sha(raw)},
+                 "preview": {"warnings": []}}
+        _reset(repo_info=lambda token, repo, **_: ns(sha=REV, private=private, gated=False))
+        refused = False
+        with patch.object(review, "_identity", return_value=api), \
+                patch.object(review, "_request", return_value=(None, None, "c" * 64)), \
+                patch.dict(review._TICKETS, {ticket: state}, clear=True):
+            try:
+                result = review.accept_request(actor, ticket, confirm_accept=True)
+            except ValueError:
+                refused = True
+        reads = [row for row in RECORD if row["method"] == "repo_info"]
+        check("I3 owner acceptance checks public visibility anonymously",
+              reads and all(row["token"] is False for row in reads))
+        check("I3 private registry refuses; public registry commits under inspected parent",
+              (refused and not commits) if private else
+              (not refused and len(commits) == 1 and commits[0]["parent_commit"] == REV
+               and result["independently_verified"] is False))
+
+
 def main():
     with tempfile.TemporaryDirectory(prefix="qfs-selftest-explorer-") as td:
         root = Path(td)
@@ -1405,6 +1443,7 @@ def main():
             hf_root_version_regression(ROOT / "registry")
             print("  PASS  I2 native root versions preserve historical identities and refuse pin conflicts")
             rung_encoded_evidence_credential(root)
+            rung_owner_acceptance_public_check(root)
         except AssertionError as exc:
             print("selftest_explorer_jobs: FAIL: %s" % exc)
             return 1
