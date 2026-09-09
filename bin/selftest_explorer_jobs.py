@@ -1249,6 +1249,8 @@ def hf_intake_identity_regression(root):
         docs, publication, author, C, "receipts/intake-first.json", True)
     first_row = next(row for row in first if row["id"].startswith("measurement--"))
     assert first_row["id"] not in C["measurements"]
+    assert first_row["determinism"]["run_count"] == 1
+    assert intake.L.has_disclosure(first_row, "reduced_run_count")
     for row in first:
         intake.merge(C, row)
 

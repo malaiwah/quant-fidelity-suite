@@ -227,6 +227,16 @@ def measurement_records(docs, pub, author, C, receipt_path, provider_verified):
     # The admitted QFS own-head comparator scores every stored vocabulary column.
     # Record the same explicit policy used by native-root intake.
     row["estimator"]["vocab_masking_policy"] = "full_stored_vocab"
+    run_count = row["determinism"].get("run_count")
+    if (type(run_count) is int and 0 < run_count < 5
+            and not any(L.has_disclosure(row, code) for code in ("reduced_run_count", "single_run"))):
+        row["disclosures"].append({
+            "code": "reduced_run_count", "severity": "caveat",
+            "affects_comparability": False,
+            "detail": "The original submission reports %d evaluated comparison run(s), not five. "
+                      "Separate cold-capture reproduction is not additional independent evaluation text."
+                      % run_count,
+        })
     return extra + [row]
 
 
