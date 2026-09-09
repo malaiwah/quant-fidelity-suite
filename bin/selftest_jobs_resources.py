@@ -48,6 +48,19 @@ def main():
     def plan(maximum=32 * R.GIB, hw=hardware, mdl=model, panel=binding, reference=None, tokenizer=None):
         return R.plan_resources("root" if reference is None else "candidate", mdl, panel, reference, None, tokenizer, hw, maximum)
     resources = plan()
+    assert resources["replay"] == R.replay_policy(hardware)
+    assert resources["replay"]["device"] == resources["replay"]["replay_device"] == "cuda"
+    assert resources["replay_required_bytes"] >= 128 * 248320 * 8 * 8 + model["resource_geometry"]["head_bf16_bytes"] * 8
+    legacy = {"hardware": hardware, "runtime": {}}
+    assert R.resolve_replay(legacy) == R.replay_policy({"device": "cpu"})
+    for field, value in (("device", "cpu"), ("replay_dtype", "float64"), ("vocab_chunk", 128),
+                         ("chunk_positions", True), ("replay_device", "auto")):
+        invalid = dict(resources["replay"], **{field: value})
+        refuses(lambda invalid=invalid: R.resolve_replay({"hardware": hardware, "runtime": {"replay": invalid}}))
+    refuses(lambda: R.replay_policy({"device": "cpu"}, "cuda"), "CPU hardware")
+    for value in (0, 3, True, 2.0, "2"):
+        refuses(lambda value=value: R.active_job_limit(value), "1..2")
+    assert R.active_job_limit() == 1 and R.active_job_limit(2) == 2
     assert 24 * R.GIB < resources["minimum_output_bytes"] < 32 * R.GIB
     refuses(lambda: plan(4 * R.GIB), "below")
     refuses(lambda: plan(resources["minimum_output_bytes"] - 1), "below")
@@ -106,6 +119,15 @@ def main():
         prepared = jobs.prepare(actor, inputs, registry=object())
         jobs.verify_seal(prepared["plan"], "plan_sha256")
         assert prepared["plan"]["limits"]["max_output_bytes"] == 32 * R.GIB
+        assert prepared["plan"]["runtime"]["replay"] == resources["replay"]
+        assert prepared["plan"]["limits"]["max_active_jobs"] == 1
+        assert jobs.prepare(actor, dict(inputs, max_active_jobs=2), registry=object())["plan"]["limits"]["max_active_jobs"] == 2
+        numpy_plan = jobs.prepare(actor, dict(inputs, replay_device="numpy"), registry=object())["plan"]
+        assert numpy_plan["runtime"]["replay"]["replay_device"] == "numpy"
+        assert numpy_plan["resources"]["replay"]["device"] == "cpu"
+        tampered = copy.deepcopy(prepared["plan"])
+        tampered["runtime"]["replay"]["device"] = "cpu"
+        refuses(lambda: jobs.verify_seal(tampered, "plan_sha256"), "seal")
         default_inputs = dict(inputs)
         default_inputs.pop("max_output_bytes")
         refuses(lambda: jobs.prepare(actor, default_inputs, registry=object()), "below")

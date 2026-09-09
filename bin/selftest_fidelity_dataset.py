@@ -2703,6 +2703,224 @@ def section_hf_worker_workspace():
                 check("HF sealed worker evidence refuses " + fault, True)
 
 
+def section_hf_replay_qualification(tmp):
+    """Consume sealed CPU/CUDA worker evidence locally; CUDA records are synthetic.
+
+    The tensor fixtures and CPU comparisons are real, not forwarded mocks. Only
+    the CUDA receipt metadata is synthetic: acceptance proves policy binding and
+    offline tensor verification, not that CUDA arithmetic was executed.
+    """
+    from fidelity import hfjobs, resultsink
+    from explorer.job_resources import replay_policy
+
+    print("\n== HF: sealed replay policy and offline qualification ==")
+    workflow = "a" * 32
+    image = "selftest/worker@sha256:" + "d" * 64
+    source_root, workspace = "/tmp/measured-source", "/tmp/measured-result"
+    checkpoint_files = [
+        {"name": "config.json", "size": 9, "sha256": "1" * 64},
+        {"name": "model.safetensors", "size": 17, "sha256": "2" * 64}]
+    source_files = sorted([
+        {"path": name, "bytes": 1, "sha256": F.sha256_hex("selftest")}
+        for name in ("bin/BUNDLE.txt", "bin/fidelity_dataset.py", "engines/tools/hf_capture.py",
+                     "engines/tools/stream_score.py", "explorer/job_worker.py")],
+        key=lambda row: row["path"])
+
+    def fixture(root, candidate):
+        root.mkdir()
+        plan = {
+            "schema": "qfs.hf-workflow-plan.v1", "plan_sha256": "", "workflow_id": workflow,
+            "owner": "selftest", "mode": "candidate" if candidate else "root",
+            "source": {"repository": "https://github.com/malaiwah/quant-fidelity-suite",
+                       "revision": "b" * 40, "worker_sha256": F.sha256_hex("selftest")},
+            "image": image, "hardware": {"device": "cuda", "flavor": "a10g-small", "timeout_seconds": 60},
+            "runtime": {"dtype": "bfloat16", "schedule": "layer-outer"},
+            "limits": {"max_output_bytes": 1024 * 1024},
+            "output": {"dataset_repository": "selftest/root", "bucket": "selftest/results",
+                       "prefix": "runs/" + workflow},
+            "inputs": {
+                "model": {"repository": "selftest/weights", "revision": "a" * 40,
+                          "config_sha256": "1" * 64, "index_sha256": None, "index_bytes": None,
+                          "weight_bytes": 17, "files": [
+                              {"path": row["name"], "bytes": row["size"], "sha256": row["sha256"]}
+                              for row in checkpoint_files]},
+                "panel": {"kind": "bundled", "role": "final"}, "reference": None},
+            "scope": None, "codec": None, "declared_bits": None}
+        commands = []
+        for name in ("first", "repeat"):
+            path, label = root / name, workflow + "-" + name
+            build_dataset(str(path), seed=93, run_name=label, cold_run=label,
+                          dataset_repository="selftest/root", qualification_contract=True,
+                          role="quant" if candidate else "root", quantized=candidate,
+                          codec="exl3-mcg" if candidate else None, declared_bits=6 if candidate else None,
+                          weights_decode=({"method": "exl3-trellis-decode-to-bf16",
+                                           "quantization_config": {"quant_method": "exl3"}}
+                                          if candidate else None))
+            manifest = F.load_manifest(str(path))
+            runtime_rel = manifest["runtime"]["file"]
+            runtime = F.read_json(str(path / runtime_rel))
+            runtime["weights"]["checkpoint_files"] = checkpoint_files
+            runtime["container"] = {"image_reference": image, "image_digest": image.rsplit("@", 1)[1]}
+            runtime["capture_tool"]["unexpected_tensor_allowlist"] = None
+            _, runtime_sha = dsmanifest.write_sub(str(path), runtime_rel, F.seal_receipt(runtime))
+            manifest["runtime"]["file_sha256"] = runtime_sha
+            capture_rel = manifest["capture"]["manifest_file"]
+            capture = F.read_json(str(path / capture_rel))
+            capture["runtime_manifest_sha256"] = runtime_sha
+            _, capture_sha = dsmanifest.write_sub(str(path), capture_rel, F.seal_receipt(capture))
+            manifest["capture"]["manifest_file_sha256"] = capture_sha
+            dsmanifest.finalize(str(path), manifest)
+            report = dsvalidate.validate_dataset(str(path), verify_tensors=True).to_dict()
+            assert not report["errors"], report["errors"]
+            report["subject"] = workspace + "/" + name
+            common.write_json(str(root / (name + ".verify.json")), F.seal_receipt(report))
+            commands.extend([
+                {"step": "capture-" + name, "returncode": 0,
+                 "argv": ["/usr/bin/python3", source_root + "/engines/tools/hf_capture.py",
+                          "--out", workspace + "/" + name, "--cold-run", label]},
+                {"step": "verify-" + name, "returncode": 0,
+                 "argv": ["/usr/bin/python3", source_root + "/bin/fidelity_dataset.py", "verify",
+                          workspace + "/" + name, "--verify-tensors", "--json",
+                          workspace + "/" + name + ".verify.json"]}])
+        options = {"device": "cpu", "replay_device": "numpy", "replay_dtype": "float32",
+                   "vocab_chunk": 8192, "position_block": 128, "own_heads": True, "verify_tensors": True}
+        dscompare.compare(str(root / "first"), str(root / "repeat"), str(root / "reproduction"),
+                          dict(options, self_compare=True, force_compute=True,
+                               reference_label=workflow + "-first", candidate_label=workflow + "-repeat"))
+        if candidate:
+            reference = root.parent / "reference"
+            build_dataset(str(reference), seed=92, qualification_contract=True,
+                          dataset_repository="selftest/reference")
+            manifest = F.load_manifest(str(reference))
+            plan["inputs"]["reference"] = {
+                "repository": "selftest/reference", "revision": "e" * 40,
+                "dataset_sha256": manifest["dataset_sha256"]}
+            plan["scope"] = F.load_manifest(str(root / "first"))["scope"]
+            plan["codec"], plan["declared_bits"] = "exl3-mcg", 6
+            common.write_json(str(root / "scope.json"), plan["scope"])
+            dscompare.compare(str(reference), str(root / "first"), str(root / "comparison"), options)
+            report = dsvalidate.validate_dataset(str(reference), verify_tensors=True).to_dict()
+            report["subject"] = hfjobs.INPUT_DATASET_ROOT + "/reference"
+            common.write_json(str(root / "reference.verify.json"), F.seal_receipt(report))
+        source = dict(plan["source"], schema="qfs.hf-workflow-source.v1", source_files=source_files)
+        common.write_json(str(root / "source-manifest.json"), source)
+        common.write_json(str(root / "commands.json"), commands)
+        common.write_json(str(root / "bootstrap.json"), {
+            "schema": "qfs.hf-workflow-bootstrap.v1", "source_revision": plan["source"]["revision"],
+            "worker_sha256": plan["source"]["worker_sha256"], "commands": [
+                {"step": "checkout-source", "returncode": 0,
+                 "argv": ["git", "-C", source_root, "-c", "core.hooksPath=/dev/null",
+                          "checkout", "--detach", plan["source"]["revision"]]}]})
+        return plan, source
+
+    def qualify(base, plan, source, name, selection=None, mutation=None, corrupt=False):
+        root = base.parent / name
+        shutil.copytree(base, root)
+        plan = json.loads(json.dumps(plan))
+        if selection is not None:
+            plan["runtime"]["replay"] = replay_policy(plan["hardware"], selection)
+        plan["plan_sha256"] = hfjobs._digest(dict(plan, plan_sha256=""))
+        for directory in ("reproduction", "comparison"):
+            path = root / directory / "comparison-receipt.json"
+            if not path.exists():
+                continue
+            receipt = F.read_json(str(path))
+            if selection == "cuda":
+                # Synthetic sealed CUDA metadata, deliberately not GPU evidence.
+                receipt["comparator"].update(device="cuda", replay_backend="torch:cuda:float32")
+            if mutation is not None and directory == (
+                    "comparison" if plan["mode"] == "candidate" else "reproduction"):
+                mutation(receipt)
+            common.write_json(str(path), F.seal_receipt(receipt))
+        if corrupt:
+            manifest = F.load_manifest(str(root / "first"))
+            tensor = root / "first" / manifest["head"]["file"]
+            raw = bytearray(tensor.read_bytes())
+            raw[-1] ^= 1
+            tensor.write_bytes(raw)
+        common.write_json(str(root / "plan.json"), plan)
+        rows = [{"path": str(path.relative_to(root)), "bytes": path.stat().st_size,
+                 "sha256": common.sha256_file(str(path))}
+                for path in sorted(root.rglob("*")) if path.is_file()]
+        outputs = {"first": "first", "repeat": "repeat",
+                   "reproduction": "reproduction/comparison-receipt.json"}
+        if plan["mode"] == "candidate":
+            outputs["comparison"] = "comparison/comparison-receipt.json"
+        result = {"schema": "qfs.hf-workflow-result.v1", "result_sha256": "",
+                  "workflow_id": workflow, "owner": "selftest", "mode": plan["mode"],
+                  "plan_sha256": plan["plan_sha256"], "source": source,
+                  "status": "complete", "files": rows, "outputs": outputs}
+        result["result_sha256"] = hfjobs._digest(result)
+        common.write_json(str(root / "result.json"), result)
+        provider = {"schema": "qfs.hf-jobs-execution.v1", "job_id": "provider-job",
+                    "namespace": "selftest", "flavor": "a10g-small", "docker_image": image,
+                    "plan_sha256": plan["plan_sha256"], "source_revision": "b" * 40,
+                    "status": "COMPLETED", "requested_timeout_seconds": 60,
+                    "created_at": "2026-09-09T00:00:00Z",
+                    "provider_identity_note": "synthetic fixture, not provider or CUDA evidence"}
+        return hfjobs.qualify_result(str(root), plan, provider, suite_root=REPO)
+
+    for candidate in (False, True):
+        case = Path(tmp) / ("hf-candidate" if candidate else "hf-root")
+        case.mkdir()
+        base = case / "base"
+        plan, source = fixture(base, candidate)
+        for selection in (None, "numpy", "cuda"):
+            name = selection or "legacy"
+            paths = qualify(base, plan, source, name, selection)
+            loaded = CLI._load_qualification(paths["qualification_path"], job_path=paths["job_path"])
+            resultsink._validate_root_qualification_semantics(loaded)
+            expected = "torch:cuda:float32" if selection == "cuda" else "numpy:cpu:float32"
+            check("HF %s %s replay qualifies and reloads without GPU computation" % (plan["mode"], name),
+                  loaded["comparator"]["replay_backend"] == expected)
+        wrong_job = F.read_json(paths["job_path"])
+        wrong_job["capture"].update(replay_device="numpy")
+        wrong_job["capture"]["replay"]["device"] = "numpy"
+        try:
+            jobcontract.finalize_job(wrong_job)
+        except jobcontract.JobContractError:
+            refused = True
+        else:
+            refused = False
+        check("HF %s cannot rebind canonical job replay away from its sealed plan" % plan["mode"], refused)
+        loaded["comparator"].update(device="cpu", replay_backend="numpy:cpu:float32",
+                                     requested_replay_device="numpy")
+        wrong_path = case / "wrong-qualification.json"
+        common.write_json(str(wrong_path), common.seal(loaded))
+        try:
+            CLI._load_qualification(str(wrong_path), job_path=paths["job_path"])
+        except CLI.RootQualificationError:
+            refused = True
+        else:
+            refused = False
+        check("HF %s public reload refuses coherently resealed CPU metadata under CUDA plan"
+              % plan["mode"], refused)
+        faults = [
+            ("backend", lambda r: r["comparator"].update(replay_backend="numpy:cpu:float32")),
+            ("device", lambda r: r["comparator"].update(device="cpu")),
+            ("dtype", lambda r: r["estimator"].update(logits_dtype="float64")),
+            ("vocabulary chunk", lambda r: r["comparator"].update(vocab_chunk=4096)),
+            ("position block", lambda r: r["comparator"].update(position_block=64)),
+            ("gate override", lambda r: r["gates"]["head"].update(overridden_by="own-heads")),
+            ("fp32 normalization", lambda r: r["comparator"].update(logprob_dtype="float32"))]
+        for index, (name, mutation) in enumerate(faults):
+            try:
+                qualify(base, plan, source, "fault-%d" % index, "cuda", mutation)
+            except hfjobs.HFQualificationError:
+                refused = True
+            else:
+                refused = False
+            check("HF %s refuses sealed CUDA %s mismatch" % (plan["mode"], name), refused)
+        try:
+            qualify(base, plan, source, "corrupt", "cuda", corrupt=True)
+        except (hfjobs.HFQualificationError, CLI.RootQualificationError):
+            refused = True
+        else:
+            refused = False
+        check("HF %s independently refuses corrupt tensors despite resealed worker inventory"
+              % plan["mode"], refused)
+
+
 
 def main():
     cli22_anonymous_first_case()
@@ -2713,6 +2931,7 @@ def main():
     try:
         base = section_format(tmp)
         section_panel(tmp, base)
+        section_hf_replay_qualification(tmp)
         section_head(tmp)
         section_lane(tmp)
         section_interop(tmp)

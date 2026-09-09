@@ -94,7 +94,11 @@ mock OAuth cannot spend. The hardware quote includes the selected timeout plus
 two startup minutes, but is not an account-wide hard-dollar cap. Storage and
 other HF services are separate. HF CPU Basic **Jobs are paid**; CPU Basic Space
 hosting is a different service. Cancellation and provider deadlines bound runs.
-Only one active/unresolved QFS Job per caller is admitted.
+One active Job is the default. An explicitly reviewed `max_active_jobs: 2`
+permits a bounded two-job race; ceilings remain per Job, not a shared campaign
+budget. Ambiguous in-flight creations still refuse further launches. New guarded
+reservations are never released solely because a provider listing is empty;
+genuinely orphaned reservations require reviewed reconciliation.
 Explicit deadlines may range from 60 seconds to 24 hours, matching the worker
 and bootstrap bound. Every deadline still has to fit the caller's current
 quoted compute ceiling; increasing the ceiling alone does not extend a Job.
@@ -103,6 +107,18 @@ inventory checks, including exact artifact, model/config/index and name-set
 bindings. An inventory that the worker cannot admit is refused before rental.
 The check uses the capture CLI's own plain-array/digest loader; provenance
 is a separate sidecar, not a wrapper that the capture CLI cannot consume.
+
+**Replay policy:** new CUDA Jobs default to CUDA fp32 head replay and CUDA fp64
+normalization/reduction; CPU Jobs use NumPy fp32 replay and CPU fp64 reduction.
+The resolved device, dtype and chunk sizes are sealed in `runtime.replay` and
+checked through execution, qualification and public reload. There is no CPU
+fallback after a CUDA failure. A required CUDA known-answer/zero/nonfinite smoke
+runs before expensive capture. Historical plans without this field retain their
+original CPU/NumPy semantics; they are not reinterpreted from capture hardware.
+Full vocabulary and each capture's own head are preserved. Backend changes can
+change last digits and remain distinct measurement identities, not an implicit
+claim of CPU/CUDA parity. Recovery verifies tensors and the sealed worker
+comparison without recomputing its matrix products on the controller.
 
 **Large captures:** output allowance is explicit per plan (4 GiB by default,
 up to 64 GiB); recovery honors the sealed allowance rather than an unrelated

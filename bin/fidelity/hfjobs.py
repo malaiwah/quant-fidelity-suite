@@ -7,10 +7,16 @@ full-tensor/two-cold-capture qualification gates; it never executes model code.
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path, PurePosixPath
 from types import SimpleNamespace
 
 from . import common, dsformat as F, dsmanifest, dsvalidate, jobcontract, resultsink
+
+_REPO = str(Path(__file__).resolve().parents[2])
+if _REPO not in sys.path:
+    sys.path.insert(0, _REPO)
+from explorer.job_resources import resolve_replay
 
 
 INPUT_DATASET_ROOT = "/tmp/qfs-input-datasets"
@@ -84,6 +90,33 @@ def _plan_receipt(plan, receipt):
     runtime = plan.get('runtime') or {}
     _require(runtime.get('dtype') == 'bfloat16' and runtime.get('schedule') == 'layer-outer',
              'unsupported scientific runtime')
+    try:
+        resolve_replay(plan)
+    except (ValueError, KeyError, TypeError) as exc:
+        raise HFQualificationError('invalid sealed replay policy: ' + str(exc)) from exc
+
+
+def _comparison_replay(comparison, plan):
+    """Check sealed numerical evidence without importing or running a GPU backend."""
+    report = dsvalidate.validate_receipt(comparison)
+    _require(not report.errors, 'comparison does not validate')
+    policy = resolve_replay(plan)
+    comparator, estimator = comparison.get('comparator') or {}, comparison.get('estimator') or {}
+    backend = ('numpy:cpu:float32' if policy['replay_device'] == 'numpy'
+               else 'torch:cuda:float32')
+    _require(comparator.get('replay_backend') == backend
+             and comparator.get('device') == policy['device']
+             and comparator.get('vocab_chunk') == policy['vocab_chunk']
+             and comparator.get('position_block', policy['chunk_positions']) == policy['chunk_positions']
+             and estimator.get('logits_dtype') == policy['replay_dtype'],
+             'comparison backend/device/dtype/chunks differ from sealed replay policy')
+    _require(estimator.get('head_policy') == 'native_head'
+             and estimator.get('accumulation_dtype') == 'float64'
+             and comparator.get('accumulation_dtype') == 'float64'
+             and comparator.get('logprob_dtype') == 'float64'
+             and all(gate.get('passed') is True and gate.get('overridden_by') is None
+                     for gate in comparison.get('gates', {}).values()),
+             'comparison requires own heads, fp64 normalization/reduction and unoverridden scientific gates')
 
 
 def _scope(plan):
@@ -114,6 +147,13 @@ def validate_execution(job):
              and job['capture']['author'] == plan['owner']
              and job['capture']['device'] == plan['hardware']['device'],
              'HF Jobs model/owner/device differs from plan')
+    policy = resolve_replay(plan)
+    _require(all(job['capture'].get(key) == policy[key]
+                 for key in ('replay_device', 'replay_dtype', 'vocab_chunk'))
+             and job['capture'].get('replay') == {
+                 'device': policy['replay_device'], 'dtype': policy['replay_dtype'],
+                 'vocab_chunk': policy['vocab_chunk']},
+             'HF Jobs capture replay differs from sealed plan')
     metadata_census = {row['path']: {'bytes': row['bytes'], 'sha256': row['sha256']}
                        for row in model['files']}
     target = _target(model, metadata_census, job['capture'].get('weights_license'))
@@ -383,6 +423,7 @@ def qualify_result(result_dir, plan, execution_receipt, *, suite_root):
     comparison_path = _inside(root, outputs.get('reproduction'))
     _require(outputs['reproduction'] in manifest_names, 'reproduction receipt absent from manifest')
     comparison = _read(comparison_path)
+    _comparison_replay(comparison, plan)
     if plan['mode'] == 'candidate':
         scope = _scope(plan)
         _require(scope == manifests[0].get('scope') and scope == manifests[1].get('scope'),
@@ -392,14 +433,7 @@ def qualify_result(result_dir, plan, execution_receipt, *, suite_root):
                  'candidate scope file differs from plan')
         measurement = _read(_inside(root, outputs.get('comparison')))
         _require(outputs['comparison'] in manifest_names, 'comparison absent from worker manifest')
-        report = dsvalidate.validate_receipt(measurement)
-        _require(not report.errors, 'candidate comparison does not validate')
-        _require((measurement.get('estimator') or {}).get('head_policy') == 'native_head'
-                 and all(gate.get('passed') is True and gate.get('overridden_by') is None
-                         for gate in measurement.get('gates', {}).values())
-                 and (measurement.get('comparator') or {}).get('replay_backend') == 'numpy:cpu:float32'
-                 and (measurement.get('comparator') or {}).get('vocab_chunk') == 8192,
-                 'candidate comparison requires own heads and unoverridden scientific gates')
+        _comparison_replay(measurement, plan)
         ref = plan['inputs']['reference']
         side = measurement.get('reference') or {}
         _require(side.get('dataset_sha256') == ref.get('dataset_sha256'),
@@ -443,7 +477,9 @@ def qualify_result(result_dir, plan, execution_receipt, *, suite_root):
     profile = {'profile_id': 'root-hf-transformers-bf16', 'lane': 'root', 'source': 'native',
                'surface': surface, 'form': form, 'engine': 'hf-transformers',
                'compute_dtype': 'bfloat16', 'device': device, 'schedule': 'two-fresh-process-qualification'}
-    replay = {'device': 'numpy', 'dtype': 'float32', 'vocab_chunk': 8192}
+    policy = resolve_replay(plan)
+    replay = {'device': policy['replay_device'], 'dtype': policy['replay_dtype'],
+              'vocab_chunk': policy['vocab_chunk']}
     repository = plan['output']['dataset_repository']
     hf_execution = {'plan': plan, 'provider_receipt': execution_receipt,
                     'worker_result_sha256': result['result_sha256'],
@@ -492,7 +528,8 @@ def qualify_result(result_dir, plan, execution_receipt, *, suite_root):
                        'author': dataset.get('author', {}).get('name'), 'race': False, 'preview_of': None,
                        'publish_root_to': repository, 'dataset_license': dataset.get('license'),
                        'weights_license': license_identity, 'engine': 'hf-transformers', 'dtype': 'bfloat16',
-                       'device': device, 'replay_device': 'numpy', 'replay_dtype': 'float32', 'vocab_chunk': 8192,
+                       'device': device, 'replay_device': policy['replay_device'],
+                       'replay_dtype': policy['replay_dtype'], 'vocab_chunk': policy['vocab_chunk'],
                        'own_heads': True, 'unexpected_tensor_allowlist': plan['runtime'].get('unexpected_allowlist'),
                        'resume_capture': None, 'candidate': candidate}}
     job = jobcontract.finalize_job(doc)

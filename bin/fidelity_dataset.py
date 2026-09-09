@@ -1189,6 +1189,11 @@ def _load_qualification(
         raise RootQualificationError("HF Jobs qualification requires its explicit execution evidence")
     if execution_kind == "hf-jobs" and doc["hf_execution"] != job.get("hf_execution"):
         raise RootQualificationError("HF Jobs qualification execution evidence differs from job")
+    if execution_kind == "hf-jobs":
+        try:
+            resultsink._validate_root_qualification_semantics(doc)
+        except resultsink.ArchiveError as exc:
+            raise RootQualificationError(str(exc)) from exc
     if execution_kind == "local":
         if (image_reference is not None or image_digest is not None
                 or local_execution != job.get("local_execution")
@@ -1814,6 +1819,12 @@ def cmd_qualify_root(args):
             raise RootQualificationError("comparison process labels do not match the captures")
         self_compare = comparison.get("self_compare") or {}
         comparator = comparison.get("comparator") or {}
+        if execution_kind == "hf-jobs":
+            from fidelity.hfjobs import HFQualificationError, _comparison_replay
+            try:
+                _comparison_replay(comparison, job["hf_execution"]["plan"])
+            except HFQualificationError as exc:
+                raise RootQualificationError(str(exc)) from exc
         expected_replay_backend = (
             "numpy:cpu:float32" if replay_device == "numpy"
             else "torch:%s:%s" % (replay_device, replay_dtype))

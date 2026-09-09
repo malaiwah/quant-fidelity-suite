@@ -794,10 +794,12 @@ def _ledger_doc(runs):
     return _canonical({"schema": "qfs.hf-job-ledger.v1", "owner": "tester", "runs": runs})
 
 
-def _launch_plan(actor, source, image):
+def _launch_plan(actor, source, image, max_active_jobs=1):
     plan = {"schema": "qfs.hf-workflow-plan.v1", "workflow_id": secrets.token_hex(16),
             "owner": actor.username, "mode": "compare", "created_at": "2026-09-08T00:00:00+00:00",
             "source": source, "image": image,
+            "runtime": {"replay": jobs.job_resources.replay_policy({"device": "cpu"})},
+            "limits": {"max_active_jobs": max_active_jobs},
             "inputs": {"model": None, "panel": None, "reference": None, "candidate": None, "tokenizer": None},
             "output": {"dataset_repository": actor.username + "/qfs-capture-x",
                        "bucket": actor.username + "/qfs-explorer-results", "prefix": "runs/x",
@@ -859,10 +861,51 @@ def rung_stale_reconciliation(actor, root):
               saved_ledgers and saved_ledgers[-1]["runs"][STALE_WID]["state"] == "RECONCILED_ABSENT"
               and saved_ledgers[-1]["runs"][wid]["job_id"] == "job_fixture01")
 
+        # Default single-job admission, explicitly bounded two-job race, and a
+        # third Job refused. No provider resource is created by this fixture.
+        for count, maximum, admitted in ((1, 1, False), (1, 2, True), (2, 2, False)):
+            responses = ledger_responses(lambda wid: [])
+            responses["list_jobs"] = lambda token, count=count, **kwargs: (
+                [] if "qfs_workflow_id" in kwargs.get("labels", {}) else
+                [ns(id="active-job-%d" % index) for index in range(count)])
+            _reset(**responses)
+            race = _launch_plan(actor, source_fixture, image_fixture, maximum)
+            if admitted:
+                jobs.launch(actor, race, confirm_compute=True)
+                methods = [row["method"] for row in RECORD]
+                check("S2 bounded race reserves before the second create",
+                      methods.count("run_job") == 1 and methods.index("upload_file") < methods.index("run_job"))
+            else:
+                check("S2 active limit %d refuses count %d" % (maximum, count),
+                      refuses(lambda: jobs.launch(actor, race, confirm_compute=True), jobs.JobsError)
+                      and not [row for row in RECORD if row["method"] == "run_job"])
+
+        responses = ledger_responses(lambda wid: [])
+        paths, download = _serve({"ledger.json": _ledger_doc({})})
+        responses.update(get_paths_info=paths, hf_hub_download=download)
+        responses["upload_file"] = lambda token, **kwargs: (_ for _ in ()).throw(OSError("CAS conflict"))
+        _reset(**responses)
+        race = _launch_plan(actor, source_fixture, image_fixture, 2)
+        check("S2 a losing CAS cannot submit compute",
+              refuses(lambda: jobs.launch(actor, race, confirm_compute=True), OSError)
+              and not [row for row in RECORD if row["method"] == "run_job"])
+
+        # Even an empty provider listing cannot release a concurrent controller's
+        # reserved slot before that controller submits its paid create.
+        guarded = dict(stale_run, creation_guard="provider-absence-is-not-abort-proof")
+        responses = ledger_responses(lambda wid: [])
+        paths, download = _serve({"ledger.json": _ledger_doc({STALE_WID: guarded})})
+        responses.update(get_paths_info=paths, hf_hub_download=download)
+        _reset(**responses)
+        race = _launch_plan(actor, source_fixture, image_fixture, 2)
+        check("S2 in-flight guarded reservation cannot be cleared by apparent absence",
+              refuses(lambda: jobs.launch(actor, race, confirm_compute=True), jobs.JobsError)
+              and not [row for row in RECORD if row["method"] in ("run_job", "upload_file")])
+
         # A listing error is doubt: keep refusing, name the reconciliation.
         _reset(**ledger_responses(lambda wid: (_ for _ in ()).throw(OSError("listing unavailable"))))
         saved_before = len(saved_ledgers)
-        prepared = _launch_plan(actor, source_fixture, image_fixture)
+        prepared = _launch_plan(actor, source_fixture, image_fixture, 2)
         try:
             jobs.launch(actor, prepared, confirm_compute=True)
             raised = None
@@ -877,7 +920,7 @@ def rung_stale_reconciliation(actor, root):
 
         # A Job that actually exists for the stale workflow is not absence: refuse.
         _reset(**ledger_responses(lambda wid: [ns(id="job_stale01")]))
-        prepared = _launch_plan(actor, source_fixture, image_fixture)
+        prepared = _launch_plan(actor, source_fixture, image_fixture, 2)
         check("S1e provider-side presence keeps refusing",
               refuses(lambda: jobs.launch(actor, prepared, confirm_compute=True), jobs.JobsError))
         check("S1f presence never cleared the reservation",

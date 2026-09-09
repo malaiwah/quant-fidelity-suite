@@ -17,6 +17,89 @@ DISK_MARGIN_BYTES = 4 * GIB
 SCHEMA = "qfs.hf-job-resources.v1"
 
 
+def replay_policy(hardware, selection="auto"):
+    """Resolve a new plan's explicit numerical backend, never an error fallback."""
+    if hardware.get("device") not in ("cpu", "cuda"):
+        raise ValueError("Replay requires declared CPU or CUDA hardware.")
+    if selection not in ("auto", "numpy", "cuda"):
+        raise ValueError("replay_device must be auto, numpy or cuda.")
+    backend = ("cuda" if hardware["device"] == "cuda" else "numpy") if selection == "auto" else selection
+    if backend == "cuda" and hardware["device"] != "cuda":
+        raise ValueError("CUDA replay cannot run on CPU hardware.")
+    return {"device": "cuda" if backend == "cuda" else "cpu", "replay_device": backend,
+            "replay_dtype": "float32", "vocab_chunk": 8192, "chunk_positions": 128}
+
+
+def resolve_replay(plan):
+    """Missing policy means the exact historical CPU/numpy path, only for recovery."""
+    runtime = plan.get("runtime", {})
+    if "replay" not in runtime:
+        return replay_policy({"device": "cpu"}, "numpy")
+    policy = runtime["replay"]
+    if not isinstance(policy, dict):
+        raise ValueError("The sealed replay policy must be an explicit object.")
+    expected = replay_policy(plan["hardware"], policy.get("replay_device"))
+    if (policy != expected or any(type(policy.get(key)) is not int
+                                  for key in ("vocab_chunk", "chunk_positions"))):
+        raise ValueError("Unsupported or inconsistent sealed replay policy.")
+    return dict(expected)
+
+
+def active_job_limit(value=1):
+    if type(value) is not int or not 1 <= value <= 2:
+        raise ValueError("max_active_jobs must be an integer in 1..2; this is not a batch scheduler.")
+    return value
+
+
+def cuda_replay_smoke():
+    """Bounded full-vocabulary controls through the actual CUDA replay/estimator."""
+    import math
+    import numpy as np
+    import torch
+    from fidelity import dscompare
+    if not torch.cuda.is_available():
+        raise ValueError("Required CUDA replay smoke needs an actual CUDA device; no CPU fallback.")
+    vocab = 8193  # Cross the sealed 8192-column GEMM boundary.
+    hidden = np.ones((2, 1), dtype=np.float32)
+    reference = np.zeros((1, vocab), dtype=np.float32)
+    candidate = reference.copy()
+    candidate[0, 0] = 1.0
+    left = dscompare._TorchReplay(reference, "cuda", "float32", 8192)
+    right = dscompare._TorchReplay(candidate, "cuda", "float32", 8192)
+    a, b = left.replay(hidden), right.replay(hidden)
+    zeros, _, backend = dscompare.token_kld(a, a.clone(), "cuda")
+    values, _, observed_backend = dscompare.token_kld(a, b, "cuda")
+    expected = math.log1p(math.expm1(1.0) / vocab) - 1.0 / vocab
+    if not np.array_equal(zeros, np.zeros(2, dtype=np.float64)):
+        raise ValueError("CUDA replay zero-control failed.")
+    if not np.allclose(values, expected, rtol=1e-9, atol=1e-12) or not np.all(values > 0):
+        raise ValueError("CUDA replay full-vocabulary known-answer control failed.")
+    if backend != "torch:k6_kld_report._token_kld" or observed_backend != backend:
+        raise ValueError("CUDA smoke did not exercise the required Torch estimator.")
+    refused = []
+    for label, operation in (
+            ("replay", lambda: left.replay(np.full((2, 1), np.nan, dtype=np.float32))),
+            ("estimator", lambda: dscompare.token_kld(a, torch.full_like(b, float("inf")), "cuda"))):
+        try:
+            operation()
+        except dscompare.Refusal as exc:
+            if exc.code != "non_finite":
+                raise
+            refused.append(label)
+        else:
+            raise ValueError("CUDA %s accepted non-finite input." % label)
+    torch.cuda.synchronize()
+    result = {"schema": "qfs.cuda-replay-smoke.v1", "device": "cuda",
+              "replay_dtype": "float32", "estimator_backend": backend,
+              "vocab_size": vocab, "positions": 2, "vocab_chunk": 8192,
+              "known_answer": expected, "observed": values.tolist(),
+              "zero_control": zeros.tolist(), "nonfinite_refusals": refused,
+              "replay_environment": left.env,
+              "scope": "Bounded synthetic CUDA replay/estimator controls, not CPU/CUDA parity or model-forward correctness."}
+    del left, right, a, b
+    torch.cuda.empty_cache()
+    return result
+
 def output_limit(value):
     if type(value) is not int or not 0 < value <= MAX_OUTPUT_BYTES:
         raise ValueError("max_output_bytes must be an integer in 1..%d (64 GiB)." % MAX_OUTPUT_BYTES)
@@ -98,9 +181,11 @@ def model_geometry(config, tensors):
             "tensor_count": len(tensors), "basis": "Pinned config plus safetensors header shapes; packed/decode and activation overhead remain unproven."}
 
 
-def plan_resources(mode, model, binding, reference, candidate, tokenizer, hardware, maximum):
+def plan_resources(mode, model, binding, reference, candidate, tokenizer, hardware, maximum, replay=None):
     maximum = output_limit(maximum)
     capacity = hardware_capacity(hardware)
+    replay = resolve_replay({"hardware": hardware, "runtime": {"replay": replay or replay_policy(hardware)}})
+    capture = replay_bytes = 0
     datasets = [item for item in (reference, candidate) if item]
     dataset_bytes = sum(positive(item.get("artifact_bytes"), "canonical dataset bytes") for item in datasets)
     checkpoint_bytes = sum(row["bytes"] for row in (model or {}).get("files", []))
@@ -126,17 +211,29 @@ def plan_resources(mode, model, binding, reference, candidate, tokenizer, hardwa
         # an extra state set and one full-vocab epilogue, not only a single window.
         activation = 2 * (contexts + 1) * length * hidden * 2 + length * vocab * 4
         capture = geometry["resident_bf16_floor_bytes"] + 2 * geometry["largest_layer_bf16_floor_bytes"] + activation + 2 * GIB
-        # Two own heads converted to fp32 plus transpose/load temporaries; fp64
-        # reduction tiles (128 positions x 8192 vocab) and tokenwise statistics.
-        replay = geometry["head_bf16_bytes"] * 8 + 128 * 8192 * 8 * 8 + positions * 8 * 4 + 2 * GIB
-        cpu = max(cpu, replay, capture if hardware["device"] == "cpu" else 2 * geometry["largest_layer_bf16_floor_bytes"] + 2 * GIB)
-        gpu = capture if hardware["device"] == "cuda" else 0
+        # Replay concatenates vocabulary tiles into full-vocabulary logits before
+        # fp64 normalization/reduction. A vocab tile is NOT its memory bound.
+        replay_positions = replay["chunk_positions"] if replay["device"] == "cuda" else max(length, replay["chunk_positions"])
+        replay_bytes = geometry["head_bf16_bytes"] * 8 + replay_positions * vocab * 8 * 8 + positions * 8 * 4 + 2 * GIB
+        cpu = max(cpu, geometry["head_bf16_bytes"] * 8 + 2 * GIB,
+                  replay_bytes if replay["device"] == "cpu" else 0,
+                  capture if hardware["device"] == "cpu" else 2 * geometry["largest_layer_bf16_floor_bytes"] + 2 * GIB)
+        gpu = max(capture, replay_bytes if replay["device"] == "cuda" else 0) if hardware["device"] == "cuda" else 0
     else:
-        # Input captures already include heads; reserve their complete bytes for
-        # CPU replay rather than guessing an absent model's geometry.
+        # Input captures already include heads; reserve their complete bytes
+        # rather than guessing an absent model's geometry.
         positions = max(positive(item["descriptor"]["panel"]["scored_positions_total"], "dataset scored positions") for item in datasets)
         components["comparator_array_bytes"] = positions * 8
+        vocab = max(positive(item["descriptor"]["capture"]["vocab_size"], "dataset vocabulary") for item in datasets)
+        replay_bytes = dataset_bytes * 4 + replay["chunk_positions"] * vocab * 8 * 8 + 2 * GIB
+        if replay["device"] == "cuda":
+            gpu = replay_bytes
+        else:
+            cpu = max(cpu, replay_bytes)
     cpu = max(cpu, dataset_bytes * 4 + 2 * GIB)
+    if datasets and replay["device"] == "cuda":
+        # Candidate own heads can differ from the captured model's geometry.
+        gpu = max(gpu, dataset_bytes * 4 + replay_bytes)
     minimum = sum(components.values())
     if maximum < minimum:
         raise ValueError("Output budget %d bytes is below the accounted payload plus metadata margin %d bytes; raise max_output_bytes." % (maximum, minimum))
@@ -152,6 +249,7 @@ def plan_resources(mode, model, binding, reference, candidate, tokenizer, hardwa
             "disk_required_bytes": disk, "cpu_ram_required_bytes": cpu, "gpu_required_bytes": gpu,
             "checkpoint_bytes": checkpoint_bytes, "tokenizer_source_bytes": tokenizer_bytes,
             "canonical_dataset_bytes": dataset_bytes, "advertised": capacity,
+            "replay": replay, "capture_required_bytes": capture, "replay_required_bytes": replay_bytes,
             "runtime_qualified": False,
             "limitations": "Accounted planning floors with explicit margins, NOT a peak-memory bound or runtime/fit proof. Architecture-specific states, allocator/workspace/decode peaks and throughput are unqualified. Worker rechecks actual available resources before capture."}
 
@@ -207,6 +305,9 @@ def check_worker_resources(plan, scratch, durable):
         return None  # Historical sealed v1 plans keep their original contract.
     if resources.get("schema") != SCHEMA:
         raise ValueError("Unsupported sealed resource contract.")
+    policy = resolve_replay(plan)
+    if "replay" in plan.get("runtime", {}) and resources.get("replay") != policy:
+        raise ValueError("Resource admission does not bind the sealed replay policy.")
     required_disk = positive(resources.get("disk_required_bytes"), "worker disk requirement")
     observed = {"scratch_free_bytes": shutil.disk_usage(scratch).free,
                 "durable_free_bytes": shutil.disk_usage(durable).free,

@@ -1529,16 +1529,20 @@ def _validate_root_qualification_semantics(qualification):
         "verification", "reproduction_confirmation",
     }
     canonical_label, repeat_label = "root-cold-1", "root-cold-2"
+    replay = {"device": "cpu", "replay_device": "numpy", "replay_dtype": "float32",
+              "vocab_chunk": 8192}
     if (isinstance(qualification, dict)
             and isinstance(qualification.get("job_contract"), dict)
             and qualification["job_contract"].get("execution_kind") == "hf-jobs"):
         required.add("hf_execution")
         from .hfjobs import HFQualificationError, _plan_receipt
+        from explorer.job_resources import resolve_replay
         execution = qualification.get("hf_execution")
         if not isinstance(execution, dict):
             raise ArchiveError("HF Jobs qualification requires its original execution evidence")
         try:
             _plan_receipt(execution.get("plan"), execution.get("provider_receipt"))
+            replay = resolve_replay(execution["plan"])
         except (HFQualificationError, KeyError, TypeError) as exc:
             raise ArchiveError("HF Jobs qualification execution is invalid: %s" % exc) from exc
         workflow_id = execution["plan"]["workflow_id"]
@@ -1588,21 +1592,23 @@ def _validate_root_qualification_semantics(qualification):
         raise ArchiveError(
             "root qualification exact-zero comparison semantics differ")
     comparator = qualification.get("comparator")
+    replay_backend = ("numpy:cpu:float32" if replay["replay_device"] == "numpy"
+                      else "torch:cuda:float32")
     if (not isinstance(comparator, dict)
             or set(comparator) != {
                 "requested_replay_device", "requested_replay_dtype",
                 "requested_vocab_chunk", "device", "replay_backend",
                 "estimator_backend", "accumulation_dtype", "vocab_chunk",
                 "force_compute_agreed"}
-            or comparator.get("requested_replay_device") != "numpy"
-            or comparator.get("requested_replay_dtype") != "float32"
-            or comparator.get("requested_vocab_chunk") != 8192
-            or comparator.get("device") != "cpu"
-            or comparator.get("replay_backend") != "numpy:cpu:float32"
+            or comparator.get("requested_replay_device") != replay["replay_device"]
+            or comparator.get("requested_replay_dtype") != replay["replay_dtype"]
+            or comparator.get("requested_vocab_chunk") != replay["vocab_chunk"]
+            or comparator.get("device") != replay["device"]
+            or comparator.get("replay_backend") != replay_backend
             or not isinstance(comparator.get("estimator_backend"), str)
             or not comparator["estimator_backend"]
             or comparator.get("accumulation_dtype") != "float64"
-            or comparator.get("vocab_chunk") != 8192
+            or comparator.get("vocab_chunk") != replay["vocab_chunk"]
             or comparator.get("force_compute_agreed") is not True):
         raise ArchiveError("root qualification comparator contract differs")
     verification = qualification.get("verification")
@@ -2387,6 +2393,12 @@ def _validate_candidate_comparison(job, qualification, comparison, reference_ver
             or reference_verify.get("structural_status") != "sealed"
             or reference_verify.get("error_count") != 0):
         raise ArchiveError("candidate reference verification receipt is not a clean full verify")
+    if (job.get("execution_attempt") or {}).get("kind") == "hf-jobs":
+        from .hfjobs import HFQualificationError, _comparison_replay
+        try:
+            _comparison_replay(comparison, job["hf_execution"]["plan"])
+        except (HFQualificationError, KeyError, TypeError, ValueError) as exc:
+            raise ArchiveError("HF Jobs candidate replay differs from sealed plan: %s" % exc) from exc
 
 
 def _validate_root_evidence(job, qualification, publication=None,

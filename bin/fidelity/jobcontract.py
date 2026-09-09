@@ -436,17 +436,22 @@ def validate_job(document: dict) -> None:
                     for name in (
                         "artifact_sha256",
                         "canonical_sorted_names_sha256")))
+        # HF Jobs binds replay to its sealed plan in validate_execution below;
+        # historical local/RunPod root contracts retain the numpy-only profile.
+        replay_device = (capture.get("replay_device") if hf_root and isinstance(capture, dict)
+                         else "numpy")
         if (not isinstance(capture, dict)
                 or capture.get("engine") != "hf-transformers"
                 or capture.get("dtype") != "bfloat16"
                 or capture.get("device") not in (
                     ("cpu", "cuda") if local_root or hf_root else ("cuda",))
                 or capture.get("schedule") != "layer-outer"
-                or capture.get("replay_device") != "numpy"
+                or replay_device not in ("numpy", "cuda")
+                or capture.get("replay_device") != replay_device
                 or capture.get("replay_dtype") != "float32"
                 or capture.get("vocab_chunk") != 8192
                 or capture.get("replay") != {
-                    "device": "numpy", "dtype": "float32",
+                    "device": replay_device, "dtype": "float32",
                     "vocab_chunk": 8192}
                 or (capture.get("publish_root_to") is not None
                     and capture.get("publish_root_to")

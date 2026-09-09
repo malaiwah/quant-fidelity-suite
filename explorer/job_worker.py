@@ -258,6 +258,12 @@ def validate_plan(plan, out):
     sys.path.insert(0, str(ROOT))
     from explorer import job_resources
     job_resources.output_limit(plan["limits"].get("max_output_bytes"))
+    if "replay" not in plan.get("runtime", {}):
+        raise ValueError("new worker execution requires an explicit sealed replay policy")
+    policy = job_resources.resolve_replay(plan)
+    job_resources.active_job_limit(plan["limits"].get("max_active_jobs", 1))
+    if plan.get("resources", {}).get("replay") != policy:
+        raise ValueError("resource estimate differs from sealed replay policy")
     runtime = plan["runtime"]
     if runtime.get("dtype") != "bfloat16" or runtime.get("schedule") != "layer-outer":
         raise ValueError("only the declared BF16 layer-outer runtime is admitted")
@@ -484,6 +490,8 @@ class Runner:
                         seen += len(clean)
                         piece = clean[:max(0, LOG_LIMIT - written)]
                         log.write(piece)
+                        if piece:
+                            print(piece.decode("utf-8", "replace"), end="", flush=True)
                         written += len(piece)
                 process.wait(timeout=max(0.01, self.deadline - time.monotonic()))
         finally:
@@ -566,6 +574,10 @@ def dataset_view(descriptor, name):
 def workflow(plan, out, runner, outputs):
     sys.path.insert(0, str(ROOT / "bin"))
     from fidelity import dsformat, jobcontract
+    from explorer import job_resources
+    replay = job_resources.resolve_replay(plan)
+    replay_args = [argument for key, value in replay.items()
+                   for argument in ("--" + key.replace("_", "-"), str(value))]
     manifest = source_manifest(plan)
     save(out / "source-manifest.json", manifest)
     save(out / "harness.json", jobcontract.finalize_bundle_manifest(manifest["source_files"], SOURCE + "@" + manifest["revision"]))
@@ -576,6 +588,10 @@ def workflow(plan, out, runner, outputs):
         registry_root, _ = runner.measure("prepare-registry", staged_metadata, inputs["registry"], "registry")
     mode = plan["mode"]
     datasets = {}
+    if replay["device"] == "cuda":
+        observed_resources = job_resources.check_worker_resources(plan, out, OUT_PATH)
+        save(out / "replay.resource-admission.json", observed_resources)
+        save(out / "cuda-replay-smoke.json", runner.measure("cuda-replay-smoke", job_resources.cuda_replay_smoke))
     manifests = {}
     for name in ("reference", "candidate"):
         if inputs.get(name):
@@ -662,13 +678,13 @@ def workflow(plan, out, runner, outputs):
             runner.run("capture-" + name, [*common, "--out", out / name, "--run-name", label, "--cold-run", label, "--memory-report", out / (name + ".memory.json")])
             runner.run("verify-" + name, [*tool, "verify", out / name, "--verify-tensors", "--json", out / (name + ".verify.json")])
             outputs[name] = name
-        runner.run("reproduction", [*tool, "compare", "--reference", out / "first", "--candidate", out / "repeat", "--out", out / "reproduction", "--device", "cpu", "--replay-device", "numpy", "--replay-dtype", "float32", "--vocab-chunk", "8192", "--verify-tensors", "--own-heads", "--self-compare", "--force-compute", "--reference-label", plan["workflow_id"] + "-first", "--candidate-label", plan["workflow_id"] + "-repeat"])
+        runner.run("reproduction", [*tool, "compare", "--reference", out / "first", "--candidate", out / "repeat", "--out", out / "reproduction", *replay_args, "--verify-tensors", "--own-heads", "--self-compare", "--force-compute", "--reference-label", plan["workflow_id"] + "-first", "--candidate-label", plan["workflow_id"] + "-repeat"])
         reproduction = load_json(out / "reproduction/comparison-receipt.json")
         if reproduction["comparison_kind"] != "reproduction_confirmation" or reproduction["self_compare"].get("force_compute_agreed") is not True:
             raise ValueError("two cold captures did not pass forced exact numerical self-control")
         outputs["reproduction"] = "reproduction/comparison-receipt.json"
     if mode != "root":
-        runner.run("comparison", [*tool, "compare", "--reference", datasets["reference"], "--candidate", out / "first" if mode == "candidate" else datasets["candidate"], "--out", out / "comparison", "--device", "cpu", "--replay-device", "numpy", "--replay-dtype", "float32", "--vocab-chunk", "8192", "--verify-tensors", "--own-heads"], allowed=(0, 2))
+        runner.run("comparison", [*tool, "compare", "--reference", datasets["reference"], "--candidate", out / "first" if mode == "candidate" else datasets["candidate"], "--out", out / "comparison", *replay_args, "--verify-tensors", "--own-heads"], allowed=(0, 2))
         outputs["comparison"] = "comparison/comparison-receipt.json"
         comparison = load_json(out / outputs["comparison"])
         if not all(g.get("passed") is True and not g.get("overridden_by") for g in comparison["gates"].values()):

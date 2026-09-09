@@ -62,13 +62,15 @@ def build_jobs_ui():
         except Exception as exc:
             return "Sign in to use Jobs. " + _error(exc), gr.skip(), {}
 
-    def inputs(preset, flavor, seconds, maximum, output_gib, mode, model_repo, model_rev, ref_repo, ref_rev, cand_repo, cand_rev, panel_repo, panel_rev, panel_path, scope, codec, bits, output_repo, review_metadata):
+    def inputs(preset, flavor, seconds, maximum, output_gib, mode, model_repo, model_rev, ref_repo, ref_rev, cand_repo, cand_rev, panel_repo, panel_rev, panel_path, scope, codec, bits, output_repo, review_metadata, replay_device, max_active_jobs):
         if isinstance(seconds, bool) or not isinstance(seconds, (int, float)) or (isinstance(seconds, float) and not seconds.is_integer()):
             raise ValueError("The provider deadline must be a whole number of seconds.")
         spec = {"preset": preset, "flavor": flavor, "timeout_seconds": int(seconds), "max_compute_usd": str(maximum)}
         if isinstance(output_gib, bool) or not isinstance(output_gib, (int, float)) or not 1 <= output_gib <= 64 or int(output_gib) != output_gib:
             raise ValueError("Output cap must be a whole number of GiB in 1..64.")
         spec["max_output_bytes"] = int(output_gib) * 1024**3
+        spec["replay_device"] = replay_device
+        spec["max_active_jobs"] = jobs.job_resources.active_job_limit(max_active_jobs)
         if review_metadata and review_metadata.strip():
             metadata = json.loads(review_metadata)
             if not isinstance(metadata, dict):
@@ -84,25 +86,27 @@ def build_jobs_ui():
         if output_repo:spec["output_repository"] = output_repo
         return {k: v for k, v in spec.items() if v not in (None, "")}
 
-    def prepare(preset, flavor, seconds, maximum, output_gib, mode, model_repo, model_rev, ref_repo, ref_rev, cand_repo, cand_rev, panel_repo, panel_rev, panel_path, scope, codec, bits, output_repo, review_metadata,
+    def prepare(preset, flavor, seconds, maximum, output_gib, mode, model_repo, model_rev, ref_repo, ref_rev, cand_repo, cand_rev, panel_repo, panel_rev, panel_path, scope, codec, bits, output_repo, review_metadata, replay_device, max_active_jobs,
                 request: gr.Request, oauth_profile: gr.OAuthProfile | None, oauth_token: gr.OAuthToken | None):
         try:
             actor = actor_from_request(request, oauth_profile, oauth_token)
-            prepared = jobs.prepare(actor, inputs(preset, flavor, seconds, maximum, output_gib, mode, model_repo, model_rev, ref_repo, ref_rev, cand_repo, cand_rev, panel_repo, panel_rev, panel_path, scope, codec, bits, output_repo, review_metadata))
+            prepared = jobs.prepare(actor, inputs(preset, flavor, seconds, maximum, output_gib, mode, model_repo, model_rev, ref_repo, ref_rev, cand_repo, cand_rev, panel_repo, panel_rev, panel_path, scope, codec, bits, output_repo, review_metadata, replay_device, max_active_jobs))
             plan = prepared["plan"]
             text = ("**Ready to run as %s** · %s · deadline %s seconds · conservative compute estimate **$%s**.\n\n"
                     "No Job was created by this preview. Output: `%s` (private staging); no worker token."
                     % (actor.username, plan["hardware"]["flavor"], plan["hardware"]["timeout_seconds"], plan["hardware"]["estimated_max_compute_usd"], plan["output"]["dataset_repository"]))
+            text += "\n\nReplay **%s**, fp64 estimator **%s**; fp32 own heads, full vocabulary, no fallback. Active Jobs limit: **%d**." % (
+                plan["runtime"]["replay"]["replay_device"], plan["runtime"]["replay"]["device"], plan["limits"]["max_active_jobs"])
             return prepared, text, plan, False
         except Exception as exc:
             return None, "**Cannot prepare:** " + _error(exc), {}, False
 
-    def one_click(preset, flavor, seconds, maximum, output_gib, mode, model_repo, model_rev, ref_repo, ref_rev, cand_repo, cand_rev, panel_repo, panel_rev, panel_path, scope, codec, bits, output_repo, review_metadata, consent,
+    def one_click(preset, flavor, seconds, maximum, output_gib, mode, model_repo, model_rev, ref_repo, ref_rev, cand_repo, cand_rev, panel_repo, panel_rev, panel_path, scope, codec, bits, output_repo, review_metadata, replay_device, max_active_jobs, consent,
                   request: gr.Request, oauth_profile: gr.OAuthProfile | None, oauth_token: gr.OAuthToken | None):
         try:
             if consent is not True:raise ValueError("Confirm billing to your account before running.")
             actor = actor_from_request(request, oauth_profile, oauth_token)
-            prepared = jobs.prepare(actor, inputs(preset, flavor, seconds, maximum, output_gib, mode, model_repo, model_rev, ref_repo, ref_rev, cand_repo, cand_rev, panel_repo, panel_rev, panel_path, scope, codec, bits, output_repo, review_metadata))
+            prepared = jobs.prepare(actor, inputs(preset, flavor, seconds, maximum, output_gib, mode, model_repo, model_rev, ref_repo, ref_rev, cand_repo, cand_rev, panel_repo, panel_rev, panel_path, scope, codec, bits, output_repo, review_metadata, replay_device, max_active_jobs))
             result = jobs.launch(actor, prepared, confirm_compute=True)
             return prepared, result["job_id"], "**Job submitted.** " + result["url"], result
         except Exception as exc:
@@ -215,6 +219,10 @@ def build_jobs_ui():
             maximum = gr.Textbox(value="0.25", label="Maximum compute estimate (USD)")
             output_gib = gr.Number(value=4, precision=0, minimum=1, maximum=64, label="Approved output cap (GiB, includes both cold captures)")
             output_repo = gr.Textbox(label="Optional NEW capture dataset repository", placeholder="Leave blank for a unique repo in your account")
+        with gr.Row():
+            replay_device = gr.Dropdown(choices=[("Auto: CUDA on GPU, numpy on CPU", "auto"), ("CUDA replay + CUDA fp64 estimator", "cuda"), ("CPU numpy replay + CPU fp64 estimator", "numpy")], value="auto", label="Explicit replay numerical policy")
+            max_active_jobs = gr.Dropdown(choices=[("One active Job (default)", 1), ("At most two active Jobs: explicit race", 2)], value=1, label="Bounded active Jobs admission")
+        gr.Markdown("CUDA and CPU fp32 replay are distinct numerical policies, not guaranteed identical. Both retain full-vocabulary fp64 KL(reference || candidate) and each capture's own head. A two-Job race authorizes only one additional launch; every Job has its own deadline and cost ceiling. Unresolved creations always block.")
         recommendation = gr.Markdown(recommend(default))
         apply_recommendation_button = gr.Button("Apply suggested hardware, deadline and output cap — keep my cost ceiling")
         gr.Markdown("**Cost boundary:** HF bills starting/running time by the minute. The preview includes the deadline plus two startup minutes; it is not an account-wide hard-dollar cap. Storage and other HF services are separate. CPU Basic Jobs are paid, unlike CPU Basic Space hosting. **Observed example, not a runtime guarantee:** Fruit (~10 GB weights) completed two captures and reproduction in 693 seconds on CPU Performance with a 1200-second deadline and $0.75 estimate ceiling. Tiny fixtures use CPU Basic.")
@@ -233,7 +241,7 @@ def build_jobs_ui():
             gr.Markdown("Unknown custom code is not granted execution authority. Use native Transformers classes or the listed reviewed immutable runtime pins. A raw GGUF file without its required config/layout contract is not an admitted model.")
         review_metadata = gr.Code(language="json", label="Optional root publication attribution (can also be completed after capture)", value="{}")
         gr.Markdown("New root review needs `name`, `family`, `model_license`, `corpus_lineage`, and `publisher`, `panel_author`, `toolchain_author` objects with `name`, `handle`, `url`. Exact existing registry identities may supply these; missing facts are never guessed. Supply the original raw `panel.json`, its sealed build receipt and referenced token/mask arrays, with the exact matching tokenizer—not a sealed capture's internal panel view.")
-        controls=[preset,flavor,seconds,maximum,output_gib,mode,model_repo,model_rev,ref_repo,ref_rev,cand_repo,cand_rev,panel_repo,panel_rev,panel_path,scope,codec,bits,output_repo,review_metadata]
+        controls=[preset,flavor,seconds,maximum,output_gib,mode,model_repo,model_rev,ref_repo,ref_rev,cand_repo,cand_rev,panel_repo,panel_rev,panel_path,scope,codec,bits,output_repo,review_metadata,replay_device,max_active_jobs]
         consent=gr.Checkbox(value=False,label="I authorize this Job in MY HF account, with the selected deadline and compute estimate ceiling.")
         with gr.Row():
             prepare_button=gr.Button("Preview inputs and cost")

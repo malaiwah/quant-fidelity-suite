@@ -586,7 +586,7 @@ def _prepare(actor, spec, registry=None):
     allowed = {"preset", "mode", "model_repository", "model_revision", "reference_repository", "reference_revision",
                "candidate_repository", "candidate_revision", "panel_repository", "panel_revision", "panel_path",
                "scope_json", "codec", "declared_bits", "flavor", "timeout_seconds", "max_compute_usd", "output_repository",
-               "review_metadata", "max_output_bytes"}
+               "review_metadata", "max_output_bytes", "replay_device", "max_active_jobs"}
     if set(spec) - allowed:
         raise JobsError("Unknown workflow input field.")
     _validate_review_metadata(spec.get("review_metadata", {}))
@@ -602,6 +602,7 @@ def _prepare(actor, spec, registry=None):
     if type(timeout) is not int or not 60 <= timeout <= 86400:
         raise JobsError("Job deadline must be 60–86400 seconds; the quoted compute ceiling still applies.")
     maximum_output = job_resources.output_limit(request.get("max_output_bytes", MAX_OUTPUT))
+    max_active_jobs = job_resources.active_job_limit(request.get("max_active_jobs", 1))
     try:
         ceiling = Decimal(str(request.get("max_compute_usd", "0.25")))
     except InvalidOperation:
@@ -613,6 +614,7 @@ def _prepare(actor, spec, registry=None):
     hw = next((h for h in flavors if h["name"] == flavor), None)
     if hw is None:
         raise JobsError("The selected hardware is not currently offered by HF Jobs.")
+    replay = job_resources.replay_policy(hw, request.get("replay_device", "auto"))
     minutes = (Decimal(timeout) / 60).to_integral_value(rounding=ROUND_CEILING) + 2
     estimate = Decimal(hw["unit_cost_micro_usd"]) * minutes / 1000000
     if estimate > ceiling:
@@ -690,7 +692,7 @@ def _prepare(actor, spec, registry=None):
         panel["binding"] = _resolve_planning_panel(actor, panel, tokenizer or model)
         model["resource_geometry"] = _planning_geometry(actor, model)
     resources = job_resources.plan_resources(mode, model, panel["binding"] if panel else None,
-        reference, candidate, tokenizer, hw, maximum_output)
+        reference, candidate, tokenizer, hw, maximum_output, replay=replay)
     workflow_id = secrets.token_hex(16)
     output_repo = request.get("output_repository") or actor.username + "/qfs-capture-" + workflow_id[:12]
     _identity(output_repo, "0" * 40)
@@ -719,13 +721,15 @@ def _prepare(actor, spec, registry=None):
                          "timeout_seconds": timeout, "max_compute_usd": str(ceiling), "estimated_max_compute_usd": str(estimate),
                          "quote_time": time.time()},
             "runtime": {"dtype": "bfloat16", "schedule": "layer-outer", "trusted_code": trusted_code,
-                        "unexpected_allowlist": allowlist}, "scope": scope, "codec": codec, "declared_bits": bits,
+                        "unexpected_allowlist": allowlist, "replay": replay}, "scope": scope, "codec": codec, "declared_bits": bits,
             "registered": registered, "review_metadata": spec.get("review_metadata", {}),
-            "limits": {"max_output_bytes": maximum_output}, "resources": resources,
+            "limits": {"max_output_bytes": maximum_output, "max_active_jobs": max_active_jobs}, "resources": resources,
             "notes": ["This estimate is not an account-level hard spending cap. HF enforces the requested timeout; startup, rounding and storage have separate semantics.",
                       "Jobs are billed to " + actor.username + ", not the Space owner. CPU Basic Jobs are not free CPU Basic Space hosting.",
                       "Results persist in your private bucket. No bearer token is passed to model code.",
-                      "Capture/reconstruction proves its declared scope, not native serving kernels or model quality."]}
+                      "Capture/reconstruction proves its declared scope, not native serving kernels or model quality.",
+                      "Replay and fp64 estimator: %s / %s, fp32 own-head replay, full vocabulary; no backend fallback." % (replay["replay_device"], replay["device"]),
+                      "At most %d active QFS Jobs authorized for this launch; unresolved creations always block." % max_active_jobs]}
     for field in ("scope_note", "recommendation_basis"):
         if (preset or {}).get(field):
             plan["notes"].append(preset[field])
@@ -797,14 +801,14 @@ os.execvp('python',['python','/tmp/qfs-job-bootstrap.py','--plan','/inputs/plan/
 
 
 def _absent_job_proof(api, namespace, workflow_id):
-    """True absent, False present, None unknown -- the _confirm_gone discipline:
-    only a successful empty provider listing proves the paid create never
-    happened; an error is doubt and never clears anything."""
+    """True absent, False present, None unknown; never an in-flight abort proof."""
     try:
         matches = list(api.list_jobs(namespace=namespace, labels={"qfs_workflow_id": workflow_id}))
     except Exception:
         return None
     return not matches
+
+
 
 
 def _stale_reservations(actor):
@@ -814,7 +818,9 @@ def _stale_reservations(actor):
         return []
     _, _, ledger = _ledger(actor)
     return [{"job_id": None, "url": None, "status": "UNRESOLVED_CREATING",
-             "message": "Creation was never confirmed and blocks new launches; it clears only on provider-side proof that no Job exists for this workflow.",
+             "message": ("Creation was never confirmed and blocks new launches. Provider absence cannot abort an in-flight guarded create; recover its Job ID. A truly orphaned guarded reservation requires reviewed manual reconciliation."
+                         if r.get("creation_guard") else
+                         "Creation was never confirmed and blocks new launches; this legacy reservation clears only on provider-side proof that no Job exists for this workflow."),
              "flavor": None, "created_at": r.get("reserved_at"), "started_at": None, "finished_at": None,
              "durations": None, "workflow_id": w, "reserved_at": r.get("reserved_at")}
             for w, r in sorted(ledger["runs"].items()) if r.get("state") == "CREATING" and not r.get("job_id")]
@@ -825,6 +831,10 @@ def launch(actor, prepared, *, confirm_compute=False):
         raise JobsError("Review the named billing account, deadline and cost, then explicitly confirm launch.")
     plan, ticket = prepared.get("plan"), prepared.get("ticket")
     verify_seal(plan, "plan_sha256");_check_ticket(actor, plan, ticket)
+    if "replay" not in plan.get("runtime", {}):
+        raise JobsError("New launches require an explicit sealed replay policy; prepare again.")
+    job_resources.resolve_replay(plan)
+    max_active_jobs = job_resources.active_job_limit(plan["limits"].get("max_active_jobs", 1))
     if plan["owner"] != actor.username or time.time() - plan["hardware"]["quote_time"] > 600:
         raise JobsError("The account or hardware quote changed. Prepare a new plan.")
     actor.require_lifetime(plan["hardware"]["timeout_seconds"] + 120)
@@ -852,6 +862,10 @@ def launch(actor, prepared, *, confirm_compute=False):
         stale = {w: r for w, r in ledger["runs"].items() if r.get("state") == "CREATING" and not r.get("job_id")}
         unresolved = dict(stale)
         for stale_wid, record in stale.items():
+            # A competing controller may still be between reservation and create.
+            # Provider absence cannot prove that pending request was aborted.
+            if record.get("creation_guard"):
+                continue
             # A CREATING reservation with no Job ID otherwise blocks every future
             # launch forever. Clear it ONLY on positive provider-side absence
             # proof; presence or any doubt keeps refusing (never infer from error).
@@ -860,18 +874,31 @@ def launch(actor, prepared, *, confirm_compute=False):
                 record["reconciled_at"] = datetime.now(timezone.utc).isoformat()
                 del unresolved[stale_wid]
                 head = _save_ledger(actor, repo, head, ledger)
-        if active or unresolved:
+        # Account for recorded Jobs even if the provider's filtered listing lags.
+        # Unknown individual status is not permission to spend another slot.
+        active_ids = {job.id for job in active}
+        for record in ledger["runs"].values():
+            job_id = record.get("job_id")
+            if job_id and record.get("state") not in _TERMINAL and job_id not in active_ids:
+                observed = api.inspect_job(job_id=job_id, namespace=actor.username)
+                if _stage(observed) not in _TERMINAL:
+                    active_ids.add(job_id)
+        if len(active_ids) >= max_active_jobs or unresolved:
             parts = []
-            if active:
-                parts.append("One QFS job is already active; refresh/cancel it before another launch.")
+            if len(active_ids) >= max_active_jobs:
+                parts.append("The approved limit of %d active QFS Job(s) is reached; refresh/cancel before another launch." % max_active_jobs)
             if unresolved:
-                parts.append("An earlier creation is still unresolved (workflow %s): its reservation clears only "
-                             "when HF positively confirms no Job exists for that workflow. Cancel any Job it produced "
-                             "in your HF Jobs page, or retry this launch later." % ", ".join(sorted(unresolved)))
+                parts.append("An earlier creation is still unresolved (workflow %s). A guarded reservation is "
+                             "not cleared by provider absence: the original create request may still be in flight. "
+                             "Recover its Job ID; a truly orphaned guarded reservation needs reviewed manual reconciliation. "
+                             "Legacy reservations clear only when HF positively confirms no Job exists."
+                             % ", ".join(sorted(unresolved)))
             raise JobsError(" ".join(parts))
         if len(ledger["runs"]) >= 1000:
             raise JobsError("This workspace ledger reached its safety limit; archive old records before launching more jobs.")
-        ledger["runs"][wid] = {"state": "CREATING", "plan": plan, "reserved_at": datetime.now(timezone.utc).isoformat()}
+        ledger["runs"][wid] = {"state": "CREATING", "plan": plan,
+                              "creation_guard": "provider-absence-is-not-abort-proof",
+                              "reserved_at": datetime.now(timezone.utc).isoformat()}
         head = _save_ledger(actor, repo, head, ledger)  # CAS reservation BEFORE any paid create
         bucket = plan["output"]["bucket"]
         try:
@@ -920,7 +947,7 @@ def launch(actor, prepared, *, confirm_compute=False):
             status = getattr(getattr(exc, "response", None), "status_code", None)
             if status in (400, 401, 402, 403, 422):
                 ledger["runs"][wid]["state"] = "REFUSED";_save_ledger(actor, repo, head, ledger)
-            # Ambiguous create is deliberately left CREATING. Never blindly retry it.
+            # Ambiguous create stays guarded CREATING; absence is not abort proof.
             raise _api_error(exc, "HF Job creation") from None
         ledger["runs"][wid].update(job_id=job.id, state=_stage(job), submitted_at=datetime.now(timezone.utc).isoformat())
         _save_ledger(actor, repo, head, ledger)
@@ -1111,19 +1138,46 @@ def _metadata_digest(actor, repo, revision, row):
         raise _api_error(exc, "Model metadata read") from None
 
 
+def _reviewed_job_sources():
+    approved = {}
+    for name, schema in (("reviewed_job_sources.json", "qfs.reviewed-job-sources.v1"),
+                         ("deployment.json", "qfs.explorer-deployment.v1")):
+        path = ROOT / "explorer" / name
+        if not path.is_file():
+            continue
+        document = _read_json(path)
+        revisions = document.get("reviewed_source_revisions", {})
+        if document.get("schema") != schema or not isinstance(revisions, dict):
+            raise JobsError("Invalid explicitly reviewed recovery source schema.")
+        for revision, pin in revisions.items():
+            if (not SHA.fullmatch(str(revision)) or not isinstance(pin, dict)
+                    or set(pin) != {"worker_sha256", "bootstrap_sha256", "image"}
+                    or any(not HEX.fullmatch(str(pin.get(key))) for key in ("worker_sha256", "bootstrap_sha256"))
+                    or not re.fullmatch(r"[A-Za-z0-9./:_-]+@sha256:[0-9a-f]{64}", str(pin.get("image")))):
+                raise JobsError("Invalid explicitly reviewed recovery source pin.")
+            if revision in approved and approved[revision] != pin:
+                raise JobsError("Conflicting explicitly reviewed recovery source pins.")
+            approved[revision] = pin
+    return approved
+
+
 def _verify_provider(actor, job, plan):
     verify_seal(plan, "plan_sha256")
-    source, image = _source_identity()
-    if plan.get("source") != source or plan.get("image") != image:
-        deployment = ROOT / "explorer/deployment.json"
-        approved = _read_json(deployment).get("reviewed_source_revisions", {}) if deployment.is_file() else {}
-        pin = approved.get((plan.get("source") or {}).get("revision")) if isinstance(approved, dict) else None
-        candidate_source = plan.get("source") or {}
-        if (not isinstance(pin, dict) or candidate_source.get("repository") != SOURCE
-                or any(candidate_source.get(k) != pin.get(k) for k in ("worker_sha256", "bootstrap_sha256"))
-                or plan.get("image") != pin.get("image")):
-            raise JobsError("This Job source/image is not in the deployment's explicitly reviewed recovery pins.")
+    candidate_source = plan.get("source") or {}
+    pin = _reviewed_job_sources().get(candidate_source.get("revision"))
+    reviewed = (pin is not None and candidate_source == {"repository": SOURCE,
+                "revision": candidate_source.get("revision"),
+                "worker_sha256": pin["worker_sha256"], "bootstrap_sha256": pin["bootstrap_sha256"]}
+                and plan.get("image") == pin["image"])
+    if reviewed:
         source = candidate_source
+    else:
+        source, image = _source_identity()
+        if candidate_source != source or plan.get("image") != image:
+            raise JobsError("This Job source/image is not in the explicitly reviewed recovery pins.")
+        if "replay" not in plan.get("runtime", {}):
+            raise JobsError("Historical CPU recovery requires an explicitly reviewed source pin.")
+    job_resources.resolve_replay(plan)
     if (plan.get("owner") != actor.username or job.command != ["python", "-c", _BOOTSTRAP_FETCH]
             or job.arguments or job.secrets or job.space_id
             or job.environment != {"QFS_PLAN_SHA256": plan["plan_sha256"], "QFS_WORKFLOW_ID": plan["workflow_id"]}
