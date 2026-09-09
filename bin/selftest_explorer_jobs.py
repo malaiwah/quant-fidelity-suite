@@ -302,6 +302,30 @@ def rung_public_evidence(actor):
     check("R1e a private publication re-check still uses the caller's token",
           any(r["method"] == "hf_hub_download" and r["token"] == TOKEN for r in RECORD))
 
+    panel = (ROOT / "engines/panels/panel--qwen38.malaiwah.suite-v5-shard0-1m/panel.json").read_bytes()
+    try:
+        review._parse(panel.decode())
+        paste_refused = False
+    except ValueError:
+        paste_refused = True
+    check("R2 generic paste limits remain unchanged for a full panel", paste_refused)
+    for content, permitted in (
+            (panel, True),
+            (json.dumps({"rows": [{"tokens": [0] * 128} for _ in range(512)]}).encode(), False)):
+        paths, download = _serve({"panel.json": content})
+        _reset(repo_info=lambda token, repo, **_: public_info,
+               get_paths_info=paths, hf_hub_download=download)
+        publication = {"kind": "measurement", "repository": "tester/pub-evidence", "revision": REV,
+                       "files": {"panel": {"path": "panel.json", "sha256": hashlib.sha256(content).hexdigest()}}}
+        with tempfile.TemporaryDirectory() as td:
+            try:
+                fetched = review._evidence(actor.client(), publication, Path(td))
+                accepted = fetched["panel"] == content
+            except ValueError:
+                accepted = False
+        check("R2 typed panel evidence has bounded capacity and preserves exact bytes",
+              accepted is permitted and not _authenticated_reads(TOKEN))
+
 
 # ---------------------------------------------------------------------------
 # EXP-03: the worker consumes canonical views, not the raw Hub volume.

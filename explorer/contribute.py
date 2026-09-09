@@ -141,7 +141,9 @@ def _result(status, summary, *, errors=None, warnings=None, details=None, next_s
     }
 
 
-def _parse(text):
+def _parse(text, *, max_nodes=32768):
+    if type(max_nodes) is not int or not 1 <= max_nodes <= 65536:
+        raise ValueError("Invalid bounded JSON node allowance.")
     if not isinstance(text, str):
         raise ValueError("Paste one complete receipt JSON object; no credentials.")
     if len(text) > _MAX_BYTES or len(text.encode("utf-8")) > _MAX_BYTES:
@@ -171,7 +173,7 @@ def _parse(text):
     while stack:
         value, depth = stack.pop()
         count += 1
-        if depth > 48 or count > 32768:
+        if depth > 48 or count > max_nodes:
             raise ValueError("Receipt is too deeply nested or complex for this public inspector. Use the local validator.")
         if isinstance(value, (dict, list)):
             if len(value) > 4096:

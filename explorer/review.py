@@ -181,7 +181,10 @@ def _evidence(api, publication, directory, *, require_public=True):
         _require(info is not None and isinstance(getattr(info, "size", None), int) and info.size <= limit, "Evidence missing or exceeds the bounded JSON review limit: " + f["path"])
         b = _download(reader, repo, revision, f["path"], info.size, directory)
         _require(_sha(b) == f["sha256"], "Published evidence hash mismatch: " + name)
-        _parse(b.decode("utf-8")) if require_public else json.loads(b)
+        # A complete 512-context panel carries token previews and provenance,
+        # unlike a pasted scalar receipt. Keep its byte/depth/container/string
+        # limits, with a bounded node allowance for this typed evidence role.
+        _parse(b.decode("utf-8"), max_nodes=65536 if name == "panel" else 32768) if require_public else json.loads(b)
         raw[name] = b
     if require_public and publication["kind"] == "root":
         meta = publication.get("metadata") or {}
