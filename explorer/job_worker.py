@@ -26,6 +26,7 @@ HEX40 = re.compile(r"[0-9a-f]{40}\Z")
 HEX64 = re.compile(r"[0-9a-f]{64}\Z")
 REPOSITORY = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9][A-Za-z0-9_.-]*\Z")
 LOG_LIMIT = 1024 * 1024
+WEIGHT_SUFFIXES = (".safetensors", ".gguf", ".bin", ".pt", ".pth")
 
 
 def canonical(value):
@@ -355,34 +356,27 @@ def model_binding(plan, out):
     sys.path.insert(0, str(ROOT / "engines/tools"))
     import quant_stream
     model = plan["inputs"]["model"]
+    from fidelity import hfjobs
+    files = file_inventory(model.get("files"), "model file census")
+    metadata_root, metadata = staged_metadata(model, "model")
     allowlist = plan["runtime"].get("unexpected_allowlist")
     vetted_inventory = vetted_unexpected_inventory(allowlist, model) if allowlist else None
     mount = Path(model["mount_path"])
-    config_path = regular(mount / "config.json")
+    config_path = regular(metadata_root / "config.json")
     config = load_json(config_path)
-    if digest(config_path) != model["config_sha256"] or config != model["config"]:
-        raise ValueError("mounted model configuration differs from metadata admission")
-    files = model["files"]
-    if not isinstance(files, list) or not files:
-        raise ValueError("complete model file census required")
-    names = set()
-    for item in files:
-        relative(item["path"])
-        if item["path"] in names:
-            raise ValueError("duplicate model census path")
-        names.add(item["path"])
-        path = regular(mount / item["path"])
-        if type(item["bytes"]) is not int or path.stat().st_size != item["bytes"] or digest(path) != item["sha256"]:
-            raise ValueError("model file census mismatch: " + item["path"])
-    weight_names = {p.relative_to(mount).as_posix() for p in tree(mount) if p.suffix in (".safetensors", ".bin", ".pt", ".pth", ".gguf")}
+    if (digest(config_path) != model["config_sha256"] or config != model["config"]
+            or config_path.stat().st_size != model["config_bytes"]):
+        raise ValueError("canonical model configuration differs from metadata admission")
+    weight_names = {p.relative_to(mount).as_posix() for p in tree(mount) if p.name.endswith(WEIGHT_SUFFIXES)}
+    planned_weights = {name for name in files if name.endswith(WEIGHT_SUFFIXES)}
     supported_suffixes = (".safetensors", ".gguf") if plan["mode"] == "candidate" else (".safetensors",)
-    if not weight_names or not weight_names <= names or any(not name.endswith(supported_suffixes) for name in weight_names):
+    if not weight_names or weight_names != planned_weights or any(not name.endswith(supported_suffixes) for name in weight_names):
         raise ValueError("only completely inventoried native safetensors or supported candidate storage is admitted")
     if any(name.endswith(".gguf") for name in weight_names) and any(name.endswith(".safetensors") for name in weight_names):
         raise ValueError("mixed checkpoint representations are not a single measured artifact")
     if sum((mount / name).stat().st_size for name in weight_names) != model["weight_bytes"]:
         raise ValueError("model total weight bytes mismatch")
-    index_path = mount / "model.safetensors.index.json"
+    index_path = metadata_root / "model.safetensors.index.json"
     if index_path.exists():
         regular(index_path)
         if digest(index_path) != model["index_sha256"] or index_path.stat().st_size != model["index_bytes"]:
@@ -411,11 +405,34 @@ def model_binding(plan, out):
             admitted |= code == {"repository": repository, "revision": revision}
         if not admitted:
             raise ValueError("custom code is not the exact vetted architecture catalog pin")
+    # Keep canonical inputs outside the publication tree. Read every weight from
+    # the complete raw mount census, but all other files from the verified stage.
+    destination = Path(hfjobs.INPUT_DATASET_ROOT) / "model"
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    if sum(record["bytes"] for record in files.values()) + 64 * 1024**2 > shutil.disk_usage(destination.parent).free:
+        raise ValueError("canonical model exceeds available worker scratch storage")
+    destination.mkdir(exist_ok=False)
+    for name, record in files.items():
+        path = regular((metadata_root if name in metadata else mount) / name)
+        if path.stat().st_size != record["bytes"]:
+            raise ValueError("model file census mismatch: " + name)
+        target = destination / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        copied, sha = 0, hashlib.sha256()
+        with path.open("rb") as source, target.open("xb") as output:
+            while chunk := source.read(1024 * 1024):
+                copied += len(chunk)
+                if copied > record["bytes"]:
+                    raise ValueError("model file census mismatch: " + name)
+                output.write(chunk)
+                sha.update(chunk)
+        if copied != record["bytes"] or sha.hexdigest() != record["sha256"]:
+            raise ValueError("model file census mismatch: " + name)
     if vetted_inventory is not None:
         path, provenance = vetted_inventory
         shutil.copyfile(path, out / "unexpected-tensors.json")
         shutil.copyfile(str(path) + ".provenance.json", out / "unexpected-tensors.provenance.json")
-    return mount
+    return destination
 
 
 def safe_log(raw):
@@ -535,12 +552,35 @@ class Runner:
                 self.checkpoint()
 
 
+def file_inventory(records, label):
+    """Require a complete, unambiguous planned byte identity for every member."""
+    if not isinstance(records, list) or not records:
+        raise ValueError(label + " must be a nonempty file inventory")
+    inventory = {}
+    for record in records:
+        if not isinstance(record, dict) or set(record) != {"path", "bytes", "sha256"}:
+            raise ValueError("invalid " + label + " record")
+        name = str(relative(record["path"]))
+        if (name in inventory or type(record["bytes"]) is not int or record["bytes"] < 0
+                or not HEX64.fullmatch(str(record["sha256"]))):
+            raise ValueError("duplicate or invalid " + label + " identity")
+        inventory[name] = record
+    return inventory
+
+
 def staged_metadata(descriptor, name):
     """Verify canonical metadata staged through the caller's private bucket."""
     metadata_root = PLAN_PATH.parent / "datasets" / name
-    metadata = {row["path"]: row for row in descriptor["metadata_files"]}
-    if not metadata:
-        raise ValueError("staged metadata inventory is empty")
+    metadata = file_inventory(descriptor.get("metadata_files"), "staged metadata")
+    if name in ("model", "tokenizer"):
+        files = file_inventory(descriptor.get("files"), name + " file census")
+        if metadata != {member: record for member, record in files.items() if not member.endswith(WEIGHT_SUFFIXES)}:
+            raise ValueError("canonical metadata staging inventory is incomplete or extraneous")
+        if (any(record["bytes"] > 16 * 1024**2 for record in metadata.values())
+                or sum(record["bytes"] for record in metadata.values()) > 32 * 1024**2):
+            raise ValueError("canonical checkpoint metadata exceeds its staging bound")
+        if {path.relative_to(metadata_root).as_posix() for path in tree(metadata_root)} != set(metadata):
+            raise ValueError("staged checkpoint metadata tree differs from its planned inventory")
     for member, record in metadata.items():
         path = regular(metadata_root / str(relative(member)))
         if path.stat().st_size != record["bytes"] or digest(path) != record["sha256"]:
@@ -625,7 +665,7 @@ def workflow(plan, out, runner, outputs):
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(path, destination)
         from fidelity import panel as panel_api
-        tokenizer_root = Path(inputs["tokenizer"]["mount_path"]) if mode == "candidate" else model
+        tokenizer_root = runner.measure("prepare-tokenizer", staged_metadata, inputs["tokenizer"], "tokenizer")[0] if mode == "candidate" else model
         resolved = runner.measure("resolve-token-panel", lambda: panel_api.resolve_panel(panel, role="final", tokenizer_root=tokenizer_root).to_dict())
         save(out / "panel-binding.json", resolved)
         binding = load_json(out / "panel-binding.json")

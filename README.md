@@ -167,11 +167,14 @@ Only native supported loaders or explicitly reviewed code pins execute; an
 arbitrary model `auto_map` is not an execution grant. Failed captures remain
 failed, with bounded progress logs and private partial evidence.
 
-Small canonical input metadata is staged through the authenticated private bucket
-and verified against its sealed inventory. Large tensor sources use read-only Hub
-mounts; the worker builds a canonical dataset view rather than treating Hub
-sidecars as captured files. This also avoids the observed truncated JSON prefixes
-from some HF dataset-volume files without weakening checksum verification.
+Canonical input metadata is staged through the authenticated private bucket and
+verified against its sealed inventory. This includes every model/tokenizer
+non-weight file, not just configuration and index files; repository assets are
+not exempted from identity checks. The worker verifies the complete raw weight
+census and copies exact weights plus staged metadata into a private canonical
+model view. Candidate tokenizers also use verified staged metadata. Dataset
+views use the same original-byte boundary rather than treating Hub sidecars as
+captured files. Raw mounted metadata mismatches do not relax hash verification.
 Worker computations write to local scratch. Completed-stage evidence is copied
 to explicit private-volume paths with byte bounds; final publication verifies
 every file by direct readback and checks declared outputs and sealed sidecars

@@ -326,6 +326,8 @@ def _model_metadata(actor, repo, revision, *, mode):
         lfs = getattr(sibling, "lfs", None)
         checksum = getattr(lfs, "sha256", None) if lfs is not None else None
         files.append({"path": name, "bytes": size, "sha256": checksum})
+    if any(row["path"].endswith((".bin", ".pt", ".pth")) for row in files):
+        raise JobsError("Unsupported weight files are present; use a single safetensors or supported GGUF checkpoint.")
     weights = [f for f in files if f["path"].endswith((".safetensors", ".gguf"))]
     if not weights:
         raise JobsError("This Jobs path requires safetensors or supported GGUF storage; pickle checkpoints are not executed.")
@@ -341,12 +343,15 @@ def _model_metadata(actor, repo, revision, *, mode):
                 raise JobsError("Weight metadata has no cryptographic content digest; no large weights are downloaded during planning.")
             row["sha256"] = _metadata_digest(actor, repo, revision, row)
     index_sha = index_bytes = None
+    metadata_files = []
     metadata_bytes = 0
     for row in files:
-        if not HEX.fullmatch(row.get("sha256") or ""):
+        if not row["path"].endswith((".safetensors", ".gguf", ".bin", ".pt", ".pth")):
             metadata_bytes += row["bytes"]
             if row["bytes"] > MAX_JSON or metadata_bytes > 32 * 1024**2:
-                raise JobsError("Unhashed non-weight metadata exceeds the planning limit.")
+                raise JobsError("Canonical model metadata exceeds the bounded staging allowance.")
+            metadata_files.append(row)
+        if not HEX.fullmatch(row.get("sha256") or ""):
             row["sha256"] = _metadata_digest(actor, repo, revision, row)
     if any(f["path"] == "model.safetensors.index.json" for f in files):
         _, index_sha, index_bytes = _json_download(actor, repo, revision, "model.safetensors.index.json")
@@ -359,7 +364,8 @@ def _model_metadata(actor, repo, revision, *, mode):
         card = info.card_data.to_dict()
     return {"repository": repo, "revision": revision, "mount_path": "/inputs/model", "config": config,
             "config_sha256": config_sha, "config_bytes": config_bytes, "index_sha256": index_sha,
-            "index_bytes": index_bytes, "files": files, "weight_bytes": sum(f["bytes"] for f in weights),
+            "index_bytes": index_bytes, "files": files, "metadata_files": metadata_files,
+            "weight_bytes": sum(f["bytes"] for f in weights),
             "license_file": license_names[0], "license": card.get("license") if isinstance(card, dict) else None,
             "publisher": getattr(info, "author", repo.split("/")[0]), "model_type": config.get("model_type")}
 
@@ -966,16 +972,17 @@ def launch(actor, prepared, *, confirm_compute=False):
                 for path in sorted(directory.rglob("*")):
                     if path.is_symlink():raise JobsError("Bundled panel contains a symlink.")
                     if path.is_file(): additions.append((path, prefix + "/inputs/" + panel["path"] + "/" + str(path.relative_to(directory))))
-            for name in ("reference", "candidate", "registry"):
+            for name in ("reference", "candidate", "registry", "model", "tokenizer"):
                 descriptor = plan["inputs"].get(name)
                 if descriptor is None:
                     continue
                 for record in descriptor["metadata_files"]:
                     raw, sha, size = _json_download(
                         actor, descriptor["repository"], descriptor["revision"], record["path"],
-                        repo_type="dataset", parse_json=False, expected_size=record["bytes"])
+                        repo_type="model" if name in ("model", "tokenizer") else "dataset",
+                        parse_json=False, expected_size=record["bytes"])
                     if sha != record["sha256"] or size != record["bytes"]:
-                        raise JobsError("Pinned dataset metadata changed after planning.")
+                        raise JobsError("Pinned input metadata changed after planning.")
                     additions.append((raw, prefix + "/inputs/datasets/" + name + "/" + record["path"]))
             api.batch_bucket_files(bucket, add=additions)
             volumes = [Volume(type="bucket", source=bucket, path=prefix + "/inputs", mount_path="/inputs/plan", read_only=True),

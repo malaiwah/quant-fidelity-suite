@@ -328,7 +328,7 @@ the validator warns whenever a `strict` row rests on a panel whose `contaminatio
 
 ## How to read the tables below
 
-38 tables follow, one per comparability group, across 19 models. Three things are true of all of them, and each is a mistake somebody has already made with numbers like these:
+39 tables follow, one per comparability group, across 19 models. Three things are true of all of them, and each is a mistake somebody has already made with numbers like these:
 
 1. **A number means nothing outside its own table.** Every table states the seven-part key its rows share. Two numbers under different keys are different quantities that happen to print in the same units.
 2. **The smallest number on this page is not the best quant.** Today it is deepseek-v4-tiny-random-bf16 (random test fixture) native BF16 at 0 nats -- and it is not a quant at all -- those are unquantized weights, read by a second engine, measuring what two engines disagree by. Sorting this file by value and reading off the top is the single easiest way to be wrong with it.
@@ -911,7 +911,7 @@ This panel carries **2 separate comparability groups**. They are different measu
 
 > **Panel disclosure -- `native_head_replay`:** Receipt disclosure native_head_replay: HEAD-1d: each side replayed through its own sealed head (reference e68a813f441b, candidate e68a813f441b); head error is inside the measurement, as under HEAD-2, and nothing is substituted. The heads are content-identical.
 
-This panel carries **2 separate comparability groups**. They are different measurements of different things and are never merged.
+This panel carries **3 separate comparability groups**. They are different measurements of different things and are never merged.
 
 #### Group `cmp--823cfa3f5010c0fc` -- 2 rows
 
@@ -930,6 +930,7 @@ This panel carries **2 separate comparability groups**. They are different measu
 >
 > **What it is NOT comparable to.** The nearest neighbouring groups differ in:
 > - `cmp--238563353ac89178` (1 row): `stack_relation` cross_stack -> same_stack
+> - `cmp--d5fa4bf579606a72` (1 row): `reference_id` reference--fixture.qwen3-5.1847b664a523e921 -> reference--native.0aa0a8e90588d45df4aa0dba; `stack_relation` cross_stack -> same_stack
 > 
 > Those numbers are in this file, under their own headings. Quoting one under the other heading is the mistake this layout exists to prevent: the key is a function of the panel, the teacher, the metric, the direction and the estimator, and the validator recomputes it from those fields rather than trusting the stamped value. What that catches is a row filed under a key its own fields do not produce. It does not catch a number attributed to the wrong panel in the first place -- no offline checker can. That is what the receipt digests on every row are for.
 >
@@ -981,6 +982,7 @@ This panel carries **2 separate comparability groups**. They are different measu
 >
 > **What it is NOT comparable to.** The nearest neighbouring groups differ in:
 > - `cmp--823cfa3f5010c0fc` (2 rows): `stack_relation` same_stack -> cross_stack
+> - `cmp--d5fa4bf579606a72` (1 row): `reference_id` reference--fixture.qwen3-5.1847b664a523e921 -> reference--native.0aa0a8e90588d45df4aa0dba
 > 
 > Those numbers are in this file, under their own headings. Quoting one under the other heading is the mistake this layout exists to prevent: the key is a function of the panel, the teacher, the metric, the direction and the estimator, and the validator recomputes it from those fields rather than trusting the stamped value. What that catches is a row filed under a key its own fields do not produce. It does not catch a number attributed to the wrong panel in the first place -- no offline checker can. That is what the receipt digests on every row are for.
 >
@@ -1007,6 +1009,54 @@ This panel carries **2 separate comparability groups**. They are different measu
 - `fixture.qwen3-5.floor.e22167048fb26e61` **reduced_run_count**: Receipt disclosure reduced_run_count: this dataset is ONE cold capture (run_count 1, the DET-D4 floor is 5). Cross-run determinism is not asserted by the dataset; it is established by a second cold capture plus `fidelity-dataset compare --self-compare`, whose exactly-0.0 result is the SC-1 reproduction confirmation.
 - `fixture.qwen3-5.floor.e22167048fb26e61` **non_sealed_lane**: Local CPU fixture lane; this exact same-lane reproduction is not a measured offset against a production sealed GPU lane.
 - `fixture.qwen3-5.floor.e22167048fb26e61` **reduced_run_count**: Two qualified cold runs, not five.
+
+</details>
+
+#### Group `cmp--d5fa4bf579606a72` -- 1 row
+
+**Panel** `panel--fixture.a53145fb225cc15b73887d0f` -- Synthetic CPU fixture panel 525cb6c62509
+  4 contexts x 63 scored positions = **252 scored positions**, score_from 0
+  sealed: **yes** (token digest `525cb6c625096ddb...`) -- contamination scan: **NOT RUN**
+**Reference (teacher)** `reference--native.0aa0a8e90588d45df4aa0dba` -- native_bf16, artifact `artifact--malaiwah.qwen3-5-tiny-random-bf16.a430e41d5814` @a430e41d5814ba5e7bfa5ee29d86935aac56d95d
+**Metric** mean_tokenwise_kld, direction reference_to_candidate, accumulation float64
+**Estimation surface** stack_relation `same_stack`, head_policy `native_head`
+**Comparability key** `cmp--d5fa4bf579606a72`
+**Like-for-like predicate** `comparable: unknown` -- no recorded difference, but replay_backend, replay_env, stack are unrecorded for at least one member, so homogeneity cannot be certified. Machine-readable form with per-dimension values: this key's `comparability` block in `index.json`.
+
+> **What this table is.** Every row here shares the comparability key above: the same tokens, the same teacher capture, the same metric and direction, the same estimator precision, the same stack relation and the same head policy. That makes them CANDIDATES for ranking -- the key is a necessary partition, not a certificate. Whether they are also like-for-like on the dimensions the key omits (lane, pipeline, scope coverage, hardware) is what the predicate line above answers.
+>
+> **Rank is not a verdict.** The table is sorted by fidelity alone, and fidelity buys bits: a larger, higher-bitrate quant will usually sit above a smaller one, which is not news. Read the Size and Codec columns before reading the order, and compare like against like.
+>
+> **What it is NOT comparable to.** The nearest neighbouring groups differ in:
+> - `cmp--238563353ac89178` (1 row): `reference_id` reference--native.0aa0a8e90588d45df4aa0dba -> reference--fixture.qwen3-5.1847b664a523e921
+> - `cmp--823cfa3f5010c0fc` (2 rows): `reference_id` reference--native.0aa0a8e90588d45df4aa0dba -> reference--fixture.qwen3-5.1847b664a523e921; `stack_relation` same_stack -> cross_stack
+> 
+> Those numbers are in this file, under their own headings. Quoting one under the other heading is the mistake this layout exists to prevent: the key is a function of the panel, the teacher, the metric, the direction and the estimator, and the validator recomputes it from those fields rather than trusting the stamped value. What that catches is a row filed under a key its own fields do not produce. It does not catch a number attributed to the wrong panel in the first place -- no offline checker can. That is what the receipt digests on every row are for.
+>
+> Also, and always: **every table for a different model.** A KL number is a divergence over one model's own vocabulary against that model's own teacher. It is not a quality score that can be carried between models.
+>
+> **Single-row group.** This number has nothing in the registry to be ranked against. It is a stated fact, not a placing.
+
+> **1 of this group's 1 rows came off a different measurement lane** (`other`) and are tabled on their own below, not mixed into the ordering here. The key does not carry the lane; this file does.
+
+##### Lane `other` -- 1 of this group's 1 rows
+
+> **A different lane. Same key, and that is exactly the problem this table solves.** The comparability key is a function of the panel, the teacher, the metric, the direction, the estimator precision, the stack relation and the head policy -- and these rows match the table above on all seven. What they do not share is the machine and the code path that produced the candidate logits, and lanes are not interchangeable. Sorting them into one list would read as a ranking; where the same artifact appears in both, it is one set of weights measured twice, not two quants.
+>
+> **No bridge to the sealed lane is recorded for this lane.**
+
+| Artifact | Codec | Size | mean_tokenwise_kld (nats) | CI95 | Top-1 | Runs | Attribution | Receipt |
+|---|---|---:|---:|---|---:|---|---|---|
+| **qwen3-5-tiny-random-bf16 (random test fixture) native BF16** _(measurement floor)_ | `bf16` | 0.0 GB | **0** | -- | 100.00 % | 2 runs, bitwise identical | measured by us | [receipt](https://huggingface.co/datasets/malaiwah/qfs-evidence-8135e1ebdb07afa3754d21f43e991b80-public/resolve/b6714ddd5e965b9704fc30f75b3099fa6b1c2121/first/capture/manifest.json) |
+
+> **Bias on qwen3-5-tiny-random-bf16 (random test fixture) native BF16** -- other, direction unknown. Exact same-lane native reproduction; its offset against other lanes was not measured.
+
+<details><summary>Disclosures for the rows above (4)</summary>
+
+- `native.floor.a1aea9ef9bbe4bf33d21c007` **reduced_run_count**: reduced_run_count: this dataset is ONE cold capture (run_count 1, the DET-D4 floor is 5). Cross-run determinism is not asserted by the dataset; it is established by a second cold capture plus `fidelity-dataset compare --self-compare`, whose exactly-0.0 result is the SC-1 reproduction confirmation.
+- `native.floor.a1aea9ef9bbe4bf33d21c007` **reduced_run_count**: Two qualified cold runs, not five.
+- `native.floor.a1aea9ef9bbe4bf33d21c007` **non_sealed_lane**: This native reproduction is confined to its recorded HF Jobs lane; no production-lane equivalence is established.
+- `native.floor.a1aea9ef9bbe4bf33d21c007` **record_note**: This service read authenticated HF provider metadata and validated recovered evidence; it did not independently reproduce the model run.
 
 </details>
 

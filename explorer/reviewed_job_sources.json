@@ -1,6 +1,13 @@
 {
   "schema": "qfs.reviewed-job-sources.v1",
   "reviewed_source_revisions": {
+    "d85fc86e36eba9f81e2302efd275963e294ed66a": {
+      "worker_sha256": "21ea0e9fcbd5ef814568f25cc43636f78f8ba58153289cd2039926d4a96a25c5",
+      "bootstrap_sha256": "ad04862b0d042f9753afa1451f3a5aafb335712210ea601935b44325cab89086",
+      "environment_sha256": "79d103191da67a0d344f351eecb9792aa5d7f06635c362df143489e724cc360c",
+      "image": "ghcr.io/malaiwah/quant-fidelity-measure@sha256:e03ccb8c67a54fc206ada6092cac426867fc9c2b26554a8887beb48fcf1e0683",
+      "launch_contract": "measurement-cli-v1"
+    },
     "4dcdac82003bb4457e7797289f3464580c2c5010": {
       "worker_sha256": "21ea0e9fcbd5ef814568f25cc43636f78f8ba58153289cd2039926d4a96a25c5",
       "bootstrap_sha256": "ad04862b0d042f9753afa1451f3a5aafb335712210ea601935b44325cab89086",

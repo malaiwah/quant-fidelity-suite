@@ -1,0 +1,251 @@
+{
+  "capture_tool": {
+    "expert_fill": {
+      "bytes_filled": 0,
+      "declined": {},
+      "decoded_slices": 0,
+      "identity": "a byte copy into the fused parameter's slice; bin/selftest_layer_outer.py L4/L6 assert equality with from_pretrained and with the converter path",
+      "layers_filled": 0,
+      "mode": "direct",
+      "reference": "transformers.core_model_loading.MergeModulelist(dim=0) + Concatenate(dim=1)",
+      "slices_filled": 0,
+      "staged_slices": 0,
+      "staging": "pinned",
+      "targets_filled": 0
+    },
+    "file": "engines/tools/hf_capture.py",
+    "head_module_path": "lm_head",
+    "head_resolution": "lm_head",
+    "layer_residency": "stream",
+    "mechanism": "transformers forward pass, layer-outer/window-inner schedule: for each decoder layer the model's own forward is run once per window with the layers below replaying their memoised output and the layers above suspending, so each layer's weights are materialised once for the whole panel. Windows are pushed through sequentially, never batched. Forward pre-hook on model.get_output_embeddings(), fired by the model's own epilogue after the last layer",
+    "model_view": null,
+    "parallel_plan_dropped": false,
+    "resolved_classes": {
+      "config": "transformers.models.qwen3_5.configuration_qwen3_5.Qwen3_5Config",
+      "model": "transformers.models.qwen3_5.modeling_qwen3_5.Qwen3_5ForConditionalGeneration"
+    },
+    "resolved_panel_binding": {
+      "binding": {
+        "content": {
+          "archive": {
+            "algorithm": "sha256(ustar: sorted regular files; mode=0644; uid=gid=mtime=0)",
+            "bytes": 20480,
+            "compression": "none",
+            "format": "ustar",
+            "sha256": "99ed86f7572d2184f299eeeda8ccb0ef45994f28fefa4d8ae29167ee98e2286d"
+          },
+          "manifest": [
+            {
+              "bytes": 192,
+              "path": "arrays/causal-mask-64.npy",
+              "sha256": "a38fba8bfd9cd25a81b0e37fa144e8e13e84f769ae7f609ceebc94a64f4f5d02"
+            },
+            {
+              "bytes": 384,
+              "path": "arrays/final-0000.tokens.npy",
+              "sha256": "d60234f4b3b6044fb21eca18f7df82de9822f388e4d93d19d8a4eb69d6d490af"
+            },
+            {
+              "bytes": 384,
+              "path": "arrays/final-0001.tokens.npy",
+              "sha256": "20188213e4dfaaed04b1396a4ec46a5a2a6236c87d870c64d7102568d585ceea"
+            },
+            {
+              "bytes": 384,
+              "path": "arrays/final-0002.tokens.npy",
+              "sha256": "00341b323c286034a1c3a80ae66318cb6ce67153c08b1eedf6990b7a0310662c"
+            },
+            {
+              "bytes": 384,
+              "path": "arrays/final-0003.tokens.npy",
+              "sha256": "a13ec9b40a39027396ec752ee8595e0613569b78e27ef25d254f4f9a82d8775a"
+            },
+            {
+              "bytes": 4194,
+              "path": "panel.json",
+              "sha256": "3cf6223c9e2cc67d6f491ed526d155396cd55ff975b21ebebf01e5b92aa7df34"
+            },
+            {
+              "bytes": 7799,
+              "path": "panel.receipt.json",
+              "sha256": "c624850db9c2b9e6103d88a0e623a2c75c31021df4fa8ab84407f73347a08951"
+            }
+          ],
+          "manifest_sha256": "798c99d92fb24592459b23aec4f5dafc6268a9d1bb8f039dc30fc9170ba4eec5"
+        },
+        "panel": {
+          "bytes": 4194,
+          "context_length": 64,
+          "contexts": 4,
+          "file": "panel.json",
+          "id": "panel--qwen3-5-tiny.malaiwah.cpu-smoke-v1",
+          "name": "Tiny random-init Qwen3.5 hybrid synthetic CPU smoke (not a benchmark)",
+          "positions_per_context": 63,
+          "role": "final",
+          "scored_positions_total": 252,
+          "sha256": "3cf6223c9e2cc67d6f491ed526d155396cd55ff975b21ebebf01e5b92aa7df34",
+          "suite_token_hash_sha256": "525cb6c625096ddb0ab19771a252e83223de98cc984733ef7da25a5eb076db36"
+        },
+        "receipt": {
+          "bytes": 7799,
+          "declared_receipt_sha256": "3b58fd3b1ae43fb6780fd36b41b6b846a362923ebcc487840bf9ade6b33ffb84",
+          "file": "panel.receipt.json",
+          "receipt_file_sha256": "c624850db9c2b9e6103d88a0e623a2c75c31021df4fa8ab84407f73347a08951",
+          "receipt_seal_mode": "self-blank"
+        },
+        "schema": "malaiwah.resolved-panel.v1",
+        "tokenizer": {
+          "files": [
+            {
+              "bytes": 1827,
+              "name": "config.json",
+              "sha256": "265b5ab2c5f5b1026eaa1de1bedf0c9e8b8ac64402fdb5bd01023c4186e8d44d"
+            },
+            {
+              "bytes": 216,
+              "name": "generation_config.json",
+              "sha256": "1d59e0fb61ca550ea84bd37a6bdf553ab364bc2689b17ba69f6a1adbc9d61e34"
+            },
+            {
+              "bytes": 9335,
+              "name": "tokenizer.json",
+              "sha256": "c5f05830d9b8e3fc7042f20c32c18e056a5ee87c48313606849794bf1b485677"
+            },
+            {
+              "bytes": 516,
+              "name": "tokenizer_config.json",
+              "sha256": "9f24ab4c9150115747c129e162d2700bf8ef6fc9ba69703d13b99274463283e3"
+            }
+          ],
+          "files_verified": true,
+          "id": "malaiwah/qwen3-5-tiny-random-bf16",
+          "identity_sha256": "1fb13676984d913bd8ba606fd636be122160d57eda4fe9e0d9e03a36125a386e",
+          "maximum_token_id_exclusive": 272,
+          "receipt": null,
+          "repository": "malaiwah/qwen3-5-tiny-random-bf16",
+          "revision": "49da461d1aaf0e3fa97b09f3490f0c7f6e0f9462",
+          "vocab_size": 272
+        }
+      },
+      "binding_file": "panel-binding.json",
+      "binding_file_sha256": "90bb1549695f765ac9c6d2ee17c01361a7fd0b3662b2a5b30112dd85d982f6ac",
+      "tokenizer_equivalences": []
+    },
+    "schedule": "layer-outer",
+    "sha256": "78032f531d2618bec4d8decf52282760be94ad08055b71fe189904d83730b5a6",
+    "unexpected_tensor_allowlist": null,
+    "verified_code": null,
+    "version": "hf_capture/1",
+    "weights_decode": null,
+    "weights_license": {
+      "bytes": 1071,
+      "dataset_path": "LICENSE",
+      "sha256": "6456969dd395bff476628945088b4cbd9d9c761b01a64e281c07b09daf9f94c3",
+      "source_file": "LICENSE"
+    },
+    "wraps": []
+  },
+  "container": {
+    "image_digest": "sha256:e03ccb8c67a54fc206ada6092cac426867fc9c2b26554a8887beb48fcf1e0683",
+    "image_reference": "ghcr.io/malaiwah/quant-fidelity-measure@sha256:e03ccb8c67a54fc206ada6092cac426867fc9c2b26554a8887beb48fcf1e0683",
+    "image_repository_digest": null,
+    "source": "env:STACKPRINT_IMAGE_PIN"
+  },
+  "format_version": 1,
+  "lane": "other",
+  "lane_identity_inputs": [
+    "torch_version",
+    "cuda_runtime_version",
+    "device_name",
+    "grouped_mm_kernel",
+    "numeric_policy",
+    "attention_backend",
+    "experts_implementation",
+    "parallelism",
+    "ep_emulate",
+    "reduce_order"
+  ],
+  "lane_identity_sha256": "2611f0151fb032d5df4df5ba2fa0cc674a5519b34d215e02f680417b7e275785",
+  "lane_inferred": false,
+  "receipt_sha256": "ee47e3f106c9b58166b2e6738bc7f9a72c0031a522bd7d11cab2bb9db0ee62d4",
+  "resources": {
+    "bytes": {
+      "checkpoint_read": 490756,
+      "hidden_d2h": 36640,
+      "weights_h2d": 490756
+    },
+    "checkpoint_bytes": 501359,
+    "checkpoint_files": 2,
+    "device_name": "NVIDIA A100-SXM4-80GB",
+    "forward_timing": "cuda-events",
+    "note": "provenance, not identity: peaks and stage seconds this run measured; forward_sum is device time under cuda-events, wall time otherwise; seal covers head serialisation up to this block's assembly",
+    "peak_cuda_allocated_bytes": 9170944,
+    "peak_cuda_reserved_bytes": 23068672,
+    "peak_resident_weight_bytes": 270632,
+    "peak_rss_bytes": 1440968704,
+    "rss_units_source": "Linux ru_maxrss",
+    "seconds": {
+      "decode_sum": null,
+      "elapsed": 5.228,
+      "fill_sum": null,
+      "forward_sum": 0.641,
+      "identity": 0.011,
+      "layer_load_max": 0.007,
+      "layer_load_sum": 0.027,
+      "layer_loads": 4,
+      "resident_load": 2.824,
+      "seal": 0.007
+    }
+  },
+  "runtime_environment": {
+    "cold_run": "8135e1ebdb07afa3754d21f43e991b80-first",
+    "numeric_policy_observed": {
+      "NVIDIA_TF32_OVERRIDE": null,
+      "allow_tf32_cudnn": true,
+      "allow_tf32_matmul": false,
+      "deviates_from_default": false,
+      "float32_matmul_precision": "highest",
+      "observed_at": "seal time, after the forward"
+    },
+    "python": "3.12.3"
+  },
+  "schema": "malaiwah.fidelity-capture-runtime.v1",
+  "source_files": {
+    "bin/fidelity/codepin.py": "ce2a2c04d64adf7a268978a7ffe163c7d4cb5b675d5dc8e156f8a26a3b7bb5fd",
+    "bin/fidelity/panel.py": "0bf78fca76289920e0dc10d58082f42f24f4f2db6e0ecde61daefa4c22de286d",
+    "engines/tools/hf_capture.py": "78032f531d2618bec4d8decf52282760be94ad08055b71fe189904d83730b5a6",
+    "engines/tools/layer_outer.py": "e3ea5715112663b1b60cf596eeffc2140e49b399809ece89a174bce41a969274"
+  },
+  "stack_fingerprint": {
+    "attention_backend": "model default",
+    "cuda_runtime_version": "13.0",
+    "device": "cuda",
+    "device_name": "NVIDIA A100-SXM4-80GB",
+    "engine": "transformers-eager",
+    "numeric_policy": "default torch matmul precision; no TF32 override applied",
+    "schema": "malaiwah.stack-fingerprint.v1",
+    "torch_version": "2.11.0+cu130",
+    "transformers_version": "5.16.1"
+  },
+  "stack_fingerprint_sha256": "03ac681241c202f2989ad21ef22348bb4b38e3c7d7a78ca1cf0231805c297519",
+  "upstream_receipts": [],
+  "weights": {
+    "checkpoint_files": [
+      {
+        "name": "config.json",
+        "sha256": "265b5ab2c5f5b1026eaa1de1bedf0c9e8b8ac64402fdb5bd01023c4186e8d44d",
+        "size": 1827
+      },
+      {
+        "name": "model.safetensors",
+        "sha256": "e039d547c13f1294447e09eed708b0953bc4a9e22c4c179bfd2873f9f271abf0",
+        "size": 499532
+      }
+    ],
+    "checkpoint_identity_algorithm": "sha256 over the canonical JSON {\"algorithm\": <this string>, \"files\": [{\"name\", \"size\", \"sha256\"}, ...]} of every *.safetensors shard plus config.json in the checkpoint directory, sorted by name; for a llama.cpp GGUF tree the shards are every *.gguf of the one build directory (name = <build>/<file>) and config.json is the official release's copy beside it",
+    "checkpoint_identity_sha256": "f65faf236cd335fdb5d5e9bd0dc3635b82a47c9e5eb3158a0349d5269b55eebb",
+    "model_revision": "a430e41d5814ba5e7bfa5ee29d86935aac56d95d",
+    "repository": "malaiwah/qwen3-5-tiny-random-bf16",
+    "revision": "a430e41d5814ba5e7bfa5ee29d86935aac56d95d"
+  }
+}

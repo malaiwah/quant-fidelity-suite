@@ -7,8 +7,8 @@
     "command": "python3 registry/tools/registry_validate.py --strict --json",
     "context": "Canonical full-suite checkout after recovery of all public accepted records. HARN-005 compares measurement-time source identities with checkout_sha256; standalone HF dataset validation need not have those suite sources.",
     "errors": 0,
-    "warnings": 491,
-    "comparability_keys": 38,
+    "warnings": 513,
+    "comparability_keys": 39,
     "strict_warning_free_release_gate_passed": false,
     "strict_gate_policy": "Unchanged: make check-release fails when warnings remain.",
     "filters": {
@@ -20,40 +20,40 @@
     "models": 19,
     "artifacts": 95,
     "panels": 20,
-    "references": 32,
-    "pipelines": 34,
-    "measurements": 116
+    "references": 33,
+    "pipelines": 35,
+    "measurements": 117
   },
   "warning_counts_by_check": {
-    "CMP-005": 18,
+    "CMP-005": 19,
     "DET-006": 4,
     "FLOOR-003": 11,
-    "HARN-005": 435,
+    "HARN-005": 456,
     "PANEL-006": 5,
     "PROV-006": 7,
     "STAT-005": 11
   },
   "disposition_counts": {
     "missing-evidence-retained": 27,
-    "retained-and-disclosed": 464
+    "retained-and-disclosed": 486
   },
   "category_counts": {
     "contamination-evidence-missing": 5,
     "frozen-single-comparison-limitation": 4,
-    "historical-source-version-drift": 435,
+    "historical-source-version-drift": 456,
     "panel-attribution-reviewed": 7,
     "same-group-control-missing": 11,
     "same-scope-top1-not-published": 11,
-    "singleton-descriptive-observation": 18
+    "singleton-descriptive-observation": 19
   },
   "data_sha256": {
     "data/models.jsonl": "42302eb429e99bd184438ceee93394b1b5c7f11849d6877bc52c79aa1c08a1bf",
     "data/artifacts.jsonl": "99da280597e44cc55c8a43a7e89fae079e5a892536f63355bd805bd91d496ecb",
     "data/panels.jsonl": "539838836c3bcd0f2c2b52c0bf7fa2d69a3f5d5e307c72e7ea13fb8140408938",
-    "data/references.jsonl": "0b324883197a1a67941052f83948a4093d923c28a9bb8f9125ca193de14fd5f8",
-    "data/pipelines.jsonl": "18b82d95b7a0f4a57b66a3c9c7ec93abe1af25321ecb27d84f2cb588356791ca",
-    "data/measurements.jsonl": "41a68a5427814d1cc3d45bd4886258ad53ba035e6ee931ced49a389e676e2d1c",
-    "index.json": "bb34450d2d3fd3526c9131b8e54596638606cae7e36dc1486ef8a8796d332eef",
+    "data/references.jsonl": "76bce49c2f0a33e6f363b26e94ec309900ef7aafd9d7a7428c0c1efdfaab2b6a",
+    "data/pipelines.jsonl": "5f67e5a0c2d426c08d93e517cf5619b692c85dfeff86e5d89439c86c3844c7b0",
+    "data/measurements.jsonl": "42d1d008ecbca0e335d7b55ea4b5a1c09f515a2c8c84eb3d36be04a514a04a51",
+    "index.json": "2f232614b46eb0fa3bde6f129672410f765fc567c4a05bdf3c035289d8502466",
     "schema/invariants.json": "59a0432690968bcced4ddf2b4fa4b3be7c89bdcc3fe9efd0212bea7d5b7dca0f"
   },
   "checkout_sha256": {
@@ -95,8 +95,8 @@
     "engines/tools/selftest_trellis_decode_offline.py": "4a1aad5a037d5811bf30103be3773113192350d463d981ab6a7872ea868bf7c2",
     "explorer/job_bootstrap.py": "ad04862b0d042f9753afa1451f3a5aafb335712210ea601935b44325cab89086",
     "explorer/job_ui.py": "e1616db74be6b25c697348f193bd5706804c010d0a957aeaecb6ab18cbb16061",
-    "explorer/job_worker.py": "21ea0e9fcbd5ef814568f25cc43636f78f8ba58153289cd2039926d4a96a25c5",
-    "explorer/jobs.py": "039a32ae1a82d1d44d09033b812d86fadd97a1007e492b059f0874e23f6662fc",
+    "explorer/job_worker.py": "665fdb82efd86e6cb1f7613a3d2a48a1e5245a4e6c253a48b458467ee8eb889e",
+    "explorer/jobs.py": "73f6a624d639de4b8ebb68214e5df79fd63ebedb44f46e1f7389a0c63476d8a0",
     "explorer/review.py": "8bf7d0d7e2aac76a00f459aa471538f5e89e2cd2e5cc27a38536d11052a3eba6",
     "explorer/transport.py": "fb144186ea7c6199100a5c741ae9449cb8a79ebcf5912e54958d9755110453c6",
     "port/tests/glm5_layer_parity.py": "2be96243efab77c6f45993576ec7981c7065dbd37b25c00a32f613e4748ffd6d",
@@ -139,13 +139,13 @@
       "artifacts": [],
       "panels": [],
       "references": [
-        "reference--native.1506812c94bcb0d15f357def"
+        "reference--native.0aa0a8e90588d45df4aa0dba"
       ],
       "pipelines": [
-        "pipeline--hf-jobs.dac5848f3aa00e25"
+        "pipeline--hf-jobs.82f5ace09945ce44"
       ],
       "measurements": [
-        "measurement--native.floor.72915a75f9da017af5fe925e"
+        "measurement--native.floor.a1aea9ef9bbe4bf33d21c007"
       ]
     },
     "note": "New accepted records are replayed from immutable acceptance inputs. Historical scientific values and identities are unchanged."
@@ -1340,6 +1340,103 @@
           "subset_detail": null
         },
         "classification": "advisory"
+      }
+    },
+    {
+      "check": "CMP-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.a1aea9ef9bbe4bf33d21c007",
+      "message": "comparability key cmp--d5fa4bf579606a72 has a single member (measurement--native.floor.a1aea9ef9bbe4bf33d21c007): a number with nothing to compare against. Present it as a stated fact, not a ranking.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "singleton-descriptive-observation",
+      "rationale": "One observation occupies this exact key. Retain it descriptively; a native zero control is conditional reproduction evidence, not model quality or permission to merge foreign scopes.",
+      "evidence": {
+        "comparability_key": "cmp--d5fa4bf579606a72",
+        "key_inputs": {
+          "accumulation_dtype": "float64",
+          "direction": "reference_to_candidate",
+          "head_policy": "native_head",
+          "metric_name": "mean_tokenwise_kld",
+          "panel_id": "panel--fixture.a53145fb225cc15b73887d0f",
+          "reference_id": "reference--native.0aa0a8e90588d45df4aa0dba",
+          "stack_relation": "same_stack"
+        },
+        "measurement_scope": {
+          "contexts": 4,
+          "covers_full_panel": true,
+          "position_filter": "all",
+          "positions_per_context": 63,
+          "scored_positions": 252,
+          "subset_detail": null
+        },
+        "sources": [
+          {
+            "kind": "hf_file",
+            "sha256": "25a2168f2348bc37da66d8374b742534f115769502e5a92f0c9fdadc74629871",
+            "uri": "https://huggingface.co/datasets/malaiwah/qfs-evidence-8135e1ebdb07afa3754d21f43e991b80-public/resolve/b6714ddd5e965b9704fc30f75b3099fa6b1c2121/first/capture/manifest.json"
+          },
+          {
+            "kind": "hf_file",
+            "sha256": "b9ce5b64035e7f2bf2f42adaadf6ee0830dc0c99cff296fe0d682764da6f2c10",
+            "uri": "https://huggingface.co/datasets/malaiwah/qfs-evidence-8135e1ebdb07afa3754d21f43e991b80-public/resolve/b6714ddd5e965b9704fc30f75b3099fa6b1c2121/reproduction/comparison-receipt.json"
+          },
+          {
+            "kind": "hf_file",
+            "sha256": "265b5ab2c5f5b1026eaa1de1bedf0c9e8b8ac64402fdb5bd01023c4186e8d44d",
+            "uri": "https://huggingface.co/datasets/malaiwah/qfs-evidence-8135e1ebdb07afa3754d21f43e991b80-public/resolve/b6714ddd5e965b9704fc30f75b3099fa6b1c2121/original-config.json"
+          },
+          {
+            "kind": "hf_file",
+            "sha256": "56830c84dd250b7be068ddf520bc7fbfc1debec1a08984ef7225568738640b3a",
+            "uri": "https://huggingface.co/datasets/malaiwah/qfs-evidence-8135e1ebdb07afa3754d21f43e991b80-public/resolve/b6714ddd5e965b9704fc30f75b3099fa6b1c2121/first/fidelity-dataset.json"
+          },
+          {
+            "kind": "hf_file",
+            "sha256": "f6ac20c0d9550a9fde7a9503052f18b59312f1c7980be6a03294edd60aeb6b7f",
+            "uri": "https://huggingface.co/datasets/malaiwah/qfs-evidence-8135e1ebdb07afa3754d21f43e991b80-public/resolve/b6714ddd5e965b9704fc30f75b3099fa6b1c2121/hf-execution.json"
+          },
+          {
+            "kind": "hf_file",
+            "sha256": "ca80cde0b8bdf51d8d559d7c7843a67c01058021ad6433f99d74d25bfe279ff3",
+            "uri": "https://huggingface.co/datasets/malaiwah/qfs-evidence-8135e1ebdb07afa3754d21f43e991b80-public/resolve/b6714ddd5e965b9704fc30f75b3099fa6b1c2121/review-harness.json"
+          },
+          {
+            "kind": "hf_file",
+            "sha256": "9caedcf415d57349101261d8687c48c2d7e0d646ccb18c6fec60958dbb9de65f",
+            "uri": "https://huggingface.co/datasets/malaiwah/qfs-evidence-8135e1ebdb07afa3754d21f43e991b80-public/resolve/b6714ddd5e965b9704fc30f75b3099fa6b1c2121/job.json"
+          },
+          {
+            "kind": "hf_file",
+            "sha256": "6956f5421ae12c11925a32ac25ab03e5dc13fcac5ace17d3bc20b50c664d08ef",
+            "uri": "https://huggingface.co/datasets/malaiwah/qfs-evidence-8135e1ebdb07afa3754d21f43e991b80-public/resolve/b6714ddd5e965b9704fc30f75b3099fa6b1c2121/first/panel/panel.json"
+          },
+          {
+            "kind": "hf_file",
+            "sha256": "c624850db9c2b9e6103d88a0e623a2c75c31021df4fa8ab84407f73347a08951",
+            "uri": "https://huggingface.co/datasets/malaiwah/qfs-evidence-8135e1ebdb07afa3754d21f43e991b80-public/resolve/b6714ddd5e965b9704fc30f75b3099fa6b1c2121/first/panel/panel-receipt.json"
+          },
+          {
+            "kind": "hf_file",
+            "sha256": "731f165e6cdecb3a1e9636569f76c148ff479a6d8896b8de78e1e1fff0659eb7",
+            "uri": "https://huggingface.co/datasets/malaiwah/qfs-evidence-8135e1ebdb07afa3754d21f43e991b80-public/resolve/b6714ddd5e965b9704fc30f75b3099fa6b1c2121/plan.json"
+          },
+          {
+            "kind": "hf_file",
+            "sha256": "4f07dade17db18a7fbfef788af4ce7d8b934f04ef598631d02f247bfded0ceef",
+            "uri": "https://huggingface.co/datasets/malaiwah/qfs-evidence-8135e1ebdb07afa3754d21f43e991b80-public/resolve/b6714ddd5e965b9704fc30f75b3099fa6b1c2121/qualification.json"
+          },
+          {
+            "kind": "hf_file",
+            "sha256": "baa1e2e011a7c11e7b6e3d433a6ecbdc90570632830af88437c20c4179d05c8c",
+            "uri": "https://huggingface.co/datasets/malaiwah/qfs-evidence-8135e1ebdb07afa3754d21f43e991b80-public/resolve/b6714ddd5e965b9704fc30f75b3099fa6b1c2121/result.json"
+          },
+          {
+            "kind": "hf_file",
+            "sha256": "5cebf92ba7dab525ede8d847110735a7605b4a9a9b5186f186dfbd3a8a6a814c",
+            "uri": "https://huggingface.co/datasets/malaiwah/qfs-evidence-8135e1ebdb07afa3754d21f43e991b80-public/resolve/b6714ddd5e965b9704fc30f75b3099fa6b1c2121/first/runtime/capture-runtime.json"
+          }
+        ]
       }
     },
     {
@@ -9436,7 +9533,7 @@
             "sha256": "4268ab6b8cf446f19c05534cf7a99002cfeb995d53f57300ec92e6b872a2fc9d"
           }
         ],
-        "checkout_sha256": "ceef8c9cdeaf0742a7803251133a6f7e437eeb33ccbb604df96d80bfd4b51465",
+        "checkout_sha256": "59dd2f27f8f8918f44abbdea4dd9f72b17425973d87f4debb4d23440f80a706d",
         "harness_id": "harness--d8cd719704083868"
       }
     },
@@ -9689,7 +9786,7 @@
             "sha256": "007aa9fb5e2d2e1ea6a46947188d98958d52a5b666341dac9446cb3fa8434ff3"
           }
         ],
-        "checkout_sha256": "21ea0e9fcbd5ef814568f25cc43636f78f8ba58153289cd2039926d4a96a25c5",
+        "checkout_sha256": "665fdb82efd86e6cb1f7613a3d2a48a1e5245a4e6c253a48b458467ee8eb889e",
         "harness_id": "harness--d8cd719704083868"
       }
     },
@@ -9712,7 +9809,7 @@
             "sha256": "46e256593e8bf7b6883c9b6969e57e736f145209d9c24b892eea11d0aa7fae6f"
           }
         ],
-        "checkout_sha256": "039a32ae1a82d1d44d09033b812d86fadd97a1007e492b059f0874e23f6662fc",
+        "checkout_sha256": "73f6a624d639de4b8ebb68214e5df79fd63ebedb44f46e1f7389a0c63476d8a0",
         "harness_id": "harness--d8cd719704083868"
       }
     },
@@ -9873,7 +9970,7 @@
             "sha256": "fa43ab6e1b0b4857b3175dd964743d172f0e593e8e34fc300c2be1246ff77026"
           }
         ],
-        "checkout_sha256": "ceef8c9cdeaf0742a7803251133a6f7e437eeb33ccbb604df96d80bfd4b51465",
+        "checkout_sha256": "59dd2f27f8f8918f44abbdea4dd9f72b17425973d87f4debb4d23440f80a706d",
         "harness_id": "harness--dac5848f3aa00e25"
       }
     },
@@ -9904,6 +10001,29 @@
       "check": "HARN-005",
       "severity": "warn",
       "id": "measurement--native.floor.72915a75f9da017af5fe925e",
+      "message": "measurement--native.floor.72915a75f9da017af5fe925e was produced by a version of explorer/job_worker.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "explorer/job_worker.py",
+        "recorded_entries": [
+          {
+            "path": "explorer/job_worker.py",
+            "role": "source_0331",
+            "sha256": "21ea0e9fcbd5ef814568f25cc43636f78f8ba58153289cd2039926d4a96a25c5"
+          }
+        ],
+        "checkout_sha256": "665fdb82efd86e6cb1f7613a3d2a48a1e5245a4e6c253a48b458467ee8eb889e",
+        "harness_id": "harness--dac5848f3aa00e25"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.72915a75f9da017af5fe925e",
       "message": "measurement--native.floor.72915a75f9da017af5fe925e was produced by a version of explorer/jobs.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
       "remedy": null,
       "status": "retained-and-disclosed",
@@ -9919,7 +10039,7 @@
             "sha256": "e10c3726c991b2021bc69ced02e23f3a84e686ab7da54bc7950274bfb39bc5f2"
           }
         ],
-        "checkout_sha256": "039a32ae1a82d1d44d09033b812d86fadd97a1007e492b059f0874e23f6662fc",
+        "checkout_sha256": "73f6a624d639de4b8ebb68214e5df79fd63ebedb44f46e1f7389a0c63476d8a0",
         "harness_id": "harness--dac5848f3aa00e25"
       }
     },
@@ -11000,7 +11120,7 @@
             "sha256": "2cabdc0454fa3616dcb03bc94f966c26216a5c327e4f8c1ef5be57c285b847f5"
           }
         ],
-        "checkout_sha256": "21ea0e9fcbd5ef814568f25cc43636f78f8ba58153289cd2039926d4a96a25c5",
+        "checkout_sha256": "665fdb82efd86e6cb1f7613a3d2a48a1e5245a4e6c253a48b458467ee8eb889e",
         "harness_id": "harness--0120ab447b077c41"
       }
     },
@@ -11023,7 +11143,7 @@
             "sha256": "9f91abd9d8fd23ca9c4d202b86daee345238a5cbd08a89c0ae207982dba78aca"
           }
         ],
-        "checkout_sha256": "039a32ae1a82d1d44d09033b812d86fadd97a1007e492b059f0874e23f6662fc",
+        "checkout_sha256": "73f6a624d639de4b8ebb68214e5df79fd63ebedb44f46e1f7389a0c63476d8a0",
         "harness_id": "harness--0120ab447b077c41"
       }
     },
@@ -11347,6 +11467,466 @@
         ],
         "checkout_sha256": "cd3aa98d170fb54c24c4638a7091375ca6b7baa5cc68cb95d5027f68343678c3",
         "harness_id": "harness--0120ab447b077c41"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.a1aea9ef9bbe4bf33d21c007",
+      "message": "measurement--native.floor.a1aea9ef9bbe4bf33d21c007 was produced by a version of bin/BUNDLE.txt that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "bin/BUNDLE.txt",
+        "recorded_entries": [
+          {
+            "path": "bin/BUNDLE.txt",
+            "role": "source_0001",
+            "sha256": "a78c44752bc5c5e9e5035f3f03fbf3467774c8f381c2b7848423d611335003a4"
+          }
+        ],
+        "checkout_sha256": "6cd9f0bba351d61656bb0ded08997a45d88cb2b0e787009c0b288fcace8768fa",
+        "harness_id": "harness--82f5ace09945ce44"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.a1aea9ef9bbe4bf33d21c007",
+      "message": "measurement--native.floor.a1aea9ef9bbe4bf33d21c007 was produced by a version of bin/fidelity/dshub.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "bin/fidelity/dshub.py",
+        "recorded_entries": [
+          {
+            "path": "bin/fidelity/dshub.py",
+            "role": "source_0024",
+            "sha256": "2c85716212f479d197f332395ffd18ec6afcfca2fef43be930d146e0b9a98317"
+          }
+        ],
+        "checkout_sha256": "6b8f71c4ba173b2af0c2c103e4a63f06bcb0c567be509755ce89bbbaa4d9a6c3",
+        "harness_id": "harness--82f5ace09945ce44"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.a1aea9ef9bbe4bf33d21c007",
+      "message": "measurement--native.floor.a1aea9ef9bbe4bf33d21c007 was produced by a version of bin/fidelity/hfmeta.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "bin/fidelity/hfmeta.py",
+        "recorded_entries": [
+          {
+            "path": "bin/fidelity/hfmeta.py",
+            "role": "source_0030",
+            "sha256": "900f004f588aebdef0ff53af6cc697fe0fd9cfc57bfbfd81b13ecf6fd0ab84ce"
+          }
+        ],
+        "checkout_sha256": "0c521831d5921b4eb344bfb989d1da96d61c1cf0509b7806e46cc3c0e31a36de",
+        "harness_id": "harness--82f5ace09945ce44"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.a1aea9ef9bbe4bf33d21c007",
+      "message": "measurement--native.floor.a1aea9ef9bbe4bf33d21c007 was produced by a version of bin/measure_cloud.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "bin/measure_cloud.py",
+        "recorded_entries": [
+          {
+            "path": "bin/measure_cloud.py",
+            "role": "source_0071",
+            "sha256": "a04d2a052dbefbfd9c66fbd63ec89e705cd91a9170d0f99e269d22532612a96e"
+          }
+        ],
+        "checkout_sha256": "351bf61717b6cac22d963dd5406ed549c96f0f1eb9c7c93541751335a64fad48",
+        "harness_id": "harness--82f5ace09945ce44"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.a1aea9ef9bbe4bf33d21c007",
+      "message": "measurement--native.floor.a1aea9ef9bbe4bf33d21c007 was produced by a version of bin/selftest_explorer_jobs.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "bin/selftest_explorer_jobs.py",
+        "recorded_entries": [
+          {
+            "path": "bin/selftest_explorer_jobs.py",
+            "role": "source_0095",
+            "sha256": "e695e5617d0fa279b60abf19935b84e360f0ff34bfcc33d9f8a312fe5df841f5"
+          }
+        ],
+        "checkout_sha256": "59dd2f27f8f8918f44abbdea4dd9f72b17425973d87f4debb4d23440f80a706d",
+        "harness_id": "harness--82f5ace09945ce44"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.a1aea9ef9bbe4bf33d21c007",
+      "message": "measurement--native.floor.a1aea9ef9bbe4bf33d21c007 was produced by a version of bin/selftest_jobs_resources.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "bin/selftest_jobs_resources.py",
+        "recorded_entries": [
+          {
+            "path": "bin/selftest_jobs_resources.py",
+            "role": "source_0114",
+            "sha256": "6e8debcf4888097ae81a146b7fe418b5460c25befe76094e867c71156291a82b"
+          }
+        ],
+        "checkout_sha256": "b1d02f737e25ef973649baee63e2c2ec6605f4c574e1ed59db94a551c0016a4b",
+        "harness_id": "harness--82f5ace09945ce44"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.a1aea9ef9bbe4bf33d21c007",
+      "message": "measurement--native.floor.a1aea9ef9bbe4bf33d21c007 was produced by a version of bin/selftest_race_mode.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "bin/selftest_race_mode.py",
+        "recorded_entries": [
+          {
+            "path": "bin/selftest_race_mode.py",
+            "role": "source_0131",
+            "sha256": "9d9656097b5b1bb92d42f844f91531c55411583d1f3552cf542200ef62d35948"
+          }
+        ],
+        "checkout_sha256": "264b8a0291d78af9409c54d6bd96e04270e97ef91b0d91ab580e907dd7cd7d2b",
+        "harness_id": "harness--82f5ace09945ce44"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.a1aea9ef9bbe4bf33d21c007",
+      "message": "measurement--native.floor.a1aea9ef9bbe4bf33d21c007 was produced by a version of bin/selftest_root_publish.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "bin/selftest_root_publish.py",
+        "recorded_entries": [
+          {
+            "path": "bin/selftest_root_publish.py",
+            "role": "source_0140",
+            "sha256": "36f129589f5c8a52e0a7abb96a4fa52c6ecdfcd484ecd0872f54465d8d4cad7d"
+          }
+        ],
+        "checkout_sha256": "ffa970987da0199ed6c0599d5a06c87a1df58e1be21bb26c7b3b8f9f98495d9d",
+        "harness_id": "harness--82f5ace09945ce44"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.a1aea9ef9bbe4bf33d21c007",
+      "message": "measurement--native.floor.a1aea9ef9bbe4bf33d21c007 was produced by a version of engines/tools/hf_capture.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "engines/tools/hf_capture.py",
+        "recorded_entries": [
+          {
+            "path": "engines/tools/hf_capture.py",
+            "role": "source_0207",
+            "sha256": "78032f531d2618bec4d8decf52282760be94ad08055b71fe189904d83730b5a6"
+          }
+        ],
+        "checkout_sha256": "a9170219f999db8aabcb5e5f98ae5562d6fd5ae3e2d8a105536fa3045d3bd813",
+        "harness_id": "harness--82f5ace09945ce44"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.a1aea9ef9bbe4bf33d21c007",
+      "message": "measurement--native.floor.a1aea9ef9bbe4bf33d21c007 was produced by a version of engines/tools/layer_outer.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "engines/tools/layer_outer.py",
+        "recorded_entries": [
+          {
+            "path": "engines/tools/layer_outer.py",
+            "role": "source_0281",
+            "sha256": "e3ea5715112663b1b60cf596eeffc2140e49b399809ece89a174bce41a969274"
+          }
+        ],
+        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "harness_id": "harness--82f5ace09945ce44"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.a1aea9ef9bbe4bf33d21c007",
+      "message": "measurement--native.floor.a1aea9ef9bbe4bf33d21c007 was produced by a version of engines/tools/race_fetch.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "engines/tools/race_fetch.py",
+        "recorded_entries": [
+          {
+            "path": "engines/tools/race_fetch.py",
+            "role": "source_0293",
+            "sha256": "b6be0ab1ea36e292a644087c8fa867594ac43d71163e7ce09f5effd05a4168a7"
+          }
+        ],
+        "checkout_sha256": "6d73bdfb5cd7448fcea1791b124381c4d2f8cd783666e1be263f2abe4be8f198",
+        "harness_id": "harness--82f5ace09945ce44"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.a1aea9ef9bbe4bf33d21c007",
+      "message": "measurement--native.floor.a1aea9ef9bbe4bf33d21c007 was produced by a version of engines/tools/selftest_trellis_decode_offline.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "engines/tools/selftest_trellis_decode_offline.py",
+        "recorded_entries": [
+          {
+            "path": "engines/tools/selftest_trellis_decode_offline.py",
+            "role": "source_0312",
+            "sha256": "1bb9456a889d1f43b07df0de10126957325ca07c0b6ddac9f39b910a0fe1ce16"
+          }
+        ],
+        "checkout_sha256": "4a1aad5a037d5811bf30103be3773113192350d463d981ab6a7872ea868bf7c2",
+        "harness_id": "harness--82f5ace09945ce44"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.a1aea9ef9bbe4bf33d21c007",
+      "message": "measurement--native.floor.a1aea9ef9bbe4bf33d21c007 was produced by a version of explorer/contribute.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "explorer/contribute.py",
+        "recorded_entries": [
+          {
+            "path": "explorer/contribute.py",
+            "role": "source_0323",
+            "sha256": "3a327220c9e5e8b8540a10e1fb6c85220771be026142a049aa297a07172616c5"
+          }
+        ],
+        "checkout_sha256": "2c98f1bb933125903e4475396c1e008ad3b38ff9db8a28b029a0702326fa187c",
+        "harness_id": "harness--82f5ace09945ce44"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.a1aea9ef9bbe4bf33d21c007",
+      "message": "measurement--native.floor.a1aea9ef9bbe4bf33d21c007 was produced by a version of explorer/job_ui.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "explorer/job_ui.py",
+        "recorded_entries": [
+          {
+            "path": "explorer/job_ui.py",
+            "role": "source_0328",
+            "sha256": "acf4603ef8db30ef1290bf4bd734abb2cf98b892fd4d2b4610e3f600e3dbeb59"
+          }
+        ],
+        "checkout_sha256": "e1616db74be6b25c697348f193bd5706804c010d0a957aeaecb6ab18cbb16061",
+        "harness_id": "harness--82f5ace09945ce44"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.a1aea9ef9bbe4bf33d21c007",
+      "message": "measurement--native.floor.a1aea9ef9bbe4bf33d21c007 was produced by a version of explorer/job_worker.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "explorer/job_worker.py",
+        "recorded_entries": [
+          {
+            "path": "explorer/job_worker.py",
+            "role": "source_0329",
+            "sha256": "007aa9fb5e2d2e1ea6a46947188d98958d52a5b666341dac9446cb3fa8434ff3"
+          }
+        ],
+        "checkout_sha256": "665fdb82efd86e6cb1f7613a3d2a48a1e5245a4e6c253a48b458467ee8eb889e",
+        "harness_id": "harness--82f5ace09945ce44"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.a1aea9ef9bbe4bf33d21c007",
+      "message": "measurement--native.floor.a1aea9ef9bbe4bf33d21c007 was produced by a version of explorer/jobs.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "explorer/jobs.py",
+        "recorded_entries": [
+          {
+            "path": "explorer/jobs.py",
+            "role": "source_0330",
+            "sha256": "556af3df4cb6fa7d822dd49a87d98083e2b3202220139fe8cfbc9a3f308ff693"
+          }
+        ],
+        "checkout_sha256": "73f6a624d639de4b8ebb68214e5df79fd63ebedb44f46e1f7389a0c63476d8a0",
+        "harness_id": "harness--82f5ace09945ce44"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.a1aea9ef9bbe4bf33d21c007",
+      "message": "measurement--native.floor.a1aea9ef9bbe4bf33d21c007 was produced by a version of explorer/review.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "explorer/review.py",
+        "recorded_entries": [
+          {
+            "path": "explorer/review.py",
+            "role": "source_0336",
+            "sha256": "7acdb42f33d8434a9dbb155a9cbf31b6880bdffc5ad97ed687d7b6fa8f117768"
+          }
+        ],
+        "checkout_sha256": "8bf7d0d7e2aac76a00f459aa471538f5e89e2cd2e5cc27a38536d11052a3eba6",
+        "harness_id": "harness--82f5ace09945ce44"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.a1aea9ef9bbe4bf33d21c007",
+      "message": "measurement--native.floor.a1aea9ef9bbe4bf33d21c007 was produced by a version of registry/tools/registry_selftest.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "registry/tools/registry_selftest.py",
+        "recorded_entries": [
+          {
+            "path": "registry/tools/registry_selftest.py",
+            "role": "source_0353",
+            "sha256": "f45fb335495ac0aa050f16260b478910af7bf329e5ee131dffb4161afec78b67"
+          }
+        ],
+        "checkout_sha256": "34a2aba5fa6166c91e9cba694e15375566546692d0e855a212fb95c3ad03b096",
+        "harness_id": "harness--82f5ace09945ce44"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.a1aea9ef9bbe4bf33d21c007",
+      "message": "measurement--native.floor.a1aea9ef9bbe4bf33d21c007 was produced by a version of registry/tools/registry_validate.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "registry/tools/registry_validate.py",
+        "recorded_entries": [
+          {
+            "path": "registry/tools/registry_validate.py",
+            "role": "source_0354",
+            "sha256": "52dfef11c60979f6b5675812a35e73423d8ce36672c0fe5b17c943084a43655c"
+          }
+        ],
+        "checkout_sha256": "8374eb6b5b23c25726a68c4d991358bad33f8c1261de9e08c556098c885deb44",
+        "harness_id": "harness--82f5ace09945ce44"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.a1aea9ef9bbe4bf33d21c007",
+      "message": "measurement--native.floor.a1aea9ef9bbe4bf33d21c007 was produced by a version of registry/tools/review_requests.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "registry/tools/review_requests.py",
+        "recorded_entries": [
+          {
+            "path": "registry/tools/review_requests.py",
+            "role": "source_0356",
+            "sha256": "150a5f3c83d95b9979a38ff22559b08c8baca58eabbfa06d036c4898236e29aa"
+          }
+        ],
+        "checkout_sha256": "80804b72f057d333c91e9cc6792e756af59d6bae16e3bdd6fef199a99998db79",
+        "harness_id": "harness--82f5ace09945ce44"
       }
     },
     {
@@ -12334,7 +12914,7 @@
             "sha256": "87b29777b6dbc75a0149953536c5a37b111b7be982ec43949b99db9363b79d0f"
           }
         ],
-        "checkout_sha256": "21ea0e9fcbd5ef814568f25cc43636f78f8ba58153289cd2039926d4a96a25c5",
+        "checkout_sha256": "665fdb82efd86e6cb1f7613a3d2a48a1e5245a4e6c253a48b458467ee8eb889e",
         "harness_id": "harness--03a35fcf2797fc88"
       }
     },
@@ -12357,7 +12937,7 @@
             "sha256": "500c673a5a3b8d987140ba6a18bbd8d922b58b772fba223411b7350a306162df"
           }
         ],
-        "checkout_sha256": "039a32ae1a82d1d44d09033b812d86fadd97a1007e492b059f0874e23f6662fc",
+        "checkout_sha256": "73f6a624d639de4b8ebb68214e5df79fd63ebedb44f46e1f7389a0c63476d8a0",
         "harness_id": "harness--03a35fcf2797fc88"
       }
     },
@@ -12916,8 +13496,8 @@
   ],
   "data_snapshot": {
     "repository": "malaiwah/quant-fidelity-registry",
-    "recovered_from_revision": "b8d5461e42ce3928bf5a4065accd055043e7b429",
-    "context": "Canonical full-suite snapshot including the accepted tiny candidate and original and baked native Qwen references."
+    "recovered_from_revision": "256529156bccf9a0df3c720bf1cc1db800cc0b2e",
+    "context": "Canonical full-suite snapshot including accepted tiny candidate, tiny CLI fixture root, and original and baked native Qwen references."
   },
   "source_provenance": {
     "suite_repository": "https://github.com/malaiwah/quant-fidelity-suite",
@@ -12958,23 +13538,23 @@
     "remote_base_revision": "16e38c663dde9725beb200385b33c8d0503e550b"
   },
   "previous_disposition_snapshot": {
-    "sha256": "f15208b4e41f6ebb5cd764023effb352df6de1263708bbb7dc137e2c3297d4f7",
+    "sha256": "81ec1473a797b56b2e13a8adc089a6b05ac695ba6868ca4e707689bb503d7188",
     "record_counts": {
       "models": 19,
       "artifacts": 95,
       "panels": 20,
-      "references": 31,
-      "pipelines": 33,
-      "measurements": 115
+      "references": 32,
+      "pipelines": 34,
+      "measurements": 116
     },
     "data_sha256": {
       "data/models.jsonl": "42302eb429e99bd184438ceee93394b1b5c7f11849d6877bc52c79aa1c08a1bf",
       "data/artifacts.jsonl": "99da280597e44cc55c8a43a7e89fae079e5a892536f63355bd805bd91d496ecb",
       "data/panels.jsonl": "539838836c3bcd0f2c2b52c0bf7fa2d69a3f5d5e307c72e7ea13fb8140408938",
-      "data/references.jsonl": "231bfcacf6abfc3e64d9199fb33ed96a7a59be51fc893fdf0e4d37438c0cd6e2",
-      "data/pipelines.jsonl": "4ecee36bb6005d9c099e020cd5cb158f4c24377f71b935fbc7a867571ab23224",
-      "data/measurements.jsonl": "4330e1a106fc4a0a83a3e3798d932a9068e2844d2990e90a0789946d5ba3d352",
-      "index.json": "df3def7cb2c84fd1b9c62f93cf1b2ebd5fc4f7aa334e40f23785cbd68db87033",
+      "data/references.jsonl": "0b324883197a1a67941052f83948a4093d923c28a9bb8f9125ca193de14fd5f8",
+      "data/pipelines.jsonl": "18b82d95b7a0f4a57b66a3c9c7ec93abe1af25321ecb27d84f2cb588356791ca",
+      "data/measurements.jsonl": "41a68a5427814d1cc3d45bd4886258ad53ba035e6ee931ced49a389e676e2d1c",
+      "index.json": "bb34450d2d3fd3526c9131b8e54596638606cae7e36dc1486ef8a8796d332eef",
       "schema/invariants.json": "59a0432690968bcced4ddf2b4fa4b3be7c89bdcc3fe9efd0212bea7d5b7dca0f"
     },
     "reviewed_on": "2026-09-09"

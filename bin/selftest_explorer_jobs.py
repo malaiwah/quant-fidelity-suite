@@ -10,9 +10,9 @@ EXP-02. Required-public review evidence is read anonymously ONLY: a 401/403 is
 itself the disclosure that the evidence is not public, so it is a refusal,
 never a credential escalation (review.py).
 
-EXP-03. The worker must consume the already-verified canonical dataset views,
-never re-read the raw Hub volume -- the exact surface that produced truncated
-JSON prefixes in production (job_worker.py).
+EXP-03. The worker must consume the already-verified canonical dataset and model
+metadata views, never re-read raw Hub metadata whose mounted bytes differ from
+the sealed census. Raw checkpoint weights remain strictly verified.
 
 EXP-04. Attribution values the Explorer infers from registry matching must be
 labeled as inference at the explorer layer; the frozen published metadata
@@ -260,6 +260,44 @@ def rung_anonymous_first(actor):
     check("E4d a public model metadata read sends no token", not _authenticated_reads(TOKEN))
 
 
+def rung_model_metadata_staging(actor):
+    """All non-weight census members are bounded canonical-staging inputs."""
+    files = {"config.json": PAYLOAD, "LICENSE": b"MIT fixture license\n",
+             "assets/context-frontier-dark.svg": b'<svg><path d="M0 1"/></svg>\n'}
+    paths, download = _serve(files)
+    siblings = [ns(rfilename=name, size=len(raw),
+                   lfs=ns(sha256=hashlib.sha256(raw).hexdigest()) if name.endswith(".svg") else None)
+                for name, raw in files.items()]
+    siblings.append(ns(rfilename="model.safetensors", size=32, lfs=ns(sha256="ab" * 32)))
+
+    def reset(extra=()):
+        info = ns(sha=REV, author="pub", card_data=None, siblings=siblings + list(extra))
+        _reset(model_info=lambda token, repo, **_: info, get_paths_info=paths, hf_hub_download=download)
+
+    reset()
+    metadata = jobs._model_metadata(actor, "pub/model", REV, mode="root")
+    expected = {name: {"path": name, "bytes": len(raw), "sha256": hashlib.sha256(raw).hexdigest()}
+                for name, raw in files.items()}
+    check("E7a canonical model staging retains every non-weight identity, including LFS SVGs",
+          {item["path"]: item for item in metadata["metadata_files"]} == expected
+          and {item["path"]: item for item in metadata["files"]}
+          == {**expected, "model.safetensors": {"path": "model.safetensors", "bytes": 32, "sha256": "ab" * 32}}
+          and not _authenticated_reads(TOKEN))
+
+    for label, sizes in (("per-file", [jobs.MAX_JSON + 1]),
+                         ("aggregate", [16 * 1024**2, 16 * 1024**2])):
+        reset([ns(rfilename="assets/large-%d.svg" % i, size=size, lfs=ns(sha256="cd" * 32))
+               for i, size in enumerate(sizes)])
+        check("E7b %s metadata overflow refuses even when every large file has an LFS digest" % label,
+              refuses(lambda: jobs._model_metadata(actor, "pub/model", REV, mode="root"), jobs.JobsError)
+              and not _authenticated_reads(TOKEN))
+
+    reset([ns(rfilename="unhashed.pth", size=jobs.MAX_JSON + 1, lfs=None)])
+    check("E7c unsupported unhashed weights refuse before downloading their payload",
+          refuses(lambda: jobs._model_metadata(actor, "pub/model", REV, mode="candidate"), jobs.JobsError)
+          and not any(r["args"][1] == "unhashed.pth" for r in RECORD if r["method"] == "hf_hub_download"))
+
+
 def rung_batched_dataset_metadata(actor):
     """A sealed full-panel inventory must fit a 500-request tree API quota."""
     from fidelity import dsformat as F, dsmanifest
@@ -494,6 +532,41 @@ def _staged_dataset(root, name, *, repo, revision, manifest_extra=None):
     return descriptor, manifest
 
 
+def _staged_model_input(root, name, *, repo, members):
+    """Stage original metadata while retaining a separately mutable raw mount."""
+    mount = root / (name + "-mount")
+    metadata_root = root / "plan" / "datasets" / name
+    files, metadata = [], []
+    for member, payload in sorted(members.items()):
+        path = mount / member
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(payload)
+        record = {"path": member, "bytes": len(payload), "sha256": hashlib.sha256(payload).hexdigest()}
+        files.append(record)
+        if not member.endswith((".safetensors", ".gguf", ".bin", ".pt", ".pth")):
+            staged = metadata_root / member
+            staged.parent.mkdir(parents=True, exist_ok=True)
+            staged.write_bytes(payload)
+            metadata.append(dict(record))
+    return {"repository": repo, "revision": REV, "mount_path": str(mount),
+            "files": files, "metadata_files": metadata}
+
+
+def _staged_tiny_model(root):
+    config = b'{"model_type": "tiny-fixture"}'
+    index = _canonical({"weight_map": {"fixture.weight": "model.safetensors"}})
+    weights = b"FIXTUREWEIGHTS" * 4
+    members = {"config.json": config, "model.safetensors.index.json": index,
+               "model.safetensors": weights, "LICENSE": b"MIT fixture license\n",
+               "assets/context-frontier-dark.svg": b'<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 1"/></svg>\n',
+               "tokenizer.json": b'{"version": "1.0", "fixture": "original tokenizer"}\n'}
+    model = _staged_model_input(root, "model", repo="pub/tiny", members=members)
+    model.update(config=json.loads(config), config_sha256=hashlib.sha256(config).hexdigest(),
+                 config_bytes=len(config), weight_bytes=len(weights),
+                 index_sha256=hashlib.sha256(index).hexdigest(), index_bytes=len(index), license_file="LICENSE")
+    return model, members
+
+
 def _prepare_worker_stubs(root):
     import explorer.job_worker as worker
     from fidelity import hfjobs
@@ -505,6 +578,115 @@ def _prepare_worker_stubs(root):
         "source_files": [{"path": "explorer/job_worker.py", "bytes": 1, "sha256": "a" * 64},
                          {"path": "bin/BUNDLE.txt", "bytes": 1, "sha256": "b" * 64}]}
     return worker
+
+
+def rung_worker_canonical_model_metadata(root):
+    """Keep the sealed census intact despite damaged raw non-weight members."""
+    from unittest.mock import patch
+    import explorer.job_worker as worker
+    from fidelity import hfjobs
+
+    fake_quant = types.ModuleType("quant_stream")
+    fake_quant.quantization = lambda config: {}
+    fake_quant.reader_for = lambda config: None
+
+    @contextlib.contextmanager
+    def case(name):
+        directory = root / "canonical-model" / name
+        model, members = _staged_tiny_model(directory)
+        out = directory / "outputs"
+        out.mkdir()
+        plan = jobs.seal({"mode": "candidate", "inputs": {"model": model},
+                          "runtime": {"trusted_code": None, "unexpected_allowlist": None}}, "plan_sha256")
+        with patch.object(worker, "PLAN_PATH", directory / "plan" / "plan.json"), \
+                patch.object(hfjobs, "INPUT_DATASET_ROOT", str(directory / "canonical-inputs")), \
+                patch.dict(sys.modules, {"quant_stream": fake_quant}):
+            yield plan, out, members
+
+    # The first binding is the standalone pre-fix reproduction: config and
+    # index are intact, so the old worker refuses the SVG at its full census.
+    with case("raw-svg") as (plan, out, members):
+        model = plan["inputs"]["model"]
+        raw = Path(model["mount_path"])
+        svg = "assets/context-frontier-dark.svg"
+        (raw / svg).write_bytes(members[svg][:9])
+        original_plan = _canonical(plan)
+        bound = worker.model_binding(plan, out)
+        check("W4a model input retains every original byte despite a truncated raw SVG",
+              {name: (bound / name).read_bytes() for name in members} == members
+              and (raw / svg).read_bytes() == members[svg][:9])
+        check("W4b canonical checkpoint is private scratch, with the sealed census unchanged",
+              bound == Path(hfjobs.INPUT_DATASET_ROOT) / "model"
+              and _canonical(plan) == original_plan
+              and jobs.seal(plan, "plan_sha256")["plan_sha256"] == plan["plan_sha256"])
+
+    with case("raw-all-metadata") as (plan, out, members):
+        plan["mode"] = "root"
+        plan = jobs.seal(plan, "plan_sha256")
+        raw = Path(plan["inputs"]["model"]["mount_path"])
+        for item in plan["inputs"]["model"]["metadata_files"]:
+            (raw / item["path"]).write_bytes(b"!")
+        bound = worker.model_binding(plan, out)
+        check("W4c native-root config, index, license, tokenizer and nested assets all use canonical bytes",
+              {name: (bound / name).read_bytes() for name in members} == members)
+
+    with case("changed-staged-bytes") as (plan, out, members):
+        staged = worker.PLAN_PATH.parent / "datasets" / "model" / "assets/context-frontier-dark.svg"
+        staged.write_bytes(b"!" + staged.read_bytes()[1:])
+        check("W4d changed staged metadata refuses even with an intact raw mount",
+              refuses(lambda: worker.model_binding(plan, out), ValueError))
+
+    with case("unlisted-staged-sidecar") as (plan, out, members):
+        staged = worker.PLAN_PATH.parent / "datasets" / "model" / "added_tokens.json"
+        staged.write_bytes(b'{"unplanned-token": 7}')
+        check("W4i an unlisted physical metadata sidecar cannot enter the canonical checkpoint",
+              refuses(lambda: worker.model_binding(plan, out), ValueError))
+
+    for inventory in ("missing", "extra", "duplicate", "conflicting-identity"):
+        with case("inventory-" + inventory) as (plan, out, members):
+            metadata = plan["inputs"]["model"]["metadata_files"]
+            if inventory == "missing":
+                metadata.pop()
+            elif inventory == "extra":
+                payload = b"unplanned metadata"
+                staged = worker.PLAN_PATH.parent / "datasets" / "model" / "extra.txt"
+                staged.write_bytes(payload)
+                metadata.append({"path": "extra.txt", "bytes": len(payload),
+                                 "sha256": hashlib.sha256(payload).hexdigest()})
+            elif inventory == "duplicate":
+                metadata.append(dict(metadata[0]))
+            else:
+                item = metadata[0]
+                staged = worker.PLAN_PATH.parent / "datasets" / "model" / item["path"]
+                payload = b"!" + staged.read_bytes()[1:]
+                staged.write_bytes(payload)
+                item["sha256"] = hashlib.sha256(payload).hexdigest()
+            plan = jobs.seal(plan, "plan_sha256")
+            check("W4e %s metadata inventory cannot replace the complete census" % inventory,
+                  refuses(lambda: worker.model_binding(plan, out), ValueError))
+
+    for corruption in ("same-size", "truncated"):
+        with case("raw-weight-" + corruption) as (plan, out, members):
+            path = Path(plan["inputs"]["model"]["mount_path"]) / "model.safetensors"
+            original = members["model.safetensors"]
+            path.write_bytes(b"!" + original[1:] if corruption == "same-size" else original[:-1])
+            check("W4f %s raw checkpoint corruption still refuses" % corruption,
+                  refuses(lambda: worker.model_binding(plan, out), ValueError))
+
+    for suffix in (".safetensors", ".gguf", ".bin", ".pt", ".pth"):
+        with case("unlisted-" + suffix[1:]) as (plan, out, members):
+            extra = Path(plan["inputs"]["model"]["mount_path"]) / "nested" / ("unlisted" + suffix)
+            extra.parent.mkdir()
+            extra.write_bytes(b"UNLISTEDWEIGHTS")
+            check("W4g unlisted %s weights refuse even outside the declared shard directory" % suffix,
+                  refuses(lambda: worker.model_binding(plan, out), ValueError))
+
+    with case("insufficient-copy-space") as (plan, out, members):
+        needed = sum(item["bytes"] for item in plan["inputs"]["model"]["files"]) + 64 * 1024**2
+        with patch.object(worker.shutil, "disk_usage", return_value=ns(free=needed - 1)):
+            check("W4h insufficient scratch capacity refuses before creating a canonical checkpoint",
+                  refuses(lambda: worker.model_binding(plan, out), ValueError)
+                  and not (Path(hfjobs.INPUT_DATASET_ROOT) / "model").exists())
 
 
 def rung_worker_canonical_views(root):
@@ -572,9 +754,23 @@ def rung_worker_canonical_views(root):
     # volume; post-fix it consumes the canonical staged manifest. The real
     # fidelity.panel was already imported by the W1 emit_submission chain, so
     # both sys.modules AND the package attribute are pointed at the stub.
+    tokenizer_members = {"config.json": b'{"model_type": "tiny-fixture"}',
+                         "tokenizer.json": b'{"version": "1.0", "fixture": "reference tokenizer"}\n',
+                         "tokenizer_config.json": b'{"tokenizer_class": "FixtureTokenizer"}\n'}
+    tokenizer = _staged_model_input(root, "tokenizer", repo="pub/tok", members=tokenizer_members)
+    for name in tokenizer_members:
+        (Path(tokenizer["mount_path"]) / name).write_bytes(b"{")
+    resolved_tokenizer_bytes = []
+
+    def resolve_panel(panel, role=None, tokenizer_root=None):
+        observed = {name: (Path(tokenizer_root) / name).read_bytes() for name in tokenizer_members}
+        if observed != tokenizer_members:
+            raise ValueError("tokenizer consumer received bytes outside the sealed identity")
+        resolved_tokenizer_bytes.append(observed)
+        return ns(to_dict=lambda: {"tokenizer": {"files_verified": True}})
+
     fake_panel = types.ModuleType("fidelity.panel")
-    fake_panel.resolve_panel = lambda panel, role=None, tokenizer_root=None: ns(
-        to_dict=lambda: {"tokenizer": {"files_verified": True}})
+    fake_panel.resolve_panel = resolve_panel
     sys.modules["fidelity.panel"] = fake_panel
     sys.modules["fidelity"].panel = fake_panel
     fake_quant = types.ModuleType("quant_stream")
@@ -582,18 +778,8 @@ def rung_worker_canonical_views(root):
     fake_quant.reader_for = lambda config: None
     sys.modules["quant_stream"] = fake_quant
 
-    mount = root / "model-mount"
-    mount.mkdir()
-    cfg, weights, lic = b'{"model_type": "tiny-fixture"}', b"FIXTUREWEIGHTS" * 4, b"MIT fixture license\n"
-    (mount / "config.json").write_bytes(cfg)
-    (mount / "model.safetensors").write_bytes(weights)
-    (mount / "LICENSE").write_bytes(lic)
-    model = {"repository": "pub/tiny", "revision": REV, "mount_path": str(mount),
-             "config": json.loads(cfg), "config_sha256": hashlib.sha256(cfg).hexdigest(),
-             "config_bytes": len(cfg),
-             "files": [{"path": n, "bytes": len(d), "sha256": hashlib.sha256(d).hexdigest()}
-                       for n, d in (("config.json", cfg), ("LICENSE", lic), ("model.safetensors", weights))],
-             "weight_bytes": len(weights), "index_sha256": None, "index_bytes": None, "license_file": "LICENSE"}
+    model, model_members = _staged_tiny_model(root)
+    (Path(model["mount_path"]) / "assets/context-frontier-dark.svg").write_bytes(b"<svg")
     panel_mount = root / "panel-mount"
     (panel_mount / "panel-x").mkdir(parents=True)
     (panel_mount / "panel-x" / "panel.json").write_bytes(b'{"schema": "quant-pipeline.glm53-token-panel.v1"}')
@@ -604,8 +790,7 @@ def rung_worker_canonical_views(root):
                                  "panel": {"repository": "pub/panel", "revision": REV, "path": "panel-x",
                                            "role": "final", "mount_path": str(panel_mount), "kind": "hub"},
                                  "reference": reference2, "candidate": None,
-                                 "tokenizer": {"repository": "pub/tok", "revision": REV,
-                                               "mount_path": str(root / "tokenizer-mount")}},
+                                 "tokenizer": tokenizer},
                       "output": {"dataset_repository": "tester/qfs-capture-y", "bucket": "tester/qfs-explorer-results",
                                  "prefix": "runs/y", "mount_path": "/outputs"},
                       "hardware": {"device": "cpu", "flavor": "cpu-basic", "timeout_seconds": 600},
@@ -614,7 +799,21 @@ def rung_worker_canonical_views(root):
                       "scope": scope, "codec": "nvfp4", "declared_bits": 4.0, "registered": None}
     out2 = root / "out-candidate"
     out2.mkdir()
-    runner2 = StubRunner(out2, {
+    captured_inputs = []
+
+    class InputCheckingRunner(StubRunner):
+        def run(self, name, arguments, *, allowed=(0,)):
+            if name in ("capture-first", "capture-repeat"):
+                argv = [str(a) for a in arguments]
+                model_root = Path(argv[argv.index("--model") + 1])
+                tokenizer_root = Path(argv[argv.index("--panel-tokenizer-root") + 1])
+                captured_inputs.append({
+                    "model": {item["path"]: (model_root / item["path"]).read_bytes()
+                              for item in model["metadata_files"]},
+                    "tokenizer": {member: (tokenizer_root / member).read_bytes() for member in tokenizer_members}})
+            return super().run(name, arguments, allowed=allowed)
+
+    runner2 = InputCheckingRunner(out2, {
         "reproduction": ("reproduction/comparison-receipt.json",
                          {"comparison_kind": "reproduction_confirmation",
                           "self_compare": {"force_compute_agreed": True}}),
@@ -630,6 +829,34 @@ def rung_worker_canonical_views(root):
         check("W2c base capture carries the canonical manifest's sealed dataset identity",
               payload["dataset_sha256"] == reference2_manifest["dataset_sha256"]
               and payload["capture_content_digest"] == reference2_manifest["capture"]["capture_content_digest"])
+    expected_inputs = {"model": {item["path"]: model_members[item["path"]] for item in model["metadata_files"]},
+                       "tokenizer": tokenizer_members}
+    check("W2d both capture consumers receive original model and reference-tokenizer metadata bytes",
+          captured_inputs == [expected_inputs, expected_inputs]
+          and resolved_tokenizer_bytes == [tokenizer_members])
+
+    # Restore the raw tokenizer so a forbidden raw-mount fallback would succeed;
+    # only the staged identity is now damaged and must stop capture.
+    for name, payload in tokenizer_members.items():
+        (Path(tokenizer["mount_path"]) / name).write_bytes(payload)
+    staged_tokenizer = worker.PLAN_PATH.parent / "datasets" / "tokenizer" / "tokenizer.json"
+    staged_tokenizer.write_bytes(b"!" + tokenizer_members["tokenizer.json"][1:])
+    hfjobs.INPUT_DATASET_ROOT = str(root / "staged-inputs-tokenizer-refusal")
+    refused_out = root / "out-tokenizer-refusal"
+    refused_out.mkdir()
+    check("W2e changed staged tokenizer refuses before another capture despite valid raw bytes",
+          refuses(lambda: worker.workflow(candidate_plan, refused_out, InputCheckingRunner(refused_out), {}), ValueError)
+          and captured_inputs == [expected_inputs, expected_inputs])
+
+    staged_tokenizer.write_bytes(tokenizer_members["tokenizer.json"])
+    (staged_tokenizer.parent / "added_tokens.json").write_bytes(b'{"unplanned-token": 7}')
+    hfjobs.INPUT_DATASET_ROOT = str(root / "staged-inputs-tokenizer-extra")
+    extra_out = root / "out-tokenizer-extra"
+    extra_out.mkdir()
+    check("W2f an unlisted physical tokenizer sidecar refuses before token resolution or capture",
+          refuses(lambda: worker.workflow(candidate_plan, extra_out, InputCheckingRunner(extra_out), {}), ValueError)
+          and resolved_tokenizer_bytes == [tokenizer_members]
+          and captured_inputs == [expected_inputs, expected_inputs])
 
 
 # ---------------------------------------------------------------------------
@@ -943,6 +1170,21 @@ def rung_stale_reconciliation(actor, root):
     stale_run = {"state": "CREATING", "plan": {"workflow_id": STALE_WID},
                  "reserved_at": "2026-09-07T00:00:00+00:00"}
     saved_ledgers = []
+    staging_root = root / "launch-staging"
+    launch_model, launch_model_members = _staged_tiny_model(staging_root)
+    launch_tokenizer_members = {"tokenizer.json": b'{"fixture": "reference-tokenizer"}\n'}
+    launch_tokenizer = _staged_model_input(staging_root, "tokenizer", repo="pub/tok",
+                                         members=launch_tokenizer_members)
+    launch_model["mount_path"] = "/inputs/model"
+    launch_tokenizer["mount_path"] = "/inputs/tokenizer"
+    launch_sources = {"pub/tiny": launch_model_members, "pub/tok": launch_tokenizer_members}
+    bucket_root = root / "fake-launch-bucket"
+
+    def stage_bucket(token, bucket, *, add):
+        for source, name in add:
+            destination = bucket_root / name
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(source if isinstance(source, bytes) else Path(source).read_bytes())
 
     def ledger_responses(workflow_query):
         def list_jobs(token, *args, **kwargs):
@@ -960,18 +1202,24 @@ def rung_stale_reconciliation(actor, root):
                       status=ns(stage="SCHEDULING", message=None), flavor="cpu-basic", created_at=None,
                       labels={"qfs_app": "explorer", "qfs_workflow_id": kwargs["env"]["QFS_WORKFLOW_ID"]})
         paths, download = _serve({"ledger.json": _ledger_doc({STALE_WID: stale_run})})
+
+        def input_download(token, repo, filename):
+            if repo in launch_sources:
+                return launch_sources[repo][filename]
+            return download(token, repo, filename)
+
         return {
             "list_jobs_hardware": lambda token, *a, **_: [{"name": "cpu-basic", "unit_label": "minute",
                                                            "unit_cost_micro_usd": 167, "accelerator": None}],
             "repo_exists": lambda token, *a, **_: True,
             "repo_info": lambda token, *a, **kwargs: ns(sha="d" * 40, private=True),
-            "get_paths_info": paths, "hf_hub_download": download,
+            "get_paths_info": paths, "hf_hub_download": input_download,
             "upload_file": lambda token, *a, **kwargs: (saved_ledgers.append(json.loads(kwargs["path_or_fileobj"]))
                                                         or ns(oid="e" * 40)),
             "list_jobs": list_jobs,
             "create_bucket": lambda token, *a, **_: None,
             "bucket_info": lambda token, *a, **_: ns(private=True),
-            "batch_bucket_files": lambda token, *a, **_: None,
+            "batch_bucket_files": stage_bucket,
             "run_job": run_job,
             "inspect_job": lambda token, **kwargs: ns(
                 id="job_fixture01", url="https://huggingface.co/jobs/tester/job_fixture01",
@@ -996,9 +1244,28 @@ def rung_stale_reconciliation(actor, root):
             prepared = _launch_plan(actor, source_fixture, image_fixture)
             plan = prepared["plan"]
             plan["mode"] = mode
+            if mode != "compare":
+                plan["inputs"]["model"] = launch_model
+            if mode == "candidate":
+                plan["inputs"]["tokenizer"] = launch_tokenizer
             plan["output"]["prefix"] = "runs/" + plan["workflow_id"]
             plan = jobs.seal(plan, "plan_sha256")
             jobs.launch(actor, {"plan": plan, "ticket": jobs._ticket(plan)}, confirm_compute=True)
+            if mode != "compare":
+                model_stage = bucket_root / plan["output"]["prefix"] / "inputs" / "datasets" / "model"
+                check("S1 canonical model metadata reaches the private bucket for " + mode,
+                      {item["path"]: (model_stage / item["path"]).read_bytes()
+                       for item in launch_model["metadata_files"]}
+                      == {item["path"]: launch_model_members[item["path"]] for item in launch_model["metadata_files"]}
+                      and not (model_stage / "model.safetensors").exists())
+            if mode == "candidate":
+                tokenizer_stage = bucket_root / plan["output"]["prefix"] / "inputs" / "datasets" / "tokenizer"
+                check("S1 candidate tokenizer stages its own original bytes, separate from candidate metadata",
+                      {name: (tokenizer_stage / name).read_bytes() for name in launch_tokenizer_members}
+                      == launch_tokenizer_members)
+            check("S1 public model/tokenizer staging never sends the caller credential",
+                  not [row for row in _authenticated_reads(TOKEN)
+                       if row["method"] == "hf_hub_download" and row["args"][0] in launch_sources])
             invocation = next(row["kwargs"] for row in RECORD if row["method"] == "run_job")
             check("S1 action command reaches provider for " + mode,
                   invocation["command"] == ["/usr/local/bin/qfs-job", action, "--plan",
@@ -1017,6 +1284,22 @@ def rung_stale_reconciliation(actor, root):
             job.docker_image = "python@sha256:" + "0" * 64
             check("S1 CLI recovery refuses changed image",
                   refuses(lambda: jobs._verify_provider(actor, job, plan), jobs.JobsError))
+
+        _reset(**ledger_responses(lambda wid: []))
+        changed_plan = _launch_plan(actor, source_fixture, image_fixture)["plan"]
+        changed_plan["mode"] = "candidate"
+        changed_plan["inputs"].update(model=launch_model, tokenizer=launch_tokenizer)
+        changed_plan = jobs.seal(changed_plan, "plan_sha256")
+        svg = "assets/context-frontier-dark.svg"
+        original_svg = launch_model_members[svg]
+        launch_model_members[svg] = b"!" + original_svg[1:]
+        try:
+            check("S1 changed model metadata refuses private preparation before any compute submission",
+                  refuses(lambda: jobs.launch(actor, {"plan": changed_plan, "ticket": jobs._ticket(changed_plan)},
+                                              confirm_compute=True), jobs.JobsError)
+                  and not [row for row in RECORD if row["method"] == "run_job"])
+        finally:
+            launch_model_members[svg] = original_svg
         for contract in ("python-bootstrap-v1", "measurement-venv-v1", "capture"):
             _reset(**ledger_responses(lambda wid: []))
             plan = _launch_plan(actor, source_fixture, image_fixture)["plan"]
@@ -1554,9 +1837,11 @@ def main():
         actor = Actor("tester", TOKEN)
         try:
             rung_anonymous_first(actor)
+            rung_model_metadata_staging(actor)
             rung_batched_dataset_metadata(actor)
             rung_prefetched_metadata_reads(actor)
             rung_public_evidence(actor)
+            rung_worker_canonical_model_metadata(root)
             rung_worker_canonical_views(root)
             rung_worker_result_inventory(root)
             rung_attribution_labeling(root)
