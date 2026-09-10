@@ -29,6 +29,10 @@ EXP-07. Results execute and inventory locally, then explicitly checkpoint to the
 bucket. Stale bucket listings cannot omit declared outputs or sealed sidecars;
 final-byte corruption, interruptions and output limits must never seal success.
 
+EXP-08. The reviewed selftest battery is a fixed launcher action with an empty
+input set: no preset, model, panel, dataset or scope may be planned for it, and
+no other mode or contract may reach that action.
+
 Everything runs against a stubbed huggingface_hub: no network, no real HF, no
 token. The one token-shaped fixture string is never sent anywhere.
 """
@@ -1251,19 +1255,20 @@ def rung_stale_reconciliation(actor, root):
               saved_ledgers and saved_ledgers[-1]["runs"][STALE_WID]["state"] == "RECONCILED_ABSENT"
               and saved_ledgers[-1]["runs"][wid]["job_id"] == "job_fixture01")
 
-        for mode, action in (("root", "capture"), ("candidate", "measure"), ("compare", "compare")):
+        for mode, action in (("root", "capture"), ("candidate", "measure"), ("compare", "compare"),
+                             ("selftest", "selftest")):
             _reset(**ledger_responses(lambda wid: []))
             prepared = _launch_plan(actor, source_fixture, image_fixture)
             plan = prepared["plan"]
             plan["mode"] = mode
-            if mode != "compare":
+            if mode in ("root", "candidate"):
                 plan["inputs"]["model"] = launch_model
             if mode == "candidate":
                 plan["inputs"]["tokenizer"] = launch_tokenizer
             plan["output"]["prefix"] = "runs/" + plan["workflow_id"]
             plan = jobs.seal(plan, "plan_sha256")
             jobs.launch(actor, {"plan": plan, "ticket": jobs._ticket(plan)}, confirm_compute=True)
-            if mode != "compare":
+            if mode in ("root", "candidate"):
                 model_stage = bucket_root / plan["output"]["prefix"] / "inputs" / "datasets" / "model"
                 check("S1 canonical model metadata reaches the private bucket for " + mode,
                       {item["path"]: (model_stage / item["path"]).read_bytes()
@@ -1397,6 +1402,69 @@ def rung_stale_reconciliation(actor, root):
         check("S1h inspect names the unresolved reservation", inspected["unresolved_reservations"] == [STALE_WID])
     finally:
         jobs._source_identity = real_identity
+
+
+# ---------------------------------------------------------------------------
+# EXP-08: the reviewed offline battery is a fixed action with no measurement
+# inputs. It rents hardware to run rungs that skip locally; it measures no
+# model, so a plan that names one must never be prepared.
+# ---------------------------------------------------------------------------
+def rung_selftest_launch_admission(actor):
+    from unittest.mock import patch
+
+    expected = ["/usr/local/bin/qfs-job", "selftest", "--plan", "/inputs/plan/plan.json",
+                "--out", "/outputs/result"]
+    check("T1 the sealed selftest mode yields the exact reviewed launcher argv",
+          jobs._launch_command("measurement-cli-v1", "selftest") == expected)
+    for mode in (None, "", "selftest-battery", "battery", "capture", "selftests", "SELFTEST"):
+        check("T1 sealed mode %r has no reviewed action alias" % (mode,),
+              refuses(lambda mode=mode: jobs._launch_command("measurement-cli-v1", mode), jobs.JobsError))
+    for contract in ("measurement-cli-v2", "selftest", "", None):
+        check("T1 launch contract %r has no executable fallback" % (contract,),
+              refuses(lambda contract=contract: jobs._launch_command(contract, "selftest"), jobs.JobsError))
+
+    flavor = {"name": "cpu-basic", "unit_label": "minute", "unit_cost_micro_usd": 167,
+              "accelerator": None, "ram": "16 GB", "ephemeral_storage": "50 GB"}
+    source_fixture = {"repository": jobs.SOURCE, "revision": "f" * 40,
+                      "worker_sha256": "a" * 64, "bootstrap_sha256": "b" * 64}
+    image_fixture = json.loads((ROOT / "explorer/job_environment.json").read_text())["image"]
+    spec = {"mode": "selftest", "flavor": "cpu-basic", "timeout_seconds": 900, "max_compute_usd": "1"}
+    _reset(repo_exists=lambda token, *a, **kwargs: False,
+           list_jobs_hardware=lambda token, *a, **kwargs: [dict(flavor)])
+    # Every metadata seam refuses: a selftest plan must read no model, dataset or panel.
+    with patch.object(jobs, "_source_identity", return_value=(source_fixture, image_fixture)), \
+            patch.object(jobs, "_model_metadata", side_effect=AssertionError("selftest read model metadata")), \
+            patch.object(jobs, "_dataset_metadata", side_effect=AssertionError("selftest read dataset metadata")), \
+            patch.object(jobs, "_resolve_planning_panel", side_effect=AssertionError("selftest resolved a panel")), \
+            patch.object(jobs, "_registered", side_effect=AssertionError("selftest consulted the registry")):
+        prepared = jobs.prepare(actor, spec, registry=object())
+        plan = prepared["plan"]
+        jobs.verify_seal(plan, "plan_sha256")
+        check("T2 a sealed selftest plan carries no measurement input at all",
+              plan["mode"] == "selftest"
+              and set(plan["inputs"]) == {"model", "panel", "reference", "candidate", "tokenizer", "registry"}
+              and all(value is None for value in plan["inputs"].values())
+              and plan["scope"] is None and plan["codec"] is None
+              and plan["declared_bits"] is None and plan["registered"] is None)
+        check("T2 the sealed selftest plan launches only the reviewed selftest argv",
+              plan["launch_contract"] == "measurement-cli-v1"
+              and jobs._launch_command(plan["launch_contract"], plan["mode"]) == expected)
+        for field, value in (("preset", "root:qwen38-27b"), ("model_repository", "pub/tiny"),
+                             ("model_revision", "c" * 40), ("panel_repository", "pub/panel"),
+                             ("panel_revision", "d" * 40), ("panel_path", "engines/panels/final"),
+                             ("reference_repository", "tester/reference"), ("reference_revision", "e" * 40),
+                             ("candidate_repository", "tester/candidate"), ("candidate_revision", "1" * 40),
+                             ("scope_json", '{"assignments": [{"tensor_class": "mlp.up"}]}'),
+                             ("codec", "int4"), ("declared_bits", 4.0)):
+            check("T2 a selftest spec refuses the measurement input " + field,
+                  refuses(lambda field=field, value=value: jobs.prepare(
+                      actor, dict(spec, **{field: value}), registry=object()), jobs.JobsError))
+        for mode in ("selftest-battery", "battery", "selftests", "SELFTEST"):
+            check("T2 unknown workflow mode %r refuses" % (mode,),
+                  refuses(lambda mode=mode: jobs.prepare(actor, dict(spec, mode=mode), registry=object()),
+                          jobs.JobsError))
+    check("T2 selftest planning creates no bucket, no Job and no paid provider call",
+          not [row for row in RECORD if row["method"] in ("run_job", "create_bucket", "batch_bucket_files")])
 
 
 def rung_baked_runtime(actor, root):
@@ -1859,6 +1927,7 @@ def main():
             rung_attribution_labeling(root)
             rung_publish_token_file(root)
             rung_stale_reconciliation(actor, root)
+            rung_selftest_launch_admission(actor)
             rung_baked_runtime(actor, root)
             rung_bootstrap_no_install(root)
             hf_intake_identity_regression(ROOT / "registry")

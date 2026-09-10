@@ -154,7 +154,8 @@ Worker code and container images are immutable pins. Model code receives
 read-only input mounts and a private output volume, never caller credentials.
 New Jobs use the published `quant-fidelity-measure` linux/amd64 image at the
 digest in `explorer/job_environment.json`, through its baked `qfs-job`
-`capture`, `measure` or `compare` action and explicit `--plan`/`--out` options.
+`capture`, `measure`, `compare` or `selftest` action and explicit `--plan`/`--out`
+options.
 The command uses the baked venv internally; no inline Python appears in the
 HF Job command. Startup verifies the image BUILD/content, launcher provenance and
 installed dependency closure instead of running per-Job package installations.
@@ -166,6 +167,18 @@ or incompatible devices refuse rather than installing over the image.
 Only native supported loaders or explicitly reviewed code pins execute; an
 arbitrary model `auto_map` is not an execution grant. Failed captures remain
 failed, with bounded progress logs and private partial evidence.
+
+`selftest` rents hardware to run one fixed list of reviewed offline suites --
+`selftest_exl3hf_offline`, `selftest_trellis_decode_offline`,
+`selftest_gguf_offline` and `selftest_nvfp4_offline` -- with the image's patched
+pipeline importable, because those are the suites whose CUDA and
+`quant_pipeline` rungs can only SKIP on a workstation. The suite list lives in
+the worker source, not in the plan: a selftest Job mounts no model, panel or
+dataset, measures nothing, and cannot be turned into an arbitrary command
+runner. An image with no importable pipeline is a refusal rather than a run
+that re-skips the same rungs, and the exl3hf native oracle is required to
+execute. Passing rungs are not native serving parity, whole-model
+qualification, or a measurement of any artifact.
 
 Canonical input metadata is staged through the authenticated private bucket and
 verified against its sealed inventory. This includes every model/tokenizer

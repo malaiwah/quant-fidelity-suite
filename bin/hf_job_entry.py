@@ -24,7 +24,7 @@ OUT = Path("/outputs/result")
 CONTRACT = "measurement-cli-v1"
 MAX_JSON = 4 * 1024 * 1024
 MAX_BOOTSTRAP = 1024 * 1024
-ACTIONS = {"root": "capture", "candidate": "measure", "compare": "compare"}
+ACTIONS = {"root": "capture", "candidate": "measure", "compare": "compare", "selftest": "selftest"}
 HEX64 = re.compile(r"[0-9a-f]{64}")
 REPOSITORY = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*")
 
@@ -68,7 +68,7 @@ def validate_plan(plan, action, environ):
             or environ.get("QFS_PLAN_SHA256") != expected):
         raise ValueError("QFS_PLAN_SHA256 and QFS_WORKFLOW_ID must bind this approved plan")
     if ACTIONS.get(plan.get("mode")) != action:
-        raise ValueError("action does not match the sealed plan role; use capture for root, measure for candidate, compare for compare")
+        raise ValueError("action does not match the sealed plan role; use capture for root, measure for candidate, compare for compare, selftest for selftest")
     source = plan.get("source")
     if (not isinstance(source, dict) or source.get("repository") != SOURCE
             or not re.fullmatch(r"[0-9a-f]{40}", str(source.get("revision")))
@@ -156,7 +156,8 @@ def build_parser():
     actions = parser.add_subparsers(dest="action", required=True)
     for action, description in (("capture", "capture and repeat a reference root"),
                                 ("measure", "capture a candidate and compare to its reference"),
-                                ("compare", "compare sealed reference and candidate captures")):
+                                ("compare", "compare sealed reference and candidate captures"),
+                                ("selftest", "run the reviewed offline battery subset on this device")):
         sub = actions.add_parser(action, help=description, description=description.capitalize() + " using the sealed HF workflow plan.")
         sub.add_argument("--plan", required=True, help="approved sealed plan; must be /inputs/plan/plan.json")
         sub.add_argument("--out", required=True, help="fresh result directory; must be /outputs/result")

@@ -194,7 +194,14 @@ def plan_resources(mode, model, binding, reference, candidate, tokenizer, hardwa
                   "comparator_array_bytes": 0, "metadata_margin_bytes": 64 * 1024**2}
     gpu = 0
     cpu = 2 * GIB
-    if model:
+    if mode == "selftest":
+        # The reviewed battery builds its own small fixtures: no panel, no
+        # checkpoint, no capture. Reserve a device allowance for the CUDA decode
+        # rungs and the metadata margin, and nothing that pretends to be a
+        # capture-fit claim.
+        cpu = max(cpu, 4 * GIB)
+        gpu = 2 * GIB if hardware["device"] == "cuda" else 0
+    elif model:
         geometry = model["resource_geometry"]
         panel = binding["panel"]
         contexts = positive(panel["contexts"], "panel contexts")

@@ -27,6 +27,25 @@ HEX64 = re.compile(r"[0-9a-f]{64}\Z")
 REPOSITORY = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9][A-Za-z0-9_.-]*\Z")
 LOG_LIMIT = 1024 * 1024
 WEIGHT_SUFFIXES = (".safetensors", ".gguf", ".bin", ".pt", ".pth")
+#: The reviewed on-accelerator battery. These four suites carry the rungs a
+#: workstation must skip for want of CUDA or of the unpublished quant_pipeline,
+#: and the list is FIXED: a selftest Job is not an arbitrary command runner, so
+#: no plan field can name anything outside it.
+SELFTEST_SUITES = (
+    "engines/tools/selftest_exl3hf_offline.py",
+    "engines/tools/selftest_trellis_decode_offline.py",
+    "engines/tools/selftest_gguf_offline.py",
+    "engines/tools/selftest_nvfp4_offline.py",
+)
+#: Suites that take the pipeline tree as a flag. The other two discover it by
+#: import, so the stage puts its `src` on the child's import path instead.
+SELFTEST_PIPELINE_FLAG = frozenset({
+    "engines/tools/selftest_gguf_offline.py",
+    "engines/tools/selftest_nvfp4_offline.py",
+})
+#: The image's baked closure: venv, patched pipeline and -- when the pipeline's
+#: own import loads it -- exllamav3.
+IMAGE_ROOT = Path("/opt/fidelity")
 
 
 def canonical(value):
@@ -188,9 +207,12 @@ def _output_coverage(plan, local, outputs, records):
             raise ValueError("result inventory omits or changes a declared artifact: " + name)
         return local / name
 
-    expected = {"first", "repeat", "reproduction"} if plan["mode"] != "compare" else set()
-    if plan["mode"] != "root":
-        expected.add("comparison")
+    if plan["mode"] == "selftest":
+        expected = {"selftest"}
+    else:
+        expected = {"first", "repeat", "reproduction"} if plan["mode"] != "compare" else set()
+        if plan["mode"] != "root":
+            expected.add("comparison")
     if not expected.issubset(outputs) or set(outputs) - expected - {"submission"}:
         raise ValueError("workflow did not declare all required outputs")
     for key, name in outputs.items():
@@ -269,7 +291,10 @@ def validate_plan(plan, out):
     if runtime.get("dtype") != "bfloat16" or runtime.get("schedule") != "layer-outer":
         raise ValueError("only the declared BF16 layer-outer runtime is admitted")
     mode = plan.get("mode")
-    required = {"root": {"model", "panel"}, "candidate": {"model", "panel", "reference"}, "compare": {"reference", "candidate"}}.get(mode)
+    required = {"root": {"model", "panel"}, "candidate": {"model", "panel", "reference"},
+                "compare": {"reference", "candidate"},
+                # The battery measures nothing, so it mounts nothing.
+                "selftest": set()}.get(mode)
     if required is None or set(plan["inputs"]) != {"model", "panel", "reference", "candidate", "tokenizer", "registry"}:
         raise ValueError("invalid action/input contract")
     if mode == "candidate":
@@ -305,7 +330,7 @@ def validate_plan(plan, out):
     bits = plan.get("declared_bits")
     if bits is not None and (isinstance(bits, bool) or not isinstance(bits, (int, float)) or not math.isfinite(bits) or not 0 < bits <= 64):
         raise ValueError("invalid nominal bits")
-    if mode != "compare":
+    if mode not in ("compare", "selftest"):
         panel = plan["inputs"]["panel"]
         relative(panel["path"])
         if panel.get("role") != "final":
@@ -612,6 +637,68 @@ def dataset_view(descriptor, name):
     return destination
 
 
+def selftest_environment():
+    """What the image actually offers the battery, read rather than assumed."""
+    import torch
+
+    pipeline = IMAGE_ROOT / "pipeline"
+    observed = {"image_root": str(IMAGE_ROOT), "pipeline_root": str(pipeline),
+                "pipeline_present": (pipeline / "src" / "quant_pipeline" / "__init__.py").is_file(),
+                "exllamav3_present": (IMAGE_ROOT / "exllamav3").is_dir(),
+                "torch_version": torch.__version__,
+                "cuda_available": bool(torch.cuda.is_available()),
+                "device_name": None, "device_capability": None}
+    if observed["cuda_available"]:
+        observed.update(device_name=torch.cuda.get_device_name(0),
+                        device_capability="%d.%d" % torch.cuda.get_device_capability(0))
+    return observed
+
+
+def selftest_stage(plan, out, runner):
+    """Run the reviewed battery subset here; every suite must exit zero.
+
+    The skipped rungs are the whole reason to rent the device, so an image with
+    no importable pipeline is a refusal, and the exl3hf native oracle is
+    REQUIRED to execute rather than permitted to skip itself.
+    """
+    observed = selftest_environment()
+    if not observed["pipeline_present"]:
+        raise ValueError("this image carries no importable quant_pipeline; a Job that would only "
+                         "re-skip those rungs is not worth renting")
+    if plan["hardware"]["device"] == "cuda" and not observed["cuda_available"]:
+        raise ValueError("a cuda plan reached a worker with no visible CUDA device")
+    pipeline = IMAGE_ROOT / "pipeline"
+    runner.environment.update(QP_PIPELINE_ROOT=str(pipeline), PYTHONPATH=str(pipeline / "src"))
+    directory = out / "selftest"
+    directory.mkdir()
+    suites = []
+    for suite in SELFTEST_SUITES:
+        path = ROOT / suite
+        if not path.is_file():
+            raise ValueError("reviewed suite missing from the immutable source: " + suite)
+        argv = [sys.executable, path]
+        if suite in SELFTEST_PIPELINE_FLAG:
+            argv.extend(["--pipeline-root", str(pipeline)])
+        # The sealed plan decides, not whatever device happens to be visible:
+        # a cuda plan already refused above if the device were absent.
+        require_native = (suite.endswith("selftest_exl3hf_offline.py")
+                          and plan["hardware"]["device"] == "cuda")
+        if require_native:
+            argv.append("--require-live-native")
+        step = "selftest-" + path.stem
+        runner.run(step, argv)
+        suites.append({"suite": suite, "step": step, "argv": [str(item) for item in argv],
+                       "source_sha256": digest(path), "log": step + ".log",
+                       "native_oracle_required": require_native})
+    report = {"schema": "qfs.hf-workflow-selftest.v1", "suites": suites, "suite_count": len(suites),
+              "environment": observed,
+              "scope": "The reviewed offline battery subset, executed on this rented device with the "
+                       "image's patched pipeline importable. Passing rungs are not native serving "
+                       "parity, whole-model qualification, or a measurement of any artifact."}
+    save(directory / "report.json", report)
+    return report
+
+
 def workflow(plan, out, runner, outputs):
     sys.path.insert(0, str(ROOT / "bin"))
     from fidelity import dsformat, jobcontract
@@ -628,6 +715,11 @@ def workflow(plan, out, runner, outputs):
     if inputs.get("registry"):
         registry_root, _ = runner.measure("prepare-registry", staged_metadata, inputs["registry"], "registry")
     mode = plan["mode"]
+    if mode == "selftest":
+        outputs["selftest"] = "selftest/report.json"
+        runner.measure("selftest-battery", selftest_stage, plan, out, runner)
+        runner.bound()
+        return
     datasets = {}
     if replay["device"] == "cuda":
         observed_resources = job_resources.check_worker_resources(plan, out, OUT_PATH)

@@ -629,15 +629,19 @@ def _prepare(actor, spec, registry=None):
                "scope_json", "codec", "declared_bits", "flavor", "timeout_seconds", "max_compute_usd", "output_repository",
                "review_metadata", "max_output_bytes", "replay_device", "max_active_jobs"}
     if set(spec) - allowed:
-        raise JobsError("Unknown workflow input field. Select mode root, candidate or compare; the executable, action, paths and launch contract are fixed by the reviewed deployment.")
+        raise JobsError("Unknown workflow input field. Select mode root, candidate, compare or selftest; the executable, action, paths and launch contract are fixed by the reviewed deployment.")
     _validate_review_metadata(spec.get("review_metadata", {}))
     preset = next((p for p in presets() if p["id"] == spec.get("preset")), None)
     if spec.get("preset") and preset is None:
         raise JobsError("Choose a listed preset or custom workflow.")
     request = {**(preset or {}), **{k: v for k, v in spec.items() if v not in (None, "")}}
     mode = request.get("mode", "root")
-    if mode not in ("root", "candidate", "compare"):
-        raise JobsError("Choose root capture, candidate measurement, or existing-dataset comparison.")
+    if mode not in ("root", "candidate", "compare", "selftest"):
+        raise JobsError("Choose root capture, candidate measurement, existing-dataset comparison, or the reviewed selftest battery.")
+    if mode == "selftest" and set(request) - {"mode", "flavor", "timeout_seconds", "max_compute_usd",
+                                              "max_output_bytes", "max_active_jobs", "replay_device",
+                                              "output_repository", "review_metadata"}:
+        raise JobsError("A selftest Job measures nothing: model, panel, dataset, scope and preset inputs are not admitted.")
     source, image = _source_identity()
     timeout = request.get("timeout_seconds", request.get("recommended_timeout_seconds", 600))
     if type(timeout) is not int or not 60 <= timeout <= 86400:
@@ -661,11 +665,12 @@ def _prepare(actor, spec, registry=None):
     if estimate > ceiling:
         raise JobsError("This hardware/deadline estimates $%s including two startup minutes, above your $%s ceiling." % (estimate, ceiling))
     actor.require_lifetime(timeout + 120)
-    model = None if mode == "compare" else _model_metadata(actor, request.get("model_repository"), request.get("model_revision"), mode=mode)
-    reference = None if mode == "root" else _dataset_metadata(actor, request.get("reference_repository"), request.get("reference_revision"), "/inputs/reference")
+    measuring = mode != "selftest"
+    model = _model_metadata(actor, request.get("model_repository"), request.get("model_revision"), mode=mode) if measuring and mode != "compare" else None
+    reference = _dataset_metadata(actor, request.get("reference_repository"), request.get("reference_revision"), "/inputs/reference") if measuring and mode != "root" else None
     candidate = _dataset_metadata(actor, request.get("candidate_repository"), request.get("candidate_revision"), "/inputs/candidate") if mode == "compare" else None
     panel = None
-    if mode != "compare":
+    if measuring and mode != "compare":
         panel = dict((preset or {}).get("panel") or {"repository": request.get("panel_repository"), "revision": request.get("panel_revision"), "path": request.get("panel_path"), "role": "final"})
         _relative(panel.get("path"))
         if panel.get("kind") == "bundled":
@@ -849,9 +854,10 @@ _BOOTSTRAP_FETCH = _HISTORICAL_BOOTSTRAP_FETCH.replace(
 
 def _launch_command(contract, mode=None):
     if contract == "measurement-cli-v1":
-        action = {"root": "capture", "candidate": "measure", "compare": "compare"}.get(mode)
+        action = {"root": "capture", "candidate": "measure", "compare": "compare",
+                  "selftest": "selftest"}.get(mode)
         if action is None:
-            raise JobsError("The sealed workflow mode must be root, candidate or compare; no action alias is allowed.")
+            raise JobsError("The sealed workflow mode must be root, candidate, compare or selftest; no action alias is allowed.")
         return ["/usr/local/bin/qfs-job", action, "--plan", "/inputs/plan/plan.json", "--out", "/outputs/result"]
     if contract == "measurement-venv-v1":
         return ["/opt/fidelity/venv/bin/python", "-c", _BOOTSTRAP_FETCH]

@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 """Offline behavior regressions for sealed Jobs budgets; no Hub/GPU/paid work."""
+import contextlib
 import copy
+import hashlib
 import json
 import os
 from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import types
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -41,6 +44,222 @@ def fixture():
     hardware = {"device": "cuda", "ram": "142 GB", "ephemeral_storage": "1000 GB",
                 "accelerator": {"type": "gpu", "quantity": "1", "vram": "80 GB"}}
     return model, binding, hardware
+
+
+#: The reviewed rented battery and which suites take the pipeline tree as a
+#: flag, pinned here instead of derived from the implementation constants, so
+#: an unreviewed edit to either list fails this rung rather than following it.
+SELFTEST_BATTERY = (("engines/tools/selftest_exl3hf_offline.py", False),
+                    ("engines/tools/selftest_trellis_decode_offline.py", False),
+                    ("engines/tools/selftest_gguf_offline.py", True),
+                    ("engines/tools/selftest_nvfp4_offline.py", True))
+
+
+class RecordingRunner:
+    """Record the exact battery invocation; never execute a suite."""
+
+    def __init__(self):
+        self.environment = {"PATH": "/usr/bin"}
+        self.calls = []
+
+    def run(self, step, arguments, *, allowed=(0,)):
+        self.calls.append({"step": step, "argv": [str(item) for item in arguments],
+                           "environment": dict(self.environment)})
+
+
+@contextlib.contextmanager
+def torch_visibility(available):
+    """State CUDA visibility without a device, and without importing Torch here.
+
+    The controller battery must stay importable on stock Python with no tensor
+    stack; only `selftest_environment`'s narrow Torch surface is stood in for.
+    """
+    module = sys.modules.get("torch")
+    substitute = module is None
+    if substitute:
+        module = types.ModuleType("torch")
+        module.__version__ = "0.0.0+fixture"
+        module.cuda = types.SimpleNamespace(is_available=lambda: False,
+                                            get_device_name=lambda index: "",
+                                            get_device_capability=lambda index: (0, 0))
+        sys.modules["torch"] = module
+    try:
+        with patch.object(module.cuda, "is_available", return_value=available), \
+                patch.object(module.cuda, "get_device_name", return_value="Fixture Device"), \
+                patch.object(module.cuda, "get_device_capability", return_value=(9, 0)):
+            yield
+    finally:
+        if substitute:
+            del sys.modules["torch"]
+
+
+def battery_image(root, *, pipeline=True, omit=()):
+    """A temporary immutable-source tree and image closure; no real suite bytes."""
+    source, image = root / "source", root / "image"
+    for suite, _ in SELFTEST_BATTERY:
+        if suite in omit:
+            continue
+        path = source / suite
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("#!/usr/bin/env python3\n# stand-in for " + suite + "\n")
+    package = image / "pipeline/src/quant_pipeline"
+    if pipeline:
+        package.mkdir(parents=True)
+        (package / "__init__.py").write_text("")
+    else:
+        image.mkdir(parents=True)
+    return source, image
+
+
+def expected_battery(source, image, *, native):
+    """The exact reviewed argv, receipt fields and digests for one sealed plan."""
+    records = []
+    for suite, flagged in SELFTEST_BATTERY:
+        path = source / suite
+        argv = [sys.executable, str(path)]
+        if flagged:
+            argv.extend(["--pipeline-root", str(image / "pipeline")])
+        oracle = native and suite.endswith("selftest_exl3hf_offline.py")
+        if oracle:
+            argv.append("--require-live-native")
+        step = "selftest-" + Path(suite).stem
+        records.append({"suite": suite, "step": step, "argv": argv,
+                        "source_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+                        "log": step + ".log", "native_oracle_required": oracle})
+    return records
+
+
+def selftest_worker_stage():
+    """The rented battery runs exactly the reviewed suites, or refuses outright."""
+    assert tuple(name for name, _ in SELFTEST_BATTERY) == tuple(job_worker.SELFTEST_SUITES)
+    assert frozenset(name for name, flagged in SELFTEST_BATTERY if flagged) == job_worker.SELFTEST_PIPELINE_FLAG
+    for name, _ in SELFTEST_BATTERY:
+        assert (ROOT / name).is_file(), "reviewed suite absent from this checkout: " + name
+    cpu_plan = {"mode": "selftest", "hardware": {"device": "cpu"}}
+    cuda_plan = {"mode": "selftest", "hardware": {"device": "cuda"}}
+    with tempfile.TemporaryDirectory(prefix="qfs-selftest-stage-") as td:
+        base = Path(td).resolve()
+
+        def case(label, *, pipeline=True, omit=()):
+            root = base / label
+            root.mkdir()
+            source, image = battery_image(root, pipeline=pipeline, omit=omit)
+            out = root / "out"
+            out.mkdir()
+            return source, image, out, RecordingRunner()
+
+        # An image with no importable pipeline can only re-skip the rungs the
+        # rental exists to execute; nothing runs and no receipt is written.
+        source, image, out, runner = case("no-pipeline", pipeline=False)
+        with patch.object(job_worker, "ROOT", source), patch.object(job_worker, "IMAGE_ROOT", image), \
+                torch_visibility(False):
+            refuses(lambda: job_worker.selftest_stage(cpu_plan, out, runner), "importable quant_pipeline")
+        assert runner.calls == [] and not (out / "selftest").exists()
+
+        source, image, out, runner = case("no-device")
+        with patch.object(job_worker, "ROOT", source), patch.object(job_worker, "IMAGE_ROOT", image), \
+                torch_visibility(False):
+            refuses(lambda: job_worker.selftest_stage(cuda_plan, out, runner), "no visible CUDA device")
+        assert runner.calls == [] and not (out / "selftest").exists()
+
+        # A suite missing from the immutable source is a refusal, not a shorter
+        # battery: the preceding suite has already run when it is discovered.
+        source, image, out, runner = case("missing-suite", omit=("engines/tools/selftest_trellis_decode_offline.py",))
+        with patch.object(job_worker, "ROOT", source), patch.object(job_worker, "IMAGE_ROOT", image), \
+                torch_visibility(False):
+            refuses(lambda: job_worker.selftest_stage(cpu_plan, out, runner),
+                    "reviewed suite missing from the immutable source: engines/tools/selftest_trellis_decode_offline.py")
+        assert [call["step"] for call in runner.calls] == ["selftest-selftest_exl3hf_offline"]
+        assert not (out / "selftest/report.json").exists()
+
+        # The sealed plan's device decides the native oracle, not whatever the
+        # worker happens to see: a cuda plan already refused without a device,
+        # and a cpu plan on a CUDA-visible host must not silently acquire it.
+        for label, plan, native, visible in (("host", cpu_plan, False, False),
+                                             ("device", cuda_plan, True, True),
+                                             ("host-on-device", cpu_plan, False, True)):
+            source, image, out, runner = case(label)
+            with patch.object(job_worker, "ROOT", source), patch.object(job_worker, "IMAGE_ROOT", image), \
+                    torch_visibility(visible):
+                report = job_worker.selftest_stage(plan, out, runner)
+            expected = expected_battery(source, image, native=native)
+            assert report["suites"] == expected
+            assert [call["step"] for call in runner.calls] == [item["step"] for item in expected]
+            assert [call["argv"] for call in runner.calls] == [item["argv"] for item in expected]
+            demanded = [item["suite"] for item in expected if "--require-live-native" in item["argv"]]
+            assert demanded == (["engines/tools/selftest_exl3hf_offline.py"] if native else [])
+            assert [item["suite"] for item in expected if "--pipeline-root" in item["argv"]] == [
+                "engines/tools/selftest_gguf_offline.py", "engines/tools/selftest_nvfp4_offline.py"]
+            # The two flagless suites must still import the image's pipeline.
+            assert runner.environment["QP_PIPELINE_ROOT"] == str(image / "pipeline")
+            assert runner.environment["PYTHONPATH"] == str(image / "pipeline/src")
+            assert all(call["environment"]["QP_PIPELINE_ROOT"] == str(image / "pipeline")
+                       and call["environment"]["PYTHONPATH"] == str(image / "pipeline/src")
+                       for call in runner.calls)
+            durable = json.loads((out / "selftest/report.json").read_text())
+            assert durable == report
+            assert durable["schema"] == "qfs.hf-workflow-selftest.v1" and durable["suite_count"] == 4
+            environment = durable["environment"]
+            assert environment["cuda_available"] is visible and environment["pipeline_present"] is True
+            assert environment["pipeline_root"] == str(image / "pipeline")
+            assert (environment["device_name"] == "Fixture Device") is visible
+            for item in durable["suites"]:
+                assert item["source_sha256"] == job_worker.digest(source / item["suite"])
+    print("PASS rented battery refuses a pipelineless image, an absent CUDA device and a missing reviewed suite")
+    print("PASS rented battery runs the four reviewed suites in order with exact flags, environment and digests")
+
+
+def selftest_output_declaration():
+    """A battery result declares the battery receipt and nothing else."""
+    with tempfile.TemporaryDirectory(prefix="qfs-selftest-outputs-") as td:
+        local = Path(td).resolve()
+        (local / "selftest").mkdir()
+        report = local / "selftest/report.json"
+        report.write_text(json.dumps({"schema": "qfs.hf-workflow-selftest.v1", "suite_count": 4}))
+        records = [job_worker.row(report, local)]
+        declared = {"selftest": "selftest/report.json"}
+        battery = {"mode": "selftest"}
+        job_worker._output_coverage(battery, local, declared, records)
+        refuses(lambda: job_worker._output_coverage(battery, local, {}, records), "required outputs")
+        refuses(lambda: job_worker._output_coverage(battery, local, dict(declared, comparison="comparison/receipt.json"),
+                                                    records), "required outputs")
+        refuses(lambda: job_worker._output_coverage(battery, local, declared, []), "omits or changes")
+        # A measurement plan may not smuggle the battery receipt into its result.
+        for mode, expected in (("root", {"first", "repeat", "reproduction"}),
+                               ("candidate", {"first", "repeat", "reproduction", "comparison"}),
+                               ("compare", {"comparison"})):
+            outputs = dict({key: key + "/receipt.json" for key in expected}, **declared)
+            refuses(lambda mode=mode, outputs=outputs: job_worker._output_coverage(
+                {"mode": mode}, local, outputs, records), "required outputs")
+    print("PASS selftest result declares exactly the battery receipt; measurement modes refuse it")
+
+
+def selftest_mode_resources():
+    """The battery reserves a working floor, not a capture-fit claim."""
+    margin = 64 * 1024**2
+    cuda = {"device": "cuda", "ram": "142 GB", "ephemeral_storage": "1000 GB",
+            "accelerator": {"type": "gpu", "quantity": "1", "vram": "80 GB"}}
+    cpu = {"device": "cpu", "ram": "16 GB", "ephemeral_storage": "100 GB"}
+
+    def battery(hardware, maximum=margin):
+        return R.plan_resources("selftest", None, None, None, None, None, hardware, maximum)
+
+    accelerated = battery(cuda)
+    assert accelerated["minimum_output_bytes"] == margin
+    assert {key for key, value in accelerated["output_components"].items() if value} == {"metadata_margin_bytes"}
+    assert accelerated["cpu_ram_required_bytes"] == 4 * R.GIB
+    assert accelerated["gpu_required_bytes"] == 2 * R.GIB
+    assert accelerated["capture_required_bytes"] == accelerated["replay_required_bytes"] == 0
+    assert accelerated["checkpoint_bytes"] == accelerated["canonical_dataset_bytes"] == 0
+    assert accelerated["tokenizer_source_bytes"] == 0 and accelerated["runtime_qualified"] is False
+    host = battery(cpu)
+    assert host["cpu_ram_required_bytes"] == 4 * R.GIB and host["gpu_required_bytes"] == 0
+    assert host["minimum_output_bytes"] == margin
+    refuses(lambda: battery(dict(cpu, ram="3 GB")), "CPU RAM")
+    refuses(lambda: battery(dict(cuda, accelerator={"type": "gpu", "quantity": "1", "vram": "1 GB"})),
+            "single-device VRAM")
+    refuses(lambda: battery(cuda, margin - 1), "below")
+    print("PASS selftest resources hold the 4 GiB CPU floor, CUDA-only 2 GiB allowance and metadata-only output minimum")
 
 
 def main():
@@ -311,6 +530,9 @@ with tempfile.TemporaryDirectory() as td, patch.object(Actor,'client') as client
             old_format = dict(allow, artifact_sha256=job_worker.digest(path))
             refuses(lambda: job_worker.vetted_unexpected_inventory(old_format, model_meta), "capture CLI")
     print("PASS exact vetted Qwen inventory reaches real worker binding; foreign identities and inventories refuse")
+    selftest_mode_resources()
+    selftest_worker_stage()
+    selftest_output_declaration()
     return 0
 
 

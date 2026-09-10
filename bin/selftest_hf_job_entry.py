@@ -159,11 +159,71 @@ class LauncherTests(unittest.TestCase):
     def test_help_and_unknown_model_override(self):
         result = subprocess.run([sys.executable, "-I", entry.__file__, "--help"], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
-        for action in ("capture", "measure", "compare"):
+        for action in ("capture", "measure", "compare", "selftest"):
             self.assertIn(action, result.stdout)
         with self.assertRaises(SystemExit) as refused, contextlib.redirect_stderr(io.StringIO()):
             entry.build_parser().parse_args(["capture", "--plan", str(self.plan), "--out", str(self.out), "--model", "foreign/model"])
         self.assertEqual(refused.exception.code, 2)
+
+    def test_action_matches_exactly_one_sealed_plan_role(self):
+        roles = (("root", "capture"), ("candidate", "measure"), ("compare", "compare"), ("selftest", "selftest"))
+        for mode, expected in roles:
+            document = fixture(mode)
+            environ = {"QFS_WORKFLOW_ID": document["workflow_id"], "QFS_PLAN_SHA256": document["plan_sha256"]}
+            for _, action in roles:
+                with self.subTest(mode=mode, action=action):
+                    if action == expected:
+                        self.assertEqual(entry.validate_plan(document, action, environ),
+                                         document["hardware"]["timeout_seconds"])
+                    else:
+                        with self.assertRaises(ValueError):
+                            entry.validate_plan(document, action, environ)
+
+    def test_selftest_role_mismatch_refuses_before_network(self):
+        self.update(fixture("selftest"))
+        for action in ("capture", "measure", "compare"):
+            with self.subTest(action=action):
+                self.refused_before_fetch(action)
+        for mode in ("root", "candidate", "compare"):
+            with self.subTest(mode=mode):
+                self.update(fixture(mode))
+                self.refused_before_fetch("selftest")
+
+    def test_selftest_keeps_fixed_paths_identity_binding_and_tokenless_launch(self):
+        self.update(fixture("selftest"))
+
+        def invoke(plan_path, out_path):
+            with contextlib.redirect_stderr(io.StringIO()):
+                return entry.main(["selftest", "--plan", plan_path, "--out", out_path])
+
+        self.assertEqual(invoke(str(self.root / "copy.json"), str(self.out)), 3)
+        self.assertEqual(invoke(str(self.plan), str(self.root / "elsewhere")), 3)
+        for extra in (["--model", "foreign/model"], ["--token", "fixture-not-a-real-token"],
+                      ["--suite", "selftest_gguf_offline"]):
+            with self.subTest(extra=extra[0]), self.assertRaises(SystemExit) as refused, \
+                    contextlib.redirect_stderr(io.StringIO()):
+                entry.build_parser().parse_args(["selftest", "--plan", str(self.plan), "--out", str(self.out), *extra])
+            self.assertEqual(refused.exception.code, 2)
+        for name in ("HF_TOKEN", "HUGGING_FACE_HUB_TOKEN", "HF_API_TOKEN"):
+            os.environ[name] = "fixture-not-a-real-token"
+            with self.subTest(credential=name):
+                self.refused_before_fetch("selftest")
+            del os.environ[name]
+        unsealed = dict(self.document, hardware=dict(self.document["hardware"], hourly_usd="0.02"))
+        self.plan.write_bytes(entry.canonical(unsealed))
+        self.refused_before_fetch("selftest")
+        self.plan.write_bytes(entry.canonical(self.document))
+        for name, value in (("QFS_PLAN_SHA256", "0" * 64), ("QFS_WORKFLOW_ID", "f" * 32)):
+            original = os.environ[name]
+            os.environ[name] = value
+            with self.subTest(binding=name):
+                self.refused_before_fetch("selftest")
+            os.environ[name] = original
+        # Only the sealed plan bytes, fixed mounts and tokenless environment reach the fetch.
+        self.fetch.side_effect = ValueError("admission reached the pinned bootstrap fetch")
+        self.assertEqual(self.launch("selftest"), 3)
+        self.assertEqual(self.fetch.call_count, 1)
+        self.execute.assert_not_called()
 
     def test_valid_actions_execute_verified_bootstrap_in_real_process(self):
         for mode, action in entry.ACTIONS.items():
