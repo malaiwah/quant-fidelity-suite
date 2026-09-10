@@ -277,6 +277,164 @@ def selftest_mode_resources():
     print("PASS selftest resources hold the 4 GiB CPU floor, CUDA-only 2 GiB allowance and metadata-only output minimum")
 
 
+RECOVERY_JOB = "fixture-recovery-job"
+
+
+@contextlib.contextmanager
+def hub_bucket_stub():
+    """Stand in only the bucket-listing type; no Hub client is ever contacted."""
+    previous = sys.modules.get("huggingface_hub")
+    module = types.ModuleType("huggingface_hub")
+
+    class BucketFile:
+        def __init__(self, path, size):
+            self.path, self.size = path, size
+
+    module.BucketFile = BucketFile
+    sys.modules["huggingface_hub"] = module
+    try:
+        yield BucketFile
+    finally:
+        if previous is None:
+            del sys.modules["huggingface_hub"]
+        else:
+            sys.modules["huggingface_hub"] = previous
+
+
+def recovery_tree(mode, artifacts, outputs):
+    """A sealed plan and the exact durable tree a finished Job would leave behind."""
+    workflow = "b" * 32
+    plan = jobs.seal({"schema": "qfs.hf-workflow-plan.v1", "mode": mode, "workflow_id": workflow,
+                      "owner": "fixture-owner", "image": "fixture@sha256:" + "a" * 64,
+                      "hardware": {"flavor": "l4x1", "timeout_seconds": 900},
+                      "output": {"bucket": "fixture-bucket", "prefix": "runs/" + workflow},
+                      "source": {"revision": "a" * 40},
+                      "limits": {"max_output_bytes": 64 * 1024 * 1024},
+                      "plan_sha256": ""}, "plan_sha256")
+    files = {"plan.json": json.dumps(plan, indent=2).encode()}
+    files.update(artifacts)
+    records = [{"path": name, "bytes": len(blob), "sha256": hashlib.sha256(blob).hexdigest()}
+               for name, blob in sorted(files.items())]
+    result = jobs.seal({"schema": "qfs.hf-workflow-result.v1", "mode": mode, "workflow_id": workflow,
+                        "owner": plan["owner"], "plan_sha256": plan["plan_sha256"], "status": "complete",
+                        "outputs": outputs, "files": records, "result_sha256": ""}, "result_sha256")
+    files["result.json"] = json.dumps(result, indent=2).encode()
+    return plan, result, files
+
+
+def drive_recovery(plan, result, files):
+    """Run the real `jobs._fetch_result` over a synthetic bucket transfer.
+
+    Qualification and comparison validation are sentinels, never executed: this
+    rung asks which post-transfer path a sealed mode reaches, not whether a
+    measurement qualifies. Returns the proof, the reached paths and the ledger row.
+    """
+    reached = []
+
+    def qualification(directory, sealed, execution, *, suite_root=None):
+        reached.append("qualification")
+        return {"qualification_path": str(Path(directory) / "qualification.json")}
+
+    def validate_receipt(document):
+        reached.append("dsvalidate")
+        return types.SimpleNamespace(errors=[])
+
+    def verify_comparison(proof):
+        reached.append("comparison")
+
+    job = types.SimpleNamespace(labels={"qfs_workflow_id": plan["workflow_id"]},
+                                docker_image=plan["image"], flavor=plan["hardware"]["flavor"],
+                                environment={"QFS_PLAN_SHA256": plan["plan_sha256"]},
+                                status=types.SimpleNamespace(stage="COMPLETED"),
+                                created_at="2026-01-01T00:00:00Z", started_at=None,
+                                finished_at=None, durations=None)
+    saved = {"plan": plan, "job_id": RECOVERY_JOB}
+    actor = Actor(plan["owner"], False)
+    attestation = json.dumps({"status": result["status"], "workflow_id": result["workflow_id"],
+                              "result_sha256": result["result_sha256"]})
+    prefix = plan["output"]["prefix"] + "/outputs/result"
+
+    def download(bucket, entries, **kw):
+        for item, target in entries:
+            target.write_bytes(files[item.path[len(prefix) + 1:]])
+
+    with tempfile.TemporaryDirectory(prefix="qfs-recovery-") as td, hub_bucket_stub() as BucketFile, \
+            patch.object(Actor, "client") as client, \
+            patch.object(jobs, "_owned_job", return_value=job), \
+            patch.object(jobs, "_ledger", return_value=("repo", "head", {"runs": {plan["workflow_id"]: saved}})), \
+            patch.object(jobs, "_verify_provider"), patch.object(jobs, "_save_ledger"), \
+            patch.object(jobs, "_verify_comparison", verify_comparison), \
+            patch("fidelity.hfjobs.qualify_result", qualification), \
+            patch("fidelity.dsvalidate.validate_receipt", validate_receipt), \
+            patch.object(R.shutil, "disk_usage", return_value=types.SimpleNamespace(free=100 * R.GIB)):
+        client.return_value.list_bucket_tree.return_value = [
+            BucketFile(prefix + "/" + name, len(blob)) for name, blob in sorted(files.items())]
+        client.return_value.download_bucket_files.side_effect = download
+        client.return_value.fetch_job_logs.return_value = [attestation]
+        proof = jobs._fetch_result(actor, RECOVERY_JOB, Path(td))
+        proof.pop("directory")
+    return proof, reached, saved
+
+
+def refuses_recovery(call, text):
+    """Recovery must refuse, and refuse as a refusal: never KeyError/AttributeError."""
+    try:
+        call()
+    except Exception as exc:
+        if not isinstance(exc, jobs.JobsError):
+            raise AssertionError("recovery raised %s instead of refusing: %s" % (type(exc).__name__, exc)) from exc
+        if text not in str(exc):
+            raise AssertionError("wrong refusal: " + str(exc)) from exc
+        return
+    raise AssertionError("recovery accepted a damaged battery receipt")
+
+
+def selftest_recovery_branch():
+    """Battery recovery proves its own receipt and qualifies no measurement."""
+    report = {"schema": "qfs.hf-workflow-selftest.v1", "suite_count": 2, "native_oracle_required": False,
+              "suites": [{"suite": "engines/tools/selftest_exl3hf_offline.py", "source_sha256": "1" * 64},
+                         {"suite": "engines/tools/selftest_gguf_offline.py", "source_sha256": "2" * 64}]}
+    declared = {"selftest": "selftest/report.json"}
+
+    def battery(document):
+        return recovery_tree("selftest", {"selftest/report.json": json.dumps(document, indent=2).encode()}, declared)
+
+    plan, result, files = battery(report)
+    proof, reached, saved = drive_recovery(plan, result, files)
+    # The battery receipt is the proof; a battery qualifies nothing and has no
+    # comparison to validate, so neither downstream path may be entered.
+    assert proof["selftest"] == report
+    assert "qualification" not in proof and reached == []
+    assert proof["plan"] == plan and proof["result"] == result
+    assert proof["execution"]["job_id"] == RECOVERY_JOB and proof["execution"]["status"] == "COMPLETED"
+    assert saved["state"] == "VERIFIED" and saved["verified_result_sha256"] == result["result_sha256"]
+
+    # A declared receipt that never arrived is a refusal, not a fabricated pass.
+    absent = recovery_tree("selftest", {}, declared)
+    refuses_recovery(lambda: drive_recovery(*absent), "JSON evidence is missing")
+    damaged = (dict(report, schema="qfs.hf-workflow-selftest.v2"),
+               dict(report, suite_count=0, suites=[]),
+               dict(report, suite_count=3),
+               dict(report, suite_count=3, suites="abc"),
+               dict(report, suites=[dict(report["suites"][0], source_sha256="0" * 63 + "z"), report["suites"][1]]))
+    for document in damaged:
+        refuses_recovery(lambda document=document: drive_recovery(*battery(document)),
+                         "not an intact selftest report")
+
+    # Control: the measurement modes still reach their own post-transfer path.
+    for mode in ("root", "candidate"):
+        proof, reached, _ = drive_recovery(*recovery_tree(
+            mode, {"capture/receipt.json": b"{}"}, {"first": "capture/receipt.json"}))
+        assert reached == ["qualification"] and "selftest" not in proof
+        assert proof["qualification"]["qualification_path"].endswith("qualification.json")
+    proof, reached, _ = drive_recovery(*recovery_tree(
+        "compare", {"comparison/receipt.json": b"{}"}, {"comparison": "comparison/receipt.json"}))
+    assert reached == ["dsvalidate", "comparison"]
+    assert "selftest" not in proof and "qualification" not in proof
+    print("PASS battery recovery stores the intact receipt, qualifies nothing and refuses a damaged report")
+    print("PASS measurement recovery still reaches qualification and comparison validation")
+
+
 def main():
     model, binding, hardware = fixture()
     def plan(maximum=32 * R.GIB, hw=hardware, mdl=model, panel=binding, reference=None, tokenizer=None):
@@ -548,6 +706,7 @@ with tempfile.TemporaryDirectory() as td, patch.object(Actor,'client') as client
     selftest_mode_resources()
     selftest_worker_stage()
     selftest_output_declaration()
+    selftest_recovery_branch()
     return 0
 
 

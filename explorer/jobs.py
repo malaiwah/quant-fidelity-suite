@@ -1165,6 +1165,15 @@ def _fetch_result(actor, job_id, directory):
     if plan["mode"] in ("root", "candidate"):
         from fidelity.hfjobs import qualify_result
         proof["qualification"] = qualify_result(directory, plan, execution, suite_root=ROOT)
+    elif plan["mode"] == "selftest":
+        report = _read_json(directory / _relative(result["outputs"]["selftest"]))
+        if (report.get("schema") != "qfs.hf-workflow-selftest.v1"
+                or not isinstance(report.get("suites"), list) or not report["suites"]
+                or report.get("suite_count") != len(report["suites"])
+                or any(not HEX.fullmatch(str(row.get("source_sha256"))) for row in report["suites"])):
+            raise JobsError("The battery receipt is not an intact selftest report.")
+        # A battery proves its suites ran here; it qualifies no measurement.
+        proof["selftest"] = report
     else:
         from fidelity import dsvalidate
         comparison = directory / _relative(result["outputs"]["comparison"])
