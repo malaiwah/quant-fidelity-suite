@@ -72,7 +72,11 @@ EXL3_TREE=8b00c03978d850d2b53224acbd92018e107707d1
 EXL3_ARCHIVE_SHA256=3c13cdd74d5fc3c75f426c7b6ae8d8543207483831522280d1d641b974cf452c
 # No torch2.11-tagged flash-attn 2.8.3 wheel exists.  This authored
 # torch2.10-tagged artifact is the proven compatibility choice; on a measuring
-# GPU validate_flash_attn verifies it with an actual kernel call.
+# GPU validate_flash_attn verifies it with an actual kernel call.  Identity is
+# the wheel SHA-256 enforced at install: upstream's dist-info records the bare
+# release version ("2.8.3"), so the cu13/torch2.10/abiTRUE tag lives only in the
+# filename validate_flash_attn also names -- the check accepts the metadata
+# form of the same pinned release, never a different release.
 FLASH_ATTN_VERSION="2.8.3+cu13torch2.10cxx11abitrue"
 FLASH_ATTN_WHL="https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3+cu13torch2.10cxx11abiTRUE-cp312-cp312-linux_x86_64.whl"
 FLASH_ATTN_SHA256=910d8db9def162de5b7c15474b933e7e2371e93733b980e9d3c07cd3bf2f568e
@@ -395,7 +399,10 @@ import os
 
 wanted = os.environ["FLASH_ATTN_EXPECTED"]
 actual = metadata.version("flash-attn")
-if actual.lower() != wanted:
+# The pinned wheel's dist-info carries only the bare release version; the
+# torch/cu/abi tag is in the filename and its bytes are hash-verified at
+# install.  Accept the metadata form of the SAME release, refuse any other.
+if actual.lower() not in (wanted.lower(), wanted.split("+", 1)[0]):
     raise SystemExit(f"flash-attn {actual} installed, expected {wanted}")
 import flash_attn
 import torch
@@ -459,10 +466,18 @@ print(f"exllamav3 source={expected}")
 PY
 }
 
+# The probe decides by default: a decode-only run should not pay ~20 minutes of
+# CUDA extension build on faith. FIDELITY_BOOTSTRAP_REQUIRE_EXL3 is the explicit
+# opt-in for an image that must be able to RUN the native oracle rather than
+# report it absent, and it never relaxes any pin or validation below.
 _needs_exl3=1
-if probe >"$RCPT/pipeline-import.txt" 2>&1 \
+if [ -z "${FIDELITY_BOOTSTRAP_REQUIRE_EXL3:-}" ] \
+    && probe >"$RCPT/pipeline-import.txt" 2>&1 \
     && grep -q '^exllamav3-loaded: no$' "$RCPT/pipeline-import.txt"; then
   _needs_exl3=0
+fi
+if [ -n "${FIDELITY_BOOTSTRAP_REQUIRE_EXL3:-}" ]; then
+  log "exllamav3 build explicitly REQUIRED by FIDELITY_BOOTSTRAP_REQUIRE_EXL3"
 fi
 if [ "$_needs_exl3" -eq 1 ]; then
   log "pipeline requires exllamav3; reconstructing its exact source checkout"
@@ -493,8 +508,16 @@ if [ "$_needs_exl3" -eq 1 ]; then
       || ! validate_exl3_import >"$RCPT/exllamav3-build.txt" 2>&1; then
     # A newly installed torch invalidates any previously compiled editable
     # extension even when its direct_url and Python package path are unchanged.
-    ( cd "$EXL3" && TORCH_CUDA_ARCH_LIST="9.0;10.0" \
-        "$PY" -m pip -q install --force-reinstall --no-build-isolation --no-deps -e . )
+    # --use-pep517: pip's legacy `setup.py develop` writes no direct_url.json,
+    # so validate_exl3_import could never accept it; PEP 660 records the
+    # editable dir_info and setuptools >= 64 (75.8 is in the wheel lock) maps
+    # the package at the checkout, keeping every module file inside it.
+    # Compute capabilities the built kernels can dispatch on. A list that omits
+    # the measuring device's arch produces an extension that imports and then
+    # has no kernel image, so the arch set is an explicit input.
+    ( cd "$EXL3" && TORCH_CUDA_ARCH_LIST="${FIDELITY_EXL3_ARCH_LIST:-9.0;10.0}" \
+        "$PY" -m pip -q install --force-reinstall --use-pep517 \
+          --no-build-isolation --no-deps -e . )
   fi
   [ "$(git -C "$EXL3" rev-parse HEAD)" = "$EXL3_PIN" ] \
     && git -C "$EXL3" diff --quiet \
@@ -509,7 +532,22 @@ else
   log "exllamav3 NOT built: the measurement path does not import it"
   echo "not-built: pipeline imports without loading exllamav3" > "$RCPT/exllamav3-build.txt"
 fi
-"$PY" -m pip check | tee "$RCPT/pip-check.txt"
+# exllamav3 declares a serving stack the measurement never loads: the
+# exllamav3 import, the pipeline import and the offline decode selftests all
+# succeed without flash-linear-attention, marisa-trie, xformers or einops
+# (proven when built by validate_exl3_import and probe), and no torch2.11/cu130
+# xformers wheel exists to pin.  The allowlist is exact-name and self-scoped --
+# it matches only lines where exllamav3 or flash-attn is the requiring package
+# (flash-attn rides along only in the exllamav3 build), so it applies
+# unconditionally and any other broken requirement still fails.
+_pip_check_extra="$("$PY" -m pip check 2>&1 | tee "$RCPT/pip-check.txt" \
+  | grep -Ev '^(exllamav3 [0-9][^ ]* requires (flash-linear-attention|marisa-trie|xformers), which is not installed\.|flash-attn [0-9][^ ]* requires einops, which is not installed\.|No broken requirements found\.)$' \
+  || true)"
+if [ -n "$_pip_check_extra" ]; then
+  printf '%s\n' "$_pip_check_extra" >&2
+  echo "pip check failed beyond the documented exllamav3 optional-dep allowlist" >&2
+  exit 1
+fi
 "$PY" -m pip list --format=freeze \
   | LC_ALL=C sort \
   | tee "$RCPT/resolver-selected-wheel-versions.txt"

@@ -120,12 +120,21 @@ RUN mkdir -p /opt/fidelity/patches-v2 \
  && cp -f /opt/fidelity/suite/engines/patches-v2/* /opt/fidelity/patches-v2/
 
 # Steps 1-4 of the bootstrap: python, the pinned wheel set, the pipeline at its
-# pin with the measurement patch series, and the exllamav3 decision (which the
-# probe makes, not an assumption).  Steps 5 and 6 are pre-flight CHECKS and one
-# of them re-decodes on THIS BOX'S CUDA device, which a builder does not have;
-# they run at container start, where they mean something.
+# pin with the measurement patch series, and exllamav3. Steps 5 and 6 are
+# pre-flight CHECKS and one of them re-decodes on THIS BOX'S CUDA device, which
+# a builder does not have; they run at container start, where they mean
+# something.
+#
+# exllamav3 is REQUIRED here rather than probe-decided: the reviewed offline
+# battery's live re-reconstruction rung is the one claim no workstation can
+# make, and an image without the oracle can only report it absent. The arch
+# list names every compute capability the built kernels must dispatch on --
+# 8.0 (A100), 8.9 (L4/L40S), 9.0 (H100) and 10.0 -- because an extension built
+# for a foreign arch imports fine and then has no kernel image.
 RUN FIDELITY_FS_ROOT=/opt/fidelity/suite \
     FIDELITY_BOOTSTRAP_INSTALL_ONLY=1 \
+    FIDELITY_BOOTSTRAP_REQUIRE_EXL3=1 \
+    FIDELITY_EXL3_ARCH_LIST="8.0;8.9;9.0;10.0" \
     bash /opt/fidelity/suite/bin/bootstrap_measure.sh
 
 # What this image IS, recorded from what the build actually resolved rather

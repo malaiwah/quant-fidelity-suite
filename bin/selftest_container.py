@@ -1242,7 +1242,8 @@ def rung_dockerfile():
           and "git -C \"$EXL3\" diff --quiet" in exl3)
     check("C9t reinstalling direct wheels forces the editable extension rebuild",
           '_direct_wheels_reinstalled" -eq 1' in exl3
-          and "--force-reinstall --no-build-isolation --no-deps -e ." in exl3)
+          and "--force-reinstall --use-pep517" in exl3
+          and "--no-build-isolation --no-deps -e ." in exl3)
     check("C9u the torch2.10-tagged flash wheel proves torch2.11 compatibility "
           "with a runtime CUDA kernel outside install-only builds",
           "flash_attn_func(q, q, q" in exl3
