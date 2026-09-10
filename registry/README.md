@@ -328,7 +328,7 @@ the validator warns whenever a `strict` row rests on a panel whose `contaminatio
 
 ## How to read the tables below
 
-40 tables follow, one per comparability group, across 19 models. Three things are true of all of them, and each is a mistake somebody has already made with numbers like these:
+41 tables follow, one per comparability group, across 19 models. Three things are true of all of them, and each is a mistake somebody has already made with numbers like these:
 
 1. **A number means nothing outside its own table.** Every table states the seven-part key its rows share. Two numbers under different keys are different quantities that happen to print in the same units.
 2. **The smallest number on this page is not the best quant.** Today it is deepseek-v4-tiny-random-bf16 (random test fixture) native BF16 at 0 nats -- and it is not a quant at all -- those are unquantized weights, read by a second engine, measuring what two engines disagree by. Sorting this file by value and reading off the top is the single easiest way to be wrong with it.
@@ -1797,7 +1797,57 @@ Derived from `panel--qwen38.malaiwah.suite-v5-shard0-1m` by **scoring_window_cha
 
 > **Panel disclosure -- `native_head_replay`:** native_head_replay: HEAD-1d: each side replayed through its own sealed head (reference d922b751f014, candidate d922b751f014); head-weight differences are included, but replay arithmetic need not equal live/native head execution. The heads are content-identical.
 
-This panel carries **3 separate comparability groups**. They are different measurements of different things and are never merged.
+This panel carries **4 separate comparability groups**. They are different measurements of different things and are never merged.
+
+#### Group `cmp--0beaf4d170a40175` -- 1 row
+
+**Panel** `panel--native.f8c1aa7198f74a0e10289d94` -- Qwen3.8-27B qualified token panel
+  512 contexts x 2047 scored positions = **1,048,064 scored positions**, score_from 0
+  sealed: **yes** (token digest `8847e99a855fab37...`) -- contamination scan: **NOT RUN**
+**Reference (teacher)** `reference--native.1506812c94bcb0d15f357def` -- native_bf16, artifact `artifact--qwen.qwen3.8-27b.1d4bf0f2ff60` @1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0
+**Metric** mean_tokenwise_kld, direction reference_to_candidate, accumulation float64
+**Estimation surface** stack_relation `cross_stack`, head_policy `native_head`
+**Comparability key** `cmp--0beaf4d170a40175`
+**Like-for-like predicate** `comparable: unknown` -- no recorded difference, but hardware, stack are unrecorded for at least one member, so homogeneity cannot be certified. Machine-readable form with per-dimension values: this key's `comparability` block in `index.json`.
+
+> **What this table is.** Every row here shares the comparability key above: the same tokens, the same teacher capture, the same metric and direction, the same estimator precision, the same stack relation and the same head policy. That makes them CANDIDATES for ranking -- the key is a necessary partition, not a certificate. Whether they are also like-for-like on the dimensions the key omits (lane, pipeline, scope coverage, hardware) is what the predicate line above answers.
+>
+> **Rank is not a verdict.** The table is sorted by fidelity alone, and fidelity buys bits: a larger, higher-bitrate quant will usually sit above a smaller one, which is not news. Read the Size and Codec columns before reading the order, and compare like against like.
+>
+> **What it is NOT comparable to.** The nearest neighbouring groups differ in:
+> - `cmp--1fbe8e6cfada33f4` (1 row): `stack_relation` cross_stack -> same_stack
+> - `cmp--6e082259d96b7d1a` (1 row): `reference_id` reference--native.1506812c94bcb0d15f357def -> reference--native.2fbdd19bd60d2e21bbe06439; `stack_relation` cross_stack -> same_stack
+> - `cmp--c7a6b98923c9f1fc` (1 row): `reference_id` reference--native.1506812c94bcb0d15f357def -> reference--native.11070ae4ed224b2dc34ceb05; `stack_relation` cross_stack -> same_stack
+> 
+> Those numbers are in this file, under their own headings. Quoting one under the other heading is the mistake this layout exists to prevent: the key is a function of the panel, the teacher, the metric, the direction and the estimator, and the validator recomputes it from those fields rather than trusting the stamped value. What that catches is a row filed under a key its own fields do not produce. It does not catch a number attributed to the wrong panel in the first place -- no offline checker can. That is what the receipt digests on every row are for.
+>
+> Also, and always: **every table for a different model.** A KL number is a divergence over one model's own vocabulary against that model's own teacher. It is not a quality score that can be carried between models.
+>
+> **Single-row group.** This number has nothing in the registry to be ranked against. It is a stated fact, not a placing.
+
+> **1 of this group's 1 rows came off a different measurement lane** (`other`) and are tabled on their own below, not mixed into the ordering here. The key does not carry the lane; this file does.
+
+##### Lane `other` -- 1 of this group's 1 rows
+
+> **A different lane. Same key, and that is exactly the problem this table solves.** The comparability key is a function of the panel, the teacher, the metric, the direction, the estimator precision, the stack relation and the head policy -- and these rows match the table above on all seven. What they do not share is the machine and the code path that produced the candidate logits, and lanes are not interchangeable. Sorting them into one list would read as a ranking; where the same artifact appears in both, it is one set of weights measured twice, not two quants.
+>
+> **No bridge to the sealed lane is recorded for this lane.**
+
+| Artifact | Codec | Size | mean_tokenwise_kld (nats) | CI95 | Top-1 | Runs | Attribution | Receipt |
+|---|---|---:|---:|---|---:|---|---|---|
+| **malaiwah/Qwen3.8-27B-EXL3-K5K6-hydrated** _(measurement floor)_ | `exl3-mcg @4` | 21.6 GB | **0.00242222** | -- | 97.89 % | 1 run, unevidenced | measured by us | [receipt](https://huggingface.co/datasets/malaiwah/qfs-evidence-6856ba5826bf2036dc98aaf97365af12-public/resolve/cf1b76746f27e16a35d64022b9d54a83051e7abc/comparison/comparison-receipt.json) |
+
+> **Bias on malaiwah/Qwen3.8-27B-EXL3-K5K6-hydrated** -- cross_stack_capture_replay, direction unknown. the capture stacks differ or their code identity is unproven. The sign and magnitude of the cross-stack effect are unknown; a control measured on another artifact, panel or stack is not a transferable correction. usable_as_floor is false.
+
+<details><summary>Disclosures for the rows above (5)</summary>
+
+- `hf-jobs.006fd44508050090c0e9cea0` **cross_stack_capture**: capture stack equality is not established (lane_identity equal on both sides, or unrecorded, stack_fingerprint equal on both sides, or unrecorded, source_files differ or unrecorded). The cross-stack effect has unknown sign and magnitude.
+- `hf-jobs.006fd44508050090c0e9cea0` **weights_reconstructed**: candidate was captured from a WEIGHTS-ONLY RECONSTRUCTION: 409 trellis payload group(s) were decoded to bf16 by engines/tools/exl3hf_surface.py:decode_payload_hf, this repository's transcription of exllamav3's mul1/mcg codebooks (exllamav3_ext/quant/codebook.cuh, pack.cu), before the transformers forward (method exl3-trellis-decode-to-bf16; K histogram K4 x 1, K5 x 130, K6 x 278). trellis unpack + codebook + tile layout bitwise vs exllamav3 1.4.2 exllamav3_ext.reconstruct on 15 real module(s) (engines/tools/layer-outer-evidence/exl3-decoder-parity-vs-exllamav3.json); the fp16 weight after exllamav3's own four-rounding Hadamard path has a sampled max_abs_diff of 0.000244, not a universal bound; full decoded-weight and native-forward equivalence remain unproven. retained samples cover codebooks mcg, mul1 at K=3, 4, 6 only; they are not artifact-wide or whole-model qualification. the served exllamav3 kernel's fp16 activations and on-the-fly dequant are not in this number. The comparison is advisory.
+- `hf-jobs.006fd44508050090c0e9cea0` **non_sealed_lane**: Produced by the 'other' lane, not the sealed-ep8 lane that the other rows in this comparability group used. Lanes are not interchangeable: this row carries an undisclosed offset against the sealed lane on the same panel until that offset is itself measured and recorded here.
+- `hf-jobs.006fd44508050090c0e9cea0` **reduced_run_count**: The original submission reports 1 evaluated comparison run(s), not five. Separate cold-capture reproduction is not additional independent evaluation text.
+- `hf-jobs.006fd44508050090c0e9cea0` **record_note**: This service read authenticated HF provider metadata and validated recovered evidence; it did not independently reproduce the model run.
+
+</details>
 
 #### Group `cmp--6e082259d96b7d1a` -- 1 row
 
@@ -1817,6 +1867,7 @@ This panel carries **3 separate comparability groups**. They are different measu
 > **What it is NOT comparable to.** The nearest neighbouring groups differ in:
 > - `cmp--c7a6b98923c9f1fc` (1 row): `reference_id` reference--native.2fbdd19bd60d2e21bbe06439 -> reference--native.11070ae4ed224b2dc34ceb05
 > - `cmp--1fbe8e6cfada33f4` (1 row): `reference_id` reference--native.2fbdd19bd60d2e21bbe06439 -> reference--native.1506812c94bcb0d15f357def
+> - `cmp--0beaf4d170a40175` (1 row): `reference_id` reference--native.2fbdd19bd60d2e21bbe06439 -> reference--native.1506812c94bcb0d15f357def; `stack_relation` same_stack -> cross_stack
 > 
 > Those numbers are in this file, under their own headings. Quoting one under the other heading is the mistake this layout exists to prevent: the key is a function of the panel, the teacher, the metric, the direction and the estimator, and the validator recomputes it from those fields rather than trusting the stamped value. What that catches is a row filed under a key its own fields do not produce. It does not catch a number attributed to the wrong panel in the first place -- no offline checker can. That is what the receipt digests on every row are for.
 >
@@ -1866,6 +1917,7 @@ This panel carries **3 separate comparability groups**. They are different measu
 > **What it is NOT comparable to.** The nearest neighbouring groups differ in:
 > - `cmp--6e082259d96b7d1a` (1 row): `reference_id` reference--native.11070ae4ed224b2dc34ceb05 -> reference--native.2fbdd19bd60d2e21bbe06439
 > - `cmp--1fbe8e6cfada33f4` (1 row): `reference_id` reference--native.11070ae4ed224b2dc34ceb05 -> reference--native.1506812c94bcb0d15f357def
+> - `cmp--0beaf4d170a40175` (1 row): `reference_id` reference--native.11070ae4ed224b2dc34ceb05 -> reference--native.1506812c94bcb0d15f357def; `stack_relation` same_stack -> cross_stack
 > 
 > Those numbers are in this file, under their own headings. Quoting one under the other heading is the mistake this layout exists to prevent: the key is a function of the panel, the teacher, the metric, the direction and the estimator, and the validator recomputes it from those fields rather than trusting the stamped value. What that catches is a row filed under a key its own fields do not produce. It does not catch a number attributed to the wrong panel in the first place -- no offline checker can. That is what the receipt digests on every row are for.
 >
@@ -1913,6 +1965,7 @@ This panel carries **3 separate comparability groups**. They are different measu
 > **Rank is not a verdict.** The table is sorted by fidelity alone, and fidelity buys bits: a larger, higher-bitrate quant will usually sit above a smaller one, which is not news. Read the Size and Codec columns before reading the order, and compare like against like.
 >
 > **What it is NOT comparable to.** The nearest neighbouring groups differ in:
+> - `cmp--0beaf4d170a40175` (1 row): `stack_relation` same_stack -> cross_stack
 > - `cmp--6e082259d96b7d1a` (1 row): `reference_id` reference--native.1506812c94bcb0d15f357def -> reference--native.2fbdd19bd60d2e21bbe06439
 > - `cmp--c7a6b98923c9f1fc` (1 row): `reference_id` reference--native.1506812c94bcb0d15f357def -> reference--native.11070ae4ed224b2dc34ceb05
 > 

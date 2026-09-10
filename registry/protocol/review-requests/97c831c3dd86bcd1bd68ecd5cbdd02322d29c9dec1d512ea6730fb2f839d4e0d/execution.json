@@ -1,0 +1,16 @@
+{
+  "schema": "qfs.hf-jobs-execution.v1",
+  "job_id": "6aa22afc21047bf1b037171b",
+  "namespace": "malaiwah",
+  "flavor": "a100-large",
+  "docker_image": "ghcr.io/malaiwah/quant-fidelity-measure@sha256:e03ccb8c67a54fc206ada6092cac426867fc9c2b26554a8887beb48fcf1e0683",
+  "plan_sha256": "643352c6c46fb8e68e43d7c173c37913281cb860a2230c9908efafb389d89d8f",
+  "source_revision": "4258949f8c526ae660ba7e59e8475617c2522819",
+  "status": "COMPLETED",
+  "requested_timeout_seconds": 12960,
+  "created_at": "2026-09-10T03:58:52.269000+00:00",
+  "started_at": "2026-09-10T03:59:02.136000+00:00",
+  "finished_at": "2026-09-10T05:16:37.452000+00:00",
+  "running_seconds": 4655,
+  "provider_identity_note": "Controller read authenticated HF Jobs API. Worker hardware is worker-reported, not independent reproduction."
+}
