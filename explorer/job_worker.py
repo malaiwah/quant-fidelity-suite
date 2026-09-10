@@ -679,10 +679,15 @@ def selftest_stage(plan, out, runner):
         argv = [sys.executable, path]
         if suite in SELFTEST_PIPELINE_FLAG:
             argv.extend(["--pipeline-root", str(pipeline)])
-        # The sealed plan decides, not whatever device happens to be visible:
-        # a cuda plan already refused above if the device were absent.
+        # The sealed plan decides the device (a cuda plan already refused above
+        # if none were visible), but the oracle can only be REQUIRED when the
+        # image carries it: bootstrap_measure.sh builds exllamav3 only if the
+        # pipeline's own import loads it, and the reviewed base does not. A
+        # demand the image cannot satisfy would fail the whole battery for a
+        # known-absent package instead of reporting the gap.
         require_native = (suite.endswith("selftest_exl3hf_offline.py")
-                          and plan["hardware"]["device"] == "cuda")
+                          and plan["hardware"]["device"] == "cuda"
+                          and observed["exllamav3_present"])
         if require_native:
             argv.append("--require-live-native")
         step = "selftest-" + path.stem
@@ -692,6 +697,15 @@ def selftest_stage(plan, out, runner):
                        "native_oracle_required": require_native})
     report = {"schema": "qfs.hf-workflow-selftest.v1", "suites": suites, "suite_count": len(suites),
               "environment": observed,
+              "native_oracle_required": any(row["native_oracle_required"] for row in suites),
+              "native_oracle_note": (
+                  "The exl3hf live re-reconstruction was required to execute, not permitted to skip."
+                  if any(row["native_oracle_required"] for row in suites) else
+                  "The image carries no exllamav3, so the exl3hf live re-reconstruction SKIPPED itself "
+                  "here exactly as it does on a workstation; this run does not exercise the native "
+                  "oracle." if not observed["exllamav3_present"] else
+                  "This plan's device does not demand the oracle, so the exl3hf live re-reconstruction "
+                  "was left free to skip; this run does not exercise the native oracle."),
               "scope": "The reviewed offline battery subset, executed on this rented device with the "
                        "image's patched pipeline importable. Passing rungs are not native serving "
                        "parity, whole-model qualification, or a measurement of any artifact."}

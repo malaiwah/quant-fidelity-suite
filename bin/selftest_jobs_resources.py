@@ -93,7 +93,7 @@ def torch_visibility(available):
             del sys.modules["torch"]
 
 
-def battery_image(root, *, pipeline=True, omit=()):
+def battery_image(root, *, pipeline=True, oracle=False, omit=()):
     """A temporary immutable-source tree and image closure; no real suite bytes."""
     source, image = root / "source", root / "image"
     for suite, _ in SELFTEST_BATTERY:
@@ -108,6 +108,8 @@ def battery_image(root, *, pipeline=True, omit=()):
         (package / "__init__.py").write_text("")
     else:
         image.mkdir(parents=True)
+    if oracle:
+        (image / "exllamav3").mkdir()
     return source, image
 
 
@@ -140,10 +142,10 @@ def selftest_worker_stage():
     with tempfile.TemporaryDirectory(prefix="qfs-selftest-stage-") as td:
         base = Path(td).resolve()
 
-        def case(label, *, pipeline=True, omit=()):
+        def case(label, *, pipeline=True, oracle=False, omit=()):
             root = base / label
             root.mkdir()
-            source, image = battery_image(root, pipeline=pipeline, omit=omit)
+            source, image = battery_image(root, pipeline=pipeline, oracle=oracle, omit=omit)
             out = root / "out"
             out.mkdir()
             return source, image, out, RecordingRunner()
@@ -172,13 +174,16 @@ def selftest_worker_stage():
         assert [call["step"] for call in runner.calls] == ["selftest-selftest_exl3hf_offline"]
         assert not (out / "selftest/report.json").exists()
 
-        # The sealed plan's device decides the native oracle, not whatever the
-        # worker happens to see: a cuda plan already refused without a device,
-        # and a cpu plan on a CUDA-visible host must not silently acquire it.
-        for label, plan, native, visible in (("host", cpu_plan, False, False),
-                                             ("device", cuda_plan, True, True),
-                                             ("host-on-device", cpu_plan, False, True)):
-            source, image, out, runner = case(label)
+        # The sealed plan's device decides, and the image must actually carry
+        # the oracle: a cpu plan on a CUDA-visible host must not acquire it,
+        # and the reviewed overlay (no /opt/fidelity/exllamav3) must report the
+        # gap instead of failing the battery for a known-absent package.
+        for label, plan, visible, oracle in (("host", cpu_plan, False, False),
+                                             ("device-oracle", cuda_plan, True, True),
+                                             ("device-no-oracle", cuda_plan, True, False),
+                                             ("host-on-device", cpu_plan, True, True)):
+            native = oracle and plan["hardware"]["device"] == "cuda"
+            source, image, out, runner = case(label, oracle=oracle)
             with patch.object(job_worker, "ROOT", source), patch.object(job_worker, "IMAGE_ROOT", image), \
                     torch_visibility(visible):
                 report = job_worker.selftest_stage(plan, out, runner)
@@ -199,8 +204,18 @@ def selftest_worker_stage():
             durable = json.loads((out / "selftest/report.json").read_text())
             assert durable == report
             assert durable["schema"] == "qfs.hf-workflow-selftest.v1" and durable["suite_count"] == 4
+            assert durable["native_oracle_required"] is native
+            # The note describes what ran: demanded-and-executed, absent from
+            # the image, or present but not demanded by this plan's device.
+            note = durable["native_oracle_note"]
+            if native:
+                assert "required to execute" in note and "does not exercise" not in note
+            else:
+                assert "does not exercise the native oracle" in note and "required to execute" not in note
+                assert ("does not demand the oracle" in note) is oracle
             environment = durable["environment"]
             assert environment["cuda_available"] is visible and environment["pipeline_present"] is True
+            assert environment["exllamav3_present"] is oracle
             assert environment["pipeline_root"] == str(image / "pipeline")
             assert (environment["device_name"] == "Fixture Device") is visible
             for item in durable["suites"]:

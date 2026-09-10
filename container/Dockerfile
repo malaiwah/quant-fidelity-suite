@@ -163,7 +163,12 @@ FROM ${HF_JOBS_BASE_IMAGE} AS hf-jobs
 ARG HF_JOBS_BASE_IMAGE
 ARG SUITE_REVISION=""
 ARG IMAGE_REFERENCE=""
-COPY --chmod=0755 bin/hf_job_entry.py /usr/local/bin/qfs-job
+# Installed exactly like the ssh stage's entrypoint: COPY plus an explicit
+# chmod, so the classic builder can produce this overlay without BuildKit.
+# hf_job_manifest.py refuses anything that is not an installed 0755 regular
+# file, so the mode is verified rather than assumed either way.
+COPY bin/hf_job_entry.py /usr/local/bin/qfs-job
+RUN chmod 0755 /usr/local/bin/qfs-job
 COPY bin/hf_job_manifest.py /tmp/hf_job_manifest.py
 RUN /opt/fidelity/venv/bin/python /tmp/hf_job_manifest.py \
         --suite-revision "$SUITE_REVISION" \
