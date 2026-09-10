@@ -1,14 +1,14 @@
 {
   "schema": "qfs.registry-snapshot-disposition.v1",
   "purpose": "Canonical converged registry snapshot with explicit warning dispositions; not a warning-free software release",
-  "reviewed_on": "2026-09-09",
+  "reviewed_on": "2026-09-10",
   "maintenance": "Human-reviewed refresh after exact recovery of newly accepted HF Jobs sources. Existing specific dispositions are retained; every current warning remains verbatim. New native singleton and same-key missing-control findings remain descriptive limitations. Source drift retains original harness digests. No warning gate or historical scientific record is weakened.",
   "validator": {
     "command": "python3 registry/tools/registry_validate.py --strict --json",
     "context": "Canonical full-suite checkout after recovery of all public accepted records. HARN-005 compares measurement-time source identities with checkout_sha256; standalone HF dataset validation need not have those suite sources.",
     "errors": 0,
-    "warnings": 514,
-    "comparability_keys": 39,
+    "warnings": 547,
+    "comparability_keys": 40,
     "strict_warning_free_release_gate_passed": false,
     "strict_gate_policy": "Unchanged: make check-release fails when warnings remain.",
     "filters": {
@@ -20,40 +20,40 @@
     "models": 19,
     "artifacts": 95,
     "panels": 20,
-    "references": 33,
-    "pipelines": 35,
-    "measurements": 117
+    "references": 34,
+    "pipelines": 36,
+    "measurements": 118
   },
   "warning_counts_by_check": {
-    "CMP-005": 19,
+    "CMP-005": 20,
     "DET-006": 4,
     "FLOOR-003": 11,
-    "HARN-005": 457,
+    "HARN-005": 489,
     "PANEL-006": 5,
     "PROV-006": 7,
     "STAT-005": 11
   },
   "disposition_counts": {
     "missing-evidence-retained": 27,
-    "retained-and-disclosed": 487
+    "retained-and-disclosed": 520
   },
   "category_counts": {
     "contamination-evidence-missing": 5,
     "frozen-single-comparison-limitation": 4,
-    "historical-source-version-drift": 457,
+    "historical-source-version-drift": 489,
     "panel-attribution-reviewed": 7,
     "same-group-control-missing": 11,
     "same-scope-top1-not-published": 11,
-    "singleton-descriptive-observation": 19
+    "singleton-descriptive-observation": 20
   },
   "data_sha256": {
     "data/models.jsonl": "42302eb429e99bd184438ceee93394b1b5c7f11849d6877bc52c79aa1c08a1bf",
     "data/artifacts.jsonl": "99da280597e44cc55c8a43a7e89fae079e5a892536f63355bd805bd91d496ecb",
     "data/panels.jsonl": "539838836c3bcd0f2c2b52c0bf7fa2d69a3f5d5e307c72e7ea13fb8140408938",
-    "data/references.jsonl": "76bce49c2f0a33e6f363b26e94ec309900ef7aafd9d7a7428c0c1efdfaab2b6a",
-    "data/pipelines.jsonl": "5f67e5a0c2d426c08d93e517cf5619b692c85dfeff86e5d89439c86c3844c7b0",
-    "data/measurements.jsonl": "42d1d008ecbca0e335d7b55ea4b5a1c09f515a2c8c84eb3d36be04a514a04a51",
-    "index.json": "2f232614b46eb0fa3bde6f129672410f765fc567c4a05bdf3c035289d8502466",
+    "data/references.jsonl": "6c2038645d9fee5604b20959cf48ce12131eb54fcc0dd44609e2db07affee4c4",
+    "data/pipelines.jsonl": "78bfe3a345a9a9716f110386ed0f88311961ed2656d65948dd5e1398c321a57f",
+    "data/measurements.jsonl": "fbde3ee2c82fc96a77adc08172f03534ff6b90d0e97594485a5c70c83da5c231",
+    "index.json": "9e5dc53d12e8dbfb3a86e828d8863537af327ba7bef1658659dbeb09aaa5868a",
     "schema/invariants.json": "59a0432690968bcced4ddf2b4fa4b3be7c89bdcc3fe9efd0212bea7d5b7dca0f"
   },
   "checkout_sha256": {
@@ -86,13 +86,13 @@
     "engines/tools/gguf_qwen35.py": "4660ddddd26ca964bd5bade0847f1412c2ec302448d36592e869866acf895090",
     "engines/tools/hf_capture.py": "a9170219f999db8aabcb5e5f98ae5562d6fd5ae3e2d8a105536fa3045d3bd813",
     "engines/tools/kld_report.py": "088858bcd4ae9c64e31a71820b69b3657a4103333fdb5608d5277672662b960a",
-    "engines/tools/layer_outer.py": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+    "engines/tools/layer_outer.py": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
     "engines/tools/quant_stream.py": "c72ae1874c84b5fa683bb5ed6bc9c8639a9f3968cdc57789b15bfa0135b0a671",
     "engines/tools/selftest_exl3hf_offline.py": "84246be12c253fb72c6b63a8e48a146eea663602db865e3eb41fb9b67b20a6ee",
     "engines/tools/selftest_gguf_offline.py": "d032ae99dbb458bbed54875ec3ea88c856d59a423c2a97dc50d3fd2ce83832ac",
     "engines/tools/selftest_mlx_offline.py": "ea4f9ff99e36352aa25d6a62fce233cc8a0c192a2c03683b976ef737a3f0320a",
     "engines/tools/selftest_nvfp4_offline.py": "3385aaa3396d7182774bce1a5a79a9ae247435f46d4d870686b9e5a4c2c53368",
-    "engines/tools/selftest_trellis_decode_offline.py": "4a1aad5a037d5811bf30103be3773113192350d463d981ab6a7872ea868bf7c2",
+    "engines/tools/selftest_trellis_decode_offline.py": "c16f8fc92c390fe4f7dedc3cc4012b53a0a1ae8a7e3204316849fd6f4b978c73",
     "explorer/job_bootstrap.py": "ad04862b0d042f9753afa1451f3a5aafb335712210ea601935b44325cab89086",
     "explorer/job_ui.py": "e1616db74be6b25c697348f193bd5706804c010d0a957aeaecb6ab18cbb16061",
     "explorer/job_worker.py": "32a303c38fe882b56898a34dab6466da543eec68fd3c498e58ed745aa5888483",
@@ -138,9 +138,15 @@
       "models": [],
       "artifacts": [],
       "panels": [],
-      "references": [],
-      "pipelines": [],
-      "measurements": []
+      "references": [
+        "reference--native.11070ae4ed224b2dc34ceb05"
+      ],
+      "pipelines": [
+        "pipeline--hf-jobs.d6abbf4485abe960"
+      ],
+      "measurements": [
+        "measurement--native.floor.701122c14e93320268b7b803"
+      ]
     },
     "note": "New accepted records are replayed from immutable acceptance inputs. Historical scientific values and identities are unchanged."
   },
@@ -1339,6 +1345,103 @@
     {
       "check": "CMP-005",
       "severity": "warn",
+      "id": "measurement--native.floor.701122c14e93320268b7b803",
+      "message": "comparability key cmp--c7a6b98923c9f1fc has a single member (measurement--native.floor.701122c14e93320268b7b803): a number with nothing to compare against. Present it as a stated fact, not a ranking.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "singleton-descriptive-observation",
+      "rationale": "One observation occupies this exact key. Retain it descriptively; a native zero control is conditional reproduction evidence, not model quality or permission to merge foreign scopes.",
+      "evidence": {
+        "comparability_key": "cmp--c7a6b98923c9f1fc",
+        "key_inputs": {
+          "accumulation_dtype": "float64",
+          "direction": "reference_to_candidate",
+          "head_policy": "native_head",
+          "metric_name": "mean_tokenwise_kld",
+          "panel_id": "panel--native.f8c1aa7198f74a0e10289d94",
+          "reference_id": "reference--native.11070ae4ed224b2dc34ceb05",
+          "stack_relation": "same_stack"
+        },
+        "measurement_scope": {
+          "contexts": 512,
+          "covers_full_panel": true,
+          "position_filter": "all",
+          "positions_per_context": 2047,
+          "scored_positions": 1048064,
+          "subset_detail": null
+        },
+        "sources": [
+          {
+            "kind": "hf_file",
+            "sha256": "54bbb9e1a21c0ea24c9df3cf3bff827d3a79d2089bd4a4383c2015b397da278d",
+            "uri": "https://huggingface.co/datasets/malaiwah/qfs-evidence-a1ec5246f3ef11d323425ae8a9ea47ef-public/resolve/9d787e5f8a0e8f1682a909c5041b352c50b688fa/first/capture/manifest.json"
+          },
+          {
+            "kind": "hf_file",
+            "sha256": "2a5b68acd2c3eb85726eec2c4666964837525004fb26da86105ee9fe8211bbc7",
+            "uri": "https://huggingface.co/datasets/malaiwah/qfs-evidence-a1ec5246f3ef11d323425ae8a9ea47ef-public/resolve/9d787e5f8a0e8f1682a909c5041b352c50b688fa/reproduction/comparison-receipt.json"
+          },
+          {
+            "kind": "hf_file",
+            "sha256": "191e0af232104ed8b65258cf3fb2b842e288008baca7633c11b82a1ac7203aab",
+            "uri": "https://huggingface.co/datasets/malaiwah/qfs-evidence-a1ec5246f3ef11d323425ae8a9ea47ef-public/resolve/9d787e5f8a0e8f1682a909c5041b352c50b688fa/original-config.json"
+          },
+          {
+            "kind": "hf_file",
+            "sha256": "a9808a21dbaf7035c803d8d5132ce4bef93ca68530c9a9627832da3174594fb4",
+            "uri": "https://huggingface.co/datasets/malaiwah/qfs-evidence-a1ec5246f3ef11d323425ae8a9ea47ef-public/resolve/9d787e5f8a0e8f1682a909c5041b352c50b688fa/first/fidelity-dataset.json"
+          },
+          {
+            "kind": "hf_file",
+            "sha256": "c3521f5d95b8aa6659aca374d6be5de72bea0b0882f0945f2411f4fd4c466100",
+            "uri": "https://huggingface.co/datasets/malaiwah/qfs-evidence-a1ec5246f3ef11d323425ae8a9ea47ef-public/resolve/9d787e5f8a0e8f1682a909c5041b352c50b688fa/hf-execution.json"
+          },
+          {
+            "kind": "hf_file",
+            "sha256": "2ca10a5b868b17cad57a9a0b574ea975cf54d9a0b886b6aa9c5a9921bc3b3164",
+            "uri": "https://huggingface.co/datasets/malaiwah/qfs-evidence-a1ec5246f3ef11d323425ae8a9ea47ef-public/resolve/9d787e5f8a0e8f1682a909c5041b352c50b688fa/review-harness.json"
+          },
+          {
+            "kind": "hf_file",
+            "sha256": "ef6bf70964cc5568e5aa5af1857d61ea79601f41dbb4984b4f8583cf880deb12",
+            "uri": "https://huggingface.co/datasets/malaiwah/qfs-evidence-a1ec5246f3ef11d323425ae8a9ea47ef-public/resolve/9d787e5f8a0e8f1682a909c5041b352c50b688fa/job.json"
+          },
+          {
+            "kind": "hf_file",
+            "sha256": "0397a4fb29f4ab3bc6110d984545855cc8b5980cde75562e73d928e486011273",
+            "uri": "https://huggingface.co/datasets/malaiwah/qfs-evidence-a1ec5246f3ef11d323425ae8a9ea47ef-public/resolve/9d787e5f8a0e8f1682a909c5041b352c50b688fa/first/panel/panel.json"
+          },
+          {
+            "kind": "hf_file",
+            "sha256": "1f2cf9732c1ea94f64685f98e743e90b178494952cb560c0e405039e20591a98",
+            "uri": "https://huggingface.co/datasets/malaiwah/qfs-evidence-a1ec5246f3ef11d323425ae8a9ea47ef-public/resolve/9d787e5f8a0e8f1682a909c5041b352c50b688fa/first/panel/panel-receipt.json"
+          },
+          {
+            "kind": "hf_file",
+            "sha256": "e6d30804b8e7fd010022f7bd0b5c2dad2ed57e476a8629181f6004b2cd1c06a0",
+            "uri": "https://huggingface.co/datasets/malaiwah/qfs-evidence-a1ec5246f3ef11d323425ae8a9ea47ef-public/resolve/9d787e5f8a0e8f1682a909c5041b352c50b688fa/plan.json"
+          },
+          {
+            "kind": "hf_file",
+            "sha256": "3ab6166957d72ea212787acf9c74aef592db8cd12cd6e5c084eab2b309d21a3a",
+            "uri": "https://huggingface.co/datasets/malaiwah/qfs-evidence-a1ec5246f3ef11d323425ae8a9ea47ef-public/resolve/9d787e5f8a0e8f1682a909c5041b352c50b688fa/qualification.json"
+          },
+          {
+            "kind": "hf_file",
+            "sha256": "d2be3f21793f6d7ee97976c5e44a799cc8438aa72a8247b34280af1fe574bc1c",
+            "uri": "https://huggingface.co/datasets/malaiwah/qfs-evidence-a1ec5246f3ef11d323425ae8a9ea47ef-public/resolve/9d787e5f8a0e8f1682a909c5041b352c50b688fa/result.json"
+          },
+          {
+            "kind": "hf_file",
+            "sha256": "1e93de2d1508749b6bdd7a1e370c596a87dcec6ccf97649e51486d7e61fa0932",
+            "uri": "https://huggingface.co/datasets/malaiwah/qfs-evidence-a1ec5246f3ef11d323425ae8a9ea47ef-public/resolve/9d787e5f8a0e8f1682a909c5041b352c50b688fa/first/runtime/capture-runtime.json"
+          }
+        ]
+      }
+    },
+    {
+      "check": "CMP-005",
+      "severity": "warn",
       "id": "measurement--native.floor.a1aea9ef9bbe4bf33d21c007",
       "message": "comparability key cmp--d5fa4bf579606a72 has a single member (measurement--native.floor.a1aea9ef9bbe4bf33d21c007): a number with nothing to compare against. Present it as a stated fact, not a ranking.",
       "remedy": null,
@@ -2521,7 +2624,7 @@
             "sha256": "e3ea5715112663b1b60cf596eeffc2140e49b399809ece89a174bce41a969274"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--0e86ec05d2104689"
       }
     },
@@ -2549,7 +2652,7 @@
             "sha256": "e3ea5715112663b1b60cf596eeffc2140e49b399809ece89a174bce41a969274"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--0e86ec05d2104689"
       }
     },
@@ -2725,7 +2828,7 @@
             "sha256": "e3ea5715112663b1b60cf596eeffc2140e49b399809ece89a174bce41a969274"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--89df8965fe821f7b"
       }
     },
@@ -2753,7 +2856,7 @@
             "sha256": "e3ea5715112663b1b60cf596eeffc2140e49b399809ece89a174bce41a969274"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--89df8965fe821f7b"
       }
     },
@@ -2929,7 +3032,7 @@
             "sha256": "e3ea5715112663b1b60cf596eeffc2140e49b399809ece89a174bce41a969274"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--89df8965fe821f7b"
       }
     },
@@ -2957,7 +3060,7 @@
             "sha256": "e3ea5715112663b1b60cf596eeffc2140e49b399809ece89a174bce41a969274"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--89df8965fe821f7b"
       }
     },
@@ -3133,7 +3236,7 @@
             "sha256": "e3ea5715112663b1b60cf596eeffc2140e49b399809ece89a174bce41a969274"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--a9860489ffc00e4b"
       }
     },
@@ -3161,7 +3264,7 @@
             "sha256": "e3ea5715112663b1b60cf596eeffc2140e49b399809ece89a174bce41a969274"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--a9860489ffc00e4b"
       }
     },
@@ -3337,7 +3440,7 @@
             "sha256": "e3ea5715112663b1b60cf596eeffc2140e49b399809ece89a174bce41a969274"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--89df8965fe821f7b"
       }
     },
@@ -3365,7 +3468,7 @@
             "sha256": "e3ea5715112663b1b60cf596eeffc2140e49b399809ece89a174bce41a969274"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--89df8965fe821f7b"
       }
     },
@@ -3541,7 +3644,7 @@
             "sha256": "e3ea5715112663b1b60cf596eeffc2140e49b399809ece89a174bce41a969274"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--c7d11a9648194cf6"
       }
     },
@@ -3569,7 +3672,7 @@
             "sha256": "e3ea5715112663b1b60cf596eeffc2140e49b399809ece89a174bce41a969274"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--c7d11a9648194cf6"
       }
     },
@@ -3745,7 +3848,7 @@
             "sha256": "e3ea5715112663b1b60cf596eeffc2140e49b399809ece89a174bce41a969274"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--89df8965fe821f7b"
       }
     },
@@ -3773,7 +3876,7 @@
             "sha256": "e3ea5715112663b1b60cf596eeffc2140e49b399809ece89a174bce41a969274"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--89df8965fe821f7b"
       }
     },
@@ -3949,7 +4052,7 @@
             "sha256": "e3ea5715112663b1b60cf596eeffc2140e49b399809ece89a174bce41a969274"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--89df8965fe821f7b"
       }
     },
@@ -3977,7 +4080,7 @@
             "sha256": "e3ea5715112663b1b60cf596eeffc2140e49b399809ece89a174bce41a969274"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--89df8965fe821f7b"
       }
     },
@@ -4153,7 +4256,7 @@
             "sha256": "e3ea5715112663b1b60cf596eeffc2140e49b399809ece89a174bce41a969274"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--89df8965fe821f7b"
       }
     },
@@ -4181,7 +4284,7 @@
             "sha256": "e3ea5715112663b1b60cf596eeffc2140e49b399809ece89a174bce41a969274"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--89df8965fe821f7b"
       }
     },
@@ -4357,7 +4460,7 @@
             "sha256": "e3ea5715112663b1b60cf596eeffc2140e49b399809ece89a174bce41a969274"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--89df8965fe821f7b"
       }
     },
@@ -4385,7 +4488,7 @@
             "sha256": "e3ea5715112663b1b60cf596eeffc2140e49b399809ece89a174bce41a969274"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--89df8965fe821f7b"
       }
     },
@@ -4561,7 +4664,7 @@
             "sha256": "e3ea5715112663b1b60cf596eeffc2140e49b399809ece89a174bce41a969274"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--89df8965fe821f7b"
       }
     },
@@ -4589,7 +4692,7 @@
             "sha256": "e3ea5715112663b1b60cf596eeffc2140e49b399809ece89a174bce41a969274"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--89df8965fe821f7b"
       }
     },
@@ -4765,7 +4868,7 @@
             "sha256": "e3ea5715112663b1b60cf596eeffc2140e49b399809ece89a174bce41a969274"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--396fa2949104507e"
       }
     },
@@ -4793,7 +4896,7 @@
             "sha256": "e3ea5715112663b1b60cf596eeffc2140e49b399809ece89a174bce41a969274"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--396fa2949104507e"
       }
     },
@@ -4849,7 +4952,7 @@
             "sha256": "5594403e2c47720489b1c72ac497a2853b70c77f29aa360cb539c2af903d5566"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--81d9771e6cc75949"
       }
     },
@@ -4905,7 +5008,7 @@
             "sha256": "5594403e2c47720489b1c72ac497a2853b70c77f29aa360cb539c2af903d5566"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--81d9771e6cc75949"
       }
     },
@@ -5030,7 +5133,7 @@
             "sha256": "7774859c3064b2c7b9271c476adb7882b0b32bf512f4f4ffaf47c9f559b8ecfd"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--94556a32c0c38dc9"
       }
     },
@@ -5086,7 +5189,7 @@
             "sha256": "7774859c3064b2c7b9271c476adb7882b0b32bf512f4f4ffaf47c9f559b8ecfd"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--94556a32c0c38dc9"
       }
     },
@@ -5211,7 +5314,7 @@
             "sha256": "870724873cb547ba6ce6a184680034e301ecb3575b888744c4ece89d515b832b"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--d57e031c148ee308"
       }
     },
@@ -5267,7 +5370,7 @@
             "sha256": "870724873cb547ba6ce6a184680034e301ecb3575b888744c4ece89d515b832b"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--d57e031c148ee308"
       }
     },
@@ -5392,7 +5495,7 @@
             "sha256": "7774859c3064b2c7b9271c476adb7882b0b32bf512f4f4ffaf47c9f559b8ecfd"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--94556a32c0c38dc9"
       }
     },
@@ -5448,7 +5551,7 @@
             "sha256": "7774859c3064b2c7b9271c476adb7882b0b32bf512f4f4ffaf47c9f559b8ecfd"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--94556a32c0c38dc9"
       }
     },
@@ -5573,7 +5676,7 @@
             "sha256": "870724873cb547ba6ce6a184680034e301ecb3575b888744c4ece89d515b832b"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--d57e031c148ee308"
       }
     },
@@ -5629,7 +5732,7 @@
             "sha256": "870724873cb547ba6ce6a184680034e301ecb3575b888744c4ece89d515b832b"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--d57e031c148ee308"
       }
     },
@@ -5754,7 +5857,7 @@
             "sha256": "7774859c3064b2c7b9271c476adb7882b0b32bf512f4f4ffaf47c9f559b8ecfd"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--94556a32c0c38dc9"
       }
     },
@@ -5810,7 +5913,7 @@
             "sha256": "7774859c3064b2c7b9271c476adb7882b0b32bf512f4f4ffaf47c9f559b8ecfd"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--94556a32c0c38dc9"
       }
     },
@@ -5935,7 +6038,7 @@
             "sha256": "22cd64432a34cdf005677419f7c8920702caafa91e970492ac75a77c898a7535"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--cce1392ac2e1945e"
       }
     },
@@ -5991,7 +6094,7 @@
             "sha256": "22cd64432a34cdf005677419f7c8920702caafa91e970492ac75a77c898a7535"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--cce1392ac2e1945e"
       }
     },
@@ -6185,7 +6288,7 @@
             "sha256": "7d07c26c28b577b76b21c11a968235184102f53d088a284d51529514ba1a212f"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--582012c7977a17e7"
       }
     },
@@ -6241,7 +6344,7 @@
             "sha256": "7d07c26c28b577b76b21c11a968235184102f53d088a284d51529514ba1a212f"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--582012c7977a17e7"
       }
     },
@@ -6435,7 +6538,7 @@
             "sha256": "dcd816394570f1b88e0336bacc8aa4a445d2a1ec756bd9614ada71d25bbe50f2"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--0d548c5ec13fe054"
       }
     },
@@ -6491,7 +6594,7 @@
             "sha256": "dcd816394570f1b88e0336bacc8aa4a445d2a1ec756bd9614ada71d25bbe50f2"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--0d548c5ec13fe054"
       }
     },
@@ -6685,7 +6788,7 @@
             "sha256": "0209098bbf52578cb05a77815627bb15b01acdc1c754d17264247f4ba0863c09"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--cb703e1abee3c1ec"
       }
     },
@@ -6741,7 +6844,7 @@
             "sha256": "0209098bbf52578cb05a77815627bb15b01acdc1c754d17264247f4ba0863c09"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--cb703e1abee3c1ec"
       }
     },
@@ -6935,7 +7038,7 @@
             "sha256": "0209098bbf52578cb05a77815627bb15b01acdc1c754d17264247f4ba0863c09"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--cb703e1abee3c1ec"
       }
     },
@@ -6991,7 +7094,7 @@
             "sha256": "0209098bbf52578cb05a77815627bb15b01acdc1c754d17264247f4ba0863c09"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--cb703e1abee3c1ec"
       }
     },
@@ -7185,7 +7288,7 @@
             "sha256": "0209098bbf52578cb05a77815627bb15b01acdc1c754d17264247f4ba0863c09"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--cb703e1abee3c1ec"
       }
     },
@@ -7241,7 +7344,7 @@
             "sha256": "0209098bbf52578cb05a77815627bb15b01acdc1c754d17264247f4ba0863c09"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--cb703e1abee3c1ec"
       }
     },
@@ -7435,7 +7538,7 @@
             "sha256": "22cd64432a34cdf005677419f7c8920702caafa91e970492ac75a77c898a7535"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--18700b2fd8e20a5c"
       }
     },
@@ -7491,7 +7594,7 @@
             "sha256": "22cd64432a34cdf005677419f7c8920702caafa91e970492ac75a77c898a7535"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--18700b2fd8e20a5c"
       }
     },
@@ -7685,7 +7788,7 @@
             "sha256": "7774859c3064b2c7b9271c476adb7882b0b32bf512f4f4ffaf47c9f559b8ecfd"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--323922aa7f77dc6e"
       }
     },
@@ -7741,7 +7844,7 @@
             "sha256": "7774859c3064b2c7b9271c476adb7882b0b32bf512f4f4ffaf47c9f559b8ecfd"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--323922aa7f77dc6e"
       }
     },
@@ -7894,7 +7997,7 @@
             "sha256": "4bb1439150fb0d1ee4c1e1764929354369720e20eac2c57cee39431491dcd5be"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--7f46284f6b577798"
       }
     },
@@ -7950,7 +8053,7 @@
             "sha256": "4bb1439150fb0d1ee4c1e1764929354369720e20eac2c57cee39431491dcd5be"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--7f46284f6b577798"
       }
     },
@@ -8144,7 +8247,7 @@
             "sha256": "bec648063597523da369a753bf8193602eeb056225d2c10f29fbc81b9553c619"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--76f91557e213664c"
       }
     },
@@ -8200,7 +8303,7 @@
             "sha256": "bec648063597523da369a753bf8193602eeb056225d2c10f29fbc81b9553c619"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--76f91557e213664c"
       }
     },
@@ -8381,7 +8484,7 @@
             "sha256": "7774859c3064b2c7b9271c476adb7882b0b32bf512f4f4ffaf47c9f559b8ecfd"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--323922aa7f77dc6e"
       }
     },
@@ -8437,7 +8540,7 @@
             "sha256": "7774859c3064b2c7b9271c476adb7882b0b32bf512f4f4ffaf47c9f559b8ecfd"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--323922aa7f77dc6e"
       }
     },
@@ -8590,7 +8693,7 @@
             "sha256": "0209098bbf52578cb05a77815627bb15b01acdc1c754d17264247f4ba0863c09"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--c2fe7ca3c33bd125"
       }
     },
@@ -8646,7 +8749,7 @@
             "sha256": "0209098bbf52578cb05a77815627bb15b01acdc1c754d17264247f4ba0863c09"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--c2fe7ca3c33bd125"
       }
     },
@@ -8840,7 +8943,7 @@
             "sha256": "bec648063597523da369a753bf8193602eeb056225d2c10f29fbc81b9553c619"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--6ecf79f38557fa74"
       }
     },
@@ -8896,7 +8999,7 @@
             "sha256": "bec648063597523da369a753bf8193602eeb056225d2c10f29fbc81b9553c619"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--6ecf79f38557fa74"
       }
     },
@@ -9642,7 +9745,7 @@
             "sha256": "e3ea5715112663b1b60cf596eeffc2140e49b399809ece89a174bce41a969274"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--d8cd719704083868"
       }
     },
@@ -9688,7 +9791,7 @@
             "sha256": "1bb9456a889d1f43b07df0de10126957325ca07c0b6ddac9f39b910a0fe1ce16"
           }
         ],
-        "checkout_sha256": "4a1aad5a037d5811bf30103be3773113192350d463d981ab6a7872ea868bf7c2",
+        "checkout_sha256": "c16f8fc92c390fe4f7dedc3cc4012b53a0a1ae8a7e3204316849fd6f4b978c73",
         "harness_id": "harness--d8cd719704083868"
       }
     },
@@ -9925,6 +10028,696 @@
     {
       "check": "HARN-005",
       "severity": "warn",
+      "id": "measurement--native.floor.701122c14e93320268b7b803",
+      "message": "measurement--native.floor.701122c14e93320268b7b803 was produced by a version of bin/BUNDLE.txt that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "bin/BUNDLE.txt",
+        "recorded_entries": [
+          {
+            "path": "bin/BUNDLE.txt",
+            "role": "source_0001",
+            "sha256": "6d7b7897e20a43958aef82c92bb8d9d7268ae3b943c24319d3570e0cfa4317c9"
+          }
+        ],
+        "checkout_sha256": "6cd9f0bba351d61656bb0ded08997a45d88cb2b0e787009c0b288fcace8768fa",
+        "harness_id": "harness--d6abbf4485abe960"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.701122c14e93320268b7b803",
+      "message": "measurement--native.floor.701122c14e93320268b7b803 was produced by a version of bin/fidelity/dshub.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "bin/fidelity/dshub.py",
+        "recorded_entries": [
+          {
+            "path": "bin/fidelity/dshub.py",
+            "role": "source_0024",
+            "sha256": "2c85716212f479d197f332395ffd18ec6afcfca2fef43be930d146e0b9a98317"
+          }
+        ],
+        "checkout_sha256": "6b8f71c4ba173b2af0c2c103e4a63f06bcb0c567be509755ce89bbbaa4d9a6c3",
+        "harness_id": "harness--d6abbf4485abe960"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.701122c14e93320268b7b803",
+      "message": "measurement--native.floor.701122c14e93320268b7b803 was produced by a version of bin/fidelity/hfjobs.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "bin/fidelity/hfjobs.py",
+        "recorded_entries": [
+          {
+            "path": "bin/fidelity/hfjobs.py",
+            "role": "source_0029",
+            "sha256": "14653c7a3b61be5c9992faf236237d56f23007656e34c0858d9d6b2b9c013f28"
+          }
+        ],
+        "checkout_sha256": "4ae1af6c379ae200893844a8f58693cd9300a2bbd92d269a8649cf0cb82a718e",
+        "harness_id": "harness--d6abbf4485abe960"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.701122c14e93320268b7b803",
+      "message": "measurement--native.floor.701122c14e93320268b7b803 was produced by a version of bin/fidelity/hfmeta.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "bin/fidelity/hfmeta.py",
+        "recorded_entries": [
+          {
+            "path": "bin/fidelity/hfmeta.py",
+            "role": "source_0030",
+            "sha256": "900f004f588aebdef0ff53af6cc697fe0fd9cfc57bfbfd81b13ecf6fd0ab84ce"
+          }
+        ],
+        "checkout_sha256": "0c521831d5921b4eb344bfb989d1da96d61c1cf0509b7806e46cc3c0e31a36de",
+        "harness_id": "harness--d6abbf4485abe960"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.701122c14e93320268b7b803",
+      "message": "measurement--native.floor.701122c14e93320268b7b803 was produced by a version of bin/fidelity/jobcontract.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "bin/fidelity/jobcontract.py",
+        "recorded_entries": [
+          {
+            "path": "bin/fidelity/jobcontract.py",
+            "role": "source_0032",
+            "sha256": "c5706b52b88148be9739ca636a491fb3cc11b967425e2f9bb9f3bb4f08474ee9"
+          }
+        ],
+        "checkout_sha256": "0937c7483c98fcc81866a90ed65ebcd09ba7dfb38c49c4289e44ca30a42c2aee",
+        "harness_id": "harness--d6abbf4485abe960"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.701122c14e93320268b7b803",
+      "message": "measurement--native.floor.701122c14e93320268b7b803 was produced by a version of bin/fidelity/resultsink.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "bin/fidelity/resultsink.py",
+        "recorded_entries": [
+          {
+            "path": "bin/fidelity/resultsink.py",
+            "role": "source_0042",
+            "sha256": "37cd56f74d0f98365430eb1b0c54ae43bad80ba38047df00f9bd9c21050fa03f"
+          }
+        ],
+        "checkout_sha256": "088132451133eb4fce786a16e1f07bb74d62cd8e71e2e1913ed783c89cd04333",
+        "harness_id": "harness--d6abbf4485abe960"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.701122c14e93320268b7b803",
+      "message": "measurement--native.floor.701122c14e93320268b7b803 was produced by a version of bin/fidelity_dataset.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "bin/fidelity_dataset.py",
+        "recorded_entries": [
+          {
+            "path": "bin/fidelity_dataset.py",
+            "role": "source_0052",
+            "sha256": "78c8f8c6fa0b932642374d881ffe248d3d73f9f93d60ec5df2e125911229d66c"
+          }
+        ],
+        "checkout_sha256": "2e7185eb319d9f2f218f87749bbe824954b062443545df3a5b0cfa87c0f25389",
+        "harness_id": "harness--d6abbf4485abe960"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.701122c14e93320268b7b803",
+      "message": "measurement--native.floor.701122c14e93320268b7b803 was produced by a version of bin/measure_cloud.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "bin/measure_cloud.py",
+        "recorded_entries": [
+          {
+            "path": "bin/measure_cloud.py",
+            "role": "source_0069",
+            "sha256": "a04d2a052dbefbfd9c66fbd63ec89e705cd91a9170d0f99e269d22532612a96e"
+          }
+        ],
+        "checkout_sha256": "351bf61717b6cac22d963dd5406ed549c96f0f1eb9c7c93541751335a64fad48",
+        "harness_id": "harness--d6abbf4485abe960"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.701122c14e93320268b7b803",
+      "message": "measurement--native.floor.701122c14e93320268b7b803 was produced by a version of bin/publish_explorer.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "bin/publish_explorer.py",
+        "recorded_entries": [
+          {
+            "path": "bin/publish_explorer.py",
+            "role": "source_0075",
+            "sha256": "52449c51be511d05a03f26b12fc0bdf5db93722848c07e97eaec829b9c82a254"
+          }
+        ],
+        "checkout_sha256": "2f0926626b2bc1bc0c6efb04737548ae8f5afc61fe9be83ce9c9ec8147444433",
+        "harness_id": "harness--d6abbf4485abe960"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.701122c14e93320268b7b803",
+      "message": "measurement--native.floor.701122c14e93320268b7b803 was produced by a version of bin/selftest_container.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "bin/selftest_container.py",
+        "recorded_entries": [
+          {
+            "path": "bin/selftest_container.py",
+            "role": "source_0090",
+            "sha256": "c1c9ca255a329db44c0f10ab60df34dd848a70c5e1c2bbe0e576fbef8a49fba1"
+          }
+        ],
+        "checkout_sha256": "3508dba27c8b5a3968a72c147ec6d645141e2cd9f2990914db71afdb60c2179f",
+        "harness_id": "harness--d6abbf4485abe960"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.701122c14e93320268b7b803",
+      "message": "measurement--native.floor.701122c14e93320268b7b803 was produced by a version of bin/selftest_explorer_jobs.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "bin/selftest_explorer_jobs.py",
+        "recorded_entries": [
+          {
+            "path": "bin/selftest_explorer_jobs.py",
+            "role": "source_0093",
+            "sha256": "f957741f7b12fbef2f0e64c2d261495c567b2c802d3b1bf4d74548a241e18018"
+          }
+        ],
+        "checkout_sha256": "c64f3bf98122dc79c9cd78bfd49d5209065aa3270144c5f77a8c0771c982ec9f",
+        "harness_id": "harness--d6abbf4485abe960"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.701122c14e93320268b7b803",
+      "message": "measurement--native.floor.701122c14e93320268b7b803 was produced by a version of bin/selftest_fidelity_dataset.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "bin/selftest_fidelity_dataset.py",
+        "recorded_entries": [
+          {
+            "path": "bin/selftest_fidelity_dataset.py",
+            "role": "source_0097",
+            "sha256": "8e83381bebb1ca245f4becfa34721e09eb43ddabf33b66b2c56e1c8aeea409ee"
+          }
+        ],
+        "checkout_sha256": "2c3615507ebf657704cefc4ca3c63bd0b65cc2e2e58906863532e44e41085532",
+        "harness_id": "harness--d6abbf4485abe960"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.701122c14e93320268b7b803",
+      "message": "measurement--native.floor.701122c14e93320268b7b803 was produced by a version of bin/selftest_jobs_resources.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "bin/selftest_jobs_resources.py",
+        "recorded_entries": [
+          {
+            "path": "bin/selftest_jobs_resources.py",
+            "role": "source_0111",
+            "sha256": "98a24b46a68d18dba901fe1a94f0abcfbcc2c3d243cb9948662dbfdd7954e6bf"
+          }
+        ],
+        "checkout_sha256": "bfb28cd884b1edacbf3eebe7e27a3cb37785cb3fc6f77df812b75ef8858deff6",
+        "harness_id": "harness--d6abbf4485abe960"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.701122c14e93320268b7b803",
+      "message": "measurement--native.floor.701122c14e93320268b7b803 was produced by a version of bin/selftest_race_mode.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "bin/selftest_race_mode.py",
+        "recorded_entries": [
+          {
+            "path": "bin/selftest_race_mode.py",
+            "role": "source_0128",
+            "sha256": "9d9656097b5b1bb92d42f844f91531c55411583d1f3552cf542200ef62d35948"
+          }
+        ],
+        "checkout_sha256": "264b8a0291d78af9409c54d6bd96e04270e97ef91b0d91ab580e907dd7cd7d2b",
+        "harness_id": "harness--d6abbf4485abe960"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.701122c14e93320268b7b803",
+      "message": "measurement--native.floor.701122c14e93320268b7b803 was produced by a version of bin/selftest_root_publish.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "bin/selftest_root_publish.py",
+        "recorded_entries": [
+          {
+            "path": "bin/selftest_root_publish.py",
+            "role": "source_0137",
+            "sha256": "36f129589f5c8a52e0a7abb96a4fa52c6ecdfcd484ecd0872f54465d8d4cad7d"
+          }
+        ],
+        "checkout_sha256": "ffa970987da0199ed6c0599d5a06c87a1df58e1be21bb26c7b3b8f9f98495d9d",
+        "harness_id": "harness--d6abbf4485abe960"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.701122c14e93320268b7b803",
+      "message": "measurement--native.floor.701122c14e93320268b7b803 was produced by a version of engines/tools/hf_capture.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "engines/tools/hf_capture.py",
+        "recorded_entries": [
+          {
+            "path": "engines/tools/hf_capture.py",
+            "role": "source_0204",
+            "sha256": "78032f531d2618bec4d8decf52282760be94ad08055b71fe189904d83730b5a6"
+          }
+        ],
+        "checkout_sha256": "a9170219f999db8aabcb5e5f98ae5562d6fd5ae3e2d8a105536fa3045d3bd813",
+        "harness_id": "harness--d6abbf4485abe960"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.701122c14e93320268b7b803",
+      "message": "measurement--native.floor.701122c14e93320268b7b803 was produced by a version of engines/tools/layer_outer.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "engines/tools/layer_outer.py",
+        "recorded_entries": [
+          {
+            "path": "engines/tools/layer_outer.py",
+            "role": "source_0278",
+            "sha256": "e3ea5715112663b1b60cf596eeffc2140e49b399809ece89a174bce41a969274"
+          }
+        ],
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
+        "harness_id": "harness--d6abbf4485abe960"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.701122c14e93320268b7b803",
+      "message": "measurement--native.floor.701122c14e93320268b7b803 was produced by a version of engines/tools/race_fetch.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "engines/tools/race_fetch.py",
+        "recorded_entries": [
+          {
+            "path": "engines/tools/race_fetch.py",
+            "role": "source_0290",
+            "sha256": "b6be0ab1ea36e292a644087c8fa867594ac43d71163e7ce09f5effd05a4168a7"
+          }
+        ],
+        "checkout_sha256": "6d73bdfb5cd7448fcea1791b124381c4d2f8cd783666e1be263f2abe4be8f198",
+        "harness_id": "harness--d6abbf4485abe960"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.701122c14e93320268b7b803",
+      "message": "measurement--native.floor.701122c14e93320268b7b803 was produced by a version of engines/tools/selftest_trellis_decode_offline.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "engines/tools/selftest_trellis_decode_offline.py",
+        "recorded_entries": [
+          {
+            "path": "engines/tools/selftest_trellis_decode_offline.py",
+            "role": "source_0309",
+            "sha256": "1bb9456a889d1f43b07df0de10126957325ca07c0b6ddac9f39b910a0fe1ce16"
+          }
+        ],
+        "checkout_sha256": "c16f8fc92c390fe4f7dedc3cc4012b53a0a1ae8a7e3204316849fd6f4b978c73",
+        "harness_id": "harness--d6abbf4485abe960"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.701122c14e93320268b7b803",
+      "message": "measurement--native.floor.701122c14e93320268b7b803 was produced by a version of explorer/contribute.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "explorer/contribute.py",
+        "recorded_entries": [
+          {
+            "path": "explorer/contribute.py",
+            "role": "source_0320",
+            "sha256": "3a327220c9e5e8b8540a10e1fb6c85220771be026142a049aa297a07172616c5"
+          }
+        ],
+        "checkout_sha256": "2c98f1bb933125903e4475396c1e008ad3b38ff9db8a28b029a0702326fa187c",
+        "harness_id": "harness--d6abbf4485abe960"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.701122c14e93320268b7b803",
+      "message": "measurement--native.floor.701122c14e93320268b7b803 was produced by a version of explorer/job_bootstrap.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "explorer/job_bootstrap.py",
+        "recorded_entries": [
+          {
+            "path": "explorer/job_bootstrap.py",
+            "role": "source_0323",
+            "sha256": "c8d65dcf8f2e7bc7749eaca67d61c9afedb9e9b95e8fdfd526c122c4747920f1"
+          }
+        ],
+        "checkout_sha256": "ad04862b0d042f9753afa1451f3a5aafb335712210ea601935b44325cab89086",
+        "harness_id": "harness--d6abbf4485abe960"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.701122c14e93320268b7b803",
+      "message": "measurement--native.floor.701122c14e93320268b7b803 was produced by a version of explorer/job_resources.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "explorer/job_resources.py",
+        "recorded_entries": [
+          {
+            "path": "explorer/job_resources.py",
+            "role": "source_0324",
+            "sha256": "7fb76ad96632353850a4974925a00fc0b9d7284eac47a6a29d00d4553ce730ee"
+          }
+        ],
+        "checkout_sha256": "c94a4f9f37929d6c65f664b4c2146bbfd635e00e677b38efd134f88587fb8b44",
+        "harness_id": "harness--d6abbf4485abe960"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.701122c14e93320268b7b803",
+      "message": "measurement--native.floor.701122c14e93320268b7b803 was produced by a version of explorer/job_ui.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "explorer/job_ui.py",
+        "recorded_entries": [
+          {
+            "path": "explorer/job_ui.py",
+            "role": "source_0325",
+            "sha256": "c8c32a6fe29535c6a1573260042c3c84e591952a213fd8de1f20a1d6cf29db39"
+          }
+        ],
+        "checkout_sha256": "e1616db74be6b25c697348f193bd5706804c010d0a957aeaecb6ab18cbb16061",
+        "harness_id": "harness--d6abbf4485abe960"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.701122c14e93320268b7b803",
+      "message": "measurement--native.floor.701122c14e93320268b7b803 was produced by a version of explorer/job_worker.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "explorer/job_worker.py",
+        "recorded_entries": [
+          {
+            "path": "explorer/job_worker.py",
+            "role": "source_0326",
+            "sha256": "7a9b678eecb5121309eb396e7757b6a018ee6fffd1f1ddddd5c7722f7d88f7c4"
+          }
+        ],
+        "checkout_sha256": "32a303c38fe882b56898a34dab6466da543eec68fd3c498e58ed745aa5888483",
+        "harness_id": "harness--d6abbf4485abe960"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.701122c14e93320268b7b803",
+      "message": "measurement--native.floor.701122c14e93320268b7b803 was produced by a version of explorer/jobs.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "explorer/jobs.py",
+        "recorded_entries": [
+          {
+            "path": "explorer/jobs.py",
+            "role": "source_0327",
+            "sha256": "a51cd41921b0f3ade2e08c0c2095ff695b60398ac15770ce5d6e5b5f5c7c16dd"
+          }
+        ],
+        "checkout_sha256": "1b109ea79877f6f8c8fbc32bac32ceb2cf6fb397f9223469130f94a6572a6db4",
+        "harness_id": "harness--d6abbf4485abe960"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.701122c14e93320268b7b803",
+      "message": "measurement--native.floor.701122c14e93320268b7b803 was produced by a version of explorer/requirements-worker.txt that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "explorer/requirements-worker.txt",
+        "recorded_entries": [
+          {
+            "path": "explorer/requirements-worker.txt",
+            "role": "source_0331",
+            "sha256": "67a3d74161485f320763b668918559259977e6bf13223c934cb08ee514404d3d"
+          }
+        ],
+        "checkout_sha256": "51623317a1f6b61e3cb7e59a129a066d312e98bd784e32cea7a018eec3144083",
+        "harness_id": "harness--d6abbf4485abe960"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.701122c14e93320268b7b803",
+      "message": "measurement--native.floor.701122c14e93320268b7b803 was produced by a version of explorer/review.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "explorer/review.py",
+        "recorded_entries": [
+          {
+            "path": "explorer/review.py",
+            "role": "source_0333",
+            "sha256": "7acdb42f33d8434a9dbb155a9cbf31b6880bdffc5ad97ed687d7b6fa8f117768"
+          }
+        ],
+        "checkout_sha256": "8bf7d0d7e2aac76a00f459aa471538f5e89e2cd2e5cc27a38536d11052a3eba6",
+        "harness_id": "harness--d6abbf4485abe960"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.701122c14e93320268b7b803",
+      "message": "measurement--native.floor.701122c14e93320268b7b803 was produced by a version of registry/tools/registry_selftest.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "registry/tools/registry_selftest.py",
+        "recorded_entries": [
+          {
+            "path": "registry/tools/registry_selftest.py",
+            "role": "source_0350",
+            "sha256": "f45fb335495ac0aa050f16260b478910af7bf329e5ee131dffb4161afec78b67"
+          }
+        ],
+        "checkout_sha256": "34a2aba5fa6166c91e9cba694e15375566546692d0e855a212fb95c3ad03b096",
+        "harness_id": "harness--d6abbf4485abe960"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.701122c14e93320268b7b803",
+      "message": "measurement--native.floor.701122c14e93320268b7b803 was produced by a version of registry/tools/registry_validate.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "registry/tools/registry_validate.py",
+        "recorded_entries": [
+          {
+            "path": "registry/tools/registry_validate.py",
+            "role": "source_0351",
+            "sha256": "52dfef11c60979f6b5675812a35e73423d8ce36672c0fe5b17c943084a43655c"
+          }
+        ],
+        "checkout_sha256": "8374eb6b5b23c25726a68c4d991358bad33f8c1261de9e08c556098c885deb44",
+        "harness_id": "harness--d6abbf4485abe960"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.701122c14e93320268b7b803",
+      "message": "measurement--native.floor.701122c14e93320268b7b803 was produced by a version of registry/tools/review_requests.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "registry/tools/review_requests.py",
+        "recorded_entries": [
+          {
+            "path": "registry/tools/review_requests.py",
+            "role": "source_0353",
+            "sha256": "150a5f3c83d95b9979a38ff22559b08c8baca58eabbfa06d036c4898236e29aa"
+          }
+        ],
+        "checkout_sha256": "80804b72f057d333c91e9cc6792e756af59d6bae16e3bdd6fef199a99998db79",
+        "harness_id": "harness--d6abbf4485abe960"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
       "id": "measurement--native.floor.72915a75f9da017af5fe925e",
       "message": "measurement--native.floor.72915a75f9da017af5fe925e was produced by a version of bin/fidelity/dshub.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
       "remedy": null,
@@ -9988,6 +10781,52 @@
           }
         ],
         "checkout_sha256": "bfb28cd884b1edacbf3eebe7e27a3cb37785cb3fc6f77df812b75ef8858deff6",
+        "harness_id": "harness--dac5848f3aa00e25"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.72915a75f9da017af5fe925e",
+      "message": "measurement--native.floor.72915a75f9da017af5fe925e was produced by a version of engines/tools/layer_outer.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "engines/tools/layer_outer.py",
+        "recorded_entries": [
+          {
+            "path": "engines/tools/layer_outer.py",
+            "role": "source_0283",
+            "sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f"
+          }
+        ],
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
+        "harness_id": "harness--dac5848f3aa00e25"
+      }
+    },
+    {
+      "check": "HARN-005",
+      "severity": "warn",
+      "id": "measurement--native.floor.72915a75f9da017af5fe925e",
+      "message": "measurement--native.floor.72915a75f9da017af5fe925e was produced by a version of engines/tools/selftest_trellis_decode_offline.py that differs from the current checkout. This is the mechanism working: the row predates a change to that file.",
+      "remedy": null,
+      "status": "retained-and-disclosed",
+      "category": "historical-source-version-drift",
+      "rationale": "Retain the exact measurement-time harness identities. Current checkout bytes differ at the cited path; this is source-version drift, not proof of a numeric defect or correctness. No historical receipt, metric or ranking eligibility is restamped.",
+      "evidence": {
+        "record_field": "harness.code_digests",
+        "path": "engines/tools/selftest_trellis_decode_offline.py",
+        "recorded_entries": [
+          {
+            "path": "engines/tools/selftest_trellis_decode_offline.py",
+            "role": "source_0314",
+            "sha256": "4a1aad5a037d5811bf30103be3773113192350d463d981ab6a7872ea868bf7c2"
+          }
+        ],
+        "checkout_sha256": "c16f8fc92c390fe4f7dedc3cc4012b53a0a1ae8a7e3204316849fd6f4b978c73",
         "harness_id": "harness--dac5848f3aa00e25"
       }
     },
@@ -10884,7 +11723,7 @@
             "sha256": "e3ea5715112663b1b60cf596eeffc2140e49b399809ece89a174bce41a969274"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--0120ab447b077c41"
       }
     },
@@ -11045,7 +11884,7 @@
             "sha256": "540476a985e1a675410349af89b8027e5a8208b3a6b4a63f168c8dc3cd4dd7e1"
           }
         ],
-        "checkout_sha256": "4a1aad5a037d5811bf30103be3773113192350d463d981ab6a7872ea868bf7c2",
+        "checkout_sha256": "c16f8fc92c390fe4f7dedc3cc4012b53a0a1ae8a7e3204316849fd6f4b978c73",
         "harness_id": "harness--0120ab447b077c41"
       }
     },
@@ -11712,7 +12551,7 @@
             "sha256": "e3ea5715112663b1b60cf596eeffc2140e49b399809ece89a174bce41a969274"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--82f5ace09945ce44"
       }
     },
@@ -11758,7 +12597,7 @@
             "sha256": "1bb9456a889d1f43b07df0de10126957325ca07c0b6ddac9f39b910a0fe1ce16"
           }
         ],
-        "checkout_sha256": "4a1aad5a037d5811bf30103be3773113192350d463d981ab6a7872ea868bf7c2",
+        "checkout_sha256": "c16f8fc92c390fe4f7dedc3cc4012b53a0a1ae8a7e3204316849fd6f4b978c73",
         "harness_id": "harness--82f5ace09945ce44"
       }
     },
@@ -12678,7 +13517,7 @@
             "sha256": "e3ea5715112663b1b60cf596eeffc2140e49b399809ece89a174bce41a969274"
           }
         ],
-        "checkout_sha256": "90e0eb7a6b9effe29e016999a8efc1f9494d896b412a1867c056a0a5be1a0a8f",
+        "checkout_sha256": "f63aecedeab71714704d787b6ddc46867c61c728ba6e4c61c31676e3eefc944e",
         "harness_id": "harness--03a35fcf2797fc88"
       }
     },
@@ -12839,7 +13678,7 @@
             "sha256": "540476a985e1a675410349af89b8027e5a8208b3a6b4a63f168c8dc3cd4dd7e1"
           }
         ],
-        "checkout_sha256": "4a1aad5a037d5811bf30103be3773113192350d463d981ab6a7872ea868bf7c2",
+        "checkout_sha256": "c16f8fc92c390fe4f7dedc3cc4012b53a0a1ae8a7e3204316849fd6f4b978c73",
         "harness_id": "harness--03a35fcf2797fc88"
       }
     },
@@ -13513,8 +14352,8 @@
   ],
   "data_snapshot": {
     "repository": "malaiwah/quant-fidelity-registry",
-    "recovered_from_revision": "256529156bccf9a0df3c720bf1cc1db800cc0b2e",
-    "context": "Canonical full-suite snapshot including accepted tiny candidate, tiny CLI fixture root, and original and baked native Qwen references."
+    "recovered_from_revision": "bb400787e262f1e487923ff45c210e0751386b69",
+    "context": "Canonical full-suite snapshot including accepted tiny candidate, tiny CLI fixture root, and the original CUDA, baked CUDA and CPU native Qwen references."
   },
   "source_provenance": {
     "suite_repository": "https://github.com/malaiwah/quant-fidelity-suite",
@@ -13555,25 +14394,25 @@
     "remote_base_revision": "16e38c663dde9725beb200385b33c8d0503e550b"
   },
   "previous_disposition_snapshot": {
-    "sha256": "57082ed1009b71fec350dcf4823544e383643ea2f4b6c7baf70a607f158c79c3",
+    "sha256": "23484681b531b1d5fabdf3fd9dee37254d53b18dc39e49433733089b8077a977",
     "record_counts": {
       "models": 19,
       "artifacts": 95,
       "panels": 20,
-      "references": 33,
-      "pipelines": 35,
-      "measurements": 117
+      "references": 34,
+      "pipelines": 36,
+      "measurements": 118
     },
     "data_sha256": {
       "data/models.jsonl": "42302eb429e99bd184438ceee93394b1b5c7f11849d6877bc52c79aa1c08a1bf",
       "data/artifacts.jsonl": "99da280597e44cc55c8a43a7e89fae079e5a892536f63355bd805bd91d496ecb",
       "data/panels.jsonl": "539838836c3bcd0f2c2b52c0bf7fa2d69a3f5d5e307c72e7ea13fb8140408938",
-      "data/references.jsonl": "76bce49c2f0a33e6f363b26e94ec309900ef7aafd9d7a7428c0c1efdfaab2b6a",
-      "data/pipelines.jsonl": "5f67e5a0c2d426c08d93e517cf5619b692c85dfeff86e5d89439c86c3844c7b0",
-      "data/measurements.jsonl": "42d1d008ecbca0e335d7b55ea4b5a1c09f515a2c8c84eb3d36be04a514a04a51",
-      "index.json": "2f232614b46eb0fa3bde6f129672410f765fc567c4a05bdf3c035289d8502466",
+      "data/references.jsonl": "6c2038645d9fee5604b20959cf48ce12131eb54fcc0dd44609e2db07affee4c4",
+      "data/pipelines.jsonl": "78bfe3a345a9a9716f110386ed0f88311961ed2656d65948dd5e1398c321a57f",
+      "data/measurements.jsonl": "fbde3ee2c82fc96a77adc08172f03534ff6b90d0e97594485a5c70c83da5c231",
+      "index.json": "9e5dc53d12e8dbfb3a86e828d8863537af327ba7bef1658659dbeb09aaa5868a",
       "schema/invariants.json": "59a0432690968bcced4ddf2b4fa4b3be7c89bdcc3fe9efd0212bea7d5b7dca0f"
     },
-    "reviewed_on": "2026-09-09"
+    "reviewed_on": "2026-09-10"
   }
 }

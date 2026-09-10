@@ -8,9 +8,9 @@
     },
     "measurements": {
       "file": "data/measurements.jsonl",
-      "record_count": 117,
+      "record_count": 118,
       "schema": "schema/measurement.schema.json",
-      "sha256": "42d1d008ecbca0e335d7b55ea4b5a1c09f515a2c8c84eb3d36be04a514a04a51"
+      "sha256": "fbde3ee2c82fc96a77adc08172f03534ff6b90d0e97594485a5c70c83da5c231"
     },
     "models": {
       "file": "data/models.jsonl",
@@ -26,15 +26,15 @@
     },
     "pipelines": {
       "file": "data/pipelines.jsonl",
-      "record_count": 35,
+      "record_count": 36,
       "schema": "schema/pipeline.schema.json",
-      "sha256": "5f67e5a0c2d426c08d93e517cf5619b692c85dfeff86e5d89439c86c3844c7b0"
+      "sha256": "78bfe3a345a9a9716f110386ed0f88311961ed2656d65948dd5e1398c321a57f"
     },
     "references": {
       "file": "data/references.jsonl",
-      "record_count": 33,
+      "record_count": 34,
       "schema": "schema/reference.schema.json",
-      "sha256": "76bce49c2f0a33e6f363b26e94ec309900ef7aafd9d7a7428c0c1efdfaab2b6a"
+      "sha256": "6c2038645d9fee5604b20959cf48ce12131eb54fcc0dd44609e2db07affee4c4"
     }
   },
   "comparability_keys": [
@@ -2618,6 +2618,84 @@
       "stack_relation": "same_stack"
     },
     {
+      "accumulation_dtype": "float64",
+      "comparability": {
+        "comparable": "unknown",
+        "live_member_count": 1,
+        "predicate_version": "comparability-predicate/v2",
+        "reasons": [
+          "stack: unrecorded for 1 member; homogeneity cannot be certified",
+          "replay_backend: unrecorded for 1 member; homogeneity cannot be certified",
+          "replay_env: unrecorded for 1 member; homogeneity cannot be certified"
+        ],
+        "secondary": {
+          "hardware": {
+            "status": "pass",
+            "values": [
+              "1x NVIDIA A100-SXM4-80GB"
+            ]
+          },
+          "harness": {
+            "status": "pass",
+            "values": [
+              "harness--d6abbf4485abe960"
+            ]
+          },
+          "key": {
+            "status": "pass",
+            "values": [
+              "cmp--c7a6b98923c9f1fc"
+            ]
+          },
+          "lane": {
+            "status": "pass",
+            "values": [
+              "other"
+            ]
+          },
+          "pipeline": {
+            "status": "pass",
+            "values": [
+              "pipeline--hf-jobs.d6abbf4485abe960"
+            ]
+          },
+          "replay_backend": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "replay_env": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          },
+          "scope": {
+            "status": "pass",
+            "values": [
+              "unquantized"
+            ]
+          },
+          "stack": {
+            "status": "unknown",
+            "values": [
+              "unrecorded"
+            ]
+          }
+        }
+      },
+      "direction": "reference_to_candidate",
+      "head_policy": "native_head",
+      "key": "cmp--c7a6b98923c9f1fc",
+      "label": "mean_tokenwise_kld on panel--native.f8c1aa7198f74a0e10289d94 (same_stack, native_head)",
+      "member_count": 1,
+      "metric_name": "mean_tokenwise_kld",
+      "panel_id": "panel--native.f8c1aa7198f74a0e10289d94",
+      "reference_id": "reference--native.11070ae4ed224b2dc34ceb05",
+      "stack_relation": "same_stack"
+    },
+    {
       "accumulation_dtype": "float32_reduce_legacy",
       "comparability": {
         "comparable": "false",
@@ -3189,17 +3267,17 @@
   "comparability_rule": "The seven-field comparability.key is a NECESSARY partition key, not a sufficient certificate: two measurement values with different keys are NEVER comparable, and a table that mixes keys is malformed. Equal keys make two rows candidates for comparison ONLY -- the key deliberately omits measurement lane, candidate pipeline, hardware and artifact scope, all of which this project has MEASURED moving results by more than the gaps it publishes between quantizers. Before ranking rows as like-for-like, a consumer must also check each group's comparability_keys[].comparability predicate: comparable=true/false/unknown with machine-readable reasons.",
   "counts": {
     "artifacts": 95,
-    "measurements": 117,
-    "measurements_advisory": 109,
+    "measurements": 118,
+    "measurements_advisory": 110,
     "measurements_author_reported": 15,
     "measurements_independently_verified": 0,
-    "measurements_self_measured": 102,
+    "measurements_self_measured": 103,
     "measurements_strict": 8,
     "measurements_third_party_reported": 0,
     "models": 19,
     "panels": 20,
-    "pipelines": 35,
-    "references": 33
+    "pipelines": 36,
+    "references": 34
   },
   "cross_refs": {
     "local_ai_registry": {
@@ -3209,13 +3287,13 @@
       "url": "https://huggingface.co/datasets/0xSero/local-ai-registry"
     }
   },
-  "generated_at": "2026-09-09T22:39:10+00:00",
+  "generated_at": "2026-09-10T01:33:57+00:00",
   "registry_id": "malaiwah/quant-fidelity-registry",
   "resolver_rule": "Every *_ref is the id field of a record in the collection named by the ref's id prefix: model--, artifact--, panel--, reference--, pipeline--, measurement--.",
   "schema_version": "quant-fidelity-registry/v1",
   "validator": {
     "invariants_file": "schema/invariants.json",
-    "last_run_at": "2026-09-09T22:39:10+00:00",
+    "last_run_at": "2026-09-10T01:33:57+00:00",
     "passed": true,
     "tool": "tools/registry_validate.py"
   }

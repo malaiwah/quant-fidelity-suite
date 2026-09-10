@@ -1,0 +1,4790 @@
+{
+  "corpus": {
+    "corpus_note": "Gutenberg / arXiv / Wikipedia (en + de,fr,es,ja,zh,ru) / CPython v3.12.8 Lib; calibration-overlapping documents are pre-excluded.",
+    "path_prefix": "suite/tokens/",
+    "repo_type": "dataset",
+    "repository": "malaiwah/qwen38-27b-fidelity-suite-v5",
+    "revision": "7797fcce3ffed62b99871348887f4626dc9b2b3b",
+    "shard": {
+      "contexts": 512,
+      "index": 0,
+      "partial": false
+    },
+    "suite_contexts_requested": 5120,
+    "suite_manifest_bytes": 571660,
+    "suite_manifest_path": "suite/shard-0000/suite-manifest.json",
+    "suite_manifest_sha256": "44000bbd4ec24fea4a19696eb7b5e1055b66c4dc65a3bf14f243de58e38cd3f3",
+    "suite_partitions": {
+      "analysis": 399,
+      "qualification": 113
+    },
+    "suite_schema": "qwen38-distribution-fidelity/6",
+    "suite_source_clusters": 330,
+    "suite_strata": {
+      "code": 123,
+      "encyclopedic": 92,
+      "literary": 82,
+      "multilingual": 108,
+      "scientific": 107
+    },
+    "suite_token_sha256_parent": "caef8a4628d6c07c162100895096f890cdf9cafc8e4c48b3d66035d737ee7cf7"
+  },
+  "derivation": "transport, not reconstruction",
+  "document_provenance": {
+    "contexts_by_partition": {
+      "analysis": 399,
+      "qualification": 113
+    },
+    "contexts_by_stratum": {
+      "code": 123,
+      "encyclopedic": 92,
+      "literary": 82,
+      "multilingual": 108,
+      "scientific": 107
+    },
+    "note": "counts are recomputed from this shard's own context_index rows; they are not transferable to another panel",
+    "source_clusters_by_stratum": {
+      "code": 84,
+      "encyclopedic": 76,
+      "literary": 48,
+      "multilingual": 83,
+      "scientific": 39
+    },
+    "source_clusters_in_shard": 330,
+    "source_clusters_without_manifest_document_record": 0
+  },
+  "documents": [
+    {
+      "bytes": 308016,
+      "contexts": 6,
+      "file": "arxiv5-cs-AI-0000.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "ad29c470c08f5cb0601b9c45c61d229e84cbe798203138845ecd1fb3675be482",
+      "source_cluster": "arxiv5-cs-AI-0000",
+      "strata": [
+        "scientific"
+      ],
+      "stratum": "scientific"
+    },
+    {
+      "bytes": 303134,
+      "contexts": 4,
+      "file": "arxiv5-cs-AI-0200.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "9d5564bfc96a35baacfaf8cb0b4cb894648e4408488d02af36a59cb4212bd0b3",
+      "source_cluster": "arxiv5-cs-AI-0200",
+      "strata": [
+        "scientific"
+      ],
+      "stratum": "scientific"
+    },
+    {
+      "bytes": 306851,
+      "contexts": 2,
+      "file": "arxiv5-cs-AR-0000.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "11e0b37f99b9080c14a4680fcc820451b93cce25d65257c0b36a893dd13dc019",
+      "source_cluster": "arxiv5-cs-AR-0000",
+      "strata": [
+        "scientific"
+      ],
+      "stratum": "scientific"
+    },
+    {
+      "bytes": 301131,
+      "contexts": 1,
+      "file": "arxiv5-cs-AR-0200.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "99477b03e197c717aad43c258660867f7324b573fc2cd155f7fbe634973d7e12",
+      "source_cluster": "arxiv5-cs-AR-0200",
+      "strata": [
+        "scientific"
+      ],
+      "stratum": "scientific"
+    },
+    {
+      "bytes": 260466,
+      "contexts": 4,
+      "file": "arxiv5-cs-CC-0000.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "62ae90be0f7b9f299c48e2fcb0a30f8c59e4f0a009e0961fdbeb13695896a54e",
+      "source_cluster": "arxiv5-cs-CC-0000",
+      "strata": [
+        "scientific"
+      ],
+      "stratum": "scientific"
+    },
+    {
+      "bytes": 269223,
+      "contexts": 2,
+      "file": "arxiv5-cs-CC-0200.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "db5f6a05408f3280fb92049a64f4323bce340d1483bcf91a5c677e7dbebbf25e",
+      "source_cluster": "arxiv5-cs-CC-0200",
+      "strata": [
+        "scientific"
+      ],
+      "stratum": "scientific"
+    },
+    {
+      "bytes": 313374,
+      "contexts": 2,
+      "file": "arxiv5-cs-CE-0000.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "cd54e364028412b022a6d7cfbe41e6c123e84e75a66f9515641576a04f2943c3",
+      "source_cluster": "arxiv5-cs-CE-0000",
+      "strata": [
+        "scientific"
+      ],
+      "stratum": "scientific"
+    },
+    {
+      "bytes": 315368,
+      "contexts": 2,
+      "file": "arxiv5-cs-CE-0200.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "dc99c9d9c81f854cb4eae894c9c19ebaec3d381208414805c8851d774931a894",
+      "source_cluster": "arxiv5-cs-CE-0200",
+      "strata": [
+        "scientific"
+      ],
+      "stratum": "scientific"
+    },
+    {
+      "bytes": 255123,
+      "contexts": 1,
+      "file": "arxiv5-cs-CG-0000.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "ceb7078dcea28dd793c1be57ffccefbc05d3615cfd25177cd6388c8dd95f3fc4",
+      "source_cluster": "arxiv5-cs-CG-0000",
+      "strata": [
+        "scientific"
+      ],
+      "stratum": "scientific"
+    },
+    {
+      "bytes": 247273,
+      "contexts": 3,
+      "file": "arxiv5-cs-CG-0200.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "240d62cd34a0de1c96608fc1cd02fa46dd072fe1d77f8d1c0755447f49f45a3d",
+      "source_cluster": "arxiv5-cs-CG-0200",
+      "strata": [
+        "scientific"
+      ],
+      "stratum": "scientific"
+    },
+    {
+      "bytes": 317195,
+      "contexts": 4,
+      "file": "arxiv5-cs-CY-0000.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "e79d5b0a1ae0a5cbaf2a9767843c1bcd7772976f27c857cac87ad1108e84a157",
+      "source_cluster": "arxiv5-cs-CY-0000",
+      "strata": [
+        "scientific"
+      ],
+      "stratum": "scientific"
+    },
+    {
+      "bytes": 297400,
+      "contexts": 2,
+      "file": "arxiv5-cs-DB-0000.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "a7a34f4acaf848769fb19cf90c25fc6f238b22a4572987bc59b5ee70eae84dc9",
+      "source_cluster": "arxiv5-cs-DB-0000",
+      "strata": [
+        "scientific"
+      ],
+      "stratum": "scientific"
+    },
+    {
+      "bytes": 301814,
+      "contexts": 2,
+      "file": "arxiv5-cs-DB-0200.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "fea192a2cbc6d04b2d34959bd8a5517500c1bcc787e86ab3b10e2c5e638f478b",
+      "source_cluster": "arxiv5-cs-DB-0200",
+      "strata": [
+        "scientific"
+      ],
+      "stratum": "scientific"
+    },
+    {
+      "bytes": 228691,
+      "contexts": 4,
+      "file": "arxiv5-cs-DM-0000.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "f735ba9c0f78000e259775529595721f258829230c55fe9000ed3fc98ba6ebd6",
+      "source_cluster": "arxiv5-cs-DM-0000",
+      "strata": [
+        "scientific"
+      ],
+      "stratum": "scientific"
+    },
+    {
+      "bytes": 206474,
+      "contexts": 2,
+      "file": "arxiv5-cs-DM-0200.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "7d6c06ab82288b3eaa01ca0db72dce60db56a6c8d988a9f39f20308826e99376",
+      "source_cluster": "arxiv5-cs-DM-0200",
+      "strata": [
+        "scientific"
+      ],
+      "stratum": "scientific"
+    },
+    {
+      "bytes": 256703,
+      "contexts": 4,
+      "file": "arxiv5-cs-DS-0000.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "4932489297373a63c6a59296bd47b9a197552b517d07af4da9607b938e0275d2",
+      "source_cluster": "arxiv5-cs-DS-0000",
+      "strata": [
+        "scientific"
+      ],
+      "stratum": "scientific"
+    },
+    {
+      "bytes": 311104,
+      "contexts": 4,
+      "file": "arxiv5-cs-ET-0000.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "e26f6db38ebc05e94e959891d8e3ebef297724e14750177561cdbbfd34c73d83",
+      "source_cluster": "arxiv5-cs-ET-0000",
+      "strata": [
+        "scientific"
+      ],
+      "stratum": "scientific"
+    },
+    {
+      "bytes": 239682,
+      "contexts": 2,
+      "file": "arxiv5-cs-FL-0000.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "17765d725818bd628122dc1f234e8ce3f985d114df244d4e42e6052377d1ab84",
+      "source_cluster": "arxiv5-cs-FL-0000",
+      "strata": [
+        "scientific"
+      ],
+      "stratum": "scientific"
+    },
+    {
+      "bytes": 234226,
+      "contexts": 3,
+      "file": "arxiv5-cs-FL-0200.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "e8fa64d9a4a1142494028ca84405e53b100e4c4505bf8c131535987691f40f62",
+      "source_cluster": "arxiv5-cs-FL-0200",
+      "strata": [
+        "scientific"
+      ],
+      "stratum": "scientific"
+    },
+    {
+      "bytes": 292320,
+      "contexts": 3,
+      "file": "arxiv5-cs-GT-0000.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "f580a68ad95a31e7b54752ce2e0e1539c4f097177c99417fdeb058dd812adad4",
+      "source_cluster": "arxiv5-cs-GT-0000",
+      "strata": [
+        "scientific"
+      ],
+      "stratum": "scientific"
+    },
+    {
+      "bytes": 283128,
+      "contexts": 3,
+      "file": "arxiv5-cs-GT-0200.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "3a61fe2c513742714af5bcab8c4ac731c0b217bf9c861eed608dc306c971f593",
+      "source_cluster": "arxiv5-cs-GT-0200",
+      "strata": [
+        "scientific"
+      ],
+      "stratum": "scientific"
+    },
+    {
+      "bytes": 297843,
+      "contexts": 4,
+      "file": "arxiv5-cs-HC-0000.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "096845c3c26890bc194203d4d32b8fb181c819844ca85a7bf01fae3dfb7705c5",
+      "source_cluster": "arxiv5-cs-HC-0000",
+      "strata": [
+        "scientific"
+      ],
+      "stratum": "scientific"
+    },
+    {
+      "bytes": 296361,
+      "contexts": 3,
+      "file": "arxiv5-cs-HC-0200.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "f77dc6b9ac4e1bd72fcac0118314ab3f005de95f527d663666ed3705381115eb",
+      "source_cluster": "arxiv5-cs-HC-0200",
+      "strata": [
+        "scientific"
+      ],
+      "stratum": "scientific"
+    },
+    {
+      "bytes": 318936,
+      "contexts": 3,
+      "file": "arxiv5-cs-IR-0000.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "335c53fc158a37e5a4ce54aed91f81da824e0e9eab2a350df094e2d11e947a45",
+      "source_cluster": "arxiv5-cs-IR-0000",
+      "strata": [
+        "scientific"
+      ],
+      "stratum": "scientific"
+    },
+    {
+      "bytes": 319142,
+      "contexts": 1,
+      "file": "arxiv5-cs-IR-0200.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "7d227bb1cc432a138ada922077cb3f59380e050c5eb10012fefa45f2084fb0cf",
+      "source_cluster": "arxiv5-cs-IR-0200",
+      "strata": [
+        "scientific"
+      ],
+      "stratum": "scientific"
+    },
+    {
+      "bytes": 270711,
+      "contexts": 6,
+      "file": "arxiv5-cs-IT-0000.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "15ca01b33a98bf94e789ae60e948382de5348652b0bb833b0495173c544eb516",
+      "source_cluster": "arxiv5-cs-IT-0000",
+      "strata": [
+        "scientific"
+      ],
+      "stratum": "scientific"
+    },
+    {
+      "bytes": 278883,
+      "contexts": 2,
+      "file": "arxiv5-cs-IT-0200.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "d8b0da5651a3b11172c0e5053d662aa5242d845649737c78763c295faa218f21",
+      "source_cluster": "arxiv5-cs-IT-0200",
+      "strata": [
+        "scientific"
+      ],
+      "stratum": "scientific"
+    },
+    {
+      "bytes": 248741,
+      "contexts": 2,
+      "file": "arxiv5-cs-LO-0000.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "620c0ce06f0bec422ec9d3d6995602b0cd5b583f72d39fb7ff192b2d43572f21",
+      "source_cluster": "arxiv5-cs-LO-0000",
+      "strata": [
+        "scientific"
+      ],
+      "stratum": "scientific"
+    },
+    {
+      "bytes": 238259,
+      "contexts": 1,
+      "file": "arxiv5-cs-LO-0200.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "7930b7639406c49ae36b5c59ab0c56a1d8feefb4022f016e70e53dfcd559edd3",
+      "source_cluster": "arxiv5-cs-LO-0200",
+      "strata": [
+        "scientific"
+      ],
+      "stratum": "scientific"
+    },
+    {
+      "bytes": 322099,
+      "contexts": 2,
+      "file": "arxiv5-cs-MA-0000.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "9741755de2bab8a9fdbd022b679f3355e04c967d9e37dff70470a3d1c112f582",
+      "source_cluster": "arxiv5-cs-MA-0000",
+      "strata": [
+        "scientific"
+      ],
+      "stratum": "scientific"
+    },
+    {
+      "bytes": 310169,
+      "contexts": 2,
+      "file": "arxiv5-cs-MA-0200.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "a52374ed4a0c738aaadf28497fe4e492d1c3402fbe30f21da8b69371accdc9b4",
+      "source_cluster": "arxiv5-cs-MA-0200",
+      "strata": [
+        "scientific"
+      ],
+      "stratum": "scientific"
+    },
+    {
+      "bytes": 296073,
+      "contexts": 4,
+      "file": "arxiv5-cs-MM-0000.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "0b8decdd63ecf7701550e6596073aa7ccbc8b847371a11d5fa4953ba1eab1231",
+      "source_cluster": "arxiv5-cs-MM-0000",
+      "strata": [
+        "scientific"
+      ],
+      "stratum": "scientific"
+    },
+    {
+      "bytes": 294631,
+      "contexts": 2,
+      "file": "arxiv5-cs-MM-0200.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "9da9b1f1087a24cc66ed77cd13f484172cdd0c5719664b6d4466899021f5fa3d",
+      "source_cluster": "arxiv5-cs-MM-0200",
+      "strata": [
+        "scientific"
+      ],
+      "stratum": "scientific"
+    },
+    {
+      "bytes": 303718,
+      "contexts": 2,
+      "file": "arxiv5-cs-NE-0000.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "3ee8f052fbcef3ce120097b1786060e684de1e90ead6e052a80f864b3d194b44",
+      "source_cluster": "arxiv5-cs-NE-0000",
+      "strata": [
+        "scientific"
+      ],
+      "stratum": "scientific"
+    },
+    {
+      "bytes": 299178,
+      "contexts": 3,
+      "file": "arxiv5-cs-NE-0200.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "3c1b5500fa10f2fa2f8f349a79cf87e9ce3d0c4e4a1a1f6fd7ec49c9ed4fb17b",
+      "source_cluster": "arxiv5-cs-NE-0200",
+      "strata": [
+        "scientific"
+      ],
+      "stratum": "scientific"
+    },
+    {
+      "bytes": 302892,
+      "contexts": 3,
+      "file": "arxiv5-cs-NI-0000.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "449c15a4fd0b3374842a8cd23114c4acc0cf038022379f318dcf7b6495409f3f",
+      "source_cluster": "arxiv5-cs-NI-0000",
+      "strata": [
+        "scientific"
+      ],
+      "stratum": "scientific"
+    },
+    {
+      "bytes": 289310,
+      "contexts": 2,
+      "file": "arxiv5-cs-NI-0200.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "c750980e80ffb92a60f363b3f64898d0ea7bd63946e04cb45f3927ae26287cb3",
+      "source_cluster": "arxiv5-cs-NI-0200",
+      "strata": [
+        "scientific"
+      ],
+      "stratum": "scientific"
+    },
+    {
+      "bytes": 298799,
+      "contexts": 3,
+      "file": "arxiv5-cs-OS-0000.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "5ab691b3e417b53c021f4f49ae4560910931a608bdcfb6e7ffe5b605372c3a69",
+      "source_cluster": "arxiv5-cs-OS-0000",
+      "strata": [
+        "scientific"
+      ],
+      "stratum": "scientific"
+    },
+    {
+      "bytes": 271598,
+      "contexts": 2,
+      "file": "arxiv5-cs-OS-0200.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "3aabb48d54d1021c6e405d1f73cfee8dad5d7c681e7d5fc5fb6da474de6e37aa",
+      "source_cluster": "arxiv5-cs-OS-0200",
+      "strata": [
+        "scientific"
+      ],
+      "stratum": "scientific"
+    },
+    {
+      "bytes": 27303,
+      "contexts": 2,
+      "file": "cpython5-v3.13.1-modules-getpath-c.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "9d4283b140472ae7e0f6692e6f942d8ec756e5fbcbf1f0965eb7d81bb1a38846",
+      "source_cluster": "cpython5-v3.13.1-modules-getpath-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 136095,
+      "contexts": 2,
+      "file": "cpython5-v3.13.1-modules-itertoolsmodule-c.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "d4bb82016b718196d991597abe27240260548442712ed5638e6c140642ae758d",
+      "source_cluster": "cpython5-v3.13.1-modules-itertoolsmodule-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 21526,
+      "contexts": 1,
+      "file": "cpython5-v3.13.1-modules-main-c.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "efb9622fe4d48758ac2ab1a39703e2ebf70ec1dda1aa738176349d6ec50eb78f",
+      "source_cluster": "cpython5-v3.13.1-modules-main-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 134027,
+      "contexts": 1,
+      "file": "cpython5-v3.13.1-modules-mathmodule-c.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "b02ad9005a13405927d3129ff511e3041a241e0ea4bb419f0bdd0c11ecd3d8d4",
+      "source_cluster": "cpython5-v3.13.1-modules-mathmodule-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 62818,
+      "contexts": 1,
+      "file": "cpython5-v3.13.1-modules-mmapmodule-c.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "b1ce508b3cd484cd823124ea512a919058c79ed74525efa6395134e45b88cbe3",
+      "source_cluster": "cpython5-v3.13.1-modules-mmapmodule-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 58807,
+      "contexts": 1,
+      "file": "cpython5-v3.13.1-modules-overlapped-c.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "08ca39828fa9e2b5bfe48905319a7ed8e424ba6b83f0c557608be76f70101579",
+      "source_cluster": "cpython5-v3.13.1-modules-overlapped-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 199999,
+      "contexts": 2,
+      "file": "cpython5-v3.13.1-modules-posixmodule-c.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "c3d4b6ca53d42bf467b35652f700b0705679466e130b5f0fdbf9b3de1bf4e593",
+      "source_cluster": "cpython5-v3.13.1-modules-posixmodule-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 43455,
+      "contexts": 3,
+      "file": "cpython5-v3.13.1-modules-readline-c.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "dfc6c5cc70fcd295835df5a8248cd61d3bad633ea45f1d8338c5b8942ca0e419",
+      "source_cluster": "cpython5-v3.13.1-modules-readline-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 67213,
+      "contexts": 1,
+      "file": "cpython5-v3.13.1-modules-timemodule-c.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "aa948f9b52535ccfaca62c523e623e26ce55b7382ce9ae5b98c84f92f49a3d36",
+      "source_cluster": "cpython5-v3.13.1-modules-timemodule-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 199970,
+      "contexts": 2,
+      "file": "cpython5-v3.13.1-modules-unicodename-db-h.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "4f26b39e33313d7382ba2172e8e3121013044bec35ffd857e0f79a92faac8a25",
+      "source_cluster": "cpython5-v3.13.1-modules-unicodename-db-h",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 81908,
+      "contexts": 2,
+      "file": "cpython5-v3.13.1-objects-abstract-c.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "96d51aa2202c7a64368aa2904c6d4ced3d3a9407259f6215b989b0cf2c46b2a5",
+      "source_cluster": "cpython5-v3.13.1-objects-abstract-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 77230,
+      "contexts": 2,
+      "file": "cpython5-v3.13.1-objects-bytearrayobject-c.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "49cab9b710d89672877708f9c7c77b0bacacf1124c8e43da371491deca01f450",
+      "source_cluster": "cpython5-v3.13.1-objects-bytearrayobject-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 107373,
+      "contexts": 1,
+      "file": "cpython5-v3.13.1-objects-bytesobject-c.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "d8617f817d86e98ac51e04d7c4e36f5a9ead0aec0f8bec47cd2955660f02d160",
+      "source_cluster": "cpython5-v3.13.1-objects-bytesobject-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 30983,
+      "contexts": 2,
+      "file": "cpython5-v3.13.1-objects-call-c.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "61c9a512dc00cd2542ada6b41cd4b09d3b2a2938d52c574169782a32db33510a",
+      "source_cluster": "cpython5-v3.13.1-objects-call-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 84007,
+      "contexts": 1,
+      "file": "cpython5-v3.13.1-objects-codeobject-c.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "cd6e035b40146cb5c226571712cc50d44b659551613a3777403e7b11db997879",
+      "source_cluster": "cpython5-v3.13.1-objects-codeobject-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 33020,
+      "contexts": 1,
+      "file": "cpython5-v3.13.1-objects-complexobject-c.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "f71ef510ca2bd00fc68406591e334718454a364eb68c7210ebb0ccd897a0658f",
+      "source_cluster": "cpython5-v3.13.1-objects-complexobject-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 199986,
+      "contexts": 1,
+      "file": "cpython5-v3.13.1-objects-dictobject-c.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "57d48f9085fdbb26efb29899ba8ae2e07473eb08a186b1a13624b00322b9f7df",
+      "source_cluster": "cpython5-v3.13.1-objects-dictobject-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 111155,
+      "contexts": 2,
+      "file": "cpython5-v3.13.1-objects-exceptions-c.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "287a6a5095ae8f07d042c3003bd228e5661f4669d1b2b1f71ddc7e8134966e4e",
+      "source_cluster": "cpython5-v3.13.1-objects-exceptions-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 72334,
+      "contexts": 1,
+      "file": "cpython5-v3.13.1-objects-floatobject-c.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "d654626e4779b7cce374c204a14bf2ae20ecbbfef1056a2c6ac912d764055956",
+      "source_cluster": "cpython5-v3.13.1-objects-floatobject-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 66295,
+      "contexts": 2,
+      "file": "cpython5-v3.13.1-objects-frameobject-c.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "bb735ca2d6ab41dcce8a732b7352b556b590b2a68a056fa2924bc8057e50b105",
+      "source_cluster": "cpython5-v3.13.1-objects-frameobject-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 80420,
+      "contexts": 3,
+      "file": "cpython5-v3.13.1-objects-genobject-c.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "d5b67fbe98fd73812da8ad72c85f64231e94483bb9b6fede7f4d4af57846980c",
+      "source_cluster": "cpython5-v3.13.1-objects-genobject-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 16788,
+      "contexts": 1,
+      "file": "cpython5-v3.13.1-objects-iterobject-c.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "3977895ceaa04ef2d881cc0cc0d0cc1b25cb7c7be2b31d7ffc87f0fce4ec43a3",
+      "source_cluster": "cpython5-v3.13.1-objects-iterobject-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 125652,
+      "contexts": 1,
+      "file": "cpython5-v3.13.1-objects-listobject-c.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "0286432c2845d0a22e18546b8c3560dd612e9b33aaeebeff64bc85a903a3770d",
+      "source_cluster": "cpython5-v3.13.1-objects-listobject-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 36746,
+      "contexts": 2,
+      "file": "cpython5-v3.13.1-objects-moduleobject-c.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "ac7a562006df17d63e42fa453f845aeb7a1e43ee937c7d933990b3e1d279a5d3",
+      "source_cluster": "cpython5-v3.13.1-objects-moduleobject-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 9132,
+      "contexts": 1,
+      "file": "cpython5-v3.13.1-objects-namespaceobject-c.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "fccad36d11b15c7827aa0632e4851cd83adf6abff200bd873891be6ecc59bcb5",
+      "source_cluster": "cpython5-v3.13.1-objects-namespaceobject-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 84809,
+      "contexts": 1,
+      "file": "cpython5-v3.13.1-objects-object-c.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "6adcd87605089bf9fe66fb7bc6fdc9db5d03727caab826060c37f2e2ee253afe",
+      "source_cluster": "cpython5-v3.13.1-objects-object-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 106752,
+      "contexts": 1,
+      "file": "cpython5-v3.13.1-objects-obmalloc-c.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "27bda9b71e78b273525eec5fe22ccc0feccaccc9f90bfdeaf561743a47095df0",
+      "source_cluster": "cpython5-v3.13.1-objects-obmalloc-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 73964,
+      "contexts": 2,
+      "file": "cpython5-v3.13.1-objects-odictobject-c.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "4537af3949bc43311cffd929257c336dab3e60659030fa0ca377bee29142980e",
+      "source_cluster": "cpython5-v3.13.1-objects-odictobject-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 199965,
+      "contexts": 1,
+      "file": "cpython5-v3.13.1-objects-typeobject-c.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "c444a2bdd97e184fd83c455dad0dbad60ebc0ed07d830366736f93cdb947fed6",
+      "source_cluster": "cpython5-v3.13.1-objects-typeobject-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 58113,
+      "contexts": 1,
+      "file": "cpython5-v3.13.1-objects-typevarobject-c.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "dd589034b94aa803045df5e90d500410efc0bd3a63882922f65cdf5c14ab51f1",
+      "source_cluster": "cpython5-v3.13.1-objects-typevarobject-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 9996,
+      "contexts": 1,
+      "file": "cpython5-v3.13.1-objects-unionobject-c.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "9dde1f5e87c34f13d7eb845937e6b6f56d4ac29889fc9145802d3120933212bd",
+      "source_cluster": "cpython5-v3.13.1-objects-unionobject-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 95408,
+      "contexts": 1,
+      "file": "cpython5-v3.13.1-python-bltinmodule-c.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "cf4199180f3f1aaeb40002610953bb6425123044aa79b1798b505845bdbbf14d",
+      "source_cluster": "cpython5-v3.13.1-python-bltinmodule-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 172432,
+      "contexts": 1,
+      "file": "cpython5-v3.13.1-python-bytecodes-c.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "5ca79861043753058549f9cbcc19c30060a65b44e8f24141d98d57ceb34d3087",
+      "source_cluster": "cpython5-v3.13.1-python-bytecodes-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 94757,
+      "contexts": 2,
+      "file": "cpython5-v3.13.1-python-ceval-c.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "05f1a17dba528be858762bae15fa817d5e5cacbce61d02057e4bf74058715c56",
+      "source_cluster": "cpython5-v3.13.1-python-ceval-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 16449,
+      "contexts": 1,
+      "file": "cpython5-v3.13.1-python-ceval-macros-h.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "228b2e6df31e05ba6c78293e268baed232baaee576d283bb094cab74f65c9870",
+      "source_cluster": "cpython5-v3.13.1-python-ceval-macros-h",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 199967,
+      "contexts": 1,
+      "file": "cpython5-v3.13.1-python-compile-c.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "0d9cda553d93d0a42b95b230d1bf01954fd6c0caad1aefa84f1f127e3a912332",
+      "source_cluster": "cpython5-v3.13.1-python-compile-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 80525,
+      "contexts": 4,
+      "file": "cpython5-v3.13.1-python-dtoa-c.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "eb534a2a46ebe88725cf17680d9e448ce293f784e6605108de4ae9461375ab21",
+      "source_cluster": "cpython5-v3.13.1-python-dtoa-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 54545,
+      "contexts": 2,
+      "file": "cpython5-v3.13.1-python-errors-c.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "82bf843a7a328c4a9992f3d3f40efce695612f8a7615dc875abd6c75afdf1501",
+      "source_cluster": "cpython5-v3.13.1-python-errors-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 157995,
+      "contexts": 1,
+      "file": "cpython5-v3.13.1-python-executor-cases-c-h.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "2a5696b2c9f45e03e133acdca872f082c0aabaf0e9df5288b25a98872833fe4e",
+      "source_cluster": "cpython5-v3.13.1-python-executor-cases-c-h",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 87953,
+      "contexts": 2,
+      "file": "cpython5-v3.13.1-python-fileutils-c.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "c9523d3691ee3a4b433d81eea66900d21b0850cb32899eca416da9d742da7a95",
+      "source_cluster": "cpython5-v3.13.1-python-fileutils-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 90083,
+      "contexts": 2,
+      "file": "cpython5-v3.13.1-python-flowgraph-c.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "caa282c66ecaf07bfedb2882e4be512be3336a6fc6873e6c70b1dcee1b5cfb45",
+      "source_cluster": "cpython5-v3.13.1-python-flowgraph-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 52441,
+      "contexts": 1,
+      "file": "cpython5-v3.13.1-python-formatter-unicode-c.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "0084d2745df9b5a4c63603e2eed3c6628a25164c676583206527b12113c99e33",
+      "source_cluster": "cpython5-v3.13.1-python-formatter-unicode-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 67391,
+      "contexts": 2,
+      "file": "cpython5-v3.13.1-python-gc-c.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "25ceefa8d3a84f26087dee65bb13542137049408a0f73b153d145e435f090e8a",
+      "source_cluster": "cpython5-v3.13.1-python-gc-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 56744,
+      "contexts": 1,
+      "file": "cpython5-v3.13.1-python-gc-free-threading-c.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "90d7769716833cc6fe735ad31ac86ca6f52e16d3b7cac4b6329bac98fce6095a",
+      "source_cluster": "cpython5-v3.13.1-python-gc-free-threading-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 89742,
+      "contexts": 1,
+      "file": "cpython5-v3.13.1-python-getargs-c.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "3a0ce5e856507026b85eab1ee75312473401c055d236a29f3b1a4a751180264d",
+      "source_cluster": "cpython5-v3.13.1-python-getargs-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 93571,
+      "contexts": 2,
+      "file": "cpython5-v3.13.1-python-initconfig-c.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "4b229c9a1a48eb61c1a13a9c02971bda50c6f7efbaa8b1a995506629f5e9f94a",
+      "source_cluster": "cpython5-v3.13.1-python-initconfig-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 55131,
+      "contexts": 3,
+      "file": "cpython5-v3.13.1-python-marshal-c.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "9b546ff75665ea5db92b8b9ea1ff8ad4310e4950f00913e8cfabb6fe0734d213",
+      "source_cluster": "cpython5-v3.13.1-python-marshal-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 16382,
+      "contexts": 1,
+      "file": "cpython5-v3.13.1-python-modsupport-c.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "454091a536e28415abbb3a140857e1c6a84c25241b6ffd90c12b23d9093fb947",
+      "source_cluster": "cpython5-v3.13.1-python-modsupport-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 7610,
+      "contexts": 1,
+      "file": "cpython5-v3.13.1-python-opcode-targets-h.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "11b60635b6be69c532894212078ea00a6472c9d50ace99641955e11b26896edd",
+      "source_cluster": "cpython5-v3.13.1-python-opcode-targets-h",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 26933,
+      "contexts": 1,
+      "file": "cpython5-v3.13.1-python-optimizer-bytecodes-c.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "ab39948d4ed3a5eee656bf5360fe4a7e0755726d4791a75b20b3273dafb9436e",
+      "source_cluster": "cpython5-v3.13.1-python-optimizer-bytecodes-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 59602,
+      "contexts": 1,
+      "file": "cpython5-v3.13.1-python-optimizer-c.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "2a105e4077c67d28a67abe49080bd2e78c2b727b78d509823be5386c620faf83",
+      "source_cluster": "cpython5-v3.13.1-python-optimizer-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 68238,
+      "contexts": 1,
+      "file": "cpython5-v3.13.1-python-optimizer-cases-c-h.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "d5f98d4968491991e1fbc4a0ddc354736671e06c4f5a22930d89066a878b0639",
+      "source_cluster": "cpython5-v3.13.1-python-optimizer-cases-c-h",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 11620,
+      "contexts": 1,
+      "file": "cpython5-v3.13.1-python-parking-lot-c.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "21a90332c0b2a1566a850de4e369a2466f756448a7305b9e5cb2f993a1b124ee",
+      "source_cluster": "cpython5-v3.13.1-python-parking-lot-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 25607,
+      "contexts": 1,
+      "file": "cpython5-v3.13.1-python-preconfig-c.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "b58b6d4a8bba6692893a1723db87c0856ab2ba3390fe4219fadb3068bf3c46e6",
+      "source_cluster": "cpython5-v3.13.1-python-preconfig-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 31958,
+      "contexts": 1,
+      "file": "cpython5-v3.13.1-python-pytime-c.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "b4edebff03c909cdd659ee84260bd2fafbdfc46cc53bc7385174e8920ebef0d8",
+      "source_cluster": "cpython5-v3.13.1-python-pytime-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 92782,
+      "contexts": 3,
+      "file": "cpython5-v3.13.1-python-specialize-c.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "5e8253a5c025d139209e29ca84e1c51232f563353ddf5ad37571355449d7c521",
+      "source_cluster": "cpython5-v3.13.1-python-specialize-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 102281,
+      "contexts": 2,
+      "file": "cpython5-v3.13.1-python-symtable-c.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "a660b67547f40af1f310816ccc3f85bec8bea6e0c12789a00217e6ae4f396965",
+      "source_cluster": "cpython5-v3.13.1-python-symtable-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 115623,
+      "contexts": 1,
+      "file": "cpython5-v3.13.1-python-sysmodule-c.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "872bb2f0948fe3b8817a2c57998feef25e626e34e6182724ba2ef6af860748f0",
+      "source_cluster": "cpython5-v3.13.1-python-sysmodule-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 29989,
+      "contexts": 1,
+      "file": "cpython5-v3.13.1-python-traceback-c.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "0a18ea083707c5464f1b7045d29055a732f26ac528ca6666b8844c1360cdc410",
+      "source_cluster": "cpython5-v3.13.1-python-traceback-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 39969,
+      "contexts": 1,
+      "file": "cpython5-v3.13.1-python-tracemalloc-c.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "7e4668db795d198bde3e1b9a4c64ee066a2bc09b1f9d411a8cfd89f1d65cf29e",
+      "source_cluster": "cpython5-v3.13.1-python-tracemalloc-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 43088,
+      "contexts": 1,
+      "file": "cpython5-v3.13.1-python-warnings-c.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "c5c38a78c448993971bbdaab6d49eb356ed81a92ce89895d27094285235f0453",
+      "source_cluster": "cpython5-v3.13.1-python-warnings-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 38784,
+      "contexts": 1,
+      "file": "numpy5-v2.2.1-numpy-lib-histograms-impl-py.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "5ffa12dbf1abb3676caddf22c2bc7dbe21f81d82e1f383a95959911cf0b6e7ac",
+      "source_cluster": "numpy5-v2.2.1-numpy-lib-histograms-impl-py",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 72155,
+      "contexts": 2,
+      "file": "numpy5-v2.2.1-numpy-lib-nanfunctions-impl-py.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "b8021b7edc0256e6af18d758596113c8ebc39564e9f56018cc33d0be48b31edc",
+      "source_cluster": "numpy5-v2.2.1-numpy-lib-nanfunctions-impl-py",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 99384,
+      "contexts": 2,
+      "file": "numpy5-v2.2.1-numpy-lib-npyio-impl-py.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "dfe0085f038a73a2e4b9dc6e47f186364dc0d78499e966609f45190d20ef526a",
+      "source_cluster": "numpy5-v2.2.1-numpy-lib-npyio-impl-py",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 44316,
+      "contexts": 1,
+      "file": "numpy5-v2.2.1-numpy-lib-polynomial-impl-py.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "a66d10a2a2e2d78e0aec0f8730dbbf40e07253a1ba31b38500d691d9bbf9c39b",
+      "source_cluster": "numpy5-v2.2.1-numpy-lib-polynomial-impl-py",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 18059,
+      "contexts": 1,
+      "file": "numpy5-v2.2.1-numpy-lib-stride-tricks-impl-py.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "7762596d8646753dd68b498e24ba2a776dd78a6c95246ac4ba6e6dbe1670b4db",
+      "source_cluster": "numpy5-v2.2.1-numpy-lib-stride-tricks-impl-py",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 199993,
+      "contexts": 3,
+      "file": "numpy5-v2.2.1-numpy-linalg-lapack-lite-f2c-blas-c.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "39c9f56f93ba42f06f55b83c76f58f379e2d7d560c13a6728a74d317cfcac9cf",
+      "source_cluster": "numpy5-v2.2.1-numpy-linalg-lapack-lite-f2c-blas-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 199975,
+      "contexts": 1,
+      "file": "numpy5-v2.2.1-numpy-linalg-lapack-lite-f2c-c-lapack-c.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "041be6ef0748496f385ff73594be16552e30ad64e6a836e8199d52d36bac39b0",
+      "source_cluster": "numpy5-v2.2.1-numpy-linalg-lapack-lite-f2c-c-lapack-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 199979,
+      "contexts": 3,
+      "file": "numpy5-v2.2.1-numpy-linalg-lapack-lite-f2c-d-lapack-c.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "83f7f6561294cbebada3303fe271880276e8ac268014db2d2af946f56b56ce26",
+      "source_cluster": "numpy5-v2.2.1-numpy-linalg-lapack-lite-f2c-d-lapack-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 45830,
+      "contexts": 1,
+      "file": "numpy5-v2.2.1-numpy-linalg-lapack-lite-f2c-lapack-c.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "6177d2d958f7c61bcb0ceb18b1062281cbfc54eb7c8153cd668d47857a426614",
+      "source_cluster": "numpy5-v2.2.1-numpy-linalg-lapack-lite-f2c-lapack-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 199996,
+      "contexts": 1,
+      "file": "numpy5-v2.2.1-numpy-linalg-lapack-lite-f2c-z-lapack-c.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "a353e92f26e608e7af74b99caa5979754e29f0384ccce2ed34aa4e2e9e14a27f",
+      "source_cluster": "numpy5-v2.2.1-numpy-linalg-lapack-lite-f2c-z-lapack-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 24151,
+      "contexts": 2,
+      "file": "numpy5-v2.2.1-numpy-linalg-lapack-lite-lapack-lite-names-h.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "b8f13d7e06b3d75b329faa60de0d90f11f54fa38cdc66706ae24afd97e22b234",
+      "source_cluster": "numpy5-v2.2.1-numpy-linalg-lapack-lite-lapack-lite-names-h",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 14689,
+      "contexts": 1,
+      "file": "numpy5-v2.2.1-numpy-linalg-lapack-litemodule-c.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "153c0a5103c4750ae1daec44e2617e2064a57115d5a280fceb5b89de6953e8eb",
+      "source_cluster": "numpy5-v2.2.1-numpy-linalg-lapack-litemodule-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 199991,
+      "contexts": 1,
+      "file": "numpy5-v2.2.1-numpy-ma-core-py.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "76cf26898b80d7c924d386f326db58aaef713362d2f6adc717c8de89467f22d6",
+      "source_cluster": "numpy5-v2.2.1-numpy-ma-core-py",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 70614,
+      "contexts": 2,
+      "file": "numpy5-v2.2.1-numpy-ma-extras-py.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "bf3ac3527e38a8ef642110df2ee16e174fc5bee92d9522dfb2c3ee97466399d8",
+      "source_cluster": "numpy5-v2.2.1-numpy-ma-extras-py",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 27134,
+      "contexts": 1,
+      "file": "numpy5-v2.2.1-numpy-ma-mrecords-py.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "e4d60a4fb12bf9ec7e9fe3a05625bee29d0c85431c328b67551fa81e784a96a2",
+      "source_cluster": "numpy5-v2.2.1-numpy-ma-mrecords-py",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 15752,
+      "contexts": 1,
+      "file": "numpy5-v2.2.1-numpy-ma-timer-comparison-py.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "3cfc054ed6dea7434036aa7d09cf8ec7e94b4b81b1df0cc3d503f6e8ca2125ab",
+      "source_cluster": "numpy5-v2.2.1-numpy-ma-timer-comparison-py",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 10687,
+      "contexts": 1,
+      "file": "numpy5-v2.2.1-numpy-matlib-py.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "da93cd7cb90f7f584e50eb635ef1bd42ef98eb3bb3b69c90663d7f5fc484b8ed",
+      "source_cluster": "numpy5-v2.2.1-numpy-matlib-py",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 30835,
+      "contexts": 1,
+      "file": "numpy5-v2.2.1-numpy-matrixlib-defmatrix-py.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "24481b6af57634df700548e690f4328d05c1aceb13139425284d0478b6a6f2eb",
+      "source_cluster": "numpy5-v2.2.1-numpy-matrixlib-defmatrix-py",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 52394,
+      "contexts": 2,
+      "file": "numpy5-v2.2.1-numpy-polynomial-laguerre-py.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "189675563aea82be10111ec723373bfc53cdbbd510a65af575be4d392a1931d7",
+      "source_cluster": "numpy5-v2.2.1-numpy-polynomial-laguerre-py",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 51007,
+      "contexts": 2,
+      "file": "numpy5-v2.2.1-numpy-polynomial-legendre-py.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "f5fcdc79610cf2816f5f277cb90a98ecc279eb221b520d9f1fd6b10821be530e",
+      "source_cluster": "numpy5-v2.2.1-numpy-polynomial-legendre-py",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 48851,
+      "contexts": 1,
+      "file": "numpy5-v2.2.1-numpy-random-src-distributions-distributions-c.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "839cf032956f745f99deab820c70c23c9cc52b8c3bed5b92af8088ace1742bcc",
+      "source_cluster": "numpy5-v2.2.1-numpy-random-src-distributions-distributions-c",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 75048,
+      "contexts": 1,
+      "file": "numpy5-v2.2.1-numpy-random-src-distributions-ziggurat-constants-h.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "6b0dad5d2f2d0087785e0a48b4b6012e05f0253481a2218b4af0b8d51091680e",
+      "source_cluster": "numpy5-v2.2.1-numpy-random-src-distributions-ziggurat-constants-h",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 93153,
+      "contexts": 1,
+      "file": "numpy5-v2.2.1-numpy-testing-private-utils-py.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "376cff25948238e6e2e5a848bc4eeda4ceee695aced13ae7b6afd39c4bfeee83",
+      "source_cluster": "numpy5-v2.2.1-numpy-testing-private-utils-py",
+      "strata": [
+        "code"
+      ],
+      "stratum": "code"
+    },
+    {
+      "bytes": 404518,
+      "contexts": 1,
+      "file": "pg100.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "aea60c52db6edd47d57466ed780f4e91b7fe399a3cb9439879866ecdc445000c",
+      "source_cluster": "pg100",
+      "strata": [
+        "literary"
+      ],
+      "stratum": "literary"
+    },
+    {
+      "bytes": 399985,
+      "contexts": 1,
+      "file": "pg10148.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "a0bcd8895139fb6d5f38bd197be514f4c30482a0a3c0958bb6baaab42f7b5d80",
+      "source_cluster": "pg10148",
+      "strata": [
+        "literary"
+      ],
+      "stratum": "literary"
+    },
+    {
+      "bytes": 151025,
+      "contexts": 1,
+      "file": "pg11.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "a4c81ef23eb99f8b14be2474be0410b708cc99293ce6d88cf6799335926639b9",
+      "source_cluster": "pg11",
+      "strata": [
+        "literary"
+      ],
+      "stratum": "literary"
+    },
+    {
+      "bytes": 414302,
+      "contexts": 1,
+      "file": "pg1259.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "04c592e75517e70fe6695b38cf5156645a32b390bf3231e81080b1b75ada2fce",
+      "source_cluster": "pg1259",
+      "strata": [
+        "literary"
+      ],
+      "stratum": "literary"
+    },
+    {
+      "bytes": 136178,
+      "contexts": 1,
+      "file": "pg14244.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "000ef48120ef50ed7f3eff73fb99d603bac09ba22878cffa89ce763338d2b386",
+      "source_cluster": "pg14244",
+      "strata": [
+        "literary"
+      ],
+      "stratum": "literary"
+    },
+    {
+      "bytes": 144366,
+      "contexts": 1,
+      "file": "pg1513.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "42e5e2e9cb202341f37e397afc67130b739b97c71a23938f52af13abddbca42a",
+      "source_cluster": "pg1513",
+      "strata": [
+        "literary"
+      ],
+      "stratum": "literary"
+    },
+    {
+      "bytes": 198440,
+      "contexts": 4,
+      "file": "pg15381.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "b71eabce3564d09852f80528f13a727d6e322c7c28dfe890eabb6980a7d784e4",
+      "source_cluster": "pg15381",
+      "strata": [
+        "literary"
+      ],
+      "stratum": "literary"
+    },
+    {
+      "bytes": 328860,
+      "contexts": 1,
+      "file": "pg1695.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "016fff0e8cfe09a64ff0183157e9fcc4cc19aa3c0ebbbd060584986998f833d7",
+      "source_cluster": "pg1695",
+      "strata": [
+        "literary"
+      ],
+      "stratum": "literary"
+    },
+    {
+      "bytes": 399992,
+      "contexts": 1,
+      "file": "pg18459.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "70e02b881350f201d46aa673703c18140a6cdecce997eca95ce06252e54e687f",
+      "source_cluster": "pg18459",
+      "strata": [
+        "literary"
+      ],
+      "stratum": "literary"
+    },
+    {
+      "bytes": 399937,
+      "contexts": 3,
+      "file": "pg18857.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "25ffeaee3e2b8729abf90d800df3937bc8a22f2d2a1b01c7bc78e0e7b1447f62",
+      "source_cluster": "pg18857",
+      "strata": [
+        "literary"
+      ],
+      "stratum": "literary"
+    },
+    {
+      "bytes": 400005,
+      "contexts": 1,
+      "file": "pg20203.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "3a0ddabde61570b7e96886966406be688772a80ca1a2e6adcedc1206acec03c6",
+      "source_cluster": "pg20203",
+      "strata": [
+        "literary"
+      ],
+      "stratum": "literary"
+    },
+    {
+      "bytes": 399994,
+      "contexts": 2,
+      "file": "pg21839.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "df4abddc1612b39948f5394eeddb8e212c5a6561bfb9dcd4e70dfdf82e62a62b",
+      "source_cluster": "pg21839",
+      "strata": [
+        "literary"
+      ],
+      "stratum": "literary"
+    },
+    {
+      "bytes": 399942,
+      "contexts": 3,
+      "file": "pg23784.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "47057969a2816bc3266e293fa99e0bacb1b27e12a7c9779aae3ff9e550f8de07",
+      "source_cluster": "pg23784",
+      "strata": [
+        "literary"
+      ],
+      "stratum": "literary"
+    },
+    {
+      "bytes": 400267,
+      "contexts": 1,
+      "file": "pg245.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "2c8d15049373af0dc41d75738ce3811662a37ab48b711e69db10e43083c3a490",
+      "source_cluster": "pg245",
+      "strata": [
+        "literary"
+      ],
+      "stratum": "literary"
+    },
+    {
+      "bytes": 131911,
+      "contexts": 1,
+      "file": "pg2465.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "45e528ceecd2ffbb358d9c7f2ea7c053d5a8bc03e18710e9f5b65f8ca6f3fccd",
+      "source_cluster": "pg2465",
+      "strata": [
+        "literary"
+      ],
+      "stratum": "literary"
+    },
+    {
+      "bytes": 399985,
+      "contexts": 1,
+      "file": "pg24739.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "deeabfeb567fa0e6f46f4dd02a3340fa280b828d590092041641f4133feb1839",
+      "source_cluster": "pg24739",
+      "strata": [
+        "literary"
+      ],
+      "stratum": "literary"
+    },
+    {
+      "bytes": 407933,
+      "contexts": 3,
+      "file": "pg24793.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "b7a57f359018adf9eb0f2a2263d1cc53132a1cf22cf152add5961db162c2a023",
+      "source_cluster": "pg24793",
+      "strata": [
+        "literary"
+      ],
+      "stratum": "literary"
+    },
+    {
+      "bytes": 399991,
+      "contexts": 2,
+      "file": "pg25789.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "2fbc8cb4522a654040935a5cbcfbeb7d23a1ea9d93d2dab5c04efe53cb9f5df5",
+      "source_cluster": "pg25789",
+      "strata": [
+        "literary"
+      ],
+      "stratum": "literary"
+    },
+    {
+      "bytes": 399982,
+      "contexts": 2,
+      "file": "pg2620.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "90bd67cced4c67d583895b611b96ace6de03b62f033c040fe79a2c7b9a1d31ac",
+      "source_cluster": "pg2620",
+      "strata": [
+        "literary"
+      ],
+      "stratum": "literary"
+    },
+    {
+      "bytes": 387238,
+      "contexts": 1,
+      "file": "pg2641.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "70fe4c77de7bb46d4e368ac46cc249880dfbcb3689b14dc26f5311329696f8f1",
+      "source_cluster": "pg2641",
+      "strata": [
+        "literary"
+      ],
+      "stratum": "literary"
+    },
+    {
+      "bytes": 399952,
+      "contexts": 3,
+      "file": "pg27475.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "19f885695a3ec9a4edb69f5532a99ef1dafbc7e6ede4bdc75e384a2cc18b3e6d",
+      "source_cluster": "pg27475",
+      "strata": [
+        "literary"
+      ],
+      "stratum": "literary"
+    },
+    {
+      "bytes": 399951,
+      "contexts": 3,
+      "file": "pg27997.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "7758a077d2c426329e6364a8e1fe03f4f8a87c1fbe688d521f5e4d9032ab99ce",
+      "source_cluster": "pg27997",
+      "strata": [
+        "literary"
+      ],
+      "stratum": "literary"
+    },
+    {
+      "bytes": 399948,
+      "contexts": 1,
+      "file": "pg28203.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "7cc00744ae0a9ac0c9abb5cb42ca7540a116b2af2e39e00fca6a34afc8157037",
+      "source_cluster": "pg28203",
+      "strata": [
+        "literary"
+      ],
+      "stratum": "literary"
+    },
+    {
+      "bytes": 409856,
+      "contexts": 1,
+      "file": "pg2868.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "770a297172219c607673cbc27809c9531600d73e8c4cb60ab1d1e6e2d655f966",
+      "source_cluster": "pg2868",
+      "strata": [
+        "literary"
+      ],
+      "stratum": "literary"
+    },
+    {
+      "bytes": 400078,
+      "contexts": 1,
+      "file": "pg30340.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "51539bc4cf73eb5041d7926b690eaa4749ef6823fe812ed1938720bddd2650f1",
+      "source_cluster": "pg30340",
+      "strata": [
+        "literary"
+      ],
+      "stratum": "literary"
+    },
+    {
+      "bytes": 391648,
+      "contexts": 1,
+      "file": "pg30434.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "9170436a3f07fa68f5430061cc212adf58f6363b19e7f59df7b84322bcdc4523",
+      "source_cluster": "pg30434",
+      "strata": [
+        "literary"
+      ],
+      "stratum": "literary"
+    },
+    {
+      "bytes": 399940,
+      "contexts": 2,
+      "file": "pg31100.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "6cc3e417cc0117ea77eb9cfcd34b39be61fa0aca6b94e26b7e5f6ddc8490371d",
+      "source_cluster": "pg31100",
+      "strata": [
+        "literary"
+      ],
+      "stratum": "literary"
+    },
+    {
+      "bytes": 303673,
+      "contexts": 1,
+      "file": "pg31257.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "028b98dcefdb189ba731e27fc31f55f2f04dc068b6dded7653918d36d6c25abe",
+      "source_cluster": "pg31257",
+      "strata": [
+        "literary"
+      ],
+      "stratum": "literary"
+    },
+    {
+      "bytes": 64043,
+      "contexts": 2,
+      "file": "pg31469.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "abe59a4c85cf41c7eab0696a4e247c56417e9d7040d6f920a2923b0cec05f3f7",
+      "source_cluster": "pg31469",
+      "strata": [
+        "literary"
+      ],
+      "stratum": "literary"
+    },
+    {
+      "bytes": 399981,
+      "contexts": 2,
+      "file": "pg31472.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "8b32b5ec9eaf69102a3cf2349b08f8bd7d6c0919974ab8f9d6c52671bb50c7ab",
+      "source_cluster": "pg31472",
+      "strata": [
+        "literary"
+      ],
+      "stratum": "literary"
+    },
+    {
+      "bytes": 399982,
+      "contexts": 1,
+      "file": "pg31635.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "ae2dc35c6b982227704182486b1c5c637fcbcf70df5c41d0277047471c23f0e7",
+      "source_cluster": "pg31635",
+      "strata": [
+        "literary"
+      ],
+      "stratum": "literary"
+    },
+    {
+      "bytes": 403786,
+      "contexts": 1,
+      "file": "pg3268.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "d3faadc89ab5bbbd83b7020370cf68c127e61858e55fa028dda8b44e17ec22c4",
+      "source_cluster": "pg3268",
+      "strata": [
+        "literary"
+      ],
+      "stratum": "literary"
+    },
+    {
+      "bytes": 399939,
+      "contexts": 1,
+      "file": "pg3296.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "52f232c735fa52e698f349a49ce5921c996136674c4d2a16eb2d9ceb363d58a7",
+      "source_cluster": "pg3296",
+      "strata": [
+        "literary"
+      ],
+      "stratum": "literary"
+    },
+    {
+      "bytes": 399956,
+      "contexts": 1,
+      "file": "pg33823.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "e777b650f8801fab7b40dacbb757ecdf4cef3d2b176251973a6cccaa880b38c7",
+      "source_cluster": "pg33823",
+      "strata": [
+        "literary"
+      ],
+      "stratum": "literary"
+    },
+    {
+      "bytes": 188233,
+      "contexts": 2,
+      "file": "pg34413.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "c9a418c3aa477c9ceb54f1a34b6dafec4911f86cb8ab7745409fd70a716a7f65",
+      "source_cluster": "pg34413",
+      "strata": [
+        "literary"
+      ],
+      "stratum": "literary"
+    },
+    {
+      "bytes": 141046,
+      "contexts": 2,
+      "file": "pg43.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "fbdc252ce94ef910d4b2206163d963f028ee13150270464b6d18ef5b04b6973c",
+      "source_cluster": "pg43",
+      "strata": [
+        "literary"
+      ],
+      "stratum": "literary"
+    },
+    {
+      "bytes": 344569,
+      "contexts": 3,
+      "file": "pg468.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "96914164b1ceb8c03b67d09eef859953fded871ad8ae92bb005d1a159323d07a",
+      "source_cluster": "pg468",
+      "strata": [
+        "literary"
+      ],
+      "stratum": "literary"
+    },
+    {
+      "bytes": 401293,
+      "contexts": 1,
+      "file": "pg5197.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "e0679c314a251dd3c0ab8bc0381100ac363c883d3e5ca609a6bbbe29fbf5340e",
+      "source_cluster": "pg5197",
+      "strata": [
+        "literary"
+      ],
+      "stratum": "literary"
+    },
+    {
+      "bytes": 409914,
+      "contexts": 2,
+      "file": "pg564.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "215d59a6d8b0a37d45c722c1da28f2992da9d36859ae5316d949d3877c36f701",
+      "source_cluster": "pg564",
+      "strata": [
+        "literary"
+      ],
+      "stratum": "literary"
+    },
+    {
+      "bytes": 399997,
+      "contexts": 3,
+      "file": "pg59828.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "32b2dcd71085b96773c212d2eca4b770e72f9da12fc46a79b202fecc4c4ea248",
+      "source_cluster": "pg59828",
+      "strata": [
+        "literary"
+      ],
+      "stratum": "literary"
+    },
+    {
+      "bytes": 417488,
+      "contexts": 2,
+      "file": "pg65238.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "0354c17b7a02d7753bf7b0935a37432a7ea3aef25be515c4a631816f8f7ba22b",
+      "source_cluster": "pg65238",
+      "strata": [
+        "literary"
+      ],
+      "stratum": "literary"
+    },
+    {
+      "bytes": 399909,
+      "contexts": 2,
+      "file": "pg67979.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "f3379a795b89c1ada067233b5e9bdfb98456f5c0b793178097a0f7ea3d134c42",
+      "source_cluster": "pg67979",
+      "strata": [
+        "literary"
+      ],
+      "stratum": "literary"
+    },
+    {
+      "bytes": 404066,
+      "contexts": 3,
+      "file": "pg71046.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "04afa6d90eaa735df4dc6ff75d1b23802509b22b724eadb1077b892356619c17",
+      "source_cluster": "pg71046",
+      "strata": [
+        "literary"
+      ],
+      "stratum": "literary"
+    },
+    {
+      "bytes": 269493,
+      "contexts": 3,
+      "file": "pg72.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "8dbe225326ac3fdd4190b448e4a7c924258a5f208657bc76adde40b253777855",
+      "source_cluster": "pg72",
+      "strata": [
+        "literary"
+      ],
+      "stratum": "literary"
+    },
+    {
+      "bytes": 399978,
+      "contexts": 1,
+      "file": "pg7326.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "eca40921db7bb59ac4f7bfc67d208780e860bebf2f645a6099d6e191c3850bfa",
+      "source_cluster": "pg7326",
+      "strata": [
+        "literary"
+      ],
+      "stratum": "literary"
+    },
+    {
+      "bytes": 400330,
+      "contexts": 1,
+      "file": "pg76639.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "50cf5aa6613dbdb32fcbd9f6d98af01702bb547b0d69dae46b845c3e7dc8706e",
+      "source_cluster": "pg76639",
+      "strata": [
+        "literary"
+      ],
+      "stratum": "literary"
+    },
+    {
+      "bytes": 400094,
+      "contexts": 2,
+      "file": "pg831.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "04f3f1445bec924717de1d2956067e8ce3c2dac5d127cc53d56d45622c95b369",
+      "source_cluster": "pg831",
+      "strata": [
+        "literary"
+      ],
+      "stratum": "literary"
+    },
+    {
+      "bytes": 409897,
+      "contexts": 2,
+      "file": "pg8492.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "6654d3c3de3c21199d0372089511a8a28ece2b1b396db706de8814081808de2d",
+      "source_cluster": "pg8492",
+      "strata": [
+        "literary"
+      ],
+      "stratum": "literary"
+    },
+    {
+      "bytes": 64041,
+      "contexts": 1,
+      "file": "wiki5-ar-h667583703021.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "1f6fb0b7f9883e8f8e0a8fe46e8bb687b85b98d21b2d35e9c5415929cba73966",
+      "source_cluster": "wiki5-ar-h667583703021",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 140257,
+      "contexts": 2,
+      "file": "wiki5-ar-h862d802c9e0e.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "8aa21bc1f494c1ea33fea4202ceaf21e64e37fe121c1738e984757aad2df8341",
+      "source_cluster": "wiki5-ar-h862d802c9e0e",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 184994,
+      "contexts": 2,
+      "file": "wiki5-ar-h936e0073d223.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "c7e57ef9b3d551af54a3d47f0a1663110907c51361691fcaeb5a301eeb47e18e",
+      "source_cluster": "wiki5-ar-h936e0073d223",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 102481,
+      "contexts": 1,
+      "file": "wiki5-ar-haee79b42b9cb.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "3e0fddfc2ee43b4a438ac3b7db5a8089a7391a0a6843470590b8ed33bb99801f",
+      "source_cluster": "wiki5-ar-haee79b42b9cb",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 181393,
+      "contexts": 1,
+      "file": "wiki5-cs-c-esko.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "928c7e17f79d70b1723e21fedb96013aa5c75522068b62212d42dbff8065864f",
+      "source_cluster": "wiki5-cs-c-esko",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 75479,
+      "contexts": 1,
+      "file": "wiki5-cs-donald-trump.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "98d5482440eec9ca63b498921997aca1a0c21dff4f6665665bcebf5d9b1c071d",
+      "source_cluster": "wiki5-cs-donald-trump",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 62839,
+      "contexts": 2,
+      "file": "wiki5-de-alice-weidel.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "3a9ae4217af36746ff4938f7909e4f811c824288aa98c7b8e718a41e58638b4b",
+      "source_cluster": "wiki5-de-alice-weidel",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 254737,
+      "contexts": 1,
+      "file": "wiki5-de-donald-trump.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "7474f18e28b63e3a25df74cfaee28fbfac3fd207d0d8bb44accf319d1681e104",
+      "source_cluster": "wiki5-de-donald-trump",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 127993,
+      "contexts": 1,
+      "file": "wiki5-de-gro-nland.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "2e94ee60e4a0fb54870f68b842b6a8e2e1cafde733652493bacf9915ade84080",
+      "source_cluster": "wiki5-de-gro-nland",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 31873,
+      "contexts": 2,
+      "file": "wiki5-de-squid-game.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "339b37ece3d507df1b7b4b31b256908db115ca2d6357400e2f7b8f7ba86460d7",
+      "source_cluster": "wiki5-de-squid-game",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 63340,
+      "contexts": 1,
+      "file": "wiki5-en-2008-united-states-presidential-election.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "040f9b6bc13784f00d828f22cc0943b4aaa8c347e645f30dbe5b4e38095a32fd",
+      "source_cluster": "wiki5-en-2008-united-states-presidential-election",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 92459,
+      "contexts": 1,
+      "file": "wiki5-en-2016-united-states-presidential-election.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "b389b14763256692dde96973a48a25201d5220f160b82c222563aad4ab70515a",
+      "source_cluster": "wiki5-en-2016-united-states-presidential-election",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 102042,
+      "contexts": 1,
+      "file": "wiki5-en-2020-united-states-presidential-election.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "b255f1043cfd68ca7e1ff08f11af61db9d058bd7737ca8495d2c4f2bec1c294d",
+      "source_cluster": "wiki5-en-2020-united-states-presidential-election",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 70242,
+      "contexts": 2,
+      "file": "wiki5-en-2022-fifa-world-cup.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "e0843b98dca0c28978475a6b11593f64827f72c40e46a6aedf475d14292ff026",
+      "source_cluster": "wiki5-en-2022-fifa-world-cup",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 45630,
+      "contexts": 1,
+      "file": "wiki5-en-2024-crowdstrike-incident.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "11b5cc7cd9e4ac96322642e37dd621a938f5d88ed3e22c4535605ddfc25f7b32",
+      "source_cluster": "wiki5-en-2024-crowdstrike-incident",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 47731,
+      "contexts": 3,
+      "file": "wiki5-en-2024-formula-one-world-championship.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "c7a6c5c6c29680275d92e7a2edebde7e3573bcfc0c7da1b0760a48b428ce5f37",
+      "source_cluster": "wiki5-en-2024-formula-one-world-championship",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 55957,
+      "contexts": 1,
+      "file": "wiki5-en-2024-shooting-at-a-donald-trump-rally.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "084793ac30d220ecaae3ee738ff4d6d983e9a2cb74a943400deb877ad8974fbe",
+      "source_cluster": "wiki5-en-2024-shooting-at-a-donald-trump-rally",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 96874,
+      "contexts": 2,
+      "file": "wiki5-en-2024-united-states-presidential-election.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "bd0d8cb99f597351a74a143830d1b329264029404494e6c0baa24fae27054ac9",
+      "source_cluster": "wiki5-en-2024-united-states-presidential-election",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 68144,
+      "contexts": 1,
+      "file": "wiki5-en-2024-venezuelan-presidential-election.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "85abeb195599bdfa42512d578aec970449a4897df370b67438d8cef732e1e5d8",
+      "source_cluster": "wiki5-en-2024-venezuelan-presidential-election",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 30929,
+      "contexts": 1,
+      "file": "wiki5-en-2028-summer-olympics.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "5760053bb8a5bff11aa5a9889c0dbcb7a6def8a995104cca86c9792206203f74",
+      "source_cluster": "wiki5-en-2028-summer-olympics",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 64259,
+      "contexts": 2,
+      "file": "wiki5-en-a-song-of-ice-and-fire.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "84b215039d3ccdbbddbd068c51ae295e3edef874a04986e1d3d64b8a5f31e7a3",
+      "source_cluster": "wiki5-en-a-song-of-ice-and-fire",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 75126,
+      "contexts": 1,
+      "file": "wiki5-en-abraham-lincoln.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "61b58bc58ae603b002d298bc0bd3b502a61c2c9cf924da5072b20bc0bd97ed3b",
+      "source_cluster": "wiki5-en-abraham-lincoln",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 44604,
+      "contexts": 1,
+      "file": "wiki5-en-agenda-47.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "1a167e3e0b5f7c2a82138e675427df853c98c609fd17ab5d720a6931f803fd5d",
+      "source_cluster": "wiki5-en-agenda-47",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 51379,
+      "contexts": 1,
+      "file": "wiki5-en-assassination-of-john-f-kennedy.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "c89b4df9e256d0ac26f30699e5ae0ed94d6d3e30226b7b85f6ff45270510b5e1",
+      "source_cluster": "wiki5-en-assassination-of-john-f-kennedy",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 63338,
+      "contexts": 2,
+      "file": "wiki5-en-australia.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "6664d1c82f83c2734e438592d569920d505f6632b6eceed511f1d53269215c41",
+      "source_cluster": "wiki5-en-australia",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 74525,
+      "contexts": 3,
+      "file": "wiki5-en-barack-obama.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "0857cc2ec558ca616c4097102046cf0dfe4b0cf3c3482df6081bfeb2023d0e80",
+      "source_cluster": "wiki5-en-barack-obama",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 34393,
+      "contexts": 1,
+      "file": "wiki5-en-charli-xcx.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "0d9abc67c12a51409a347bbd55d892e203e2f59f3953d82a42a0674feae716a7",
+      "source_cluster": "wiki5-en-charli-xcx",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 77308,
+      "contexts": 2,
+      "file": "wiki5-en-clint-eastwood.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "2d97ff1d39be0a1523e02cd02546ad6a544cd3ccd00e973f4d6e5183a598fbd4",
+      "source_cluster": "wiki5-en-clint-eastwood",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 58680,
+      "contexts": 1,
+      "file": "wiki5-en-deadpool.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "60bc639867a74f8d850429d38a7e669d9d33e2fcff0a1623d43d059cdefd678b",
+      "source_cluster": "wiki5-en-deadpool",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 61225,
+      "contexts": 1,
+      "file": "wiki5-en-deadpool-2.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "c26e96935daad18957660c0e0a4982e8771b5d023d3662527399a4d985e1d3fe",
+      "source_cluster": "wiki5-en-deadpool-2",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 74957,
+      "contexts": 2,
+      "file": "wiki5-en-democratic-party-united-states.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "f553922f31108dbf10b0c1d912ce65e8bfab5ad86ece2b9886753de1b5e0ffe0",
+      "source_cluster": "wiki5-en-democratic-party-united-states",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 32203,
+      "contexts": 1,
+      "file": "wiki5-en-donald-trump-jr.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "90aee318d2cf8a571f23bd5c774658b8b7cd6fdd171ff2c38cc62e71eaa2bf23",
+      "source_cluster": "wiki5-en-donald-trump-jr",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 46628,
+      "contexts": 1,
+      "file": "wiki5-en-dua-lipa.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "84f496b318197de9eefe957e461b4835d1f4df9c353b0094b9bcd2bbe16b92cc",
+      "source_cluster": "wiki5-en-dua-lipa",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 56509,
+      "contexts": 2,
+      "file": "wiki5-en-elizabeth-ii.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "f3da17cfd972ebd145993a72fa56b2400acc127cfde24a90209831fa63479669",
+      "source_cluster": "wiki5-en-elizabeth-ii",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 53539,
+      "contexts": 1,
+      "file": "wiki5-en-elon-musk.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "c17b3e1f563f7281715f75837d75e3c9f38a064c2b2ccaa0614084f0d41dc6d0",
+      "source_cluster": "wiki5-en-elon-musk",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 38849,
+      "contexts": 1,
+      "file": "wiki5-en-fifa-world-cup.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "b3807d6e7c2f1b2a9f71212e2aa10d9db6ef978579a8856e37f4dc131b63726f",
+      "source_cluster": "wiki5-en-fifa-world-cup",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 92834,
+      "contexts": 1,
+      "file": "wiki5-en-france.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "f397a418ae7733439b9d74a258967422028d9d34d196d3b278fa263228f7a768",
+      "source_cluster": "wiki5-en-france",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 89476,
+      "contexts": 1,
+      "file": "wiki5-en-franklin-d-roosevelt.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "c7deb3b84923f1067d7af5e06e43a051fa5e4e0da663f31770c27ab82bb7d7e9",
+      "source_cluster": "wiki5-en-franklin-d-roosevelt",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 82806,
+      "contexts": 1,
+      "file": "wiki5-en-gavin-newsom.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "84c835878f379662ff12bff5d13a374e2d49fff2ba9c21245427aff0f1bedbd4",
+      "source_cluster": "wiki5-en-gavin-newsom",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 73115,
+      "contexts": 1,
+      "file": "wiki5-en-george-h-w-bush.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "99e0ae6032d4916f79e702aeb7fdbb393df31bc7a0427c264021da291caa0ce4",
+      "source_cluster": "wiki5-en-george-h-w-bush",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 95434,
+      "contexts": 2,
+      "file": "wiki5-en-george-w-bush.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "fa35c78023475b6ce88c6fdc17f61178e0e38a14be66725401ba60b1c4e0730d",
+      "source_cluster": "wiki5-en-george-w-bush",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 63179,
+      "contexts": 1,
+      "file": "wiki5-en-george-washington.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "a30d1128774ea03a223d72d86f3ec325926aabf33ef083109e9358ca4a4df0e1",
+      "source_cluster": "wiki5-en-george-washington",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 74041,
+      "contexts": 1,
+      "file": "wiki5-en-gerald-ford.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "6649a5918e9e5d79ef6c737b20ecd48af6367e8a30d298469bd031f83f31548a",
+      "source_cluster": "wiki5-en-gerald-ford",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 13075,
+      "contexts": 1,
+      "file": "wiki5-en-glen-powell.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "c65198949f913e6630a08f5dc17a4c9beed19b310d39adcb5df2558031c0885c",
+      "source_cluster": "wiki5-en-glen-powell",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 40905,
+      "contexts": 1,
+      "file": "wiki5-en-gretchen-whitmer.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "d6a784c85c6dfade2d3e377b57919b05b8731169458bf7817192b32d5df000aa",
+      "source_cluster": "wiki5-en-gretchen-whitmer",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 12848,
+      "contexts": 1,
+      "file": "wiki5-en-if-film.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "91614040b605ed0b3cff7e47d4c6ed3a14bd75704d51665fe6e2e81a42bf8f5f",
+      "source_cluster": "wiki5-en-if-film",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 27489,
+      "contexts": 1,
+      "file": "wiki5-en-inside-out-2.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "c161beef8da5012339a936910dec89d0dc85d487e41d2722572fadd45d86c392",
+      "source_cluster": "wiki5-en-inside-out-2",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 25047,
+      "contexts": 1,
+      "file": "wiki5-en-ismail-haniyeh.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "559dc3aed45971ec4ababbbe56e74d0c316942051bd6930f9d2384090fec0e2c",
+      "source_cluster": "wiki5-en-ismail-haniyeh",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 84296,
+      "contexts": 2,
+      "file": "wiki5-en-j-robert-oppenheimer.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "6c3035f9e4ef265a0b08f11c3e8c750ed9f6b15114f9182d28ae998bef72f630",
+      "source_cluster": "wiki5-en-j-robert-oppenheimer",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 10014,
+      "contexts": 1,
+      "file": "wiki5-en-jana-novotna.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "46635b1f532f20b5546d8a3e2b5e95036b7b32563847e4aa4df18c3cfab4bea2",
+      "source_cluster": "wiki5-en-jana-novotna",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 53598,
+      "contexts": 1,
+      "file": "wiki5-en-jill-biden.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "700f5795be2bbc1cfac2d902e3451c0c5820fba6633324cc5e8d0caaf2f3ce0d",
+      "source_cluster": "wiki5-en-jill-biden",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 45870,
+      "contexts": 1,
+      "file": "wiki5-en-katie-ledecky.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "6df62876f84f5b1d379953e3ebd6e125d434fb25812f26001f6d167b01ff0c2b",
+      "source_cluster": "wiki5-en-katie-ledecky",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 56101,
+      "contexts": 2,
+      "file": "wiki5-en-kendrick-lamar.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "eadbdb150a309d13a5bc91b80076f136748db34eb489e43f3f932fa67290ad1f",
+      "source_cluster": "wiki5-en-kendrick-lamar",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 23455,
+      "contexts": 1,
+      "file": "wiki5-en-list-of-highest-grossing-films.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "8923d6b25ddda71ecdd2eff03cd1391949fc069c7d00597bd04c1ffdf68712bd",
+      "source_cluster": "wiki5-en-list-of-highest-grossing-films",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 44546,
+      "contexts": 1,
+      "file": "wiki5-en-liz-truss.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "af8e2530f73f839d6660df9e5bfe9af7d641c7418989a315f5b7bb02e1c9c26f",
+      "source_cluster": "wiki5-en-liz-truss",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 93882,
+      "contexts": 1,
+      "file": "wiki5-en-lyndon-b-johnson.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "2b2b03fd6d1c8c209f2f4509cb46af810b8b7473faff602ef048874684e736c5",
+      "source_cluster": "wiki5-en-lyndon-b-johnson",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 54939,
+      "contexts": 1,
+      "file": "wiki5-en-manchester-united-f-c.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "4518be42a910bd5e9905b8810ca4bd132b4e51645d96f8ff4753dc32cb6b678e",
+      "source_cluster": "wiki5-en-manchester-united-f-c",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 92066,
+      "contexts": 1,
+      "file": "wiki5-en-marvel-cinematic-universe.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "de91a8570b5c245add6286a267a27241e18f0fa25fbd430edfe3c6b4f25d31dc",
+      "source_cluster": "wiki5-en-marvel-cinematic-universe",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 67736,
+      "contexts": 1,
+      "file": "wiki5-en-melania-trump.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "e78961832b923165677e73da264db8daf0e2bafe76455feadc71966eb55099d1",
+      "source_cluster": "wiki5-en-melania-trump",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 57318,
+      "contexts": 1,
+      "file": "wiki5-en-michael-phelps.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "182568a25f2d8c45d170a2f4204b03bb2537d61cc59d8f9501f976722dab1641",
+      "source_cluster": "wiki5-en-michael-phelps",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 79695,
+      "contexts": 2,
+      "file": "wiki5-en-nicola-s-maduro.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "fb59e94b0f4b2f89cf444e88d2e3a0d170717f413a706f663d9a703e0b2d6952",
+      "source_cluster": "wiki5-en-nicola-s-maduro",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 58636,
+      "contexts": 1,
+      "file": "wiki5-en-nicole-kidman.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "cd6fea56aee86106f2faa8217e44e9e378c8a3343865c49e8ef7d21c275f3316",
+      "source_cluster": "wiki5-en-nicole-kidman",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 13312,
+      "contexts": 1,
+      "file": "wiki5-en-ollie-watkins.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "bb80c2735d653dfe4c7ea3089a372a042ac3d91ce9e907e0f7951f8149dda44f",
+      "source_cluster": "wiki5-en-ollie-watkins",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 86081,
+      "contexts": 1,
+      "file": "wiki5-en-olympic-games.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "e6d2eca9e8f8d7b230f22af033091c6020f565d1c8da1edd102ba1b0ec21852a",
+      "source_cluster": "wiki5-en-olympic-games",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 47720,
+      "contexts": 1,
+      "file": "wiki5-en-pete-buttigieg.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "c1ce5a219f6b8a7cf6f7336272eeacafc382b21e79a0dec22cfc6b5293378162",
+      "source_cluster": "wiki5-en-pete-buttigieg",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 50521,
+      "contexts": 1,
+      "file": "wiki5-en-planet-of-the-apes.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "56a69c2b5d2db252af16b58a35a068a70fd5fbf3ff48648db06781fd2f4e8d6a",
+      "source_cluster": "wiki5-en-planet-of-the-apes",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 68229,
+      "contexts": 1,
+      "file": "wiki5-en-president-of-the-united-states.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "4ca7b50a1afc424f19cf955f270ce415d4d4e5283998fd68730d98a403d3d307",
+      "source_cluster": "wiki5-en-president-of-the-united-states",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 73197,
+      "contexts": 1,
+      "file": "wiki5-en-project-2025.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "204f82bca1bcd259ae72af4333e545f421a9eb580cb0a30272904e1029a3aa6d",
+      "source_cluster": "wiki5-en-project-2025",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 14508,
+      "contexts": 1,
+      "file": "wiki5-en-raayan.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "15f3292dbeb9a4e26585a924a842235cbe4beb376b8b9654b9eae48b6647667e",
+      "source_cluster": "wiki5-en-raayan",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 40348,
+      "contexts": 1,
+      "file": "wiki5-en-rachel-reeves.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "6c829fa5f17be81e7b160e953588eea01ed6be7c8cdf3289ee5b29855bed95f0",
+      "source_cluster": "wiki5-en-rachel-reeves",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 82052,
+      "contexts": 1,
+      "file": "wiki5-en-reform-uk.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "b2e1c212975b7b54c45b10aac22a35abe1d05bd7970ac1ebf35b08c1d7b3cd38",
+      "source_cluster": "wiki5-en-reform-uk",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 60530,
+      "contexts": 1,
+      "file": "wiki5-en-robert-f-kennedy-jr.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "da5265793d8eb92ea26f911de0ae2705e2ee067671371fa712f51c5ce6aaa512",
+      "source_cluster": "wiki5-en-robert-f-kennedy-jr",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 79670,
+      "contexts": 1,
+      "file": "wiki5-en-serena-williams.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "27b23ddd806e8dc4ee4109e0a6b461f9a3dce7c1a9f7894912509532b4a31ad2",
+      "source_cluster": "wiki5-en-serena-williams",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 13320,
+      "contexts": 1,
+      "file": "wiki5-en-sha-carri-richardson.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "9c6f02fd09c2f239733eaf7f58f2497cecf643bb4b6746c5a5b18273bb12175c",
+      "source_cluster": "wiki5-en-sha-carri-richardson",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 108224,
+      "contexts": 1,
+      "file": "wiki5-en-shakira.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "276d9dd6109dc40316cf76c58f3e0575aabb5de3b9b4d3d7640a55a14de84775",
+      "source_cluster": "wiki5-en-shakira",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 12986,
+      "contexts": 1,
+      "file": "wiki5-en-sydney-sweeney.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "cb818428c3cfc190d0d68c5f7d291904428a56b4c677fdbe48b974b727dd458e",
+      "source_cluster": "wiki5-en-sydney-sweeney",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 49536,
+      "contexts": 1,
+      "file": "wiki5-en-tadej-pogac-ar.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "36e2d111104d92aa5b2b799b6a0028778467b2ede698c8a47f9854cc1cf9dc80",
+      "source_cluster": "wiki5-en-tadej-pogac-ar",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 50656,
+      "contexts": 1,
+      "file": "wiki5-en-the-boys-tv-series.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "0157286ac4b1a188019a259e5daa85efc2b850397d199700377c34131434c421",
+      "source_cluster": "wiki5-en-the-boys-tv-series",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 36279,
+      "contexts": 1,
+      "file": "wiki5-en-tom-daley.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "4b079edac6e7ef4f744edab9e1acc95ac85ea41867dca136a7b0ce2010509f72",
+      "source_cluster": "wiki5-en-tom-daley",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 61479,
+      "contexts": 2,
+      "file": "wiki5-en-uefa-euro-2020.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "635eb9e6900e0ffa969ce291cbf325a652d238f1efa7ab19bbde1c90dee72a89",
+      "source_cluster": "wiki5-en-uefa-euro-2020",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 22889,
+      "contexts": 1,
+      "file": "wiki5-en-uefa-european-championship.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "3468f13583cc215a87180490e77557a9288477680d64c004840e71cad6cdcb95",
+      "source_cluster": "wiki5-en-uefa-european-championship",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 95854,
+      "contexts": 1,
+      "file": "wiki5-en-united-kingdom.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "9a4573c77bd2de5c7dccf87657f075df412c3bc71eeaa5dcc78897e4b1ae3138",
+      "source_cluster": "wiki5-en-united-kingdom",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 93195,
+      "contexts": 1,
+      "file": "wiki5-en-united-states.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "4af35557fbc1739cbfb32fdb20f3330f3d2608ac925aa3c7d73da98cea7f70e4",
+      "source_cluster": "wiki5-en-united-states",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 29065,
+      "contexts": 1,
+      "file": "wiki5-en-vivek-ramaswamy.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "dd9dca204b1096a344b390aae9b34b2289be11b55dab86420411baa090f914cf",
+      "source_cluster": "wiki5-en-vivek-ramaswamy",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 76645,
+      "contexts": 1,
+      "file": "wiki5-en-xxxtentacion.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "cc2afd353fa7d445e82160c9ac0bb1dedf448e8d5b8d00b4cc2436f01a3b17f8",
+      "source_cluster": "wiki5-en-xxxtentacion",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 63558,
+      "contexts": 1,
+      "file": "wiki5-en-youtube.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "64f4d4c57fee4091272fb9940221bb3f73efd6492fc276e2062b07574228000c",
+      "source_cluster": "wiki5-en-youtube",
+      "strata": [
+        "encyclopedic"
+      ],
+      "stratum": "encyclopedic"
+    },
+    {
+      "bytes": 49533,
+      "contexts": 1,
+      "file": "wiki5-es-chatgpt.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "2402ac1afccbc63c44ab6a3fbb66fa2d1ca713ecd57614ac15339cf9138d9f0e",
+      "source_cluster": "wiki5-es-chatgpt",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 53563,
+      "contexts": 2,
+      "file": "wiki5-es-el-juego-del-calamar.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "11b417be7f08659b31e5371e82d56d74d99d774da64d54fcc56fc89143d70107",
+      "source_cluster": "wiki5-es-el-juego-del-calamar",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 83554,
+      "contexts": 1,
+      "file": "wiki5-es-elon-musk.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "8b85353bc6b9a256737a62004c9b069bf0077088c3e13b02aeda824a681b4ac5",
+      "source_cluster": "wiki5-es-elon-musk",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 19267,
+      "contexts": 1,
+      "file": "wiki5-fa-h44e3fcb0d500.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "351aff89213a66b10fc0fc535748e77fa8ab3e2ee63a9d160807b6c2fe3d45ef",
+      "source_cluster": "wiki5-fa-h44e3fcb0d500",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 145269,
+      "contexts": 2,
+      "file": "wiki5-fa-h5a3945a2a6a9.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "4d24e62bd70217a7da9eb500f82f65c72bb4d3955b0ccef5c19bcaa7a2ff3e10",
+      "source_cluster": "wiki5-fa-h5a3945a2a6a9",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 108484,
+      "contexts": 1,
+      "file": "wiki5-fa-h6f1de7c28c8a.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "7f24079d5c774f024cc92957e8914aa09e4e29b2f267e1b764788ab01a612be8",
+      "source_cluster": "wiki5-fa-h6f1de7c28c8a",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 22625,
+      "contexts": 1,
+      "file": "wiki5-fa-hc7c13d635b08.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "899a5b3c5988f2ef9dd7c89f385615872bcde0bb539c7e558c43584b7cb7e609",
+      "source_cluster": "wiki5-fa-hc7c13d635b08",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 58617,
+      "contexts": 1,
+      "file": "wiki5-fr-cookie-informatique.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "8dad493949c9ca4ded4330abf64a923fc164b8aef6d752961556fdac3e8fc807",
+      "source_cluster": "wiki5-fr-cookie-informatique",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 201472,
+      "contexts": 3,
+      "file": "wiki5-fr-donald-trump.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "5855c670a07eb4adfc175e26447d965c52a2837fa093c15e1d571feb38638c01",
+      "source_cluster": "wiki5-fr-donald-trump",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 106769,
+      "contexts": 1,
+      "file": "wiki5-fr-elon-musk.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "0d477dd79baed5233c59e7d6a822fdf1415f17b51a27fb920a2b318e79d99377",
+      "source_cluster": "wiki5-fr-elon-musk",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 70441,
+      "contexts": 1,
+      "file": "wiki5-hi-h04852c115c77.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "d96619ab24a0d193568e9e0d76c868ffa21ef98ffb8edb4185057ba20322a5c6",
+      "source_cluster": "wiki5-hi-h04852c115c77",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 18551,
+      "contexts": 1,
+      "file": "wiki5-hi-h308885d90ce4.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "ab656644c3eb0d092e1f9f18dcfefe37c7c011fb829a16b55c36d8bd8930d70d",
+      "source_cluster": "wiki5-hi-h308885d90ce4",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 33500,
+      "contexts": 1,
+      "file": "wiki5-hi-h920a1524fc19.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "50bc343b653951422718ee55ec33e1ac8c12d73a96cf861e2db08575a6c0d1f4",
+      "source_cluster": "wiki5-hi-h920a1524fc19",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 78704,
+      "contexts": 1,
+      "file": "wiki5-hi-he3b8efc60c88.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "922fcab9a4a645ee62d7bde56ec5f1f0b54a36829b5083c9536ffb17cf8155f4",
+      "source_cluster": "wiki5-hi-he3b8efc60c88",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 114219,
+      "contexts": 2,
+      "file": "wiki5-id-kleopatra.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "ca6af3d659735850894e60edcde082706c1f2c23924cd48d4db016124b8859cd",
+      "source_cluster": "wiki5-id-kleopatra",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 12571,
+      "contexts": 1,
+      "file": "wiki5-id-satryo-brodjonegoro.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "9dbece25ff33d332807211c126da66715a026ee19c90c8032335e3e999b60109",
+      "source_cluster": "wiki5-id-satryo-brodjonegoro",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 36321,
+      "contexts": 2,
+      "file": "wiki5-id-tim-nasional-sepak-bola-indonesia.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "9e0fff763c314a0dd83229b611d4e01d3750145d79e45e66c7de181caef98246",
+      "source_cluster": "wiki5-id-tim-nasional-sepak-bola-indonesia",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 43945,
+      "contexts": 1,
+      "file": "wiki5-it-david-lynch.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "23834301734c0467603ac8ee0599cd67cd1ea0af560348e4869899d2a2e254f4",
+      "source_cluster": "wiki5-it-david-lynch",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 46724,
+      "contexts": 1,
+      "file": "wiki5-it-elon-musk.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "29f59f16c71e2521d6c032477860decd0485719b219e76e43ed31b895ab67221",
+      "source_cluster": "wiki5-it-elon-musk",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 69830,
+      "contexts": 2,
+      "file": "wiki5-it-giacomo-leopardi.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "e5931539bb5fd50b83dbcec49eefe625129fdd71ebbc0258d8ecc4eb91912306",
+      "source_cluster": "wiki5-it-giacomo-leopardi",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 12838,
+      "contexts": 1,
+      "file": "wiki5-it-randal-kolo-muani.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "e1608245a6ca67a3e2b6cd070ad79194b84e3b67549445dea8a37115c511f6fd",
+      "source_cluster": "wiki5-it-randal-kolo-muani",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 202446,
+      "contexts": 1,
+      "file": "wiki5-ja-h059e7e765623.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "1179bc7b4399f51f4ab81ce823483d3ca5c11046510b0a4f35e36d3ec0b3fecb",
+      "source_cluster": "wiki5-ja-h059e7e765623",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 79132,
+      "contexts": 1,
+      "file": "wiki5-ja-h6eba8794e3c6.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "76e463414fb26425e8d67f022b4753fb05d753e1862afdd9a3786ae93494b63d",
+      "source_cluster": "wiki5-ja-h6eba8794e3c6",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 48757,
+      "contexts": 1,
+      "file": "wiki5-ja-h82e8f84f6d85.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "9bcee1f05bca21d178b5c64f6cf5f82eb173c34da43bb40537752630d31c84fa",
+      "source_cluster": "wiki5-ja-h82e8f84f6d85",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 43432,
+      "contexts": 1,
+      "file": "wiki5-ko-h2b748941967c.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "28059d837971d2e6e25cc65638f9651ae6897993e3c41372af723e6c630e22f9",
+      "source_cluster": "wiki5-ko-h2b748941967c",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 68779,
+      "contexts": 1,
+      "file": "wiki5-ko-h827332b44213.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "74519a52f712ef72ba2dac664e6f6fddb486e4495146fc90564805b13595f212",
+      "source_cluster": "wiki5-ko-h827332b44213",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 117687,
+      "contexts": 2,
+      "file": "wiki5-ko-h9ba5b7f5f44a.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "e6be9b2729d660d2b8e6052029d76b9a1a9e0369ec11974bb4bfd481077d137e",
+      "source_cluster": "wiki5-ko-h9ba5b7f5f44a",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 28269,
+      "contexts": 1,
+      "file": "wiki5-ko-hd51b5b46f0c7.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "8521ec1e78dc1294251b1af1e544c590db574865766517792c2dcbdff48d0280",
+      "source_cluster": "wiki5-ko-hd51b5b46f0c7",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 32977,
+      "contexts": 1,
+      "file": "wiki5-nl-de-slimste-mens.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "cd412ec7a2ee6b588a196f31960aa68cd081d1ccbd688daa62bd57ba45fddb1a",
+      "source_cluster": "wiki5-nl-de-slimste-mens",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 19611,
+      "contexts": 1,
+      "file": "wiki5-nl-marie-antoinette-van-oostenrijk.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "9b2bdc2fa438237b01d93f63e991b3b1558d243b3a37253ac01c7f6659476743",
+      "source_cluster": "wiki5-nl-marie-antoinette-van-oostenrijk",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 97187,
+      "contexts": 1,
+      "file": "wiki5-nl-nederland.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "67808c93f4af5c021d707e58b41d28b4e26621e391471545dbc1879ad124a145",
+      "source_cluster": "wiki5-nl-nederland",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 147429,
+      "contexts": 2,
+      "file": "wiki5-pl-donald-trump.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "455f7285a4442cb7b758bf03d7ba8e314e0cab2f6209a1a97b78975e9a187e68",
+      "source_cluster": "wiki5-pl-donald-trump",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 15332,
+      "contexts": 1,
+      "file": "wiki5-pl-jerzy-owsiak.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "4da38904c81987f607a9b302b1b4e2e7563b703286e0568286375c96564468b9",
+      "source_cluster": "wiki5-pl-jerzy-owsiak",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 8239,
+      "contexts": 1,
+      "file": "wiki5-pl-melania-trump.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "0216ccca81d1436584ac42ae7d71d3367383af5d80f6640d7c4934805e92c6ac",
+      "source_cluster": "wiki5-pl-melania-trump",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 165661,
+      "contexts": 1,
+      "file": "wiki5-pl-polska.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "34cac9af8731999b87b5bba0b86d4fafc8874631f424b326bdc7e32a461eda7b",
+      "source_cluster": "wiki5-pl-polska",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 19615,
+      "contexts": 1,
+      "file": "wiki5-pl-s-awomir-mentzen.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "43d5535de984a8abe5df4fc010971fd267b7ba6d07457445a87aac6a93b0cd88",
+      "source_cluster": "wiki5-pl-s-awomir-mentzen",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 86235,
+      "contexts": 1,
+      "file": "wiki5-pl-stany-zjednoczone.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "04988f480b88e89c6589fb4a6451c1ca01a9f152004e59380b68f616a566a9f5",
+      "source_cluster": "wiki5-pl-stany-zjednoczone",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 22883,
+      "contexts": 1,
+      "file": "wiki5-pl-zmarli-w-styczniu-2025.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "f53907a250feffa6413d9c8f220c21e0fb37768494c0de74c4549826ccefd21b",
+      "source_cluster": "wiki5-pl-zmarli-w-styczniu-2025",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 55529,
+      "contexts": 2,
+      "file": "wiki5-pt-chatgpt.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "7b4fe19a27b28d4aab29613eca09c6623a0b91928457de11fc7ddb4f73ba651a",
+      "source_cluster": "wiki5-pt-chatgpt",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 35084,
+      "contexts": 1,
+      "file": "wiki5-pt-elon-musk.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "f8e1fc9a3ff2aebb3322e4c00f11d94869893b2ec5e0dbd8b89175a61ac7c3cc",
+      "source_cluster": "wiki5-pt-elon-musk",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 9609,
+      "contexts": 1,
+      "file": "wiki5-pt-marcelo-rubens-paiva.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "ead211363e0c6c6f8e6b510560349f4ae1acf1f57fccca37987cd96bf58e4b4c",
+      "source_cluster": "wiki5-pt-marcelo-rubens-paiva",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 40006,
+      "contexts": 1,
+      "file": "wiki5-pt-rosa-ngela-lula-da-silva.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "79c4d029b64973fe8e97fa65d3aa8a697de75ad4d6233cdea373fa78048dcca0",
+      "source_cluster": "wiki5-pt-rosa-ngela-lula-da-silva",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 306143,
+      "contexts": 2,
+      "file": "wiki5-ru-h7d149dfed4a2.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "8f6302b0c3f0fbfeae0316428aaee83d05028da59c94f279ccfab60bf232cc28",
+      "source_cluster": "wiki5-ru-h7d149dfed4a2",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 184709,
+      "contexts": 1,
+      "file": "wiki5-ru-hd6785bf637ee.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "e03a7d63065284f191c0dd504e9493741c1092fe66c6ddd6d60c11a96dd55a6d",
+      "source_cluster": "wiki5-ru-hd6785bf637ee",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 82789,
+      "contexts": 1,
+      "file": "wiki5-ru-he023d755cf37.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "b9fc2950f5bc1b095a572648965fb05835a88b2bd202ee75d1b44c02e844cd5e",
+      "source_cluster": "wiki5-ru-he023d755cf37",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 34700,
+      "contexts": 1,
+      "file": "wiki5-ru-hfb9eee94f6d8.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "855b5d6ba89648c978105bcac3c66865f8bbef96425a0bbfcce81ddd76faa972",
+      "source_cluster": "wiki5-ru-hfb9eee94f6d8",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 70891,
+      "contexts": 1,
+      "file": "wiki5-ru-youtube.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "213d70655da6a41342079c67d2f5fc4d37d565f5de3723a793e28e40d778fb33",
+      "source_cluster": "wiki5-ru-youtube",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 10190,
+      "contexts": 1,
+      "file": "wiki5-sv-christine-meltzer.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "f000d8652957b45db2969a059a150d5934484a33da15ce7de533cc4d7d83dc17",
+      "source_cluster": "wiki5-sv-christine-meltzer",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 65409,
+      "contexts": 4,
+      "file": "wiki5-sv-donald-trump.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "ff2915d0c65576d013f83d2211e71b2bb171283a266d898590b46b45356876e3",
+      "source_cluster": "wiki5-sv-donald-trump",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 76442,
+      "contexts": 2,
+      "file": "wiki5-sv-elisabet-i.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "0a3be88ef03841c55dc72253048e21ea96d8699f287ff8b04b434a0299dbf0be",
+      "source_cluster": "wiki5-sv-elisabet-i",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 21360,
+      "contexts": 1,
+      "file": "wiki5-sv-elon-musk.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "3339ebf0c89387373cc03310a0c2ba32dab5047ca7ef703e20ee61dc48498e6d",
+      "source_cluster": "wiki5-sv-elon-musk",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 36748,
+      "contexts": 1,
+      "file": "wiki5-sv-henrik-viii-av-england.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "16ad2866155b44af1247ed2e79f4cf137cb342f2b5f8ccd4af52e690962aeaea",
+      "source_cluster": "wiki5-sv-henrik-viii-av-england",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 11561,
+      "contexts": 1,
+      "file": "wiki5-sv-melania-trump.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "b99543b44938bea51296296949b04650528ba40bb9d00ad10b7e6309a134456c",
+      "source_cluster": "wiki5-sv-melania-trump",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 14427,
+      "contexts": 1,
+      "file": "wiki5-sv-peter-lemarc.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "22452e424658355dc855367bd9b235de2aee8c9bdab971785a26605c7502f099",
+      "source_cluster": "wiki5-sv-peter-lemarc",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 72930,
+      "contexts": 2,
+      "file": "wiki5-sv-sverige.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "9fdebdba816de82569f7e5a34dd17640091f41771d781639a82f15a942ef3f0b",
+      "source_cluster": "wiki5-sv-sverige",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 15995,
+      "contexts": 2,
+      "file": "wiki5-sv-tomas-brolin.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "a4793df0723a3ccaeed95af01b8166d533ba386459dccbe1d8231c4984401109",
+      "source_cluster": "wiki5-sv-tomas-brolin",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 29508,
+      "contexts": 1,
+      "file": "wiki5-sv-u-137.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "fa747fa5f78df7928a513bce5baa4b0fcd0ef9bab07778d3e828d6749f4388f2",
+      "source_cluster": "wiki5-sv-u-137",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 34187,
+      "contexts": 1,
+      "file": "wiki5-tr-abdullah-o-calan.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "9722a945c3e2955549286b464b748fb663293e702105faf7f69ade189150e980",
+      "source_cluster": "wiki5-tr-abdullah-o-calan",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 11830,
+      "contexts": 1,
+      "file": "wiki5-tr-burc-lar.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "061b1fb733a85379198b5e89e803b312824717c562b62bc18dc03c97eaefea1a",
+      "source_cluster": "wiki5-tr-burc-lar",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 98699,
+      "contexts": 2,
+      "file": "wiki5-tr-donald-trump.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "6fae21d84be29113be6de5f8463d88b2e56baba6fecb10ae3eab6d52d524dae5",
+      "source_cluster": "wiki5-tr-donald-trump",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 54509,
+      "contexts": 1,
+      "file": "wiki5-tr-ole-gunnar-solskj-r.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "ed68d2ebcd073a8668d1e46aed48d226e7c3bb03477844a302c91cd2c6bd40d3",
+      "source_cluster": "wiki5-tr-ole-gunnar-solskj-r",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 130052,
+      "contexts": 1,
+      "file": "wiki5-tr-osmanl-i-mparatorlug-u.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "f4d5085e4c8a8b45828df0461a3dc9c4659885ee6b3cfacc9c9e6154742b356f",
+      "source_cluster": "wiki5-tr-osmanl-i-mparatorlug-u",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 63369,
+      "contexts": 1,
+      "file": "wiki5-tr-recep-tayyip-erdog-an.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "13c9b2e4ab28a3e796fae9ac213573547e58ec5493c50b9dd88b560d729c0a58",
+      "source_cluster": "wiki5-tr-recep-tayyip-erdog-an",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 87442,
+      "contexts": 1,
+      "file": "wiki5-tr-tu-rkiye.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "1dac164eb197447d2e02352ecc3179ea0072e1c292e51bef83479e1fadbd315a",
+      "source_cluster": "wiki5-tr-tu-rkiye",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 51107,
+      "contexts": 1,
+      "file": "wiki5-uk-h1e328a442ba1.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "d65c26ac8b16eddbf36c9a3b5bf921c1d1082870578e0c536c5bf9dc1e4bf642",
+      "source_cluster": "wiki5-uk-h1e328a442ba1",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 32892,
+      "contexts": 2,
+      "file": "wiki5-uk-ha89df8d7c1f0.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "59aaab21c6a0bf83d0f8a603065b7c7d86601a2e34833abddd9b64c043069a67",
+      "source_cluster": "wiki5-uk-ha89df8d7c1f0",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 53720,
+      "contexts": 2,
+      "file": "wiki5-zh-bigbang.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "4519574491d90e896f477db75c0ab4a0cec004759a8cf65eb3debaa6f923a996",
+      "source_cluster": "wiki5-zh-bigbang",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 96993,
+      "contexts": 1,
+      "file": "wiki5-zh-h32548d7cf840.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "fa13d3ae3211842eaa670d20273f31c6beebc2162a0396351c770c1894a981a1",
+      "source_cluster": "wiki5-zh-h32548d7cf840",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 103529,
+      "contexts": 1,
+      "file": "wiki5-zh-h5ec00bb1371e.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "49fbb19be29aac48c26729eeac01901204e73bae1fc978a665dd4fa6200a5e4a",
+      "source_cluster": "wiki5-zh-h5ec00bb1371e",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 18836,
+      "contexts": 1,
+      "file": "wiki5-zh-h93f419f88dab.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "f26e2c7cc48ec1ff8734c8a7ca6a3e8a8e8d200b747b797481feb9a1082a544f",
+      "source_cluster": "wiki5-zh-h93f419f88dab",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 85740,
+      "contexts": 2,
+      "file": "wiki5-zh-h9cff74ad5e51.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "33ea8dc142393b3feb01ad0b7ab6ea92f6374d3d475f2fbca3cfaebdc51fd09b",
+      "source_cluster": "wiki5-zh-h9cff74ad5e51",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 106084,
+      "contexts": 1,
+      "file": "wiki5-zh-hba42412b42f4.txt",
+      "partitions": [
+        "analysis"
+      ],
+      "sha256": "8af08b8d6e3d6784408c58d32410c5f944f9c49908ecf938073e35e50b8a99c2",
+      "source_cluster": "wiki5-zh-hba42412b42f4",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    },
+    {
+      "bytes": 53932,
+      "contexts": 1,
+      "file": "wiki5-zh-hdc6274f381ba.txt",
+      "partitions": [
+        "qualification"
+      ],
+      "sha256": "6bec6ae9b14e99af019c2232c37d7332e72cae1fb40f524781dbcdd724a2606c",
+      "source_cluster": "wiki5-zh-hdc6274f381ba",
+      "strata": [
+        "multilingual"
+      ],
+      "stratum": "multilingual"
+    }
+  ],
+  "format_version": 1,
+  "panel_id": "panel--qwen38.malaiwah.suite-v5-shard0-1m",
+  "panel_name": "malaiwah Qwen3.8-27B suite v5, shard 0 -- 512 contexts",
+  "panel_token_sha256_legacy": "d0cdd562117373b17f23d6ba0cf9bc8e65200d1b5b06a76704e18bcb49363404",
+  "parameters": {
+    "context_length": 2048,
+    "mask": "all ones over the full context",
+    "prediction_positions_per_window": 2047,
+    "score_from": 0,
+    "scored_positions_total": 1048064,
+    "windowed": false,
+    "windows_total": 512
+  },
+  "receipt_sha256": "6f4bec58ae8ee3c7e2b80e9369b4e3089038995f2d34233193802307107b0d31",
+  "registry_panel": {
+    "manifest_sha256": "c79dfad3767ca5b3015129077f20dbb9282a2e51ca8bca9ed09be8c7a9c73019",
+    "note": "the registry record's own source is a GitHub receipt; this build re-derives the same token digest from the public dataset instead of trusting that record",
+    "panel_id": "panel--qwen38.malaiwah.suite-v5-shard0-1m",
+    "panel_token_sha256": "caef8a4628d6c07c162100895096f890cdf9cafc8e4c48b3d66035d737ee7cf7",
+    "source_uri": "https://raw.githubusercontent.com/malaiwah/qwen38-27b-exl3/8558b8ca3bba028f852f4b53167b79b4cd552f93/receipts/kld5-suite-manifest.json"
+  },
+  "schema": "malaiwah.token-panel-build-receipt.v1",
+  "seals_verified": {
+    "canonical_token_aggregate": {
+      "expected": "8847e99a855fab374c3b5fecc1777eabf61307c36782ed48f9fc77e7aca3e42f",
+      "match": true,
+      "pinned_by_caller": true,
+      "recomputed": "8847e99a855fab374c3b5fecc1777eabf61307c36782ed48f9fc77e7aca3e42f",
+      "rule": "sha256(newline join of per-record token_ids_json_sha256) == suite_token_hash_sha256, the aggregate a resolved panel binding recomputes"
+    },
+    "panel_token_legacy_aggregate": {
+      "expected": "d0cdd562117373b17f23d6ba0cf9bc8e65200d1b5b06a76704e18bcb49363404",
+      "match": true,
+      "pinned_by_caller": true,
+      "recomputed": "d0cdd562117373b17f23d6ba0cf9bc8e65200d1b5b06a76704e18bcb49363404",
+      "rule": "sha256(empty-string join of per-record token_ids_json_sha256) == the historical receipts' panel_token_sha256_legacy"
+    },
+    "per_context_file_sha256": {
+      "contexts_checked": 512,
+      "mismatches": 0,
+      "rule": "sha256(context-NNNN.json bytes) == context_index[i].token_sha256"
+    },
+    "shard_aggregate": {
+      "expected": "caef8a4628d6c07c162100895096f890cdf9cafc8e4c48b3d66035d737ee7cf7",
+      "match": true,
+      "recomputed": "caef8a4628d6c07c162100895096f890cdf9cafc8e4c48b3d66035d737ee7cf7",
+      "rule": "sha256(concat of per-context token_sha256 hex in context_index order) == suite manifest suite_token_sha256 == registry panel identity.panel_token_sha256"
+    },
+    "tokenizer_identity": {
+      "config_sha256": "191e0af232104ed8b65258cf3fb2b842e288008baca7633c11b82a1ac7203aab",
+      "config_vocab_size_path": "text_config.vocab_size",
+      "match": true,
+      "observed_token_id_maximum": 248014,
+      "rule": "sha256(tokenizer.json) == suite manifest model_identity.tokenizer_sha256 and sha256(config.json) == model_identity.config_sha256 and the model config's declared text vocabulary equals the manifest's vocab_size",
+      "tokenizer_sha256": "0997f410c57a1f4e53b09e4be8f4a172d90edd9564368fb0847030937229b9f3",
+      "vocab_size": 248320
+    }
+  },
+  "selection_rule": "every context of the sealed shard, in the shard suite-manifest's context_index order; window N carries context_index[N]'s token ids verbatim, its stratum as the window domain and its source cluster as the window document_id. Masks are all-ones over the full context, so every causal next-token position is scored. No RNG, no tokenizer, no re-derivation from text.",
+  "separation": {
+    "checked": false,
+    "inherited_scan": {
+      "calibration_shingles": 859426,
+      "contamination_scan": "Unicode NFKC, casefold, every Unicode word token",
+      "documents_excluded_any_reason": 44,
+      "present": true,
+      "shard_calibration_shingle_hits": 0
+    },
+    "method": "this tool runs no scan; the parent suite manifest records the scan its builder ran",
+    "note": "Gutenberg / arXiv / Wikipedia (en + de,fr,es,ja,zh,ru) / CPython v3.12.8 Lib; calibration-overlapping documents are pre-excluded."
+  },
+  "source_receipts": [
+    {
+      "declared_receipt_sha256": "380720efe0763789b0759241367ddc9de65662772ecdde2f97b1cc9271622002",
+      "file_bytes": 2567,
+      "file_sha256": "5fb9ca79826c803ac4f07403870084b8692c99c89d8a8c4a215b1a233ee56368",
+      "panel_id": "panel--qwen38.malaiwah.suite-v5-shard0-1m",
+      "path": "registry/protocol/qwen38-hf/panel.suite-v5-shard0-rebuild-receipt.json",
+      "receipt_seal_convention": "legacy-field-absent-ascii",
+      "schema": "malaiwah.token-panel-rebuild-receipt.v1",
+      "suite_token_hash_sha256": "8847e99a855fab374c3b5fecc1777eabf61307c36782ed48f9fc77e7aca3e42f",
+      "tool": "k6/tools/build_panel_from_v5_suite.py"
+    }
+  ],
+  "suite_token_hash_sha256": "8847e99a855fab374c3b5fecc1777eabf61307c36782ed48f9fc77e7aca3e42f",
+  "token_panel_schema": "quant-pipeline.glm53-token-panel.v1",
+  "tokenizer": {
+    "add_special_tokens": false,
+    "chat_template_applied": false,
+    "evidence_files_sha256": {
+      "chat_template.jinja": "c3cf9e34abf4f9e36c2d72165aa9c132d3e2a725b6c2586aaa3a8af9d7a81041",
+      "config.json": "191e0af232104ed8b65258cf3fb2b842e288008baca7633c11b82a1ac7203aab",
+      "generation_config.json": "e70c136c1b78ddc1fb0905bac8e733a4dc448d4f852a5dd75143fffc70be550e"
+    },
+    "files_sha256": {
+      "merges.txt": "a9d356d7bdf1ef4949e3e748e95b8e10ad9d4e2e838eddc38a0a7b6b94d1db8d",
+      "tokenizer.json": "0997f410c57a1f4e53b09e4be8f4a172d90edd9564368fb0847030937229b9f3",
+      "tokenizer_config.json": "b11349aafa7cdc6a320767cf7ceb29ed82f7eda5d65e8e0819e76f0ce947bf27",
+      "vocab.json": "ce99b4cb2983d118806ce0a8b777a35b093e2000a503ebde25853284c9dfa003"
+    },
+    "id": "Qwen/Qwen3.8-27B",
+    "maximum_token_id_exclusive": 248320,
+    "minimum_token_id": 0,
+    "note": "no tokenizer was loaded by this tool; token ids are transported from the sealed suite. Identity is PROVED against the suite manifest's model_identity digests, not inherited from a repository name.",
+    "repository": "Qwen/Qwen3.8-27B",
+    "revision": "1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0",
+    "vocab_size": 248320
+  },
+  "tokenizer_identity_sha256": "b0aa393c3eafce6117bf6050307385a2735bae9dd8bd0a486f902f4b8bc03ec5",
+  "tokenizer_receipt_sha256": "410273e9158950c5b8078e2de851a165d9a9048801feaa3e77711901c9d5a869",
+  "tool": "engines/tools/build_panel_from_v5_suite.py",
+  "tool_sha256": "3bba2bea4ce0ae252755e6e664bc2d97f520bc5a39a737bf5d8399294c2fb989"
+}

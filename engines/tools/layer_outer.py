@@ -689,6 +689,56 @@ TRELLIS_DECODE_METHOD = "exl3-trellis-decode-to-bf16"
 TRELLIS_DECODE_REFERENCE = "engines/tools/exl3hf_surface.py::decode_payload_hf"
 TRELLIS_PAYLOAD_OBJECTS = ("trellis", "suh", "svh")
 TRELLIS_CODEBOOKS = ("mul1", "mcg")
+#: Peak-intermediate budget for ONE call into that reviewed decoder. Its unpack
+#: expands every stored 16-bit word into 16 int64 lanes, so a whole K6 lm_head
+#: payload (248,320 x 5,120) asks for one ~57 GiB tensor: HF Job
+#: 6aa208175527934177ebec8c died there mid-capture on 2026-09-10. The decoder is
+#: pinned by digest to its reviewed real-tensor CUDA parity evidence, so the
+#: banding lives HERE, in the caller: whole k-tile bands are handed to the
+#: unchanged function and the results placed side by side. Nothing is reordered,
+#: accumulated or approximated, and `engines/tools/exl3hf_surface.py` keeps its
+#: reviewed bytes.
+TRELLIS_DECODE_BAND_BYTES = 2 * 1024**3
+#: The decoder's first Hadamard consumes 128-row blocks, so a band must carry
+#: whole blocks: 8 k-tiles = 128 rows.
+_TRELLIS_BAND_TILES = 8
+
+
+def decode_trellis_banded(surface, trellis, suh, svh, *, codebook, dtype=None):
+    """`decode_payload_hf` over k-tile bands: same bytes, bounded peak.
+
+    Rows of the decoder's internal layout -- columns of what it returns -- come
+    from whole k-tiles, and every stage it applies is row-independent, so a band
+    decodes to exactly the columns it owns.
+    """
+    import torch
+
+    def whole():
+        decoded = surface.decode_payload_hf(trellis, suh, svh, codebook=codebook)
+        return decoded if dtype is None else decoded.to(dtype)
+
+    k_tiles, n_tiles, words = trellis.shape
+    bits = words // 16
+    rows = max(1, TRELLIS_DECODE_BAND_BYTES // max(1, 16 * bits * 16 * 8))
+    band = (rows // max(1, n_tiles)) // _TRELLIS_BAND_TILES * _TRELLIS_BAND_TILES
+    band = max(_TRELLIS_BAND_TILES, band)
+    if k_tiles % _TRELLIS_BAND_TILES or band >= k_tiles:
+        return whole()
+    first = surface.decode_payload_hf(
+        trellis[:band], suh[:band * 16], svh, codebook=codebook)
+    out = torch.empty((first.shape[0], k_tiles * 16),
+                      dtype=first.dtype if dtype is None else dtype, device=first.device)
+    out[:, :band * 16] = first if dtype is None else first.to(dtype)
+    del first
+    for start in range(band, k_tiles, band):
+        stop = min(start + band, k_tiles)
+        decoded = surface.decode_payload_hf(
+            trellis[start:stop], suh[start * 16:stop * 16], svh, codebook=codebook)
+        out[:, start * 16:stop * 16] = decoded if dtype is None else decoded.to(dtype)
+        del decoded
+    return out
+
+
 #: TP-SHARDED payloads. davidsyoung's TR3 releases store one projection as
 #: `M.rank{r}.{trellis,suh,svh,mcg}`, r in 0..tp-1: the atoms are the
 #: tensor-parallel shards their serving stack loads one per GPU, declared in
@@ -1577,9 +1627,9 @@ def materialize_trellis_subset(subset: Dict[str, Any], plan: Dict[str, Any], tor
         layout = shared[2] if shared is not None else "per_module"
         _check_declared_bits(module, bits, plan, composition, policy=policy,
                              layout=layout, shared=shared is not None)
-        decoded = surface.decode_payload_hf(
-            payload["trellis"].to(device), payload["suh"].to(device),
-            payload["svh"].to(device), codebook=objects["codebook"]).to(torch_dtype)
+        decoded = decode_trellis_banded(
+            surface, payload["trellis"].to(device), payload["suh"].to(device),
+            payload["svh"].to(device), codebook=objects["codebook"], dtype=torch_dtype)
         stats["decoded_modules"] += 1
         stats["trellis_bits"] += bits
         histogram = stats.setdefault("k_histogram", {})

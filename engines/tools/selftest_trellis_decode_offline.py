@@ -1079,6 +1079,31 @@ def main() -> int:
                                                     "model.layers.10.self_attn.o_proj": 6}
           and nrstats["modules_per_layout"] == {"per_module": 2, "r7_shared": 3},
           repr(nrstats))
+    # [22b] A payload too large for one decoder call must materialize in bands,
+    # bitwise. A real K6 lm_head asked CUDA for one ~57 GiB unpack tensor and
+    # killed HF Job 6aa208175527934177ebec8c mid-capture on 2026-09-10.
+    want22 = {name: tensor.clone() for name, tensor in out22.items()}
+    budget = lo.TRELLIS_DECODE_BAND_BYTES
+    try:
+        lo.TRELLIS_DECODE_BAND_BYTES = 1
+        bandstats = {"decoded_modules": 0, "trellis_bits": 0,
+                     "module_bits_policy": nrobs["module_bits_policy"], "r7_permutations": r7source}
+        banded22 = lo.materialize_trellis_subset(nr_keys, nrplan, torch.bfloat16, bandstats)
+        head_banded = lo.decode_trellis_banded(
+            xs, head_pay["trellis"], head_pay["suh"], head_pay["svh"], codebook="mcg")
+    finally:
+        lo.TRELLIS_DECODE_BAND_BYTES = budget
+    check("[22b] a banded decode materializes bitwise the same weights",
+          set(banded22) == set(want22)
+          and all(torch.equal(banded22[name], want22[name]) for name in want22)
+          and bandstats["nonrouted_exl3_decoded"] == nrstats["nonrouted_exl3_decoded"],
+          repr(sorted(name for name in want22 if not torch.equal(banded22[name], want22[name]))))
+    check("[22b] the banded caller leaves the reviewed decoder's fp32 output unchanged",
+          torch.equal(head_banded, xs.decode_payload_hf(
+              head_pay["trellis"], head_pay["suh"], head_pay["svh"], codebook="mcg"))
+          and head_banded.dtype == torch.float32
+          and bool(torch.isfinite(head_banded).all().item()))
+
 
     class _Streamer:
         pass
