@@ -88,28 +88,63 @@ def verify_launcher(environment, *, image_root=IMAGE_ROOT, launcher_path=Path("/
 def verify_runtime(environment, build, freeze, device):
     from importlib import import_module
     from importlib.metadata import distributions
+    from urllib.parse import urlparse
     if (sys.executable != PYTHON or sys.prefix != str(IMAGE_ROOT / "venv")
             or sys.version_info[:2] != (3, 12)
             or ".".join(map(str, sys.version_info[:3])) != build["pins"]["python"]):
         raise ValueError("only the baked Python 3.12 interpreter is allowed; no fallback")
     normalize = lambda name: re.sub(r"[-_.]+", "-", name).lower()
     expected = {}
+    editables = {}
     for line in freeze.decode().splitlines():
         if not line.strip():
             continue
-        name, separator, version = line.partition("==")
-        if not separator or not name or not version or normalize(name) in expected:
+        if line.startswith("-e "):
+            # pip freeze records the baked editable source checkout as
+            # `-e git+<repo>@<pin>#egg=<name>`.  The oracle base bakes exactly
+            # one editable -- exllamav3 at the same pin BUILD.json records --
+            # and anything else in editable form is drift, not coverage.
+            match = re.fullmatch(
+                r"-e git\+https://github\.com/turboderp-org/exllamav3"
+                r"@([0-9a-f]{40})#egg=exllamav3", line)
+            if (not match or "exllamav3" in editables or "exllamav3" in expected
+                    or match.group(1) != build["pins"].get("exllamav3_commit")):
+                raise ValueError("unsupported baked editable dependency entry")
+            editables["exllamav3"] = match.group(1)
+            continue
+        # Every hashed-lock wheel installs from an exact URL, so pip freeze
+        # records `name @ url#sha256=<hex>` and each dist-info carries the same
+        # URL plus the archive digest.  Comparing URL and SHA-256 is stronger
+        # than a version string: it is the byte identity the lock pinned.
+        match = re.fullmatch(r"([A-Za-z0-9._-]+) @ (\S+)#sha256=([0-9a-f]{64})", line)
+        if not match or not match.group(1) or normalize(match.group(1)) in expected:
             raise ValueError("unsupported or duplicate baked dependency closure entry")
-        expected[normalize(name)] = version
+        expected[normalize(match.group(1))] = (match.group(2), match.group(3))
     versions = {}
+    direct = {}
     for distribution in distributions():
         name = normalize(distribution.metadata["Name"])
         if name in versions:
             raise ValueError("duplicate installed distribution: " + name)
         versions[name] = distribution.version
-    # Python 3.12 pip freeze omits pip itself, not setuptools/wheel.
-    if {name: version for name, version in versions.items() if name != "pip"} != expected:
+        raw = distribution.read_text("direct_url.json")
+        direct[name] = json.loads(raw) if raw else None
+    for name in editables:
+        if name not in versions:
+            raise ValueError("baked editable dependency missing from the closure: " + name)
+        record = direct.get(name) or {}
+        if (record.get("dir_info", {}).get("editable") is not True
+                or urlparse(record.get("url", "")).scheme != "file"):
+            raise ValueError("baked editable is not an editable checkout: " + name)
+    # Python 3.12 pip freeze omits pip itself; the editable checkout is verified
+    # above and is not a URL entry.
+    if {name for name in versions if name != "pip"} != set(expected) | set(editables):
         raise ValueError("installed dependency closure differs from baked pip-freeze.txt")
+    for name, (url, sha) in expected.items():
+        record = direct.get(name) or {}
+        if (record.get("url") != url
+                or record.get("archive_info", {}).get("hashes", {}).get("sha256") != sha):
+            raise ValueError("baked dependency source/digest mismatch: " + name)
     for name, expected_version in environment["capture_dependencies"].items():
         module = import_module(name)
         if versions.get(normalize(name)) != expected_version or getattr(module, "__version__", None) != expected_version:

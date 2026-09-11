@@ -1477,7 +1477,14 @@ def rung_baked_runtime(actor, root):
     (image_root / "patches-v2").mkdir()
     (image_root / "suite/source.py").write_bytes(b"baked source, not worker source")
     (image_root / "patches-v2/SERIES").write_bytes(b"patch fixture")
-    freeze = b"torch==2.11.0+cu130\nnumpy==2.5.2\n"
+    # The hashed-lock bootstrap installs every wheel from an exact URL, so the
+    # baked freeze records `name @ url#sha256=<hex>`, and each dist-info carries
+    # the same URL and archive digest for verify_runtime to compare.
+    torch_url = "https://download-r2.pytorch.org/whl/cu130/torch-2.11.0%2Bcu130-cp312-cp312-manylinux_2_28_x86_64.whl"
+    numpy_url = "https://files.pythonhosted.org/packages/numpy-2.5.2-py3-none-any.whl"
+    torch_sha, numpy_sha = "9" * 64, "8" * 64
+    freeze = ("torch @ %s#sha256=%s\nnumpy @ %s#sha256=%s\n"
+              % (torch_url, torch_sha, numpy_url, numpy_sha)).encode()
     (image_root / "pip-freeze.txt").write_bytes(freeze)
     build = {"schema": "malaiwah.fidelity-image-build.v1", "suite_revision": "1" * 40,
              "pins": {"python": "3.12.3", "torch_cuda": "13.0"}, "probe_errors": {},
@@ -1575,12 +1582,23 @@ def rung_baked_runtime(actor, root):
         def item(self):
             return 2
 
+    class Wheel:
+        def __init__(self, name, version, url=None, sha=None):
+            self.metadata = {"Name": name}
+            self.version = version
+            self._url, self._sha = url, sha
+        def read_text(self, filename):
+            if filename != "direct_url.json" or self._url is None:
+                return None
+            return json.dumps({"url": self._url, "archive_info": {"hashes": {"sha256": self._sha}}})
+
     torch = ns(__version__="2.11.0+cu130", version=ns(cuda="13.0"),
                cuda=ns(is_available=lambda: False), float64="fp64",
                ones=lambda *args, **kwargs: Scalar())
     modules = {"torch": torch, "numpy": ns(__version__="2.5.2")}
-    wheels = [ns(metadata={"Name": name}, version=version) for name, version in
-              (("torch", "2.11.0+cu130"), ("numpy", "2.5.2"), ("pip", "26.0"))]
+    wheels = [Wheel("torch", "2.11.0+cu130", torch_url, torch_sha),
+              Wheel("numpy", "2.5.2", numpy_url, numpy_sha),
+              Wheel("pip", "26.0")]
     with patch.object(sys, "executable", bootstrap.PYTHON), patch.object(sys, "prefix", "/opt/fidelity/venv"), \
             patch.object(sys, "version_info", (3, 12, 3)), \
             patch("importlib.metadata.distributions", return_value=wheels), \
@@ -1595,10 +1613,10 @@ def rung_baked_runtime(actor, root):
             with patch.object(sys, attribute, value):
                 check("B5 wrong baked " + attribute + " refuses",
                       refuses(lambda: bootstrap.verify_runtime(environment, build, freeze, "cpu"), ValueError))
-        wheels[1].version = "2.5.3"
+        wheels[1]._sha = "0" * 64
         check("B6 mismatched installed dependency fails instead of installation",
               refuses(lambda: bootstrap.verify_runtime(environment, build, freeze, "cpu"), ValueError))
-        wheels[1].version = "2.5.2"
+        wheels[1]._sha = numpy_sha
         with patch.object(importlib, "import_module", side_effect=RuntimeError("native import failed")):
             check("B7 native import exceptions are failures, not skips",
                   refuses(lambda: bootstrap.verify_runtime(environment, build, freeze, "cpu"), RuntimeError))
