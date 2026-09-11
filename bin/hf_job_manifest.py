@@ -11,10 +11,10 @@ import re
 import stat
 import tempfile
 
-BASE_IMAGE = "ghcr.io/malaiwah/quant-fidelity-measure@sha256:b587227adb3dc56ca2f6fcbd6ecabb143fed04d3d7fabd2d76cbf9bf92bb8006"
-BASE_BUILD = "f7cc2b4af135ac256348073d6a033a3ff980d994d4d63db9ab23f005857cb6cf"
-BASE_CONTENT = "f949d4f872b18762294c440f56539858a8d9a09c04d44c5d720258c9d8a9a534"
-BASE_SOURCE = "1ab2838996f338d5c7957ce147a7cb5234913607"
+BASE_IMAGE = "ghcr.io/malaiwah/quant-fidelity-measure@sha256:5b1f3bb6e899d55d9a21c9765243cec7c26aea5f5b1777d16dc801d92ffc8783"
+BASE_BUILD = "d9115aea633c6aa123f0c84cec2bccb4c5b94a6528707a0d8e6bfeab521cb0a1"
+BASE_CONTENT = "f10f26179ffa2342941b7fc2b17fdd9a41c20a3120a3d0844bc76afab22d2b1d"
+BASE_SOURCE = "987e1146c2337a918f847391cbf685f20a6ad82b"
 LAUNCHER = "/usr/local/bin/qfs-job"
 
 

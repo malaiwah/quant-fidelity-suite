@@ -30,7 +30,7 @@
 # GPU MODEL shifts the result (docs/ARCHITECTURE-DETERMINISM.md).
 # Independent overlay target: BuildKit can reuse this published numerical stack
 # without evaluating the base/ssh build stages.
-ARG HF_JOBS_BASE_IMAGE=ghcr.io/malaiwah/quant-fidelity-measure@sha256:b587227adb3dc56ca2f6fcbd6ecabb143fed04d3d7fabd2d76cbf9bf92bb8006
+ARG HF_JOBS_BASE_IMAGE=ghcr.io/malaiwah/quant-fidelity-measure@sha256:5b1f3bb6e899d55d9a21c9765243cec7c26aea5f5b1777d16dc801d92ffc8783
 FROM ubuntu:24.04 AS base
 
 ARG SUITE_REVISION=""
