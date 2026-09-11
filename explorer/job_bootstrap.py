@@ -198,7 +198,7 @@ def clean(raw):
     return "".join(c for c in value if c in "\n\t" or 32 <= ord(c) != 127).encode()
 
 
-def run(command, deadline, commands, *, step):
+def run(command, deadline, commands, *, step, allow=None):
     started = time.monotonic()
     record = {"step": step, "argv": command, "returncode": None,
               "started_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
@@ -209,6 +209,7 @@ def run(command, deadline, commands, *, step):
     selector = selectors.DefaultSelector()
     selector.register(process.stdout, selectors.EVENT_READ)
     observed = 0
+    collected = [] if allow is not None else None
     try:
         with LOG.open("ab") as target:
             while selector.get_map():
@@ -220,6 +221,8 @@ def run(command, deadline, commands, *, step):
                         selector.unregister(key.fileobj)
                         continue
                     observed += len(chunk)
+                    if collected is not None:
+                        collected.append(chunk)
                     target.write(clean(chunk)[:max(0, LOG_LIMIT - target.tell())])
             process.wait(timeout=max(0.01, deadline - time.monotonic()))
     finally:
@@ -234,6 +237,15 @@ def run(command, deadline, commands, *, step):
         save(RECEIPT, {"schema": "qfs.hf-workflow-bootstrap.v1", "commands": commands})
         print(json.dumps({"stage": "bootstrap", "returncode": process.returncode}), flush=True)
     if process.returncode:
+        # A tolerated exit is one whose entire report matches the caller's
+        # named allowlist (the documented exllamav3/flash-attn optional-dep
+        # absences); one unmatched line is still a broken closure.
+        if allow is not None:
+            lines = b"".join(collected).decode("utf-8", "replace").splitlines()
+            if lines and all(allow.fullmatch(line.strip()) for line in lines):
+                record["tolerated"] = True
+                save(RECEIPT, {"schema": "qfs.hf-workflow-bootstrap.v1", "commands": commands})
+                return
         raise RuntimeError("bootstrap command failed with exit " + str(process.returncode))
 
 
@@ -313,7 +325,15 @@ def main(argv=None):
         job_worker.validate_plan(plan, Path(args.out))
         run([PYTHON, str(Path(__file__)), "--plan", args.plan, "--out", args.out,
              "--inspect-runtime", device], deadline, commands, step="verify-baked-runtime")
-        run([PYTHON, "-m", "pip", "check"], deadline, commands, step="verify-dependency-consistency")
+        # The oracle base deliberately omits exllamav3's serving stack
+        # (flash-linear-attention, marisa-trie, xformers) and flash-attn's
+        # einops: the measurement never imports them, and no torch2.11/cu130
+        # xformers wheel exists to pin.  bootstrap_measure.sh documents the
+        # same four named absences at image build; any other broken
+        # requirement still fails the bootstrap.
+        run([PYTHON, "-m", "pip", "check"], deadline, commands, step="verify-dependency-consistency",
+            allow=re.compile(r"exllamav3 [0-9][^ ]* requires (?:flash-linear-attention|marisa-trie|xformers), "
+                             r"which is not installed\.|flash-attn [0-9][^ ]* requires einops, which is not installed\."))
         observed = json.loads(RUNTIME.read_text())
         RUNTIME.unlink()
         save(RECEIPT, {"schema": "qfs.hf-workflow-bootstrap.v1", "commands": commands,

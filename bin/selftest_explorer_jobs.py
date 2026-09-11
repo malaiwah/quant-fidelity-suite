@@ -1693,8 +1693,11 @@ def rung_bootstrap_no_install(root, bootstrap=None):
             return outputs / str(value).removeprefix("/outputs").lstrip("/")
         return Path(value)
 
-    def execute(command, deadline, commands, *, step):
-        commands.append({"step": step, "argv": command, "returncode": 0})
+    def execute(command, deadline, commands, *, step, allow=None):
+        record = {"step": step, "argv": command, "returncode": 0}
+        if allow is not None:
+            record["tolerated"] = False
+        commands.append(record)
         remaining_budgets.append(deadline - time.monotonic())
         if command[1:4] == ["-m", "pip", "install"]:
             attempted_installs.append(command)
