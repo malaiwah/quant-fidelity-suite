@@ -325,14 +325,14 @@ def main(argv=None):
         job_worker.validate_plan(plan, Path(args.out))
         run([PYTHON, str(Path(__file__)), "--plan", args.plan, "--out", args.out,
              "--inspect-runtime", device], deadline, commands, step="verify-baked-runtime")
-        # The oracle base deliberately omits exllamav3's serving stack
-        # (flash-linear-attention, marisa-trie, xformers) and flash-attn's
-        # einops: the measurement never imports them, and no torch2.11/cu130
-        # xformers wheel exists to pin.  bootstrap_measure.sh documents the
-        # same four named absences at image build; any other broken
-        # requirement still fails the bootstrap.
+        # The oracle wheel and the pipeline's reader checkout both declare a
+        # serving stack the measurement never imports (llguidance,
+        # flash-linear-attention, marisa-trie, xformers, and flash-attn's
+        # einops); no torch2.11/cu130 xformers wheel exists to pin.
+        # bootstrap_measure.sh documents the same named absences at image
+        # build; any other broken requirement still fails the bootstrap.
         run([PYTHON, "-m", "pip", "check"], deadline, commands, step="verify-dependency-consistency",
-            allow=re.compile(r"exllamav3 [0-9][^ ]* requires (?:flash-linear-attention|marisa-trie|xformers), "
+            allow=re.compile(r"exllamav3 [0-9][^ ]* requires (?:llguidance|flash-linear-attention|marisa-trie|xformers), "
                              r"which is not installed\.|flash-attn [0-9][^ ]* requires einops, which is not installed\."))
         observed = json.loads(RUNTIME.read_text())
         RUNTIME.unlink()

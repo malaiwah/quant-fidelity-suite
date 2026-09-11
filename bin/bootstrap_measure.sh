@@ -563,14 +563,15 @@ PY
 fi
 # exllamav3 declares a serving stack the measurement never loads: the
 # exllamav3 import, the pipeline import and the offline decode selftests all
-# succeed without flash-linear-attention, marisa-trie, xformers or einops
-# (proven when built by validate_exl3_import and probe), and no torch2.11/cu130
-# xformers wheel exists to pin.  The allowlist is exact-name and self-scoped --
-# it matches only lines where exllamav3 or flash-attn is the requiring package
-# (flash-attn rides along only in the exllamav3 build), so it applies
-# unconditionally and any other broken requirement still fails.
+# succeed without llguidance, flash-linear-attention, marisa-trie, xformers
+# or einops (proven by the oracle-wheel/reader validations and probe above),
+# and no torch2.11/cu130 xformers wheel exists to pin.  The allowlist is
+# exact-name and self-scoped -- it matches only lines where exllamav3 or
+# flash-attn is the requiring package (flash-attn rides along only in the
+# exllamav3 build), so it applies unconditionally and any other broken
+# requirement still fails.
 _pip_check_extra="$("$PY" -m pip check 2>&1 | tee "$RCPT/pip-check.txt" \
-  | grep -Ev '^(exllamav3 [0-9][^ ]* requires (flash-linear-attention|marisa-trie|xformers), which is not installed\.|flash-attn [0-9][^ ]* requires einops, which is not installed\.|No broken requirements found\.)$' \
+  | grep -Ev '^(exllamav3 [0-9][^ ]* requires (llguidance|flash-linear-attention|marisa-trie|xformers), which is not installed\.|flash-attn [0-9][^ ]* requires einops, which is not installed\.|No broken requirements found\.)$' \
   || true)"
 if [ -n "$_pip_check_extra" ]; then
   printf '%s\n' "$_pip_check_extra" >&2
