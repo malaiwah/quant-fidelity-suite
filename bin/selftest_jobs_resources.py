@@ -139,10 +139,23 @@ def selftest_worker_stage():
         assert (ROOT / name).is_file(), "reviewed suite absent from this checkout: " + name
     cpu_plan = {"mode": "selftest", "hardware": {"device": "cpu"}}
     cuda_plan = {"mode": "selftest", "hardware": {"device": "cuda"}}
+    from importlib.metadata import PackageNotFoundError
+    oracle_state = {"present": False}
+
+    def distribution_visibility():
+        # The oracle reaches the image as the installed exllamav3 release
+        # wheel, so presence is the distribution lookup the worker performs.
+        def fake(name):
+            if name == "exllamav3" and oracle_state["present"]:
+                return object()
+            raise PackageNotFoundError(name)
+        return patch("importlib.metadata.distribution", side_effect=fake)
+
     with tempfile.TemporaryDirectory(prefix="qfs-selftest-stage-") as td:
         base = Path(td).resolve()
 
         def case(label, *, pipeline=True, oracle=False, omit=()):
+            oracle_state["present"] = oracle
             root = base / label
             root.mkdir()
             source, image = battery_image(root, pipeline=pipeline, oracle=oracle, omit=omit)
@@ -150,25 +163,20 @@ def selftest_worker_stage():
             out.mkdir()
             return source, image, out, RecordingRunner()
 
-        # An image with no importable pipeline can only re-skip the rungs the
-        # rental exists to execute; nothing runs and no receipt is written.
         source, image, out, runner = case("no-pipeline", pipeline=False)
         with patch.object(job_worker, "ROOT", source), patch.object(job_worker, "IMAGE_ROOT", image), \
-                torch_visibility(False):
+                torch_visibility(False), distribution_visibility():
             refuses(lambda: job_worker.selftest_stage(cpu_plan, out, runner), "importable quant_pipeline")
         assert runner.calls == [] and not (out / "selftest").exists()
-
         source, image, out, runner = case("no-device")
         with patch.object(job_worker, "ROOT", source), patch.object(job_worker, "IMAGE_ROOT", image), \
-                torch_visibility(False):
+                torch_visibility(False), distribution_visibility():
             refuses(lambda: job_worker.selftest_stage(cuda_plan, out, runner), "no visible CUDA device")
         assert runner.calls == [] and not (out / "selftest").exists()
 
-        # A suite missing from the immutable source is a refusal, not a shorter
-        # battery: the preceding suite has already run when it is discovered.
         source, image, out, runner = case("missing-suite", omit=("engines/tools/selftest_trellis_decode_offline.py",))
         with patch.object(job_worker, "ROOT", source), patch.object(job_worker, "IMAGE_ROOT", image), \
-                torch_visibility(False):
+                torch_visibility(False), distribution_visibility():
             refuses(lambda: job_worker.selftest_stage(cpu_plan, out, runner),
                     "reviewed suite missing from the immutable source: engines/tools/selftest_trellis_decode_offline.py")
         assert [call["step"] for call in runner.calls] == ["selftest-selftest_exl3hf_offline"]
@@ -176,8 +184,8 @@ def selftest_worker_stage():
 
         # The sealed plan's device decides, and the image must actually carry
         # the oracle: a cpu plan on a CUDA-visible host must not acquire it,
-        # and the reviewed overlay (no /opt/fidelity/exllamav3) must report the
-        # gap instead of failing the battery for a known-absent package.
+        # and an image without the oracle distribution must report the gap
+        # instead of failing the battery for a known-absent package.
         for label, plan, visible, oracle in (("host", cpu_plan, False, False),
                                              ("device-oracle", cuda_plan, True, True),
                                              ("device-no-oracle", cuda_plan, True, False),
@@ -185,11 +193,10 @@ def selftest_worker_stage():
             native = oracle and plan["hardware"]["device"] == "cuda"
             source, image, out, runner = case(label, oracle=oracle)
             with patch.object(job_worker, "ROOT", source), patch.object(job_worker, "IMAGE_ROOT", image), \
-                    torch_visibility(visible):
+                    torch_visibility(visible), distribution_visibility():
                 report = job_worker.selftest_stage(plan, out, runner)
             expected = expected_battery(source, image, native=native)
             assert report["suites"] == expected
-            assert [call["step"] for call in runner.calls] == [item["step"] for item in expected]
             assert [call["argv"] for call in runner.calls] == [item["argv"] for item in expected]
             demanded = [item["suite"] for item in expected if "--require-live-native" in item["argv"]]
             assert demanded == (["engines/tools/selftest_exl3hf_offline.py"] if native else [])

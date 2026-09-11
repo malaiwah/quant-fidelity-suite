@@ -69,7 +69,15 @@ PIPE_ARCHIVE_SHA256=cfb7bf9f2c11e71683ce3a7fe1e1d8a3cdd089ebdd1b2eec42bf604c18a0
 EXL3_REPO=https://github.com/turboderp-org/exllamav3
 EXL3_PIN=c5d9c657966ffeeaa9353f0cc899f18629da4a13
 EXL3_TREE=8b00c03978d850d2b53224acbd92018e107707d1
-EXL3_ARCHIVE_SHA256=3c13cdd74d5fc3c75f426c7b6ae8d8543207483831522280d1d641b974cf452c
+# The NATIVE ORACLE is a different artifact from the pipeline's reader
+# checkout above: the offline battery's live re-reconstruction rung pins
+# exllamav3's v1.4.2 RELEASE WHEEL (precompiled exllamav3_ext, no JIT build).
+# Its constants mirror engines/tools/exl3_decoder_parity_vs_exllamav3.py,
+# which is the authoring source for version, commit and digest.  The wheel is
+# keyed by the CUDA major of the installed torch (cu132 serves torch cu130).
+ORACLE_VERSION=1.4.2
+ORACLE_WHL="https://github.com/turboderp-org/exllamav3/releases/download/v1.4.2/exllamav3-1.4.2+cu132.torch2.11.0-cp312-cp312-linux_x86_64.whl"
+ORACLE_SHA256=fb131e9c97ec270f5d72e28e4331197b0360fa55f10c67d87b6418a0a029fc7d
 # No torch2.11-tagged flash-attn 2.8.3 wheel exists.  This authored
 # torch2.10-tagged artifact is the proven compatibility choice; on a measuring
 # GPU validate_flash_attn verifies it with an actual kernel call.  Identity is
@@ -531,6 +539,27 @@ else
   cat "$RCPT/pipeline-import.txt"
   log "exllamav3 NOT built: the measurement path does not import it"
   echo "not-built: pipeline imports without loading exllamav3" > "$RCPT/exllamav3-build.txt"
+fi
+if [ -n "${FIDELITY_BOOTSTRAP_NATIVE_ORACLE:-}" ]; then
+  # One venv carries one exllamav3 distribution: the oracle release wheel and
+  # the pipeline's editable reader checkout cannot coexist, so demand both is
+  # a configuration error, not an install order.
+  [ "$_needs_exl3" -eq 0 ] || {
+    echo "the native oracle wheel and the pipeline's exllamav3 checkout are mutually exclusive" >&2
+    exit 1
+  }
+  log "installing the pinned native oracle wheel exllamav3 $ORACLE_VERSION"
+  "$PY" -m pip -q install --no-deps "$ORACLE_WHL#sha256=$ORACLE_SHA256"
+  ORACLE_EXPECTED="$ORACLE_VERSION" "$PY" - <<'PY' | tee "$RCPT/native-oracle.txt"
+import importlib.metadata as metadata
+import os
+
+actual = metadata.version("exllamav3").split("+", 1)[0]
+if actual != os.environ["ORACLE_EXPECTED"]:
+    raise SystemExit(f"native oracle exllamav3 {actual} installed, expected {os.environ['ORACLE_EXPECTED']}")
+import exllamav3
+print(f"native oracle exllamav3=={metadata.version('exllamav3')} importable")
+PY
 fi
 # exllamav3 declares a serving stack the measurement never loads: the
 # exllamav3 import, the pipeline import and the offline decode selftests all

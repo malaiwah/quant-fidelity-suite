@@ -642,9 +642,19 @@ def selftest_environment():
     import torch
 
     pipeline = IMAGE_ROOT / "pipeline"
+    # The oracle reaches the image as the pinned exllamav3 release WHEEL (the
+    # bootstrap's FIDELITY_BOOTSTRAP_NATIVE_ORACLE install), so presence is the
+    # installed distribution, not a checkout directory; distribution lookup
+    # imports nothing.
+    from importlib.metadata import PackageNotFoundError, distribution
+    try:
+        distribution("exllamav3")
+        exllamav3_present = True
+    except PackageNotFoundError:
+        exllamav3_present = False
     observed = {"image_root": str(IMAGE_ROOT), "pipeline_root": str(pipeline),
                 "pipeline_present": (pipeline / "src" / "quant_pipeline" / "__init__.py").is_file(),
-                "exllamav3_present": (IMAGE_ROOT / "exllamav3").is_dir(),
+                "exllamav3_present": exllamav3_present,
                 "torch_version": torch.__version__,
                 "cuda_available": bool(torch.cuda.is_available()),
                 "device_name": None, "device_capability": None}
@@ -681,10 +691,10 @@ def selftest_stage(plan, out, runner):
             argv.extend(["--pipeline-root", str(pipeline)])
         # The sealed plan decides the device (a cuda plan already refused above
         # if none were visible), but the oracle can only be REQUIRED when the
-        # image carries it: bootstrap_measure.sh builds exllamav3 only if the
-        # pipeline's own import loads it, and the reviewed base does not. A
-        # demand the image cannot satisfy would fail the whole battery for a
-        # known-absent package instead of reporting the gap.
+        # image carries it: the bootstrap installs the pinned exllamav3 release
+        # wheel only when asked to, and a demand the image cannot satisfy would
+        # fail the whole battery for a known-absent package instead of
+        # reporting the gap.
         require_native = (suite.endswith("selftest_exl3hf_offline.py")
                           and plan["hardware"]["device"] == "cuda"
                           and observed["exllamav3_present"])
